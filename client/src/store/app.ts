@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { mentionsUser } from '../lib/mentions';
-import type { Channel, DmChannel, Friend, Guild, Member, Message, PublicUser, VoiceState } from '../../../shared/types';
+import type { Activity, Channel, DmChannel, Friend, Guild, Member, Message, PublicUser, VoiceState } from '../../../shared/types';
 
 interface ChannelMessages {
   items: Message[];
@@ -22,6 +22,8 @@ export interface AppState {
   friends: Friend[];
   messages: Record<string, ChannelMessages>;
   online: Record<string, true>;
+  /** "Jogando agora" de cada pessoa online */
+  activities: Record<string, Activity>;
   voiceStates: Record<string, VoiceState>; // por socketId
   typing: Record<string, Record<string, number>>; // channelId -> userId -> expira em
   unread: Record<string, true>;
@@ -55,7 +57,9 @@ export type ModalState =
   | { kind: 'categorySettings'; guildId: string; categoryId: string }
   | { kind: 'userSettings' }
   | { kind: 'screenShare' }
-  | { kind: 'image'; src: string; name: string };
+  | { kind: 'image'; src: string; name: string }
+  | { kind: 'profile'; userId: string; guildId?: string | null }
+  | { kind: 'status' };
 
 export const useApp = create<AppState>(() => ({
   me: null,
@@ -66,6 +70,7 @@ export const useApp = create<AppState>(() => ({
   friends: [],
   messages: {},
   online: {},
+  activities: {},
   voiceStates: {},
   typing: {},
   unread: {},
@@ -227,7 +232,12 @@ export function updateUserEverywhere(user: PublicUser) {
     for (const [id, g] of Object.entries(s.guilds)) {
       guilds[id] = { ...g, members: g.members.map((m) => (m.id === user.id ? { ...m, ...user } : m)) };
     }
-    return { guilds, me: s.me?.id === user.id ? { ...s.me, ...user } : s.me };
+    // foto/nome/status também nas conversas diretas e na lista de amigos
+    const dms = Object.fromEntries(
+      Object.entries(s.dms).map(([id, d]) => [id, d.recipient.id === user.id ? { ...d, name: user.displayName, recipient: { ...d.recipient, ...user } } : d]),
+    );
+    const friends = s.friends.map((f) => (f.user.id === user.id ? { ...f, user: { ...f.user, ...user } } : f));
+    return { guilds, dms, friends, me: s.me?.id === user.id ? { ...s.me, ...user } : s.me };
   });
 }
 

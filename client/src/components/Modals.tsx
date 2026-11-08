@@ -21,6 +21,8 @@ import { notificationsSupported, requestNotificationPermission } from '../lib/no
 import { playSound } from '../lib/sounds';
 import { mouseCode } from './Hotkeys';
 import { GuildSettings } from './GuildSettings';
+import { ProfileCard } from './ProfileCard';
+import { ProfileEditor, StatusModal } from './ProfileEditor';
 import { Perm, useCan } from '../lib/perms';
 import { refreshGuild } from '../lib/socket';
 import { DESKTOP_DOWNLOAD_URL, desktop, isDesktop, type DesktopSettings } from '../lib/desktop';
@@ -59,6 +61,16 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       return <ScreenShare />;
     case 'image':
       return <Lightbox src={modal.src} name={modal.name} />;
+    case 'profile':
+      return (
+        <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeModal()}>
+          <div className="modal profile-modal" role="dialog" aria-modal="true" aria-label="Perfil">
+            <ProfileCard userId={modal.userId} guildId={modal.guildId} onAction={closeModal} />
+          </div>
+        </div>
+      );
+    case 'status':
+      return <StatusModal />;
   }
 }
 
@@ -494,8 +506,6 @@ function UserSettings({ onLogout }: { onLogout(): void }) {
   const me = useApp((s) => s.me)!;
   const settings = useVoice((s) => s.settings);
   const inCall = useVoice((s) => s.status !== 'idle');
-  const [displayName, setDisplayName] = useState(me.displayName);
-  const [color, setColor] = useState(me.avatarColor);
   const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
 
   useEffect(() => {
@@ -505,12 +515,6 @@ function UserSettings({ onLogout }: { onLogout(): void }) {
       .catch(() => {});
   }, []);
 
-  const { busy, error, submit } = useSubmit(async () => {
-    const { user } = await api<{ user: PublicUser }>('/me', { method: 'PATCH', body: { displayName, avatarColor: color } });
-    updateUserEverywhere(user);
-    toast('Perfil atualizado.');
-  });
-
   function setMicSetting(patch: Partial<typeof settings>) {
     updateSettings(patch);
     if (inCall) void voice.restartMic();
@@ -518,38 +522,7 @@ function UserSettings({ onLogout }: { onLogout(): void }) {
 
   return (
     <Modal title="Configurações">
-      <form onSubmit={submit} className="form">
-        <div className="profile-preview">
-          <Avatar user={{ displayName, avatarColor: color }} size={56} />
-          <div>
-            <strong>{displayName || me.username}</strong>
-            <div className="muted">@{me.username}</div>
-          </div>
-        </div>
-        <label>
-          Nome de exibição
-          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={32} required />
-        </label>
-        <div className="field">
-          <span>Cor do avatar</span>
-          <div className="color-row">
-            {COLORS.map((c) => (
-              <button
-                type="button"
-                key={c}
-                className={`color-swatch${c === color ? ' selected' : ''}`}
-                style={{ background: c }}
-                aria-label={`Cor ${c}`}
-                onClick={() => setColor(c)}
-              />
-            ))}
-          </div>
-        </div>
-        {error && <p className="error">{error}</p>}
-        <div className="modal-actions">
-          <button className="btn primary" disabled={busy}>Salvar perfil</button>
-        </div>
-      </form>
+      <ProfileEditor />
 
       <h3 className="subhead">Voz</h3>
       <div className="form">
@@ -710,6 +683,7 @@ function InputModeSettings() {
 /** App de desktop: no app, opções de bandeja/inicialização e atualização; no site, link de download. */
 function DesktopSettingsSection() {
   const [ds, setDs] = useState<DesktopSettings | null>(null);
+  const shareActivity = useVoice((s) => s.settings.shareActivity);
   const [checking, setChecking] = useState(false);
   useEffect(() => {
     if (!desktop) return;
@@ -756,6 +730,10 @@ function DesktopSettingsSection() {
         <label className="check">
           <input type="checkbox" checked={ds.closeToTray} onChange={(e) => void set({ closeToTray: e.target.checked })} />
           Ao fechar a janela, continuar na bandeja (a chamada não cai)
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={shareActivity} onChange={(e) => updateSettings({ shareActivity: e.target.checked })} />
+          Mostrar no meu perfil o jogo que estou jogando ("Jogando agora")
         </label>
         <div className="desktop-version">
           <span className="muted small">

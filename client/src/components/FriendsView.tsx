@@ -3,6 +3,7 @@ import { Check, MessageCircle, UserMinus, UserPlus, Users, X } from 'lucide-reac
 import type { Friend } from '../../../shared/types';
 import { acceptFriend, openDm, removeFriend, sendFriendRequest } from '../lib/social';
 import { openModal, toast, useApp } from '../store/app';
+import { presenceLine } from '../lib/presence';
 import { Avatar } from './Avatar';
 import { MobileHeader } from './MobileHeader';
 
@@ -91,11 +92,18 @@ export function FriendsView() {
 
 function FriendRow({ friend, online }: { friend: Friend; online: boolean }) {
   const { user, status } = friend;
+  const activity = useApp((s) => s.activities[user.id]);
   const subtitle =
-    status === 'incoming' ? 'Pedido de amizade recebido' : status === 'outgoing' ? 'Pedido enviado' : online ? 'Online' : 'Offline';
+    status === 'incoming'
+      ? 'Pedido de amizade recebido'
+      : status === 'outgoing'
+        ? 'Pedido enviado'
+        : (online && presenceLine(user, activity)) || (online ? 'Online' : 'Offline');
   return (
     <li className="friend-row">
-      <Avatar user={user} size={36} online={status === 'friend' ? online : undefined} />
+      <button className="author-avatar" aria-label={`Perfil de ${user.displayName}`} onClick={() => openModal({ kind: 'profile', userId: user.id })}>
+        <Avatar user={user} size={36} online={status === 'friend' ? online : undefined} />
+      </button>
       <div className="friend-name">
         <strong className="ellipsis">{user.displayName}</strong>
         <span className="muted small ellipsis">

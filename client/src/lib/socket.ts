@@ -1,5 +1,5 @@
 import { io, type Socket } from 'socket.io-client';
-import type { Channel, Guild, Member, Message, PublicUser, VoiceState } from '../../../shared/types';
+import type { Activity, Channel, Guild, Member, Message, PublicUser, VoiceState } from '../../../shared/types';
 import { api } from './api';
 import type { DmChannel, Friend } from '../../../shared/types';
 import {
@@ -42,9 +42,10 @@ export function connectSocket(token: string) {
   s.on('connect', () => set({ connected: true }));
   s.on('disconnect', () => set({ connected: false, socketId: null }));
 
-  s.on('ready', (p: { socketId: string; online: string[]; voiceStates: VoiceState[]; maxVoicePeers: number }) => {
+  s.on('ready', (p: { socketId: string; online: string[]; voiceStates: VoiceState[]; maxVoicePeers: number; activities?: Record<string, Activity> }) => {
     set({
       socketId: p.socketId,
+      activities: p.activities ?? {},
       online: Object.fromEntries(p.online.map((id) => [id, true as const])),
       voiceStates: Object.fromEntries(p.voiceStates.map((v) => [v.socketId, v])),
       maxVoicePeers: p.maxVoicePeers,
@@ -116,6 +117,14 @@ export function connectSocket(token: string) {
     if (g) patchGuild(guildId, { members: g.members.filter((m) => m.id !== userId) });
   });
   s.on('user:update', (user: PublicUser) => updateUserEverywhere(user));
+  s.on('activity:update', ({ userId, activity }: { userId: string; activity: Activity | null }) =>
+    set((st) => {
+      const activities = { ...st.activities };
+      if (activity) activities[userId] = activity;
+      else delete activities[userId];
+      return { activities };
+    }),
+  );
 
   // estado de voz (quem está em qual canal)
   s.on('voice:state', (v: VoiceState) => {

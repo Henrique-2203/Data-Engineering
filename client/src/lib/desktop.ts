@@ -27,6 +27,9 @@ interface DesktopBridge {
   checkForUpdates(): Promise<DesktopUpdate>;
   installUpdate(): void;
   onUpdate(cb: (u: DesktopUpdate) => void): () => void;
+  /** existem a partir do app 0.2.0 */
+  onActivity?(cb: (a: { name: string | null }) => void): () => void;
+  getActivity?(): Promise<{ name: string | null }>;
 }
 
 export const desktop: DesktopBridge | null =

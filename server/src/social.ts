@@ -14,17 +14,17 @@ import type { DmChannel, Friend, PublicUser } from '../../shared/types.ts';
  */
 export function registerSocialRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnType<typeof import('./auth.ts').requireAuth>) {
   async function listFriends(userId: string): Promise<Friend[]> {
-    const rows = await db.query<PublicUser & { requesterId: string; status: string }>(
-      `select f.requester_id as "requesterId", f.status, ${USER_COLUMNS}
+    const rows = await db.query<PublicUser & { requesterId: string; friendship: string }>(
+      `select f.requester_id as "requesterId", f.status as friendship, ${USER_COLUMNS}
        from friendships f
        join users u on u.id = case when f.requester_id = $1 then f.addressee_id else f.requester_id end
        where f.requester_id = $1 or f.addressee_id = $1
        order by u.display_name`,
       [userId],
     );
-    return rows.map(({ requesterId, status, ...user }) => ({
+    return rows.map(({ requesterId, friendship, ...user }) => ({
       user,
-      status: status === 'accepted' ? 'friend' : requesterId === userId ? 'outgoing' : 'incoming',
+      status: friendship === 'accepted' ? 'friend' : requesterId === userId ? 'outgoing' : 'incoming',
     }));
   }
 

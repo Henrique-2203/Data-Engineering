@@ -25,7 +25,8 @@
     "test:e2e:call": "node e2e/dm-call.mjs",
     "test:e2e:desktop": "xvfb-run -a node e2e/desktop.mjs",
     "test:e2e:permissions": "node e2e/permissions.mjs",
-    "test:e2e:server-settings": "node e2e/server-settings.mjs"
+    "test:e2e:server-settings": "node e2e/server-settings.mjs",
+    "test:e2e:profile": "node e2e/profile.mjs"
   },
   "devDependencies": {
     "concurrently": "^10.0.7"

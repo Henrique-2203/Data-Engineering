@@ -13,6 +13,7 @@ const path = require('node:path');
 const { app, BrowserWindow, Menu, Tray, desktopCapturer, ipcMain, nativeImage, Notification, session, shell } = require('electron');
 const settings = require('./settings');
 const { buildKeymap, MOUSE } = require('./keymap');
+const { watchGames } = require('./games');
 
 const DEFAULT_URL = 'https://resenha-m2bt.onrender.com';
 const argUrl = process.argv.find((a) => a.startsWith('--url='))?.slice(6);
@@ -430,10 +431,23 @@ app.on('window-all-closed', () => {
 });
 app.on('activate', showWindow);
 
+// ---------- "Jogando agora" ----------
+
+let gameWatcher = null;
+function setupGameWatcher() {
+  const intervalMs = Number(process.env.RESENHA_GAME_INTERVAL_MS) || 15_000;
+  gameWatcher = watchGames((game) => send('resenha:activity', { name: game }), intervalMs);
+  // a página recarregou (ou abriu agora): manda o jogo atual de novo
+  win?.webContents.on('did-finish-load', () => send('resenha:activity', { name: gameWatcher?.current() ?? null }));
+  app.on('will-quit', () => gameWatcher?.stop());
+}
+ipcMain.handle('resenha:get-activity', () => ({ name: gameWatcher?.current() ?? null }));
+
 app.whenReady().then(() => {
   setupSession();
   createWindow();
   createTray();
   setupGlobalHook();
   setupUpdater();
+  setupGameWatcher();
 });

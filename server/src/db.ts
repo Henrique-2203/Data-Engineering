@@ -158,7 +158,17 @@ alter table channels add column if not exists user_limit integer not null defaul
 
 alter table messages add column if not exists mention_everyone boolean not null default false;
 
--- imagens do servidor (ícone, banner): pequenas e substituídas, nunca acumuladas
+-- v5: perfil social
+alter table users add column if not exists avatar_id text;
+alter table users add column if not exists banner_id text;
+alter table users add column if not exists bio text not null default '';
+alter table users add column if not exists pronouns text not null default '';
+alter table users add column if not exists links jsonb not null default '[]';
+alter table users add column if not exists status_text text;
+alter table users add column if not exists status_emoji text;
+alter table users add column if not exists status_expires_at timestamptz;
+
+-- imagens (ícone/banner do servidor, foto/banner de perfil): pequenas e substituídas, nunca acumuladas
 create table if not exists images (
   id text primary key,
   uploader_id text references users(id) on delete set null,

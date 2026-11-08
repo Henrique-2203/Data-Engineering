@@ -7,6 +7,7 @@ import type { Realtime } from './realtime.ts';
 import { getIceServers, hasTurn } from './ice.ts';
 import {
   USER_COLUMNS,
+  userJson,
   bearer,
   createSession,
   deleteSession,
@@ -21,6 +22,8 @@ import { registerAttachmentRoutes } from './attachments.ts';
 import { loadGuilds, registerGuildRoutes } from './guilds.ts';
 import { type MemberAccess, canSee, channelAudience, loadChannel, memberAccess, requireNotTimedOut } from './access.ts';
 import { Perm, has } from '../../shared/permissions.ts';
+import { siteVersion } from './version.ts';
+import { registerProfileRoutes } from './profile.ts';
 
 export { HttpError };
 
@@ -87,8 +90,6 @@ export function createRoutes(db: Db, rt: Realtime) {
     }
   }
 
-  const userJson = (t: string) =>
-    `json_build_object('id', ${t}.id, 'username', ${t}.username, 'displayName', ${t}.display_name, 'avatarColor', ${t}.avatar_color)`;
 
   /** Mensagem completa: autor, trecho respondido, reações agrupadas por emoji e imagens. */
   const MESSAGE_SELECT = `select msg.id, msg.channel_id as "channelId", msg.content,
@@ -121,6 +122,12 @@ export function createRoutes(db: Db, rt: Realtime) {
 
   r.get('/health', (_req, res) => {
     res.json({ ok: true });
+  });
+
+  // "Impressão digital" do site publicado: muda a cada nova versão, e o site/app avisam para atualizar.
+  r.get('/version', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ version: siteVersion() });
   });
 
   r.get('/config', (_req, res) => {
@@ -208,37 +215,9 @@ export function createRoutes(db: Db, rt: Realtime) {
 
   registerSocialRoutes(r, db, rt, auth);
   registerGuildRoutes(r, db, rt, auth);
+  registerProfileRoutes(r, db, rt, auth);
 
   r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers(), hasTurn: hasTurn() })));
-
-  r.patch(
-    '/me',
-    auth,
-    wrap(async (req) => {
-      const body = parse(
-        z.object({
-          displayName: displayNameSchema.optional(),
-          avatarColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
-        }),
-        req.body,
-      );
-      const me = req.user!;
-      const user: PublicUser = {
-        ...me,
-        displayName: body.displayName ?? me.displayName,
-        avatarColor: body.avatarColor ?? me.avatarColor,
-      };
-      await db.query('update users set display_name = $2, avatar_color = $3 where id = $1', [
-        me.id,
-        user.displayName,
-        user.avatarColor,
-      ]);
-      const guilds = await db.query<{ guild_id: string }>('select guild_id from members where user_id = $1', [me.id]);
-      for (const g of guilds) rt.emitGuild(g.guild_id, 'user:update', user);
-      rt.emitUser(me.id, 'user:update', user);
-      return { user };
-    }),
-  );
 
   // Mensagens
   r.get(

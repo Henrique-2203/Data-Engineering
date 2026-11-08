@@ -102,3 +102,27 @@ export async function uploadGuildImage(guildId: string, kind: 'icon' | 'banner',
   if (!res.ok) throw new ApiError(res.status, data.error ?? `Erro ${res.status} ao enviar a imagem.`);
   return { imageId: data.imageId as string, bytes: blob.size };
 }
+
+/**
+ * Foto de perfil: GIF animado vai como está (até 1,5 MB); o resto é recortado em 256×256 WebP.
+ * Banner de perfil: 960×340 WebP.
+ */
+export async function uploadProfileImage(kind: 'avatar' | 'banner', file: File) {
+  let blob: Blob;
+  if (kind === 'avatar' && file.type === 'image/gif') {
+    if (file.size > 1.5 * 1024 * 1024) throw new Error('GIF muito grande (máx. 1,5 MB). Tente um GIF menor ou mais curto.');
+    blob = file;
+  } else {
+    blob = kind === 'avatar' ? await prepareCover(file, 256, 256) : await prepareCover(file, 960, 340);
+  }
+  const res = await fetch(`/api/me/${kind}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': blob.type || 'application/octet-stream' },
+    body: blob,
+  }).catch(() => {
+    throw new ApiError(0, 'Sem conexão com o servidor.');
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(res.status, data.error ?? `Erro ${res.status} ao enviar a imagem.`);
+  return { imageId: data.imageId as string, bytes: blob.size };
+}

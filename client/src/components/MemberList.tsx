@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { Crown, MessageCircle, UserCheck, UserPlus } from 'lucide-react';
+import { Crown } from 'lucide-react';
 import type { Member } from '../../../shared/types';
-import { openDm, sendFriendRequest } from '../lib/social';
-import { toast, useApp } from '../store/app';
+import { useApp } from '../store/app';
 import { Avatar } from './Avatar';
-import { MemberModeration } from './GuildSettings';
+import { ProfileCard } from './ProfileCard';
+import { presenceLine } from '../lib/presence';
 import { memberColor } from '../lib/perms';
 
 export function MemberList({ guildId }: { guildId: string }) {
   const guild = useApp((s) => s.guilds[guildId]);
   const online = useApp((s) => s.online);
+  const activities = useApp((s) => s.activities);
   const [open, setOpen] = useState<{ id: string; top: number } | null>(null);
   const openId = open?.id ?? null;
   if (!guild) return null;
@@ -41,8 +42,11 @@ export function MemberList({ guildId }: { guildId: string }) {
                     aria-expanded={openId === m.id}
                   >
                     <Avatar user={m} size={32} online={group.isOn} />
-                    <span className="ellipsis" style={{ color: memberColor(guild, m.id, 'inherit') }}>
-                      {m.displayName}
+                    <span className="member-text">
+                      <span className="ellipsis" style={{ color: memberColor(guild, m.id, 'inherit') }}>
+                        {m.displayName}
+                      </span>
+                      {presenceLine(m, activities[m.id]) && <span className="member-sub ellipsis">{presenceLine(m, activities[m.id])}</span>}
                     </span>
                     {m.id === guild.ownerId && (
                       <span title="Dono do servidor">
@@ -62,11 +66,7 @@ export function MemberList({ guildId }: { guildId: string }) {
 
 /** Mini perfil com ações: mandar mensagem e adicionar amigo. */
 function MemberCard({ guildId, member, top, onClose }: { guildId: string; member: Member; top: number; onClose(): void }) {
-  const guild = useApp((s) => s.guilds[guildId]);
-  const meId = useApp((s) => s.me?.id);
-  const status = useApp((s) => s.friends.find((f) => f.user.id === member.id)?.status);
   const ref = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     const close = (e: PointerEvent) => {
       if (!ref.current?.parentElement?.contains(e.target as Node)) onClose();
@@ -74,54 +74,9 @@ function MemberCard({ guildId, member, top, onClose }: { guildId: string; member
     document.addEventListener('pointerdown', close);
     return () => document.removeEventListener('pointerdown', close);
   }, [onClose]);
-
-  const isMe = member.id === meId;
   return (
-    <div className="member-card" ref={ref} style={{ '--card-top': `${Math.max(8, top)}px` } as CSSProperties}>
-      <div className="member-card-head">
-        <Avatar user={member} size={48} />
-        <div>
-          <strong>{member.displayName}</strong>
-          <div className="muted small">@{member.username}</div>
-        </div>
-      </div>
-      {guild && <MemberModeration guild={guild} member={guild.members.find((m) => m.id === member.id) ?? member} compact />}
-      {isMe ? (
-        <p className="muted small">Esse é você!</p>
-      ) : (
-        <div className="member-card-actions">
-          <button
-            className="btn primary small"
-            onClick={() => {
-              onClose();
-              void openDm(member.id);
-            }}
-          >
-            <MessageCircle size={15} /> Enviar mensagem
-          </button>
-          {status === 'friend' ? (
-            <span className="muted small row friend-ok">
-              <UserCheck size={15} /> Amigos
-            </span>
-          ) : status === 'outgoing' ? (
-            <span className="muted small">Pedido enviado</span>
-          ) : (
-            <button
-              className="btn small"
-              onClick={async () => {
-                try {
-                  const accepted = await sendFriendRequest(member.username);
-                  toast(accepted ? 'Vocês agora são amigos!' : 'Pedido de amizade enviado.');
-                } catch (err) {
-                  toast((err as Error).message);
-                }
-              }}
-            >
-              <UserPlus size={15} /> {status === 'incoming' ? 'Aceitar amizade' : 'Adicionar amigo'}
-            </button>
-          )}
-        </div>
-      )}
+    <div className="member-card" ref={ref} style={{ '--card-top': `${Math.max(8, Math.min(top, window.innerHeight - 460))}px` } as CSSProperties}>
+      <ProfileCard userId={member.id} guildId={guildId} onAction={onClose} />
     </div>
   );
 }

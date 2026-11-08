@@ -48,6 +48,8 @@ export interface VoiceSettings {
   vadThresholdDb: number;
   sounds: boolean;
   notifications: boolean;
+  /** mostrar o "Jogando agora" (app de desktop) */
+  shareActivity: boolean;
 }
 
 const KEY = 'resenha.voiceSettings';
@@ -67,6 +69,7 @@ export const DEFAULT_SETTINGS: VoiceSettings = {
   vadThresholdDb: -55,
   sounds: true,
   notifications: false,
+  shareActivity: true,
 };
 
 /** Nome legível da tecla de push-to-talk. */

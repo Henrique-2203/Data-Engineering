@@ -66,12 +66,16 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
       {grouped ? (
         <span className="message-time-gutter">{formatTime(message.createdAt)}</span>
       ) : (
-        <Avatar user={author} size={40} />
+        <button className="author-avatar" aria-label={`Perfil de ${author.displayName}`} onClick={() => openModal({ kind: 'profile', userId: author.id, guildId: channel.guildId || null })}>
+          <Avatar user={author} size={40} />
+        </button>
       )}
       <div className="message-body">
         {!grouped && (
           <div className="message-head">
-            <strong style={{ color: nameColor }}>{author.displayName}</strong>
+            <button className="author-name" style={{ color: nameColor }} onClick={() => openModal({ kind: 'profile', userId: author.id, guildId: channel.guildId || null })}>
+              {author.displayName}
+            </button>
             <span className="muted small">{formatDateTime(message.createdAt)}</span>
           </div>
         )}

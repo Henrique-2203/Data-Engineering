@@ -24,6 +24,7 @@ import { api } from '../lib/api';
 import { findChannel, findMember, openModal, selectChannel, toast, updateGuildChannels, useApp } from '../store/app';
 import { Perm, has, imageUrl, memberColor, myPermissions, usePerms } from '../lib/perms';
 import { refreshGuild } from '../lib/socket';
+import { presenceLine } from '../lib/presence';
 import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { canShareScreen } from '../voice/settings';
@@ -443,13 +444,16 @@ function UserPanel({ onLogout: _onLogout }: { onLogout(): void }) {
   const muted = useVoice((s) => s.muted);
   const deafened = useVoice((s) => s.deafened);
   const speaking = useVoice((s) => !!s.speaking.me);
+  const myLine = useApp((s) => presenceLine(s.me ?? undefined, s.me ? s.activities[s.me.id] : undefined));
   return (
     <div className="user-panel">
-      <Avatar user={me} size={34} speaking={speaking} />
-      <div className="user-panel-name">
-        <strong className="ellipsis">{me.displayName}</strong>
-        <span className="muted ellipsis">@{me.username}</span>
-      </div>
+      <button className="user-panel-me" aria-label="Meu perfil e status" title="Meu perfil e status" onClick={() => openModal({ kind: 'status' })}>
+        <Avatar user={me} size={34} speaking={speaking} />
+        <span className="user-panel-name">
+          <strong className="ellipsis">{me.displayName}</strong>
+          <span className="muted ellipsis">{myLine ?? `@${me.username}`}</span>
+        </span>
+      </button>
       <button
         className={`icon-btn${muted ? ' danger-icon' : ''}`}
         title={muted ? 'Ativar microfone' : 'Silenciar microfone'}

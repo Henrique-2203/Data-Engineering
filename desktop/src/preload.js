@@ -27,4 +27,7 @@ contextBridge.exposeInMainWorld('resenhaDesktop', {
   installUpdate: () => ipcRenderer.send('resenha:install-update'),
   /** { state: 'checking' | 'available' | 'none' | 'downloading' | 'ready' | 'error' | 'dev', version?, percent?, message? } */
   onUpdate: (cb) => listen('resenha:update', cb),
+  /** jogo aberto agora ({ name } ou { name: null }) */
+  onActivity: (cb) => listen('resenha:activity', cb),
+  getActivity: () => ipcRenderer.invoke('resenha:get-activity'),
 });

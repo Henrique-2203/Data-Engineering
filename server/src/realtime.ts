@@ -5,7 +5,7 @@ import { config } from './config.ts';
 import { userFromToken } from './auth.ts';
 import { canSee, channelAudience, isTimedOut, loadChannel, memberAccess } from './access.ts';
 import type { Db } from './db.ts';
-import type { PublicUser, RtcSignal, VoiceState } from '../../shared/types.ts';
+import type { PublicUser, RtcSignal, VoiceState, Activity } from '../../shared/types.ts';
 
 type Ack = (res: any) => void;
 
@@ -19,6 +19,8 @@ export class Realtime {
   private online = new Map<string, number>();
   /** socketId -> estado de voz */
   private voice = new Map<string, VoiceState>();
+  /** "Jogando agora": userId -> jogo (só em memória, some quando a pessoa sai) */
+  private activities = new Map<string, Activity>();
   /** participantes de cada conversa direta com chamada ativa (para entregar eventos só a eles) */
   private dmMembers = new Map<string, string[]>();
   /** canais de voz privados de servidor: quem pode ver (null/ausente = todos do servidor) */
@@ -157,6 +159,7 @@ export class Realtime {
         s.guildId ? guildIds.includes(s.guildId) && this.canSeeVoice(s, user.id) : dmIds.has(s.channelId),
       ),
       maxVoicePeers: config.maxVoicePeers,
+      activities: Object.fromEntries(this.activities),
     });
     // ligação tocando para mim enquanto eu estava desconectado/recarregando
     for (const [channelId, ring] of this.rings) {
@@ -206,6 +209,23 @@ export class Realtime {
 
     socket.on('voice:leave', () => this.leaveVoice(socket.id));
 
+    // "Jogando agora": o app de desktop informa o jogo aberto (ou null quando fecha)
+    socket.on('activity:set', (payload: unknown) => {
+      const p = z.object({ name: z.string().trim().min(1).max(64).nullable() }).safeParse(payload);
+      if (!p.success) return;
+      const current = this.activities.get(user.id);
+      if (!p.data.name) {
+        if (!current) return;
+        this.activities.delete(user.id);
+        this.io.emit('activity:update', { userId: user.id, activity: null });
+        return;
+      }
+      if (current?.name === p.data.name) return;
+      const activity: Activity = { name: p.data.name, startedAt: new Date().toISOString() };
+      this.activities.set(user.id, activity);
+      this.io.emit('activity:update', { userId: user.id, activity });
+    });
+
     socket.on('voice:update', (payload: unknown) => {
       const state = this.voice.get(socket.id);
       const p = z
@@ -236,6 +256,7 @@ export class Realtime {
       if (left <= 0) {
         this.online.delete(user.id);
         this.io.emit('presence:update', { userId: user.id, online: false });
+        if (this.activities.delete(user.id)) this.io.emit('activity:update', { userId: user.id, activity: null });
       } else {
         this.online.set(user.id, left);
       }

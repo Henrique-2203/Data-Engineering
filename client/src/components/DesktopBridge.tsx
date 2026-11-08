@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { desktop, type DesktopUpdate } from '../lib/desktop';
 import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
+import { getSocket, onSocketReady } from '../lib/socket';
 
 /**
  * Liga o site aos recursos do app de desktop: atalhos globais (push-to-talk com o jogo em
@@ -50,6 +51,25 @@ export function DesktopBridge() {
       else if (action === 'leave-call') voice.leave();
     });
     const offUpdate = d.onUpdate(setUpdate);
+
+    // "Jogando agora": o app detecta o jogo; o site repassa ao servidor (se a pessoa permitir)
+    let game: string | null = null;
+    const publish = () => {
+      const share = useVoice.getState().settings.shareActivity;
+      getSocket()?.emit('activity:set', { name: share ? game : null });
+    };
+    const offActivity = d.onActivity?.((a) => {
+      game = a.name;
+      publish();
+    });
+    void d.getActivity?.().then((a) => {
+      game = a.name;
+      publish();
+    });
+    const offReady = onSocketReady(() => publish()); // reconectou: o servidor esqueceu
+    const unsubShare = useVoice.subscribe((s, prev) => {
+      if (s.settings.shareActivity !== prev.settings.shareActivity) publish();
+    });
     void d.getSettings().then((s) => setUpdate(s.update));
 
     return () => {
@@ -57,6 +77,9 @@ export function DesktopBridge() {
       offKey();
       offTray();
       offUpdate();
+      offActivity?.();
+      offReady();
+      unsubShare();
     };
   }, []);
 

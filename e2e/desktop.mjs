@@ -45,6 +45,10 @@ try {
   const ana = await api('/auth/register', { username: 'ana', password: 'segredo123', displayName: 'Ana' });
   await api('/guilds', { name: 'Galera' }, ana.token);
 
+  // "jogo" de teste: um processo qualquer que o app vai reconhecer pelo nome
+  const fakeGame = spawn('sleep', ['300'], { stdio: 'ignore' });
+  process.on('exit', () => fakeGame.kill());
+
   app = await electron.launch({
     executablePath: path.resolve('desktop/node_modules/electron/dist/electron'),
     args: [
@@ -54,7 +58,7 @@ try {
       '--no-sandbox', // só porque este ambiente de teste roda como root
       '--use-fake-device-for-media-stream',
     ],
-    env: { ...process.env, ELECTRON_ENABLE_LOGGING: '0' },
+    env: { ...process.env, ELECTRON_ENABLE_LOGGING: '0', RESENHA_EXTRA_GAMES: 'sleep=Jogo de Teste', RESENHA_GAME_INTERVAL_MS: '1000' },
   });
   // registros do processo principal do app (ex.: avisos do hook de teclado)
   const appLog = [];
@@ -88,6 +92,13 @@ try {
   const bridge = await win.evaluate(() => typeof window.resenhaDesktop?.setGlobalKeys);
   if (bridge !== 'function') throw new Error('ponte resenhaDesktop não existe');
   step('o site detecta o app (window.resenhaDesktop)');
+
+  // ---- "Jogando agora" detectado pelo app ----
+  await win.locator('.user-panel').getByText('🎮 Jogando Jogo de Teste').waitFor({ timeout: 15000 });
+  await win.locator('.members').getByText('🎮 Jogando Jogo de Teste').waitFor();
+  fakeGame.kill();
+  await win.locator('.user-panel').getByText('🎮 Jogando Jogo de Teste').waitFor({ state: 'detached', timeout: 15000 });
+  step('"Jogando agora": o app detecta o jogo aberto, mostra no perfil e tira quando fecha');
 
   await win.getByRole('button', { name: 'Sala de voz' }).click();
   await win.getByText('Voz conectada').waitFor({ timeout: 15000 });

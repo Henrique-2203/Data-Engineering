@@ -16,6 +16,10 @@ Funciona no navegador do PC e do celular, e é 100% gratuito para hospedar.
 - **Canais privados** por cargo, **categorias** e organização arrastando; ícone, banner e descrição
   do servidor; voz com **qualidade por canal até 510 kbps** e **limite de pessoas**
 - **Moderação**: castigo temporário, expulsar, banir/desbanir
+- **Perfil**: foto (aceita GIF animado), banner, bio, pronomes e até 6 links (Steam, Twitch, YouTube…);
+  **status** com emoji e prazo (30 min, 1 h, 4 h, até meia-noite ou sem prazo); **"Jogando agora"**
+  automático pelo app de desktop; cartão de perfil com servidores e amigos em comum (clique no nome)
+- **Aviso de nova versão**: quando sai uma versão nova do site, aparece "Atualizar" em quem está com ele aberto
 - Chat em tempo real: editar/excluir mensagens, "fulano está digitando…", links e prévia de imagens, mensagens não lidas
 - **Responder** mensagens (com citação clicável), **reações** com emoji e **@menções** com
   autocompletar, destaque, som próprio e contador; `@todos` avisa o servidor inteiro
@@ -80,7 +84,9 @@ A troca é que quem transmite envia uma cópia para cada pessoa assistindo. A 10
 4. Espere o deploy terminar e abra o link `https://resenha-xxxx.onrender.com` no PC e no celular.
 
 > No plano gratuito do Render o servidor "dorme" após 15 minutos sem uso. O primeiro acesso depois
-> disso demora uns 50 segundos para acordar. Depois fica normal.
+> disso demora uns 50 segundos para acordar. Depois fica normal. Para evitar, crie um monitor grátis
+> no [UptimeRobot](https://uptimerobot.com) (HTTP(s), endereço `https://resenha-xxxx.onrender.com/api/health`,
+> a cada 5 minutos).
 
 ### 3. TURN gratuito (Metered, sem cartão)
 
@@ -117,6 +123,9 @@ app na hora, sem reinstalar**. Ele acrescenta o que o navegador não consegue:
   vídeo dedicada em notebooks com duas placas.
 - **Seletor de tela ou janela** com áudio do computador.
 - **Ícone na bandeja**: fechar a janela não derruba a chamada; dá para silenciar pelo menu e abrir com o Windows.
+- **"Jogando agora"**: reconhece jogos abertos pela lista de processos e mostra no seu perfil (só o
+  nome do jogo sai do computador; dá para desligar nas Configurações). Jogos extras:
+  `RESENHA_EXTRA_GAMES="processo=Nome;outro=Outro Nome"`.
 - **Atualização automática** da própria casca: baixa sozinha e avisa "Reiniciar e atualizar".
 
 **Como sai uma versão:** o GitHub Actions (`.github/workflows/desktop.yml`) gera o instalador num
@@ -184,9 +193,5 @@ e2e/smoke.mjs   teste ponta a ponta com Playwright
 
 ## Próximos passos
 
-- Mensagens diretas (DM) e lista de amigos
-- Envio de arquivos e imagens pelo próprio app
-- Reações, respostas e menções com notificação
-- Cargos e permissões
 - Servidor de mídia (SFU, ex.: LiveKit) opcional para grupos grandes
 - App de desktop (Tauri) para capturar o áudio de um jogo específico

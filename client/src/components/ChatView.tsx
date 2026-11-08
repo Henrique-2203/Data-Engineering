@@ -5,7 +5,7 @@ import { voice } from '../voice/engine';
 import { VoiceStage } from './VoiceStage';
 import type { Channel, DmChannel, Message } from '../../../shared/types';
 import { api } from '../lib/api';
-import { channelMessages, findMember, patchMessages, toast, useApp } from '../store/app';
+import { channelMessages, findMember, openModal, patchMessages, toast, useApp } from '../store/app';
 import { Avatar } from './Avatar';
 import { MobileHeader } from './MobileHeader';
 import { MessageItem } from './chat/MessageItem';
@@ -134,7 +134,11 @@ export function ChatView({ channel }: { channel: Channel }) {
       {dm ? (
         <MobileHeader
           title={dm.recipient.displayName}
-          icon={<Avatar user={dm.recipient} size={26} online={recipientOnline} />}
+          icon={
+            <button className="author-avatar" aria-label={`Perfil de ${dm.recipient.displayName}`} onClick={() => openModal({ kind: 'profile', userId: dm.recipient.id })}>
+              <Avatar user={dm.recipient} size={26} online={recipientOnline} />
+            </button>
+          }
           actions={
             !inThisCall && (
               <button

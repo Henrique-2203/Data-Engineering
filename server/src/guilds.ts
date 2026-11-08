@@ -3,7 +3,7 @@ import express, { type Router } from 'express';
 import { z } from 'zod';
 import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
-import { USER_COLUMNS, type requireAuth } from './auth.ts';
+import { USER_COLUMNS, userJson, type requireAuth } from './auth.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { sniffImage } from './attachments.ts';
 import {
@@ -480,7 +480,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       const id = String(req.params.id);
       await requirePerm(db, id, req.user!.id, Perm.BAN);
       const bans = await db.query<Ban>(
-        `select json_build_object('id', u.id, 'username', u.username, 'displayName', u.display_name, 'avatarColor', u.avatar_color) as user,
+        `select ${userJson('u')} as user,
            b.reason, b.created_at as "createdAt"
          from bans b join users u on u.id = b.user_id where b.guild_id = $1 order by b.created_at desc`,
         [id],

@@ -2,11 +2,45 @@
 import type { Role } from './permissions';
 export type { Role } from './permissions';
 
+export interface UserStatus {
+  text: string;
+  emoji: string | null;
+  /** quando o status some sozinho (null = até a pessoa trocar) */
+  expiresAt: string | null;
+}
+
 export interface PublicUser {
   id: string;
   username: string;
   displayName: string;
   avatarColor: string;
+  /** foto de perfil (imagem em /api/images/:id) */
+  avatarId?: string | null;
+  status?: UserStatus | null;
+}
+
+/** "Jogando agora" (detectado pelo app de desktop; só existe enquanto a pessoa está online) */
+export interface Activity {
+  name: string;
+  startedAt: string;
+}
+
+export type ProfileLinkType = 'steam' | 'twitch' | 'youtube' | 'instagram' | 'tiktok' | 'x' | 'spotify' | 'site';
+
+export interface ProfileLink {
+  type: ProfileLinkType;
+  url: string;
+}
+
+export interface Profile {
+  user: PublicUser;
+  bannerId: string | null;
+  bio: string;
+  pronouns: string;
+  links: ProfileLink[];
+  createdAt: string;
+  mutualGuilds: { id: string; name: string; iconId: string | null }[];
+  mutualFriends: PublicUser[];
 }
 
 export type ChannelType = 'text' | 'voice' | 'dm';

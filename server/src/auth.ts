@@ -32,7 +32,19 @@ export async function deleteSession(db: Db, token: string) {
   await db.query('delete from sessions where token_hash = $1', [sha256(token)]);
 }
 
-export const USER_COLUMNS = `u.id, u.username, u.display_name as "displayName", u.avatar_color as "avatarColor"`;
+/** Status só vale se não expirou. */
+const STATUS_JSON = (t: string) => `case when (${t}.status_text is not null or ${t}.status_emoji is not null)
+    and (${t}.status_expires_at is null or ${t}.status_expires_at > now())
+  then json_build_object('text', coalesce(${t}.status_text, ''), 'emoji', ${t}.status_emoji, 'expiresAt', ${t}.status_expires_at)
+  else null end`;
+
+export const USER_COLUMNS = `u.id, u.username, u.display_name as "displayName", u.avatar_color as "avatarColor",
+  u.avatar_id as "avatarId", ${STATUS_JSON('u')} as status`;
+
+/** Mesmo usuário público, como objeto JSON dentro de uma consulta (autor de mensagem etc.). */
+export const userJson = (t: string) =>
+  `json_build_object('id', ${t}.id, 'username', ${t}.username, 'displayName', ${t}.display_name,
+    'avatarColor', ${t}.avatar_color, 'avatarId', ${t}.avatar_id, 'status', ${STATUS_JSON(t)})`;
 
 export async function userFromToken(db: Db, token: unknown): Promise<PublicUser | null> {
   if (typeof token !== 'string' || !token) return null;
