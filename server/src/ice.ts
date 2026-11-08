@@ -11,6 +11,30 @@ const STUN: IceServer[] = [
 ];
 
 let cache: { servers: IceServer[]; expires: number } | null = null;
+let meteredCache: { servers: IceServer[]; expires: number } | null = null;
+
+/** Metered (https://www.metered.ca/stun-turn): plano grátis sem cartão. */
+async function meteredServers(): Promise<IceServer[]> {
+  const { domain, apiKey } = config.meteredTurn;
+  if (!domain || !apiKey) return [];
+  if (meteredCache && meteredCache.expires > Date.now()) return meteredCache.servers;
+  // aceita "resenha", "resenha.metered.live" ou "https://resenha.metered.live"
+  const host = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const fullHost = host.includes('.') ? host : `${host}.metered.live`;
+  try {
+    const res = await fetch(`https://${fullHost}/api/v1/turn/credentials?apiKey=${encodeURIComponent(apiKey)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const body = (await res.json()) as IceServer[] | { iceServers: IceServer[] };
+    const servers = Array.isArray(body) ? body : body.iceServers;
+    // só os servidores TURN (STUN já temos)
+    const turn = servers.filter((s) => [s.urls].flat().some((u) => u.startsWith('turn')));
+    meteredCache = { servers: turn, expires: Date.now() + 3600_000 };
+    return turn;
+  } catch (err) {
+    console.warn('[ice] falha ao buscar credenciais TURN da Metered:', err);
+    return [];
+  }
+}
 
 async function cloudflareServers(): Promise<IceServer[]> {
   const { keyId, apiToken } = config.cloudflareTurn;
@@ -41,7 +65,9 @@ async function cloudflareServers(): Promise<IceServer[]> {
 }
 
 export const hasTurn = () =>
-  !!(config.cloudflareTurn.keyId && config.cloudflareTurn.apiToken) || config.turn.urls.length > 0;
+  !!(config.cloudflareTurn.keyId && config.cloudflareTurn.apiToken) ||
+  !!(config.meteredTurn.domain && config.meteredTurn.apiKey) ||
+  config.turn.urls.length > 0;
 
 if (!hasTurn()) {
   console.warn(
@@ -50,7 +76,8 @@ if (!hasTurn()) {
 }
 
 export async function getIceServers(): Promise<IceServer[]> {
-  const servers = [...STUN, ...(await cloudflareServers())];
+  const [cloudflare, metered] = await Promise.all([cloudflareServers(), meteredServers()]);
+  const servers = [...STUN, ...cloudflare, ...metered];
   const { urls, username, credential } = config.turn;
   if (urls.length) servers.push({ urls, username, credential });
   return servers;

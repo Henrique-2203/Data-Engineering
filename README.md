@@ -53,21 +53,30 @@ A troca é que quem transmite envia uma cópia para cada pessoa assistindo. A 10
 3. O Render lê o `render.yaml` e pede as variáveis:
    - `DATABASE_URL`: a connection string do Neon
    - `REGISTRATION_CODE`: uma senha que você passa só para os amigos (ex.: `galera2026`)
-   - `CLOUDFLARE_TURN_*`: pode deixar vazio por enquanto (veja abaixo)
+   - `METERED_TURN_*` / `CLOUDFLARE_TURN_*`: TURN, veja o passo 3
 4. Espere o deploy terminar e abra o link `https://resenha-xxxx.onrender.com` no PC e no celular.
 
 > No plano gratuito do Render o servidor "dorme" após 15 minutos sem uso. O primeiro acesso depois
 > disso demora uns 50 segundos para acordar. Depois fica normal.
 
-### 3. (Opcional) TURN gratuito para quem usa 4G/5G
+### 3. TURN gratuito (Metered, sem cartão)
 
-Algumas operadoras móveis e redes corporativas bloqueiam a conexão direta P2P. Um servidor TURN
-retransmite o vídeo nesses casos. A Cloudflare oferece 1000 GB/mês grátis:
+Operadoras móveis e alguns provedores de internet (CGNAT) bloqueiam a conexão direta P2P. Nesses casos
+a chamada fica em "Conectando…". Um servidor TURN retransmite o áudio e o vídeo e resolve isso.
 
-1. No painel da Cloudflare: **Realtime → TURN Server → Create**.
-2. Copie o **Turn Token ID** e o **API Token** para `CLOUDFLARE_TURN_KEY_ID` e `CLOUDFLARE_TURN_API_TOKEN` no Render.
+1. Crie uma conta grátis em <https://www.metered.ca/stun-turn> (só e-mail, sem cartão).
+2. Ao criar, escolha um nome para o app (ex.: `resenha`). O domínio fica `resenha.metered.live`.
+3. No painel, abra **TURN Server** e copie a **API Key**.
+4. No Render, em **Environment**, preencha:
+   - `METERED_TURN_DOMAIN`: o domínio do app (ex.: `resenha.metered.live`)
+   - `METERED_TURN_API_KEY`: a API Key
+5. **Save, rebuild and deploy**.
 
-Se a chamada mostrar "Falha na conexão" entre duas pessoas, é isso que resolve.
+O TURN só é usado quando a conexão direta não funciona, então a cota grátis rende bastante.
+Atenção: uma transmissão de tela retransmitida consome a cota rápido (8 Mbps ≈ 3,6 GB por hora).
+
+Também é possível usar a Cloudflare (`CLOUDFLARE_TURN_KEY_ID` e `CLOUDFLARE_TURN_API_TOKEN`, pede cartão)
+ou qualquer TURN com usuário e senha fixos (`TURN_URLS`, `TURN_USERNAME` e `TURN_CREDENTIAL`).
 
 ## Rodar no seu computador
 

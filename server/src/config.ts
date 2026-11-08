@@ -13,6 +13,10 @@ export const config = {
     username: process.env.TURN_USERNAME || undefined,
     credential: process.env.TURN_CREDENTIAL || undefined,
   },
+  meteredTurn: {
+    domain: process.env.METERED_TURN_DOMAIN || null,
+    apiKey: process.env.METERED_TURN_API_KEY || null,
+  },
   cloudflareTurn: {
     keyId: process.env.CLOUDFLARE_TURN_KEY_ID || null,
     apiToken: process.env.CLOUDFLARE_TURN_API_TOKEN || null,

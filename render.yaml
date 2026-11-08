@@ -17,7 +17,13 @@ services:
       # Código exigido para criar conta (deixe só seus amigos entrarem).
       - key: REGISTRATION_CODE
         sync: false
-      # TURN gratuito da Cloudflare (opcional, ajuda conexões pelo 4G/5G)
+      # TURN (opcional, ajuda conexões pelo 4G/5G e provedores com CGNAT)
+      # Metered: grátis e sem cartão (https://www.metered.ca/stun-turn)
+      - key: METERED_TURN_DOMAIN
+        sync: false
+      - key: METERED_TURN_API_KEY
+        sync: false
+      # Cloudflare: alternativa (pede cartão)
       - key: CLOUDFLARE_TURN_KEY_ID
         sync: false
       - key: CLOUDFLARE_TURN_API_TOKEN
