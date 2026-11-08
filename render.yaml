@@ -1,0 +1,23 @@
+# Deploy gratuito no Render (https://render.com) via "New > Blueprint".
+services:
+  - type: web
+    name: resenha
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Postgres gratuito e permanente (ex.: Neon). Sem isso, os dados somem quando o Render reinicia.
+      - key: DATABASE_URL
+        sync: false
+      # Código exigido para criar conta (deixe só seus amigos entrarem).
+      - key: REGISTRATION_CODE
+        sync: false
+      # TURN gratuito da Cloudflare (opcional, ajuda conexões pelo 4G/5G)
+      - key: CLOUDFLARE_TURN_KEY_ID
+        sync: false
+      - key: CLOUDFLARE_TURN_API_TOKEN
+        sync: false

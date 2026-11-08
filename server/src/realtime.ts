@@ -1,0 +1,235 @@
+import type { Server as HttpServer } from 'node:http';
+import { Server, type Socket } from 'socket.io';
+import { z } from 'zod';
+import { config } from './config.ts';
+import { userFromToken } from './auth.ts';
+import type { Db } from './db.ts';
+import type { PublicUser, RtcSignal, VoiceState } from '../../shared/types.ts';
+
+type Ack = (res: any) => void;
+
+/**
+ * Camada de tempo real: presença, digitação, estado de voz e
+ * retransmissão de sinalização WebRTC entre os participantes.
+ */
+export class Realtime {
+  readonly io: Server;
+  /** userId -> número de conexões abertas */
+  private online = new Map<string, number>();
+  /** socketId -> estado de voz */
+  private voice = new Map<string, VoiceState>();
+
+  constructor(
+    http: HttpServer,
+    private db: Db,
+  ) {
+    this.io = new Server(http, {
+      cors: { origin: true },
+      maxHttpBufferSize: 1e6,
+      pingInterval: 20000,
+      pingTimeout: 20000,
+    });
+
+    this.io.use(async (socket, next) => {
+      try {
+        const user = await userFromToken(db, socket.handshake.auth?.token);
+        if (!user) return next(new Error('unauthorized'));
+        socket.data.user = user;
+        next();
+      } catch (err) {
+        next(err as Error);
+      }
+    });
+
+    this.io.on('connection', (socket) => {
+      this.onConnection(socket).catch((err) => {
+        console.error('[realtime] erro na conexão', err);
+        socket.disconnect(true);
+      });
+    });
+  }
+
+  // ---------- API usada pelas rotas REST ----------
+
+  emitGuild(guildId: string, event: string, payload: unknown) {
+    this.io.to(`guild:${guildId}`).emit(event, payload);
+  }
+
+  emitUser(userId: string, event: string, payload: unknown) {
+    this.io.to(`user:${userId}`).emit(event, payload);
+  }
+
+  /** Coloca as conexões do usuário na sala do servidor (após entrar via convite). */
+  userJoinedGuild(userId: string, guildId: string) {
+    this.io.in(`user:${userId}`).socketsJoin(`guild:${guildId}`);
+    // envia ao novo membro quem está online e em voz nesse servidor
+    const states = [...this.voice.values()].filter((s) => s.guildId === guildId);
+    this.emitUser(userId, 'voice:states', { guildId, states });
+    this.emitUser(userId, 'presence:bulk', { online: [...this.online.keys()] });
+  }
+
+  userLeftGuild(userId: string, guildId: string) {
+    for (const [sid, s] of this.voice) {
+      if (s.userId === userId && s.guildId === guildId) this.kickFromVoice(sid, 'Você saiu do servidor.');
+    }
+    this.io.in(`user:${userId}`).socketsLeave(`guild:${guildId}`);
+  }
+
+  guildDeleted(guildId: string) {
+    for (const [sid, s] of this.voice) {
+      if (s.guildId === guildId) this.kickFromVoice(sid, 'O servidor foi excluído.');
+    }
+    this.io.in(`guild:${guildId}`).socketsLeave(`guild:${guildId}`);
+  }
+
+  channelDeleted(channelId: string) {
+    for (const [sid, s] of this.voice) {
+      if (s.channelId === channelId) this.kickFromVoice(sid, 'O canal de voz foi excluído.');
+    }
+  }
+
+  // ---------- Conexão ----------
+
+  private async onConnection(socket: Socket) {
+    const user = socket.data.user as PublicUser;
+    socket.join(`user:${user.id}`);
+
+    const rows = await this.db.query<{ guild_id: string }>(
+      'select guild_id from members where user_id = $1',
+      [user.id],
+    );
+    const guildIds = rows.map((r) => r.guild_id);
+    for (const g of guildIds) socket.join(`guild:${g}`);
+
+    const count = (this.online.get(user.id) ?? 0) + 1;
+    this.online.set(user.id, count);
+    if (count === 1) this.broadcastToUserGuilds(socket, 'presence:update', { userId: user.id, online: true });
+
+    socket.emit('ready', {
+      socketId: socket.id,
+      online: [...this.online.keys()],
+      voiceStates: [...this.voice.values()].filter((s) => guildIds.includes(s.guildId)),
+      maxVoicePeers: config.maxVoicePeers,
+    });
+
+    socket.on('typing', (payload: unknown) => {
+      const p = z.object({ guildId: z.string(), channelId: z.string() }).safeParse(payload);
+      if (!p.success || !socket.rooms.has(`guild:${p.data.guildId}`)) return;
+      socket.to(`guild:${p.data.guildId}`).emit('typing', { ...p.data, userId: user.id });
+    });
+
+    socket.on('voice:join', (payload: unknown, ack?: Ack) => {
+      this.onVoiceJoin(socket, payload)
+        .then((res) => ack?.(res))
+        .catch((err) => {
+          console.error('[voice] join falhou', err);
+          ack?.({ ok: false, error: 'Não foi possível entrar no canal de voz.' });
+        });
+    });
+
+    socket.on('voice:leave', () => this.leaveVoice(socket.id));
+
+    socket.on('voice:update', (payload: unknown) => {
+      const state = this.voice.get(socket.id);
+      const p = z
+        .object({
+          muted: z.boolean().optional(),
+          deafened: z.boolean().optional(),
+          camera: z.boolean().optional(),
+          screen: z.boolean().optional(),
+        })
+        .safeParse(payload);
+      if (!state || !p.success) return;
+      Object.assign(state, p.data);
+      this.emitGuild(state.guildId, 'voice:state', state);
+    });
+
+    socket.on('rtc:signal', (payload: { to?: unknown; data?: RtcSignal }) => {
+      const to = typeof payload?.to === 'string' ? payload.to : null;
+      const from = this.voice.get(socket.id);
+      const target = to ? this.voice.get(to) : undefined;
+      if (!to || !from || !target || from.channelId !== target.channelId) return;
+      this.io.to(to).emit('rtc:signal', { from: socket.id, data: payload.data });
+    });
+
+    // 'disconnecting' (e não 'disconnect') porque aqui socket.rooms ainda está preenchido.
+    socket.on('disconnecting', () => {
+      this.leaveVoice(socket.id);
+      const left = (this.online.get(user.id) ?? 1) - 1;
+      if (left <= 0) {
+        this.online.delete(user.id);
+        this.broadcastToUserGuilds(socket, 'presence:update', { userId: user.id, online: false });
+      } else {
+        this.online.set(user.id, left);
+      }
+    });
+  }
+
+  private broadcastToUserGuilds(socket: Socket, event: string, payload: unknown) {
+    const rooms = [...socket.rooms].filter((r) => r.startsWith('guild:'));
+    if (rooms.length) this.io.to(rooms).emit(event, payload);
+  }
+
+  // ---------- Voz ----------
+
+  private async onVoiceJoin(socket: Socket, payload: unknown) {
+    const user = socket.data.user as PublicUser;
+    const p = z
+      .object({ channelId: z.string(), muted: z.boolean().optional(), deafened: z.boolean().optional() })
+      .safeParse(payload);
+    if (!p.success) return { ok: false, error: 'Requisição inválida.' };
+
+    const [channel] = await this.db.query<{ guild_id: string; type: string }>(
+      `select c.guild_id, c.type from channels c
+       join members m on m.guild_id = c.guild_id and m.user_id = $2
+       where c.id = $1`,
+      [p.data.channelId, user.id],
+    );
+    if (!channel || channel.type !== 'voice') return { ok: false, error: 'Canal de voz não encontrado.' };
+
+    // Um usuário só pode estar em uma chamada por vez (desconecta outro dispositivo/aba).
+    for (const [sid, s] of this.voice) {
+      if (s.userId === user.id && sid !== socket.id) {
+        this.kickFromVoice(sid, 'Você entrou na voz em outro dispositivo.');
+      }
+    }
+    this.leaveVoice(socket.id);
+
+    const peers = [...this.voice.values()].filter((s) => s.channelId === p.data.channelId);
+    if (peers.length >= config.maxVoicePeers) {
+      return { ok: false, error: `Canal cheio (máximo de ${config.maxVoicePeers} pessoas).` };
+    }
+
+    const state: VoiceState = {
+      socketId: socket.id,
+      userId: user.id,
+      guildId: channel.guild_id,
+      channelId: p.data.channelId,
+      muted: p.data.muted ?? false,
+      deafened: p.data.deafened ?? false,
+      camera: false,
+      screen: false,
+    };
+    this.voice.set(socket.id, state);
+    socket.join(`voice:${state.channelId}`);
+    for (const peer of peers) {
+      this.io.to(peer.socketId).emit('voice:peer-joined', { socketId: socket.id, userId: user.id });
+    }
+    this.emitGuild(state.guildId, 'voice:state', state);
+    return { ok: true, peers: peers.map((s) => ({ socketId: s.socketId, userId: s.userId })) };
+  }
+
+  private leaveVoice(socketId: string) {
+    const state = this.voice.get(socketId);
+    if (!state) return;
+    this.voice.delete(socketId);
+    this.io.in(socketId).socketsLeave(`voice:${state.channelId}`);
+    this.io.to(`voice:${state.channelId}`).emit('voice:peer-left', { socketId });
+    this.emitGuild(state.guildId, 'voice:state-remove', { socketId, guildId: state.guildId });
+  }
+
+  private kickFromVoice(socketId: string, reason: string) {
+    this.io.to(socketId).emit('voice:kicked', { reason });
+    this.leaveVoice(socketId);
+  }
+}
