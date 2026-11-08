@@ -1,7 +1,7 @@
 // Efeitos sonoros sintetizados (sem direitos autorais): whoosh nos cortes, "pop" nos emojis,
 // carimbo nos "de graça", buzina no soundboard e um acorde no final. Volume baixo para a narração
 // e a música do TikTok/Reels ficarem por cima.
-import { DURATION, LINES } from './timeline.mjs';
+import { CUES, DURATION, LINES } from './timeline.mjs';
 
 const RATE = 44100;
 
@@ -54,18 +54,18 @@ export function makeSfx() {
   boom(LINES[1].start, 0.55); // "Então eu criei o meu."
   boom(LINES[2].start, 0.45); // logo
   chord(LINES[2].start + 0.15);
-  ding(1.2, 392, 0.2); // cadeado do "HD = pago"
-  ding(1.32, 311, 0.2);
-  stamp(12.25);
-  click(13.6);
-  horn(13.68);
-  stamp(14.05);
-  [15.25, 15.5, 15.75, 16.05, 16.5].forEach((t, i) => pop(t, 500 + i * 120));
-  stamp(17.9);
-  ding(19.6, 988, 0.16);
-  ding(19.72, 1318, 0.14);
+  ding(CUES.lock, 392, 0.2); // cadeado do "HD = pago"
+  ding(CUES.lock + 0.12, 311, 0.2);
+  stamp(CUES.stamp5);
+  click(CUES.tap);
+  horn(CUES.horn);
+  stamp(CUES.stamp6);
+  [...CUES.pops.slice(0, 2), CUES.pops[1] + 0.2, CUES.pops[2], CUES.pops[3]].forEach((t, i) => pop(t, 500 + i * 120));
+  stamp(CUES.stamp7);
+  ding(CUES.playing, 988, 0.16);
+  ding(CUES.playing + 0.12, 1318, 0.14);
   boom(LINES[10].start, 0.4);
-  chord(27.6);
+  chord(CUES.cta);
 
   // limita e grava WAV 16 bits
   const pcm = Buffer.alloc(44 + n * 2);

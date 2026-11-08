@@ -1,11 +1,11 @@
 // Renderiza o vídeo quadro a quadro (Playwright) e junta com o ffmpeg.
-// Uso: npm run build && node promo/capture.mjs && node promo/render.mjs [--preview 3,10,16]
+// Uso: npm run build && node promo/capture.mjs && node promo/render.mjs [--voice narracao.mp3] [--preview 3,10,16]
 import { createServer } from 'node:http';
 import { readFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { FPS, DURATION, toSrt } from './timeline.mjs';
+import { FPS, DURATION, VOICE_START, toSrt } from './timeline.mjs';
 import { makeSfx } from './sfx.mjs';
 
 const require = createRequire(import.meta.url);
@@ -26,6 +26,8 @@ const server = createServer(async (req, res) => {
 }).listen(0);
 const port = server.address().port;
 
+const voiceArg = process.argv.indexOf('--voice');
+const voice = voiceArg > 0 ? path.resolve(process.argv[voiceArg + 1]) : null;
 const previewArg = process.argv.indexOf('--preview');
 const preview = previewArg > 0 ? process.argv[previewArg + 1].split(',').map(Number) : null;
 
@@ -61,6 +63,14 @@ if (preview) {
   };
   run(['-framerate', String(FPS), '-i', path.join(frames, '%05d.jpg'), '-i', path.join(OUT, 'efeitos.wav'), ...enc, '-c:a', 'aac', '-b:a', '192k', '-shortest', path.join(OUT, 'resenha-video.mp4')]);
   run(['-framerate', String(FPS), '-i', path.join(frames, '%05d.jpg'), ...enc, path.join(OUT, 'resenha-video-sem-som.mp4')]);
+  if (voice) {
+    // narração na frente (limpa, comprimida e no volume padrão das redes) e efeitos por baixo
+    const mix =
+      `[1:a]highpass=f=80,acompressor=threshold=-20dB:ratio=3:attack=5:release=80,loudnorm=I=-14:TP=-1.5:LRA=7,adelay=${Math.round(VOICE_START * 1000)}:all=1[v];` +
+      `[2:a]volume=0.35[s];[v][s]amix=inputs=2:normalize=0:duration=longest,alimiter=limit=0.89[a]`;
+    run(['-framerate', String(FPS), '-i', path.join(frames, '%05d.jpg'), '-i', voice, '-i', path.join(OUT, 'efeitos.wav'), '-filter_complex', mix, '-map', '0:v', '-map', '[a]', ...enc, '-c:a', 'aac', '-b:a', '192k', '-t', String(DURATION), path.join(OUT, 'resenha-video-narrado.mp4')]);
+    console.log('vídeo narrado em promo/out/resenha-video-narrado.mp4');
+  }
   console.log('vídeo em promo/out/resenha-video.mp4');
 }
 await browser.close();
