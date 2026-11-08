@@ -122,7 +122,7 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
     const stream = tile.isMe ? localScreen : remote?.screen;
     const canWatch = !tile.isMe;
     return (
-      <div ref={ref} className={`tile screen${big ? ' big' : ''}`} onDoubleClick={() => fullscreen(ref.current)}>
+      <div ref={ref} className={`tile screen${big ? ' big' : ''}`} onDoubleClick={tile.isMe ? undefined : () => fullscreen(ref.current)}>
         {tile.isMe || watching ? (
           stream && stream.getVideoTracks().length > 0 ? (
             <VideoEl stream={stream} version={remote?.v} contain />
@@ -148,7 +148,8 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
               <EyeOff size={18} />
             </button>
           )}
-          {(tile.isMe || watching) && (
+          {/* Sem tela cheia/destaque na própria transmissão: ela capturaria a si mesma (efeito espelho). */}
+          {!tile.isMe && watching && (
             <>
               <button className="icon-btn overlay" title="Destacar" aria-label="Destacar" onClick={toggleFocus}>
                 <MonitorUp size={18} />

@@ -313,6 +313,7 @@ class VoiceEngine {
 
   /** Deve ser chamado diretamente de um clique (exigência do navegador). */
   async startScreen() {
+    if (getV().focus === 'me:screen') setV({ focus: null });
     const { settings } = getV();
     const preset = presetById(settings.screenPreset);
     const video: MediaTrackConstraints = {
