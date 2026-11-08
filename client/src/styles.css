@@ -1081,6 +1081,14 @@ input[type='radio'] {
   line-height: 1.35;
   padding: 6px 10px;
 }
+.tile-badge.turn,
+.turn-chip {
+  color: #8ec5ff;
+}
+.turn-chip {
+  margin-left: 6px;
+  font-weight: 700;
+}
 .tile-volume {
   position: absolute;
   right: 8px;

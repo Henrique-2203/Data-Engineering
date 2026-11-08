@@ -37,6 +37,8 @@ export interface VoiceSettings {
   micDeviceId: string | null;
   noiseSuppression: boolean;
   volumes: Record<string, number>; // userId -> 0..1
+  /** Reduz a qualidade enviada para quem está conectado via TURN (economiza a cota grátis). */
+  turnSaver: boolean;
 }
 
 const KEY = 'resenha.voiceSettings';
@@ -50,6 +52,7 @@ export const DEFAULT_SETTINGS: VoiceSettings = {
   micDeviceId: null,
   noiseSuppression: true,
   volumes: {},
+  turnSaver: true,
 };
 
 export function loadSettings(): VoiceSettings {

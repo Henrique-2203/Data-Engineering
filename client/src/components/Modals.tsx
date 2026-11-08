@@ -468,10 +468,11 @@ function ScreenShare() {
   const bitrate = effectiveBitrate(settings);
   const mbps = bitrate / 1e6;
   const [starting, setStarting] = useState(false);
+  const relayedPeers = useVoice((s) => Object.values(s.remotes).filter((r) => r.relayed).length);
 
   function update(patch: Partial<typeof settings>) {
     updateSettings(patch);
-    if (sharing) voice.refreshEncodings();
+    if (sharing || 'turnSaver' in patch) voice.refreshEncodings();
   }
 
   async function start() {
@@ -547,6 +548,18 @@ function ScreenShare() {
           <input type="checkbox" checked={settings.screenAudio} onChange={(e) => update({ screenAudio: e.target.checked })} disabled={sharing} />
           Transmitir o som do computador/aba
         </label>
+        <label className="check">
+          <input type="checkbox" checked={settings.turnSaver} onChange={(e) => update({ turnSaver: e.target.checked })} />
+          Economizar a cota do TURN
+        </label>
+        <p className="muted small">
+          Quem não consegue conexão direta com você (comum no 4G/5G) recebe pelo servidor TURN, que tem cota grátis pequena.
+          Para essas pessoas a tela vai em 720p · 30 FPS · 1 Mbps; quem tem conexão direta continua em qualidade máxima.
+          {relayedPeers > 0 && (
+            <strong className="warn"> Agora: {relayedPeers} pessoa{relayedPeers > 1 ? 's' : ''} via TURN.</strong>
+          )}
+        </p>
+
         <p className="muted small">
           Dica: no Chrome/Edge do Windows, escolha “Tela inteira” e marque “Compartilhar áudio do sistema”. Em uma aba, marque
           “Compartilhar áudio da aba”.

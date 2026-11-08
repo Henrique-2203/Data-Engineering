@@ -160,7 +160,7 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
             </>
           )}
         </div>
-        {!tile.isMe && watching && <StreamStats socketId={sid} />}
+        {!tile.isMe && watching && <StreamStats socketId={sid} relayed={!!remote?.relayed} />}
       </div>
     );
   }
@@ -189,6 +189,11 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
         </span>
       </div>
       {connecting && <ConnectingBadge failed={remote!.connection === 'failed'} />}
+      {!connecting && remote?.relayed && (
+        <div className="tile-badge turn" title="Sem conexão direta com esta pessoa: áudio e vídeo passam pelo servidor TURN (cota grátis limitada), então câmera e tela vão em qualidade reduzida.">
+          via TURN
+        </div>
+      )}
       {!tile.isMe && <VolumeSlider userId={tile.state.userId} />}
     </div>
   );
@@ -270,7 +275,7 @@ function VolumeSlider({ userId }: { userId: string }) {
 }
 
 /** Mostra resolução, FPS e bitrate reais da transmissão recebida. */
-function StreamStats({ socketId }: { socketId: string }) {
+function StreamStats({ socketId, relayed }: { socketId: string; relayed: boolean }) {
   const [text, setText] = useState<string | null>(null);
   useEffect(() => {
     let last: { bytes: number; ts: number } | null = null;
@@ -292,7 +297,17 @@ function StreamStats({ socketId }: { socketId: string }) {
     }, 1000);
     return () => clearInterval(t);
   }, [socketId]);
-  return text ? <div className="stream-stats">{text}</div> : null;
+  if (!text) return null;
+  return (
+    <div className="stream-stats">
+      {text}
+      {relayed && (
+        <span className="turn-chip" title="Sem conexão direta: a transmissão passa pelo servidor TURN e pode vir com qualidade reduzida para economizar a cota grátis.">
+          via TURN
+        </span>
+      )}
+    </div>
+  );
 }
 
 function VoiceControls() {

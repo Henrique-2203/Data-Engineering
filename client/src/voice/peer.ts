@@ -2,6 +2,15 @@ import type { RtcSignal } from '../../../shared/types';
 import type { MediaKind } from '../store/voice';
 import { tuneRemoteSdp } from './sdp';
 
+/** Diagnóstico: localStorage['resenha.forceTurn'] = '1' obriga a conexão a passar pelo TURN. */
+function forceTurn() {
+  try {
+    return localStorage.getItem('resenha.forceTurn') === '1';
+  } catch {
+    return false;
+  }
+}
+
 export type SenderSlot = 'mic' | 'camera' | 'screenVideo' | 'screenAudio';
 
 export interface PeerCallbacks {
@@ -12,6 +21,8 @@ export interface PeerCallbacks {
   onWatch(on: boolean): void;
   /** chamado quando a negociação estabiliza, para reaplicar bitrate/fps nos envios */
   onStable(): void;
+  /** a rota da conexão mudou entre direta (P2P) e retransmitida pelo TURN */
+  onRelayChange(relayed: boolean): void;
 }
 
 /**
@@ -28,6 +39,9 @@ export class Peer {
   private remoteMeta: Record<string, MediaKind> = {};
   private remoteStreams: Partial<Record<MediaKind, MediaStream>> = {};
   private closed = false;
+  /** true quando a mídia passa pelo servidor TURN (consome a cota) */
+  relayed = false;
+  private relayTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     readonly id: string,
@@ -36,7 +50,11 @@ export class Peer {
     iceServers: RTCIceServer[],
     private readonly cb: PeerCallbacks,
   ) {
-    this.pc = new RTCPeerConnection({ iceServers, bundlePolicy: 'max-bundle' });
+    this.pc = new RTCPeerConnection({
+      iceServers,
+      bundlePolicy: 'max-bundle',
+      iceTransportPolicy: forceTurn() ? 'relay' : 'all',
+    });
 
     this.pc.onnegotiationneeded = async () => {
       try {
@@ -58,6 +76,11 @@ export class Peer {
       const state = this.pc.connectionState;
       this.cb.onConnectionState(state);
       if (state === 'failed') this.pc.restartIce();
+      if (state === 'connected') {
+        void this.checkRelay();
+        // a rota pode mudar (ex.: Wi-Fi -> 4G), então confere periodicamente
+        this.relayTimer ??= setInterval(() => void this.checkRelay(), 5000);
+      }
     };
 
     this.pc.onsignalingstatechange = () => {
@@ -159,7 +182,7 @@ export class Peer {
 
   async setEncoding(
     slot: SenderSlot,
-    opts: { maxBitrate?: number; maxFramerate?: number; degradation?: RTCDegradationPreference },
+    opts: { maxBitrate?: number; maxFramerate?: number; scaleDown?: number; degradation?: RTCDegradationPreference },
   ) {
     const sender = this.senders[slot];
     if (!sender?.track) return;
@@ -169,7 +192,7 @@ export class Peer {
       for (const enc of params.encodings) {
         if (opts.maxBitrate) enc.maxBitrate = opts.maxBitrate;
         if (opts.maxFramerate) enc.maxFramerate = opts.maxFramerate;
-        if (sender.track.kind === 'video') enc.scaleResolutionDownBy = 1;
+        if (sender.track.kind === 'video') enc.scaleResolutionDownBy = Math.max(1, opts.scaleDown ?? 1);
         enc.priority = slot === 'mic' ? 'high' : slot === 'screenVideo' ? 'high' : 'medium';
         enc.networkPriority = enc.priority;
       }
@@ -196,8 +219,37 @@ export class Peer {
     return receiver ? receiver.getStats() : null;
   }
 
+  /** Descobre pelo getStats se o par de candidatos ICE escolhido usa TURN ("relay"). */
+  private async checkRelay() {
+    if (this.closed) return;
+    try {
+      const stats = await this.pc.getStats();
+      let pair: any;
+      stats.forEach((s: any) => {
+        if (s.type === 'transport' && s.selectedCandidatePairId) pair = stats.get(s.selectedCandidatePairId);
+      });
+      if (!pair) {
+        stats.forEach((s: any) => {
+          // Firefox não informa o par no "transport"; usa o marcado como selecionado
+          if (s.type === 'candidate-pair' && (s.selected || (s.nominated && s.state === 'succeeded'))) pair ??= s;
+        });
+      }
+      if (!pair) return;
+      const local = stats.get(pair.localCandidateId);
+      const remote = stats.get(pair.remoteCandidateId);
+      const relayed = local?.candidateType === 'relay' || remote?.candidateType === 'relay';
+      if (relayed !== this.relayed) {
+        this.relayed = relayed;
+        this.cb.onRelayChange(relayed);
+      }
+    } catch {
+      /* estatísticas indisponíveis: mantém o estado atual */
+    }
+  }
+
   close() {
     this.closed = true;
+    if (this.relayTimer) clearInterval(this.relayTimer);
     this.pc.ontrack = null;
     this.pc.onicecandidate = null;
     this.pc.onnegotiationneeded = null;

@@ -9,6 +9,8 @@ export interface RemoteMedia {
   camera?: MediaStream;
   screen?: MediaStream;
   connection: RTCPeerConnectionState;
+  /** a conexão com esta pessoa passa pelo servidor TURN */
+  relayed?: boolean;
   /** incrementa quando faixas mudam dentro de um mesmo MediaStream */
   v: number;
 }

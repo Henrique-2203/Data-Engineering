@@ -72,8 +72,13 @@ a chamada fica em "Conectando…". Um servidor TURN retransmite o áudio e o ví
    - `METERED_TURN_API_KEY`: a API Key
 5. **Save, rebuild and deploy**.
 
-O TURN só é usado quando a conexão direta não funciona, então a cota grátis rende bastante.
-Atenção: uma transmissão de tela retransmitida consome a cota rápido (8 Mbps ≈ 3,6 GB por hora).
+O TURN só é usado quando a conexão direta não funciona. Quando uma conexão passa por ele, o app
+mostra "via TURN" e, para economizar a cota, envia só para essa pessoa a tela em 720p · 30 FPS · 1 Mbps
+(≈450 MB/h) e a câmera em 15 FPS · 250 kbps. Quem tem conexão direta continua em qualidade máxima.
+Dá para desligar em "Transmitir tela → Economizar a cota do TURN".
+
+Para diagnosticar, rode no console do navegador `localStorage['resenha.forceTurn'] = '1'` e recarregue:
+todas as conexões passarão pelo TURN (apague a chave para voltar ao normal).
 
 Também é possível usar a Cloudflare (`CLOUDFLARE_TURN_KEY_ID` e `CLOUDFLARE_TURN_API_TOKEN`, pede cartão)
 ou qualquer TURN com usuário e senha fixos (`TURN_URLS`, `TURN_USERNAME` e `TURN_CREDENTIAL`).
@@ -100,6 +105,7 @@ Outros comandos:
 | `npm start` | Sobe o servidor de produção (serve API e frontend na porta `PORT`) |
 | `npm run typecheck` | Checa os tipos do servidor e do cliente |
 | `npm run test:e2e` | Teste ponta a ponta com dois navegadores (PC + celular): convite, chat, voz, câmera e tela |
+| `npm run test:e2e:turn` | Força a conexão pelo TURN (precisa do `coturn` instalado) e confere a economia de cota |
 
 Veja todas as variáveis de ambiente em [`.env.example`](.env.example).
 

@@ -9,6 +9,15 @@ import { preferCodec } from './sdp';
 import { CODECS, effectiveBitrate, presetById } from './settings';
 
 const CAMERA_BITRATE = 1_200_000;
+
+/**
+ * Limites usados quando a conexão passa pelo TURN (cota grátis pequena):
+ * tela em ~720p/30 FPS/1 Mbps (≈450 MB/h) e câmera em 15 FPS/250 kbps (≈110 MB/h).
+ */
+export const TURN_LIMITS = {
+  screen: { maxBitrate: 1_000_000, maxFramerate: 30, maxHeight: 720 },
+  camera: { maxBitrate: 250_000, maxFramerate: 15 },
+};
 const SPEAKING_THRESHOLD = 0.015;
 
 type Meter = { stream: MediaStream; source: MediaStreamAudioSourceNode; analyser: AnalyserNode; data: Float32Array<ArrayBuffer>; lastLoud: number };
@@ -202,6 +211,10 @@ class VoiceEngine {
       onConnectionState: (connection) => this.patchRemote(socketId, () => ({ connection })),
       onWatch: (on) => this.onWatchRequest(socketId, on),
       onStable: () => this.applyEncodings(peer),
+      onRelayChange: (relayed) => {
+        this.patchRemote(socketId, () => ({ relayed }));
+        this.applyEncodings(peer);
+      },
     });
     this.peers.set(socketId, peer);
     setV((s) => ({ remotes: { ...s.remotes, [socketId]: { userId, connection: 'new', v: 0 } } }));
@@ -306,7 +319,7 @@ class VoiceEngine {
 
   private async addCamera(peer: Peer) {
     await peer.setTrack('camera', this.camTrack, this.msid.camera);
-    await peer.setEncoding('camera', { maxBitrate: CAMERA_BITRATE, maxFramerate: 30 });
+    this.applyEncodings(peer);
   }
 
   // ---------------- transmissão de tela ----------------
@@ -395,15 +408,32 @@ class VoiceEngine {
   private applyEncodings(peer: Peer) {
     const { settings } = getV();
     const preset = presetById(settings.screenPreset);
+    // Via TURN cada byte conta na cota: envia uma versão mais leve só para essa pessoa.
+    const save = peer.relayed && settings.turnSaver;
     if (peer.isSending('screenVideo')) {
-      void peer.setEncoding('screenVideo', {
-        maxBitrate: effectiveBitrate(settings),
-        maxFramerate: preset.fps,
-        degradation: settings.contentType === 'motion' ? 'maintain-framerate' : 'maintain-resolution',
-      });
+      const height = this.screenStream?.getVideoTracks()[0]?.getSettings().height ?? 0;
+      void peer.setEncoding('screenVideo', save
+        ? {
+            maxBitrate: Math.min(TURN_LIMITS.screen.maxBitrate, effectiveBitrate(settings)),
+            maxFramerate: Math.min(TURN_LIMITS.screen.maxFramerate, preset.fps),
+            scaleDown: height > TURN_LIMITS.screen.maxHeight ? height / TURN_LIMITS.screen.maxHeight : 1,
+            degradation: 'balanced',
+          }
+        : {
+            maxBitrate: effectiveBitrate(settings),
+            maxFramerate: preset.fps,
+            degradation: settings.contentType === 'motion' ? 'maintain-framerate' : 'maintain-resolution',
+          });
     }
-    if (peer.isSending('screenAudio')) void peer.setEncoding('screenAudio', { maxBitrate: 128_000 });
-    if (peer.isSending('camera')) void peer.setEncoding('camera', { maxBitrate: CAMERA_BITRATE, maxFramerate: 30 });
+    if (peer.isSending('screenAudio')) void peer.setEncoding('screenAudio', { maxBitrate: save ? 64_000 : 128_000 });
+    if (peer.isSending('camera')) {
+      void peer.setEncoding('camera', save ? TURN_LIMITS.camera : { maxBitrate: CAMERA_BITRATE, maxFramerate: 30 });
+    }
+  }
+
+  /** Quantas pessoas estão recebendo minha tela via TURN agora. */
+  relayedWatchers() {
+    return [...this.screenWatchers].filter((id) => this.peers.get(id)?.relayed).length;
   }
 
   private onWatchRequest(socketId: string, on: boolean) {
