@@ -41,30 +41,34 @@ jobs:
         id: rel
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           VER=$(node -p "require('./package.json').version")
           TAG="v$VER"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          # rascunho parado (execução interrompida) conta como incompleto
-          ASSETS=$(gh release view "$TAG" --json assets,isDraft --jq 'if .isDraft then "rascunho" else ([.assets[].name] | join(",")) end' 2>/dev/null || echo "__nenhuma__")
-          if [ "$ASSETS" = "__nenhuma__" ]; then
-            echo "Versão $TAG ainda não publicada: vai publicar."
-            echo "publish=yes" >> "$GITHUB_OUTPUT"
-          elif echo "$ASSETS" | grep -q "\.exe" && echo "$ASSETS" | grep -q "latest.yml"; then
+          # todas as Releases (inclusive rascunhos) desta versão: "id rascunho arquivos"
+          gh api "repos/$REPO/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$TAG\") | \"\(.id) \(.draft) \([.assets[].name] | join(\",\"))\"" > rels.txt
+          cat rels.txt
+          COMPLETE=$(awk '$2 == "false" && $3 ~ /\.exe/ && $3 ~ /latest\.yml/' rels.txt | wc -l)
+          TOTAL=$(wc -l < rels.txt)
+          if [ "$COMPLETE" -eq 1 ] && [ "$TOTAL" -eq 1 ]; then
             echo "Versão $TAG já publicada e completa: só gera o instalador. Para lançar, aumente o version."
             echo "publish=no" >> "$GITHUB_OUTPUT"
           else
-            echo "Versão $TAG incompleta ($ASSETS): apagando para publicar de novo."
-            gh release delete "$TAG" --cleanup-tag --yes
+            # nenhuma, incompleta, rascunho parado ou duplicada: limpa tudo e publica de novo
+            while read -r ID _; do
+              [ -n "$ID" ] && echo "Apagando Release $ID" && gh api -X DELETE "repos/$REPO/releases/$ID"
+            done < rels.txt
+            gh api -X DELETE "repos/$REPO/git/refs/tags/$TAG" 2>/dev/null && echo "Tag $TAG apagada" || true
             echo "publish=yes" >> "$GITHUB_OUTPUT"
           fi
 
-      # O empacotador envia para um RASCUNHO (evita a corrida de dois envios criando a mesma
-      # Release); depois o rascunho é publicado de uma vez, já com todos os arquivos.
+      # O empacotador só gera os arquivos (inclusive latest.yml, usado pela atualização automática).
+      # A Release é criada depois com UM comando, já com todos os arquivos: publicar pelo empacotador
+      # fazia envios em paralelo criarem Releases duplicadas.
       - name: Gerar instalador
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win --publish ${{ steps.rel.outputs.publish == 'yes' && 'always' || 'never' }}
+        run: npx electron-builder --win --publish never
 
       - name: Publicar a versão
         if: steps.rel.outputs.publish == 'yes'
@@ -72,8 +76,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.rel.outputs.tag }}
         run: |
-          gh release view "$TAG" --json assets --jq '.assets[].name'
-          gh release edit "$TAG" --draft=false --latest --target "$GITHUB_SHA" --title "Resenha $TAG" \
+          ls -la dist
+          gh release create "$TAG" dist/Resenha-Setup-*.exe dist/Resenha-Setup-*.exe.blockmap dist/latest.yml \
+            --target "$GITHUB_SHA" --latest --title "Resenha $TAG" \
             --notes "App de desktop do Resenha para Windows. Baixe e abra o **Resenha-Setup-${TAG#v}.exe**. Os outros arquivos são usados pela atualização automática."
 
       - name: Guardar instalador
