@@ -3,6 +3,7 @@ import { findChannel, selectChannel, useApp } from '../store/app';
 import { useVoice } from '../store/voice';
 import { playSound } from './sounds';
 import { mentionsUser } from './mentions';
+import { plainEmojis } from './expressions';
 
 export const notificationsSupported = () => typeof window !== 'undefined' && 'Notification' in window;
 
@@ -34,7 +35,7 @@ export function onIncomingMessage(message: Message) {
       : mentioned
         ? `${message.author.displayName} mencionou você em #${channel?.name ?? 'canal'}`
         : `${message.author.displayName} em #${channel?.name ?? 'canal'}`;
-  const body = message.content || (message.attachments.length ? '📷 Imagem' : '');
+  const body = plainEmojis(message.content) || (message.attachments.length ? '📷 Imagem' : message.sticker ? `Figurinha: ${message.sticker.name}` : '');
   try {
     // Obs.: no Android o construtor Notification não é permitido (exige service worker) e lança erro.
     const n = new Notification(title, {

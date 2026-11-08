@@ -13,6 +13,10 @@ export const Perm = {
   MENTION_EVERYONE: 1 << 8,
   CREATE_INVITE: 1 << 9,
   STREAM: 1 << 10,
+  MANAGE_EXPRESSIONS: 1 << 11,
+  USE_SOUNDBOARD: 1 << 12,
+  CHANGE_NICKNAME: 1 << 13,
+  MANAGE_NICKNAMES: 1 << 14,
 } as const;
 
 export type PermKey = keyof typeof Perm;
@@ -20,7 +24,8 @@ export type PermKey = keyof typeof Perm;
 export const ALL_PERMISSIONS = Object.values(Perm).reduce((a, b) => a | b, 0);
 
 /** O que todo membro pode fazer por padrão (o "cargo" @todos). */
-export const DEFAULT_EVERYONE_PERMISSIONS = Perm.CREATE_INVITE | Perm.STREAM | Perm.MENTION_EVERYONE;
+export const DEFAULT_EVERYONE_PERMISSIONS =
+  Perm.CREATE_INVITE | Perm.STREAM | Perm.MENTION_EVERYONE | Perm.USE_SOUNDBOARD | Perm.CHANGE_NICKNAME;
 
 export const PERMISSION_INFO: { key: PermKey; label: string; description: string }[] = [
   { key: 'ADMIN', label: 'Administrador', description: 'Pode tudo e vê todos os canais, inclusive os privados. Cuidado ao dar.' },
@@ -34,6 +39,10 @@ export const PERMISSION_INFO: { key: PermKey; label: string; description: string
   { key: 'MENTION_EVERYONE', label: 'Usar @todos', description: 'Notificar o servidor inteiro.' },
   { key: 'CREATE_INVITE', label: 'Convidar pessoas', description: 'Ver e compartilhar o link de convite.' },
   { key: 'STREAM', label: 'Transmitir tela', description: 'Transmitir a tela nos canais de voz.' },
+  { key: 'MANAGE_EXPRESSIONS', label: 'Gerenciar emojis e sons', description: 'Adicionar, renomear e apagar emojis, figurinhas e sons do soundboard.' },
+  { key: 'USE_SOUNDBOARD', label: 'Usar o soundboard', description: 'Tocar sons para todos na chamada de voz.' },
+  { key: 'CHANGE_NICKNAME', label: 'Mudar o próprio apelido', description: 'Usar um apelido e uma foto só neste servidor.' },
+  { key: 'MANAGE_NICKNAMES', label: 'Gerenciar apelidos', description: 'Mudar o apelido ou tirar a foto de servidor de quem está abaixo.' },
 ];
 
 export interface Role {

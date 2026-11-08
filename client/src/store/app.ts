@@ -51,7 +51,7 @@ export type ModalState =
   | { kind: 'joinGuild'; code?: string }
   | { kind: 'invite'; guildId: string }
   | { kind: 'createChannel'; guildId: string; type: 'text' | 'voice'; categoryId?: string | null }
-  | { kind: 'guildSettings'; guildId: string; tab?: 'overview' | 'roles' | 'members' | 'bans' }
+  | { kind: 'guildSettings'; guildId: string; tab?: 'overview' | 'roles' | 'members' | 'bans' | 'expressions' }
   | { kind: 'channelSettings'; channelId: string }
   | { kind: 'createCategory'; guildId: string }
   | { kind: 'categorySettings'; guildId: string; categoryId: string }
@@ -59,7 +59,8 @@ export type ModalState =
   | { kind: 'screenShare' }
   | { kind: 'image'; src: string; name: string }
   | { kind: 'profile'; userId: string; guildId?: string | null }
-  | { kind: 'status' };
+  | { kind: 'status' }
+  | { kind: 'guildProfile'; guildId: string };
 
 export const useApp = create<AppState>(() => ({
   me: null,
@@ -114,11 +115,12 @@ export function findChannel(channelId: string | null): Channel | undefined {
 
 export function findMember(guildId: string | null | undefined, userId: string): Member | PublicUser | undefined {
   const s = get();
-  if (s.me?.id === userId) return s.me;
+  // dentro de um servidor vale o apelido/foto de lá (inclusive o seu)
   if (guildId) {
     const m = s.guilds[guildId]?.members.find((m) => m.id === userId);
     if (m) return m;
   }
+  if (s.me?.id === userId) return s.me;
   for (const g of Object.values(s.guilds)) {
     const m = g.members.find((m) => m.id === userId);
     if (m) return m;
@@ -230,7 +232,13 @@ export function updateUserEverywhere(user: PublicUser) {
   set((s) => {
     const guilds: Record<string, Guild> = {};
     for (const [id, g] of Object.entries(s.guilds)) {
-      guilds[id] = { ...g, members: g.members.map((m) => (m.id === user.id ? { ...m, ...user } : m)) };
+      // apelido e foto do servidor continuam valendo por cima do perfil
+      guilds[id] = {
+        ...g,
+        members: g.members.map((m) =>
+          m.id === user.id ? { ...m, ...user, displayName: m.nick ?? user.displayName, avatarId: m.guildAvatarId ?? user.avatarId } : m,
+        ),
+      };
     }
     // foto/nome/status também nas conversas diretas e na lista de amigos
     const dms = Object.fromEntries(

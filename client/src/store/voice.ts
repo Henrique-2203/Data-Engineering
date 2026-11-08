@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { loadSettings, saveSettings, type VoiceSettings } from '../voice/settings';
+import type { SoundBurst } from '../lib/soundboard';
 
 export type MediaKind = 'mic' | 'camera' | 'screen';
 
@@ -38,6 +39,8 @@ export interface VoiceStore {
   /** nível do microfone em dBFS (para o medidor nas configurações) */
   micLevelDb: number;
   settings: VoiceSettings;
+  /** soundboard: som tocando agora por socketId (aparece em cima do bloco) */
+  soundBursts: Record<string, SoundBurst>;
 }
 
 export const useVoice = create<VoiceStore>(() => ({
@@ -60,6 +63,7 @@ export const useVoice = create<VoiceStore>(() => ({
   pttActive: false,
   micLevelDb: -100,
   settings: loadSettings(),
+  soundBursts: {},
 }));
 
 export function updateSettings(patch: Partial<VoiceSettings>) {

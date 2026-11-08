@@ -19,6 +19,10 @@ Funciona no navegador do PC e do celular, e é 100% gratuito para hospedar.
 - **Perfil**: foto (aceita GIF animado), banner, bio, pronomes e até 6 links (Steam, Twitch, YouTube…);
   **status** com emoji e prazo (30 min, 1 h, 4 h, até meia-noite ou sem prazo); **"Jogando agora"**
   automático pelo app de desktop; cartão de perfil com servidores e amigos em comum (clique no nome)
+- **Grátis o que o Discord cobra**: **emojis** (até GIF) e **figurinhas** personalizados, usáveis em
+  qualquer conversa e servidor (`:nome` autocompleta); **soundboard** na chamada (sons de até 5 s,
+  recortados e comprimidos no navegador); **apelido e foto por servidor**. Tudo com permissões
+  próprias (gerenciar emojis e sons, usar soundboard, mudar/gerenciar apelidos)
 - **Aviso de nova versão**: quando sai uma versão nova do site, aparece "Atualizar" em quem está com ele aberto
 - Chat em tempo real: editar/excluir mensagens, "fulano está digitando…", links e prévia de imagens, mensagens não lidas
 - **Responder** mensagens (com citação clicável), **reações** com emoji e **@menções** com

@@ -70,6 +70,7 @@ export function ProfileCard({ userId, guildId, onAction }: { userId: string; gui
         <h3 style={{ color: nameColor }}>{user.displayName}</h3>
         <div className="muted small">
           @{user.username}
+          {member?.nick && profile && profile.user.displayName !== member.nick ? ` · ${profile.user.displayName}` : ''}
           {profile?.pronouns ? ` · ${profile.pronouns}` : ''}
         </div>
 

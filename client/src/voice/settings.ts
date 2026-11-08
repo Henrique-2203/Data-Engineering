@@ -50,6 +50,8 @@ export interface VoiceSettings {
   notifications: boolean;
   /** mostrar o "Jogando agora" (app de desktop) */
   shareActivity: boolean;
+  /** volume dos sons do soundboard (0..1) */
+  soundboardVolume: number;
 }
 
 const KEY = 'resenha.voiceSettings';
@@ -70,6 +72,7 @@ export const DEFAULT_SETTINGS: VoiceSettings = {
   sounds: true,
   notifications: false,
   shareActivity: true,
+  soundboardVolume: 0.7,
 };
 
 /** Nome legível da tecla de push-to-talk. */

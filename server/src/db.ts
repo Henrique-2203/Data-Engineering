@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { config } from './config.ts';
-import { DEFAULT_EVERYONE_PERMISSIONS } from '../../shared/permissions.ts';
+import { DEFAULT_EVERYONE_PERMISSIONS, Perm } from '../../shared/permissions.ts';
 
 export interface Db {
   query<T = Record<string, any>>(sql: string, params?: unknown[]): Promise<T[]>;
@@ -167,6 +167,29 @@ alter table users add column if not exists links jsonb not null default '[]';
 alter table users add column if not exists status_text text;
 alter table users add column if not exists status_emoji text;
 alter table users add column if not exists status_expires_at timestamptz;
+
+-- v6: emojis, figurinhas, soundboard e perfil por servidor
+create table if not exists expressions (
+  id text primary key,
+  guild_id text not null references guilds(id) on delete cascade,
+  kind text not null check (kind in ('emoji', 'sticker', 'sound')),
+  name text not null,
+  file_id text not null,
+  emoji text,
+  created_by text references users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists expressions_guild_idx on expressions(guild_id);
+alter table messages add column if not exists sticker_id text;
+alter table members add column if not exists nick text;
+alter table members add column if not exists avatar_id text;
+alter table guilds alter column everyone_permissions set default ${DEFAULT_EVERYONE_PERMISSIONS};
+
+-- migrações que rodam uma vez só (ex.: dar as permissões novas ao @todos dos servidores que já existiam)
+create table if not exists schema_flags (name text primary key);
+with first_time as (insert into schema_flags (name) values ('v6_everyone_perms') on conflict do nothing returning 1)
+update guilds set everyone_permissions = everyone_permissions | ${Perm.USE_SOUNDBOARD | Perm.CHANGE_NICKNAME}
+where exists (select 1 from first_time);
 
 -- imagens (ícone/banner do servidor, foto/banner de perfil): pequenas e substituídas, nunca acumuladas
 create table if not exists images (

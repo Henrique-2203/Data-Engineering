@@ -1,6 +1,6 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent, type Ref } from 'react';
-import { ImagePlus, Loader2, SendHorizontal, X } from 'lucide-react';
-import type { Attachment, Channel, Message, PublicUser } from '../../../../shared/types';
+import { ImagePlus, Loader2, SendHorizontal, Smile, Sticker, X } from 'lucide-react';
+import type { Attachment, Channel, Expression, Message, PublicUser } from '../../../../shared/types';
 import { api } from '../../lib/api';
 import { mentionQuery } from '../../lib/mentions';
 import { getSocket } from '../../lib/socket';
@@ -8,6 +8,12 @@ import { isImageFile, uploadImage } from '../../lib/upload';
 import { findMember, toast, useApp } from '../../store/app';
 import { Perm, has, myPermissions, timeoutUntil } from '../../lib/perms';
 import { Avatar } from '../Avatar';
+import { EmojiPicker } from '../EmojiPicker';
+import { StickerPicker } from '../StickerPicker';
+import { emojiToken, expressionGroups, fileUrl } from '../../lib/expressions';
+
+/** Texto antes do cursor termina com ":algo" (2+ letras)? Retorna o que foi digitado depois dos dois-pontos. */
+const emojiQuery = (before: string) => /(^|\s):([a-z0-9_]{2,32})$/i.exec(before)?.[2].toLowerCase() ?? null;
 
 const MAX_ATTACHMENTS = 4;
 const isTouch = () => window.matchMedia('(pointer: coarse)').matches;
@@ -57,6 +63,7 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
   const [caret, setCaret] = useState(0);
   const [mentionIdx, setMentionIdx] = useState(0);
   const [mentionClosed, setMentionClosed] = useState(false);
+  const [picker, setPicker] = useState<'emoji' | 'sticker' | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const lastTyping = useRef(0);
@@ -150,6 +157,26 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
     }
   }
 
+  async function sendSticker(sticker: Expression) {
+    try {
+      await api(`/channels/${channel.id}/messages`, { body: { content: '', stickerId: sticker.id, replyToId: replyTo?.id } });
+      onCancelReply();
+      onSent();
+    } catch (err) {
+      toast((err as Error).message);
+    }
+  }
+
+  /** Coloca o emoji onde está o cursor. */
+  function insertAtCaret(insert: string) {
+    const before = text.slice(0, caret);
+    const pad = before && !/\s$/.test(before) ? ' ' : '';
+    const nextBefore = `${before}${pad}${insert} `;
+    pendingCaret.current = nextBefore.length;
+    setText(nextBefore + text.slice(caret));
+    setCaret(nextBefore.length);
+  }
+
   // ---------- autocompletar @menções ----------
   const query = mentionClosed ? null : mentionQuery(text.slice(0, caret));
   const matches =
@@ -160,6 +187,27 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
           .slice(0, 8);
   const showMentions = matches.length > 0;
 
+  // ---------- autocompletar :emojis: personalizados (de todos os seus servidores) ----------
+  const eQuery = showMentions || mentionClosed ? null : emojiQuery(text.slice(0, caret));
+  const guilds = useApp((s) => s.guilds);
+  const guildOrder = useApp((s) => s.guildOrder);
+  const emojiMatches: Expression[] =
+    eQuery === null
+      ? []
+      : expressionGroups(guilds, guildOrder, 'emoji', channel.guildId)
+          .flatMap((g) => g.items)
+          .filter((e) => e.name.includes(eQuery))
+          .sort((a, b) => Number(!a.name.startsWith(eQuery)) - Number(!b.name.startsWith(eQuery)))
+          .slice(0, 8);
+  const showEmojis = emojiMatches.length > 0;
+
+  function pickEmoji(e: Expression) {
+    const before = text.slice(0, caret).replace(/:[a-z0-9_]*$/i, `${emojiToken(e)} `);
+    pendingCaret.current = before.length;
+    setText(before + text.slice(caret));
+    setCaret(before.length);
+  }
+
   function pickMention(c: Candidate) {
     const before = text.slice(0, caret).replace(/@[\w.]*$/, `@${c.username} `);
     const next = before + text.slice(caret);
@@ -169,6 +217,23 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (showEmojis) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIdx((i) => (i + (e.key === 'ArrowDown' ? 1 : emojiMatches.length - 1)) % emojiMatches.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        pickEmoji(emojiMatches[Math.min(mentionIdx, emojiMatches.length - 1)]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionClosed(true);
+        return;
+      }
+    }
     if (showMentions) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -245,6 +310,39 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
         </ul>
       )}
 
+      {showEmojis && (
+        <ul className="mention-popup" role="listbox" aria-label="Emojis">
+          {emojiMatches.map((em, i) => (
+            <li key={em.id}>
+              <button
+                role="option"
+                aria-selected={i === mentionIdx}
+                className={i === mentionIdx ? 'active' : ''}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pickEmoji(em);
+                }}
+                onMouseEnter={() => setMentionIdx(i)}
+              >
+                <img className="custom-emoji" src={fileUrl(em.fileId)} alt="" />
+                <strong>:{em.name}:</strong>
+                <span className="muted small">{guilds[em.guildId]?.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {picker && (
+        <div className="composer-picker">
+          {picker === 'emoji' ? (
+            <EmojiPicker guildId={channel.guildId} verb="Inserir" onPick={insertAtCaret} onClose={() => setPicker(null)} />
+          ) : (
+            <StickerPicker guildId={channel.guildId} onPick={(st) => void sendSticker(st)} onClose={() => setPicker(null)} />
+          )}
+        </div>
+      )}
+
       {replyTo && (
         <div className="reply-bar">
           <span className="ellipsis">
@@ -315,6 +413,12 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
           enterKeyHint="send"
           aria-autocomplete="list"
         />
+        <button className="icon-btn composer-tool" data-picker-toggle aria-label="Figurinhas" title="Figurinhas" onClick={() => setPicker((p) => (p === 'sticker' ? null : 'sticker'))}>
+          <Sticker size={20} />
+        </button>
+        <button className="icon-btn composer-tool" data-picker-toggle aria-label="Emojis" title="Emojis" onClick={() => setPicker((p) => (p === 'emoji' ? null : 'emoji'))}>
+          <Smile size={20} />
+        </button>
         <button className="icon-btn send-btn" aria-label="Enviar" disabled={!canSend} onClick={() => void send()}>
           <SendHorizontal size={20} />
         </button>

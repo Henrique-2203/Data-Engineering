@@ -88,6 +88,10 @@ export interface Friend {
 }
 
 export interface Member extends PublicUser {
+  /** apelido só neste servidor (displayName já vem com ele aplicado) */
+  nick: string | null;
+  /** foto só neste servidor (avatarId já vem com ela aplicada) */
+  guildAvatarId: string | null;
   joinedAt: string;
   roleIds: string[];
   /** castigo: não pode escrever/reagir/entrar em voz até esta hora */
@@ -109,6 +113,29 @@ export interface Guild {
   /** só os canais que você pode ver */
   channels: Channel[];
   members: Member[];
+  /** emojis, figurinhas e sons do servidor */
+  expressions: Expression[];
+}
+
+export type ExpressionKind = 'emoji' | 'sticker' | 'sound';
+
+export interface Expression {
+  id: string;
+  guildId: string;
+  kind: ExpressionKind;
+  /** emoji: só letras minúsculas, números e _ (vira :nome:) */
+  name: string;
+  /** arquivo em /api/images/:fileId */
+  fileId: string;
+  /** som: emoji que aparece no botão */
+  emoji: string | null;
+}
+
+/** Figurinha enviada (fileId null = foi apagada do servidor) */
+export interface StickerRef {
+  id: string;
+  name: string;
+  fileId: string | null;
 }
 
 export interface Attachment {
@@ -129,7 +156,7 @@ export interface Reaction {
 /** Trecho da mensagem respondida (ou só o id, se ela foi apagada). */
 export type ReplyPreview =
   | { id: string; deleted: true }
-  | { id: string; deleted?: false; author: PublicUser; content: string; hasAttachments: boolean };
+  | { id: string; deleted?: false; author: PublicUser; content: string; hasAttachments: boolean; hasSticker?: boolean };
 
 export interface Message {
   id: string;
@@ -143,6 +170,7 @@ export interface Message {
   mentionEveryone: boolean;
   reactions: Reaction[];
   attachments: Attachment[];
+  sticker: StickerRef | null;
 }
 
 export interface VoiceState {

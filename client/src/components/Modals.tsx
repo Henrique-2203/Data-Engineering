@@ -22,7 +22,7 @@ import { playSound } from '../lib/sounds';
 import { mouseCode } from './Hotkeys';
 import { GuildSettings } from './GuildSettings';
 import { ProfileCard } from './ProfileCard';
-import { ProfileEditor, StatusModal } from './ProfileEditor';
+import { ProfileEditor, StatusModal, GuildProfileModal } from './ProfileEditor';
 import { Perm, useCan } from '../lib/perms';
 import { refreshGuild } from '../lib/socket';
 import { DESKTOP_DOWNLOAD_URL, desktop, isDesktop, type DesktopSettings } from '../lib/desktop';
@@ -71,6 +71,8 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       );
     case 'status':
       return <StatusModal />;
+    case 'guildProfile':
+      return <GuildProfileModal guildId={modal.guildId} />;
   }
 }
 

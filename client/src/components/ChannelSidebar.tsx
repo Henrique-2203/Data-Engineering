@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  UserPen,
   ChevronDown,
   Hash,
   Headphones,
@@ -27,6 +28,7 @@ import { refreshGuild } from '../lib/socket';
 import { presenceLine } from '../lib/presence';
 import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
+import { SoundboardButton } from './Soundboard';
 import { canShareScreen } from '../voice/settings';
 import { Avatar } from './Avatar';
 import { HomeSidebar } from './HomeSidebar';
@@ -52,7 +54,7 @@ export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
 
   const isOwner = guild?.ownerId === me.id;
   const canManage = has(perms, Perm.MANAGE_CHANNELS);
-  const canSettings = [Perm.MANAGE_GUILD, Perm.MANAGE_ROLES, Perm.KICK, Perm.BAN, Perm.TIMEOUT].some((p) => has(perms, p));
+  const canSettings = [Perm.MANAGE_GUILD, Perm.MANAGE_ROLES, Perm.KICK, Perm.BAN, Perm.TIMEOUT, Perm.MANAGE_EXPRESSIONS, Perm.MANAGE_NICKNAMES].some((p) => has(perms, p));
   const canInvite = has(perms, Perm.CREATE_INVITE);
 
   const sorted = [...(guild?.channels ?? [])].sort((a, b) => a.position - b.position);
@@ -177,6 +179,9 @@ export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
                   </button>
                 </>
               )}
+              <button onClick={() => openModal({ kind: 'guildProfile', guildId: guild.id })}>
+                <UserPen size={16} /> Meu perfil neste servidor
+              </button>
               {!isOwner && (
                 <button className="danger" onClick={leaveGuild}>
                   <LogOut size={16} /> Sair do servidor
@@ -434,6 +439,7 @@ function VoicePanel() {
             <MonitorUp size={16} /> {screen ? 'Parar' : 'Tela'}
           </button>
         )}
+        <SoundboardButton className="btn small" small />
       </div>
     </div>
   );

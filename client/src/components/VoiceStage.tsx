@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { VoiceState } from '../../../shared/types';
 import { findChannel, findMember, openModal, useApp } from '../store/app';
+import { SoundBurstBadge, SoundboardButton } from './Soundboard';
 import { setUserVolume, useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { CODECS, canShareScreen, keyLabel, presetById } from '../voice/settings';
@@ -214,6 +215,7 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
           {tile.isMe ? ' (você)' : ''}
         </span>
       </div>
+      <SoundBurstBadge socketId={sid} />
       {connecting && <ConnectingBadge failed={remote!.connection === 'failed'} />}
       {!connecting && remote?.relayed && (
         <div className="tile-badge turn" title="Sem conexão direta com esta pessoa: áudio e vídeo passam pelo servidor TURN (cota grátis limitada), então câmera e tela vão em qualidade reduzida.">
@@ -452,6 +454,7 @@ function VoiceControls() {
       >
         {screen ? <MonitorX /> : <MonitorUp />}
       </button>
+      <SoundboardButton className="round-btn" />
       <button className="round-btn danger" aria-label="Sair da chamada" title="Sair da chamada" onClick={() => voice.leave()}>
         <PhoneOff />
       </button>

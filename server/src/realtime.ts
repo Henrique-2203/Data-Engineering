@@ -5,6 +5,8 @@ import { config } from './config.ts';
 import { userFromToken } from './auth.ts';
 import { canSee, channelAudience, isTimedOut, loadChannel, memberAccess } from './access.ts';
 import type { Db } from './db.ts';
+import { usableExpression } from './expressions.ts';
+import { Perm, has } from '../../shared/permissions.ts';
 import type { PublicUser, RtcSignal, VoiceState, Activity } from '../../shared/types.ts';
 
 type Ack = (res: any) => void;
@@ -241,6 +243,16 @@ export class Realtime {
       this.emitVoice(state, 'voice:state', state);
     });
 
+    // Soundboard: toca um som para todos da chamada (sons de qualquer servidor seu, como no Nitro)
+    socket.on('soundboard:play', (payload: unknown, ack?: Ack) => {
+      this.onSoundboard(socket, payload)
+        .then((res) => ack?.(res))
+        .catch((err) => {
+          console.error('[soundboard]', err);
+          ack?.({ ok: false, error: 'Não foi possível tocar o som.' });
+        });
+    });
+
     socket.on('rtc:signal', (payload: { to?: unknown; data?: RtcSignal }) => {
       const to = typeof payload?.to === 'string' ? payload.to : null;
       const from = this.voice.get(socket.id);
@@ -265,6 +277,35 @@ export class Realtime {
 
 
   // ---------- Voz ----------
+
+  /** último som tocado por pessoa (evita "metralhadora" de sons) */
+  private lastSound = new Map<string, number>();
+
+  private async onSoundboard(socket: Socket, payload: unknown) {
+    const user = socket.data.user as PublicUser;
+    const p = z.object({ soundId: z.string() }).safeParse(payload);
+    const state = this.voice.get(socket.id);
+    if (!p.success || !state) return { ok: false, error: 'Entre numa chamada para usar o soundboard.' };
+    if (state.guildId) {
+      const access = await memberAccess(this.db, state.guildId, user.id);
+      if (!access || !has(access.perms, Perm.USE_SOUNDBOARD)) return { ok: false, error: 'Seu cargo não pode usar o soundboard neste servidor.' };
+      if (isTimedOut(access)) return { ok: false, error: 'Você está de castigo neste servidor.' };
+    }
+    const sound = await usableExpression(this.db, p.data.soundId, user.id, 'sound');
+    if (!sound) return { ok: false, error: 'Som não encontrado.' };
+    const now = Date.now();
+    if (now - (this.lastSound.get(user.id) ?? 0) < 1500) return { ok: false, error: 'Calma! Espere um pouquinho entre um som e outro.' };
+    this.lastSound.set(user.id, now);
+    this.io.to(`voice:${state.channelId}`).emit('soundboard:play', {
+      socketId: socket.id,
+      userId: user.id,
+      soundId: sound.id,
+      fileId: sound.fileId,
+      name: sound.name,
+      emoji: sound.emoji,
+    });
+    return { ok: true };
+  }
 
   private async onVoiceJoin(socket: Socket, payload: unknown) {
     const user = socket.data.user as PublicUser;

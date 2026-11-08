@@ -3,7 +3,9 @@ import { ImagePlus, Plus, Trash2, X } from 'lucide-react';
 import type { Profile, ProfileLink, ProfileLinkType, PublicUser } from '../../../shared/types';
 import { api } from '../lib/api';
 import { LINK_INFO, activeStatus } from '../lib/presence';
-import { uploadProfileImage } from '../lib/upload';
+import { uploadGuildAvatar, uploadProfileImage } from '../lib/upload';
+import { refreshGuild } from '../lib/socket';
+import { Perm, has, myPermissions } from '../lib/perms';
 import { closeModal, toast, updateUserEverywhere, useApp } from '../store/app';
 import { Avatar } from './Avatar';
 import { EmojiPicker } from './EmojiPicker';
@@ -233,7 +235,7 @@ export function StatusModal() {
           </div>
           {picker && (
             <div className="status-picker">
-              <EmojiPicker onPick={(e) => setEmoji(e)} onClose={() => setPicker(false)} />
+              <EmojiPicker custom={false} onPick={(e) => setEmoji(e)} onClose={() => setPicker(false)} />
             </div>
           )}
           <label>
@@ -261,6 +263,99 @@ export function StatusModal() {
           <p className="muted small">
             O "Jogando agora" aparece sozinho pelo app de desktop quando você abre um jogo (dá para desligar nas Configurações).
           </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Perfil só deste servidor: apelido e foto (no Discord, a foto por servidor é paga). */
+export function GuildProfileModal({ guildId }: { guildId: string }) {
+  const me = useApp((s) => s.me)!;
+  const guild = useApp((s) => s.guilds[guildId]);
+  const member = guild?.members.find((m) => m.id === me.id);
+  const [nick, setNick] = useState(member?.nick ?? '');
+  const [busy, setBusy] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const perms = myPermissions(guild, me.id);
+  const canChange = has(perms, Perm.CHANGE_NICKNAME) || has(perms, Perm.MANAGE_NICKNAMES);
+  if (!guild || !member) return null;
+  const preview = { ...me, displayName: nick.trim() || me.displayName, avatarId: member.guildAvatarId ?? me.avatarId };
+
+  async function saveNick() {
+    setBusy(true);
+    try {
+      await api(`/guilds/${guildId}/members/@me/nick`, { method: 'PATCH', body: { nick: nick.trim() || null } });
+      await refreshGuild(guildId);
+      toast('Perfil do servidor salvo.');
+      closeModal();
+    } catch (err) {
+      toast((err as Error).message);
+    }
+    setBusy(false);
+  }
+
+  async function uploadAvatar(file?: File) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const r = await uploadGuildAvatar(guildId, file);
+      await refreshGuild(guildId);
+      toast(`Foto do servidor atualizada (${Math.max(1, Math.round(r.bytes / 1024))} KB).`);
+    } catch (err) {
+      toast((err as Error).message);
+    }
+    setBusy(false);
+  }
+
+  async function removeAvatar() {
+    try {
+      await api(`/guilds/${guildId}/members/@me/avatar`, { method: 'DELETE' });
+      await refreshGuild(guildId);
+    } catch (err) {
+      toast((err as Error).message);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeModal()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label="Meu perfil neste servidor">
+        <div className="modal-head">
+          <h2>Meu perfil em {guild.name}</h2>
+          <button className="icon-btn" aria-label="Fechar" onClick={closeModal}>
+            <X size={20} />
+          </button>
+        </div>
+        <div className="modal-body form">
+          <p className="muted small">Só vale neste servidor. Nos outros e nas mensagens diretas continua o seu perfil normal.</p>
+          <div className="guild-profile-preview">
+            <Avatar user={preview} size={64} />
+            <div>
+              <strong>{preview.displayName}</strong>
+              <div className="muted small">@{me.username}</div>
+            </div>
+          </div>
+          {!canChange && <p className="warn small">Seu cargo não pode mudar apelido nem foto neste servidor.</p>}
+          <label>
+            Apelido neste servidor
+            <input value={nick} onChange={(e) => setNick(e.target.value)} maxLength={32} placeholder={me.displayName} disabled={!canChange} />
+          </label>
+          <div className="row gap-s">
+            <button type="button" className="btn small" disabled={busy || !canChange} onClick={() => input.current?.click()}>
+              <ImagePlus size={15} /> Foto só deste servidor
+            </button>
+            {member.guildAvatarId && (
+              <button type="button" className="btn small ghost" onClick={() => void removeAvatar()}>
+                Usar minha foto normal
+              </button>
+            )}
+          </div>
+          <input ref={input} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={(e) => void uploadAvatar(e.target.files?.[0])} />
+          <div className="modal-actions">
+            <button className="btn primary" disabled={busy || !canChange || nick.trim() === (member.nick ?? '')} onClick={() => void saveNick()}>
+              Salvar apelido
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import type { PublicUser } from '../../../../shared/types';
 import { MENTION_RE } from '../../lib/mentions';
 import { useApp } from '../../store/app';
+import { isEmojiOnly, renderCustomEmojis } from '../../lib/expressions';
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,:;"')\]!?])/g;
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif)(\?.*)?$/i;
@@ -42,6 +43,7 @@ function renderMentions(text: string, keyPrefix: string, meUsername: string, eve
 }
 
 export function renderContent(text: string, opts: { meUsername: string; everyone: boolean }): ReactNode[] {
+  const big = isEmojiOnly(text);
   const parts = text.split(URL_RE);
   const out: ReactNode[] = [];
   const images: string[] = [];
@@ -54,9 +56,10 @@ export function renderContent(text: string, opts: { meUsername: string; everyone
       );
       if (IMG_RE.test(part)) images.push(part);
     } else if (part) {
-      out.push(...renderMentions(part, String(i), opts.meUsername, opts.everyone));
+      out.push(...renderCustomEmojis(part, String(i), (t, key) => renderMentions(t, key, opts.meUsername, opts.everyone), big));
     }
   });
+  if (big) return [<span key="big" className="emoji-only">{out}</span>];
   for (const src of images.slice(0, 4)) {
     out.push(
       <a key={`img-${src}`} className="message-image" href={src} target="_blank" rel="noopener noreferrer">

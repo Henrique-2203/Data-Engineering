@@ -6,6 +6,7 @@ import type { Realtime } from './realtime.ts';
 import { USER_COLUMNS, userJson, type requireAuth } from './auth.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { sniffImage } from './attachments.ts';
+import { deleteFiles, guildFileIds, loadExpressions } from './expressions.ts';
 import {
   CHANNEL_COLUMNS,
   type ChannelRow,
@@ -71,7 +72,7 @@ export async function loadGuild(db: Db, userId: string, guildId: string): Promis
     [guildId],
   );
   const members = await db.query<Member & { roleIds: string[] | null }>(
-    `select m.joined_at as "joinedAt", m.timeout_until as "timeoutUntil", ${USER_COLUMNS},
+    `select m.joined_at as "joinedAt", m.timeout_until as "timeoutUntil", m.nick, m.avatar_id as "guildAvatarId", ${USER_COLUMNS},
        (select array_agg(mr.role_id) from member_roles mr where mr.guild_id = m.guild_id and mr.user_id = m.user_id) as "roleIds"
      from members m join users u on u.id = m.user_id
      where m.guild_id = $1 order by m.joined_at`,
@@ -83,7 +84,14 @@ export async function loadGuild(db: Db, userId: string, guildId: string): Promis
     roles: access.ctx.roles,
     categories,
     channels: channels.filter((c) => canSee(access, c)).map(toChannel),
-    members: members.map((m) => ({ ...m, roleIds: m.roleIds ?? [] })),
+    // apelido e foto do servidor já aplicados (o resto do site só usa displayName/avatarId)
+    members: members.map((m) => ({
+      ...m,
+      displayName: m.nick ?? m.displayName,
+      avatarId: m.guildAvatarId ?? m.avatarId,
+      roleIds: m.roleIds ?? [],
+    })),
+    expressions: await loadExpressions(db, guildId),
   };
 }
 
@@ -178,8 +186,9 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         'select icon_id, banner_id from guilds where id = $1',
         [id],
       );
+      const files = await guildFileIds(db, id);
       await db.query('delete from guilds where id = $1', [id]);
-      await db.query('delete from images where id = any($1)', [[g?.icon_id, g?.banner_id].filter(Boolean)]);
+      await deleteFiles(db, [g?.icon_id, g?.banner_id, ...files]);
     }),
   );
 
@@ -449,7 +458,11 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
   );
 
   async function removeMember(guildId: string, userId: string) {
-    await db.query('delete from members where guild_id = $1 and user_id = $2', [guildId, userId]);
+    const [m] = await db.query<{ avatar_id: string | null }>('delete from members where guild_id = $1 and user_id = $2 returning avatar_id', [
+      guildId,
+      userId,
+    ]);
+    await deleteFiles(db, [m?.avatar_id]);
     rt.emitUser(userId, 'guild:delete', { id: guildId });
     rt.userLeftGuild(userId, guildId);
     await changed(guildId);

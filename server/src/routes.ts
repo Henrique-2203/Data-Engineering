@@ -24,6 +24,7 @@ import { type MemberAccess, canSee, channelAudience, loadChannel, memberAccess, 
 import { Perm, has } from '../../shared/permissions.ts';
 import { siteVersion } from './version.ts';
 import { registerProfileRoutes } from './profile.ts';
+import { registerExpressionRoutes, usableExpression } from './expressions.ts';
 
 export { HttpError };
 
@@ -99,8 +100,12 @@ export function createRoutes(db: Db, rt: Realtime) {
         when msg.reply_to_id is null then null
         when rm.id is null then json_build_object('id', msg.reply_to_id, 'deleted', true)
         else json_build_object('id', rm.id, 'content', left(rm.content, 200), 'author', ${userJson('ru')},
-          'hasAttachments', exists (select 1 from attachments ra where ra.message_id = rm.id))
+          'hasAttachments', exists (select 1 from attachments ra where ra.message_id = rm.id),
+          'hasSticker', rm.sticker_id is not null)
       end as "replyTo",
+      case when msg.sticker_id is null then null
+        else json_build_object('id', msg.sticker_id, 'name', coalesce(st.name, ''), 'fileId', st.file_id)
+      end as sticker,
       coalesce((
         select json_agg(json_build_object('emoji', r.emoji, 'userIds', r.user_ids) order by r.first_at)
         from (
@@ -116,7 +121,8 @@ export function createRoutes(db: Db, rt: Realtime) {
     from messages msg
     join users u on u.id = msg.author_id
     left join messages rm on rm.id = msg.reply_to_id
-    left join users ru on ru.id = rm.author_id`;
+    left join users ru on ru.id = rm.author_id
+    left join expressions st on st.id = msg.sticker_id`;
 
   // ---------- públicas ----------
 
@@ -216,6 +222,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerSocialRoutes(r, db, rt, auth);
   registerGuildRoutes(r, db, rt, auth);
   registerProfileRoutes(r, db, rt, auth);
+  registerExpressionRoutes(r, db, rt, auth);
 
   r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers(), hasTurn: hasTurn() })));
 
@@ -249,10 +256,15 @@ export function createRoutes(db: Db, rt: Realtime) {
           content: z.string().trim().max(4000, 'Mensagem muito longa.').default(''),
           replyToId: z.string().optional(),
           attachmentIds: z.array(z.string()).max(4, 'No máximo 4 imagens por mensagem.').default([]),
+          stickerId: z.string().optional(),
         }),
         req.body,
       );
-      if (!body.content && body.attachmentIds.length === 0) throw new HttpError(400, 'Mensagem vazia.');
+      if (!body.content && body.attachmentIds.length === 0 && !body.stickerId) throw new HttpError(400, 'Mensagem vazia.');
+      // figurinhas de qualquer servidor do qual você participa (o Discord cobra por isso)
+      if (body.stickerId && !(await usableExpression(db, body.stickerId, req.user!.id, 'sticker'))) {
+        throw new HttpError(400, 'Figurinha não encontrada.');
+      }
       if (body.replyToId) {
         const [target] = await db.query('select 1 from messages where id = $1 and channel_id = $2', [body.replyToId, c.id]);
         if (!target) throw new HttpError(400, 'A mensagem respondida não existe mais.');
@@ -269,8 +281,8 @@ export function createRoutes(db: Db, rt: Realtime) {
         !!c.access && has(c.access.perms, Perm.MENTION_EVERYONE) && /(^|[^\w@])@todos(?![\w])/i.test(body.content);
       const id = randomUUID();
       await db.query(
-        'insert into messages (id, channel_id, author_id, content, reply_to_id, mention_everyone) values ($1, $2, $3, $4, $5, $6)',
-        [id, c.id, req.user!.id, body.content, body.replyToId ?? null, mentionEveryone],
+        'insert into messages (id, channel_id, author_id, content, reply_to_id, mention_everyone, sticker_id) values ($1, $2, $3, $4, $5, $6, $7)',
+        [id, c.id, req.user!.id, body.content, body.replyToId ?? null, mentionEveryone, body.stickerId ?? null],
       );
       if (body.attachmentIds.length) {
         await db.query('update attachments set message_id = $1 where id = any($2)', [id, body.attachmentIds]);
@@ -300,7 +312,10 @@ export function createRoutes(db: Db, rt: Realtime) {
       if (m.authorId !== req.user!.id) throw new HttpError(403, 'Você só pode editar suas mensagens.');
       const body = parse(z.object({ content: z.string().trim().max(4000) }), req.body);
       if (!body.content) {
-        const [att] = await db.query('select 1 from attachments where message_id = $1 limit 1', [m.id]);
+        const [att] = await db.query(
+          'select 1 from attachments where message_id = $1 union all select 1 from messages where id = $1 and sticker_id is not null limit 1',
+          [m.id],
+        );
         if (!att) throw new HttpError(400, 'Mensagem vazia.');
       }
       await db.query('update messages set content = $2, edited_at = now() where id = $1', [m.id, body.content]);
@@ -333,11 +348,20 @@ export function createRoutes(db: Db, rt: Realtime) {
           emoji: z
             .string()
             .min(1)
-            .max(32)
-            .refine((e) => /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(e), 'Emoji inválido.'),
+            .max(80)
+            .refine(
+              (e) => (e.length <= 32 && /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(e)) || /^<:[a-z0-9_]{2,32}:[0-9a-f-]{36}>$/.test(e),
+              'Emoji inválido.',
+            ),
         }),
         req.body,
       );
+      // emoji personalizado: precisa existir num servidor do qual você participa
+      const custom = /^<:[a-z0-9_]{2,32}:([0-9a-f-]{36})>$/.exec(emoji);
+      if (custom && !(await usableExpression(db, custom[1], req.user!.id, 'emoji'))) {
+        const [already] = await db.query('select 1 from reactions where message_id = $1 and emoji = $2 and user_id = $3', [m.id, emoji, req.user!.id]);
+        if (!already) throw new HttpError(400, 'Esse emoji não está disponível para você.');
+      }
       const removed = await db.query(
         'delete from reactions where message_id = $1 and user_id = $2 and emoji = $3 returning 1',
         [m.id, req.user!.id, emoji],

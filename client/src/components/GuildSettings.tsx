@@ -8,8 +8,9 @@ import { refreshGuild } from '../lib/socket';
 import { uploadGuildImage } from '../lib/upload';
 import { closeModal, toast, useApp } from '../store/app';
 import { Avatar } from './Avatar';
+import { ExpressionSettings } from './ExpressionSettings';
 
-type Tab = 'overview' | 'roles' | 'members' | 'bans';
+type Tab = 'overview' | 'roles' | 'members' | 'bans' | 'expressions';
 
 const ROLE_COLORS = ['#ed4245', '#f97316', '#faa61a', '#3ba55d', '#14b8a6', '#5865f2', '#9b59b6', '#eb459e', '#99aab5'];
 
@@ -29,7 +30,8 @@ export function GuildSettings({ guildId, initialTab }: { guildId: string; initia
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: 'overview', label: 'Visão geral', show: has(perms, Perm.MANAGE_GUILD) },
     { id: 'roles', label: 'Cargos', show: has(perms, Perm.MANAGE_ROLES) },
-    { id: 'members', label: 'Membros', show: [Perm.MANAGE_ROLES, Perm.KICK, Perm.BAN, Perm.TIMEOUT].some((p) => has(perms, p)) },
+    { id: 'expressions', label: 'Emojis e sons', show: has(perms, Perm.MANAGE_EXPRESSIONS) },
+    { id: 'members', label: 'Membros', show: [Perm.MANAGE_ROLES, Perm.KICK, Perm.BAN, Perm.TIMEOUT, Perm.MANAGE_NICKNAMES].some((p) => has(perms, p)) },
     { id: 'bans', label: 'Banimentos', show: has(perms, Perm.BAN) },
   ];
   const visible = tabs.filter((t) => t.show);
@@ -60,6 +62,7 @@ export function GuildSettings({ guildId, initialTab }: { guildId: string; initia
         {tab === 'roles' && <Roles guild={guild} />}
         {tab === 'members' && <Members guild={guild} />}
         {tab === 'bans' && <Bans guild={guild} />}
+        {tab === 'expressions' && <ExpressionSettings guild={guild} />}
       </section>
     </div>
   );
@@ -404,6 +407,27 @@ export function MemberModeration({ guild, member, compact }: { guild: Guild; mem
         </select>
       ),
     );
+  }
+  if (!self && above && has(perms, Perm.MANAGE_NICKNAMES)) {
+    actions.push(
+      <button
+        key="nick"
+        className="btn small ghost"
+        onClick={() => {
+          const nick = prompt(`Apelido de ${member.username} neste servidor (vazio = tirar):`, member.nick ?? '');
+          if (nick !== null) void run(() => api(`/guilds/${guild.id}/members/${member.id}/nick`, { method: 'PATCH', body: { nick: nick.trim() || null } }), 'Apelido atualizado.');
+        }}
+      >
+        Mudar apelido
+      </button>,
+    );
+    if (member.guildAvatarId) {
+      actions.push(
+        <button key="gavatar" className="btn small ghost" onClick={() => void run(() => api(`/guilds/${guild.id}/members/${member.id}/avatar`, { method: 'DELETE' }), 'Foto do servidor removida.')}>
+          Tirar foto do servidor
+        </button>,
+      );
+    }
   }
   if (!self && above && has(perms, Perm.KICK)) {
     actions.push(

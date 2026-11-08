@@ -1,6 +1,7 @@
-import { memo, useState } from 'react';
+import { Fragment, memo, useState } from 'react';
 import { CornerUpLeft, Image as ImageIcon, Pencil, Reply, SmilePlus, Trash2 } from 'lucide-react';
-import type { Channel, Message } from '../../../../shared/types';
+import type { Channel, Message, StickerRef } from '../../../../shared/types';
+import { EmojiView, fileUrl, plainEmojis, renderCustomEmojis } from '../../lib/expressions';
 import { api } from '../../lib/api';
 import { mentionsUser } from '../../lib/mentions';
 import { attachmentUrl } from '../../lib/upload';
@@ -107,6 +108,8 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
           )
         )}
 
+        {message.sticker && <StickerView sticker={message.sticker} />}
+
         {message.attachments.length > 0 && (
           <div className={`attachments count-${Math.min(message.attachments.length, 4)}`}>
             {message.attachments.map((a) => {
@@ -135,12 +138,12 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
                 <button
                   key={r.emoji}
                   className={`reaction${mineR ? ' mine' : ''}`}
-                  title={`${names.join(', ')} reagiu com ${r.emoji}`}
-                  aria-label={`${r.emoji} ${r.userIds.length}${mineR ? ', você reagiu' : ''}`}
+                  title={`${names.join(', ')} reagiu com ${plainEmojis(r.emoji)}`}
+                  aria-label={`${plainEmojis(r.emoji)} ${r.userIds.length}${mineR ? ', você reagiu' : ''}`}
                   aria-pressed={mineR}
                   onClick={() => void toggleReaction(message, r.emoji)}
                 >
-                  <span className="reaction-emoji">{r.emoji}</span> {r.userIds.length}
+                  <span className="reaction-emoji"><EmojiView emoji={r.emoji} /></span> {r.userIds.length}
                 </button>
               );
             })}
@@ -153,7 +156,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
 
       {!editing && (
         <div className={`message-actions${picker ? ' open' : ''}`}>
-          <button className="icon-btn small" aria-label="Reagir" title="Reagir" onClick={() => setPicker((v) => !v)}>
+          <button className="icon-btn small" data-picker-toggle aria-label="Reagir" title="Reagir" onClick={() => setPicker((v) => !v)}>
             <SmilePlus size={15} />
           </button>
           <button className="icon-btn small" aria-label="Responder" title="Responder" onClick={() => onReply(message)}>
@@ -181,7 +184,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
       )}
       {picker && (
         <div className="message-picker">
-          <EmojiPicker onPick={(e) => void toggleReaction(message, e)} onClose={() => setPicker(false)} />
+          <EmojiPicker guildId={channel.guildId} onPick={(e) => void toggleReaction(message, e)} onClose={() => setPicker(false)} />
         </div>
       )}
     </div>
@@ -200,17 +203,25 @@ function ReplyLine({ reply, channel, onJump }: { reply: NonNullable<Message['rep
           <Avatar user={author} size={16} />
           <strong style={{ color: author.avatarColor }}>{author.displayName}</strong>
           <span className="ellipsis muted">
-            {reply.content ||
-              (reply.hasAttachments ? (
-                <>
-                  <ImageIcon size={13} /> Imagem
-                </>
-              ) : (
-                ''
-              ))}
+            {reply.content ? (
+              renderCustomEmojis(reply.content, 'r', (t, key) => [<Fragment key={key}>{t}</Fragment>])
+            ) : reply.hasAttachments ? (
+              <>
+                <ImageIcon size={13} /> Imagem
+              </>
+            ) : reply.hasSticker ? (
+              'Figurinha'
+            ) : (
+              ''
+            )}
           </span>
         </>
       )}
     </button>
   );
+}
+
+function StickerView({ sticker }: { sticker: StickerRef }) {
+  if (!sticker.fileId) return <div className="sticker-missing muted small">Figurinha removida do servidor{sticker.name ? ` (${sticker.name})` : ''}</div>;
+  return <img className="sticker" src={fileUrl(sticker.fileId)} alt={`Figurinha ${sticker.name}`} title={sticker.name} loading="lazy" />;
 }
