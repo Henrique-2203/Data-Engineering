@@ -23,6 +23,19 @@ const SPEAKING_THRESHOLD = 0.015;
 
 type Meter = { stream: MediaStream; source: MediaStreamAudioSourceNode; analyser: AnalyserNode; data: Float32Array<ArrayBuffer>; lastLoud: number };
 
+export interface SendStats {
+  captureFps: number;
+  fps: number;
+  width: number;
+  height: number;
+  codec: string;
+  /** true = placa de vídeo, false = processador, null = navegador não informa */
+  hardware: boolean | null;
+  limitedBy: 'none' | 'cpu' | 'bandwidth' | 'other';
+  bytes: number;
+  ts: number;
+}
+
 const setV = useVoice.setState;
 const getV = useVoice.getState;
 
@@ -465,12 +478,41 @@ class VoiceEngine {
             maxBitrate: effectiveBitrate(settings),
             maxFramerate: preset.fps,
             degradation: settings.contentType === 'motion' ? 'maintain-framerate' : 'maintain-resolution',
+            codecMime: CODECS.find((c) => c.id === settings.codec)?.mime,
           });
     }
     if (peer.isSending('screenAudio')) void peer.setEncoding('screenAudio', { maxBitrate: save ? 64_000 : 128_000 });
     if (peer.isSending('camera')) {
       void peer.setEncoding('camera', save ? TURN_LIMITS.camera : { maxBitrate: CAMERA_BITRATE, maxFramerate: 30 });
     }
+  }
+
+  /**
+   * Estatísticas do envio da minha tela: pega o espectador com pior FPS (o gargalo).
+   * Retorna null se ninguém está assistindo.
+   */
+  async screenSendStats(): Promise<SendStats | null> {
+    let worst: SendStats | null = null;
+    for (const id of this.screenWatchers) {
+      const report = await this.peers.get(id)?.screenSendStats();
+      if (!report) continue;
+      const s: SendStats = { captureFps: 0, fps: 0, width: 0, height: 0, codec: '', hardware: null, limitedBy: 'none', bytes: 0, ts: 0 };
+      report.forEach((r: any) => {
+        if (r.type === 'media-source' && r.kind === 'video') s.captureFps = r.framesPerSecond ?? 0;
+        if (r.type === 'outbound-rtp' && r.kind === 'video') {
+          s.fps = Math.max(s.fps, r.framesPerSecond ?? 0);
+          s.width = Math.max(s.width, r.frameWidth ?? 0);
+          s.height = Math.max(s.height, r.frameHeight ?? 0);
+          s.codec = r.codecId ? (report.get(r.codecId)?.mimeType ?? '').replace('video/', '') : s.codec;
+          if (typeof r.powerEfficientEncoder === 'boolean') s.hardware = r.powerEfficientEncoder;
+          if (r.qualityLimitationReason) s.limitedBy = r.qualityLimitationReason;
+          s.bytes += r.bytesSent ?? 0;
+          s.ts = r.timestamp;
+        }
+      });
+      if (!worst || s.fps < worst.fps) worst = s;
+    }
+    return worst;
   }
 
   /** Quantas pessoas estão recebendo minha tela via TURN agora. */

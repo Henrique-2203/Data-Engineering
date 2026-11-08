@@ -25,6 +25,11 @@ Funciona no navegador do PC e do celular, e é 100% gratuito para hospedar.
   - Mostra a resolução, o FPS e o bitrate recebidos em tempo real
 - Layout para celular, que pode ser instalado na tela inicial (PWA)
 
+> **Transmissão travando em ~30 FPS?** Quem transmite vê no canto da própria tela a captura, o envio,
+> o codec, se a codificação está na placa de vídeo e o que está limitando. Dicas que costumam resolver:
+> use **Chrome ou Edge** dos dois lados (Opera/Opera GX e Brave podem vir sem H.264 e caem no VP8, que
+> pesa no processador), codec **H.264**, e o jogo em **janela sem bordas** em vez de tela cheia exclusiva.
+
 > **Celular:** dá para conversar, falar, ligar a câmera e **assistir** transmissões.
 > **Transmitir** a tela só funciona no navegador do computador (Chrome, Edge ou Firefox), porque os
 > navegadores de celular não permitem capturar a tela.
@@ -110,6 +115,7 @@ Outros comandos:
 | `npm start` | Sobe o servidor de produção (serve API e frontend na porta `PORT`) |
 | `npm run typecheck` | Checa os tipos do servidor e do cliente |
 | `npm run test:e2e` | Teste ponta a ponta com dois navegadores (PC + celular): convite, chat, voz, câmera e tela |
+| `npm run test:e2e:codec` | O codec escolhido é o usado mesmo quando o espectador iniciou a negociação; estatísticas de envio |
 | `npm run test:e2e:voice` | Push-to-talk, ativação por voz, atalho de silenciar e gravação de tecla |
 | `npm run test:e2e:turn` | Força a conexão pelo TURN (precisa do `coturn` instalado) e confere a economia de cota |
 

@@ -182,10 +182,18 @@ export class Peer {
 
   async setEncoding(
     slot: SenderSlot,
-    opts: { maxBitrate?: number; maxFramerate?: number; scaleDown?: number; degradation?: RTCDegradationPreference },
+    opts: {
+      maxBitrate?: number;
+      maxFramerate?: number;
+      scaleDown?: number;
+      degradation?: RTCDegradationPreference;
+      /** codec preferido (ex.: 'video/H264'); usa a API encodings[].codec do Chrome 126+ */
+      codecMime?: string;
+    },
   ) {
     const sender = this.senders[slot];
     if (!sender?.track) return;
+    if (opts.codecMime) await this.forceCodec(sender, opts.codecMime);
     try {
       const params = sender.getParameters() as RTCRtpSendParameters & { degradationPreference?: string };
       if (!params.encodings || params.encodings.length === 0) return; // ainda não negociado
@@ -209,6 +217,32 @@ export class Peer {
         console.warn('[rtc] setParameters falhou', err);
       }
     }
+  }
+
+  /**
+   * Garante o codec de envio escolhido, mesmo quando foi o outro lado quem ofereceu a
+   * linha de vídeo. Só age se o codec foi negociado e o navegador suporta a API.
+   */
+  private async forceCodec(sender: RTCRtpSender, mime: string) {
+    try {
+      const params = sender.getParameters() as RTCRtpSendParameters & { codecs?: RTCRtpCodecParameters[] };
+      const enc = params.encodings?.[0] as (RTCRtpEncodingParameters & { codec?: RTCRtpCodec }) | undefined;
+      if (!enc || !params.codecs?.length) return;
+      const wanted = params.codecs.find((c) => c.mimeType.toLowerCase() === mime.toLowerCase());
+      if (!wanted || enc.codec?.mimeType.toLowerCase() === mime.toLowerCase()) return;
+      const { payloadType, ...codec } = wanted as RTCRtpCodecParameters & RTCRtpCodec;
+      void payloadType;
+      for (const e of params.encodings as (RTCRtpEncodingParameters & { codec?: RTCRtpCodec })[]) e.codec = codec;
+      await sender.setParameters(params);
+    } catch {
+      /* navegador antigo: fica com o codec da negociação */
+    }
+  }
+
+  /** Estatísticas de envio da tela (para quem transmite ver o que está saindo). */
+  async screenSendStats(): Promise<RTCStatsReport | null> {
+    const sender = this.senders.screenVideo;
+    return sender?.track ? sender.getStats() : null;
   }
 
   /** Estatísticas de recebimento da tela (resolução, FPS, bitrate, codec). */

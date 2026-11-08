@@ -18,7 +18,8 @@ import type { VoiceState } from '../../../shared/types';
 import { findChannel, findMember, openModal, useApp } from '../store/app';
 import { setUserVolume, useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
-import { canShareScreen, keyLabel } from '../voice/settings';
+import { CODECS, canShareScreen, keyLabel, presetById } from '../voice/settings';
+import type { SendStats } from '../voice/engine';
 import { Avatar } from './Avatar';
 import { MobileHeader } from './MobileHeader';
 
@@ -162,6 +163,7 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
           )}
         </div>
         {!tile.isMe && watching && <StreamStats socketId={sid} relayed={!!remote?.relayed} />}
+        {tile.isMe && <SendStatsView />}
       </div>
     );
   }
@@ -271,6 +273,71 @@ function VolumeSlider({ userId }: { userId: string }) {
           onChange={(e) => setUserVolume(userId, Number(e.target.value))}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Para quem transmite: o que está saindo de verdade (captura, envio, codec, se usa a placa de vídeo
+ * e o que limita a qualidade), com dicas quando algo está atrapalhando.
+ */
+function SendStatsView() {
+  const chosen = useVoice((s) => s.settings.codec);
+  const targetFps = useVoice((s) => presetById(s.settings.screenPreset).fps);
+  const [st, setSt] = useState<SendStats | null>(null);
+  const [mbps, setMbps] = useState<number | null>(null);
+  useEffect(() => {
+    let last: SendStats | null = null;
+    const t = setInterval(async () => {
+      const s = await voice.screenSendStats();
+      setSt(s);
+      if (s && last && s.ts > last.ts && s.bytes >= last.bytes) {
+        setMbps(((s.bytes - last.bytes) * 8) / ((s.ts - last.ts) / 1000) / 1e6);
+      }
+      last = s;
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!st) return <div className="send-stats muted">Ninguém assistindo ainda</div>;
+
+  const wanted = CODECS.find((c) => c.id === chosen)?.mime.replace('video/', '') ?? '';
+  const fallback = st.codec && wanted && st.codec.toUpperCase() !== wanted.toUpperCase();
+  const tips: string[] = [];
+  if (fallback) {
+    tips.push(
+      `O ${wanted} não está disponível (no seu navegador ou no de quem assiste), então está indo em ${st.codec}. Use Chrome ou Edge atualizados dos dois lados — Opera/Opera GX e Brave podem vir sem H.264.`,
+    );
+  }
+  if (st.limitedBy === 'cpu') {
+    tips.push(
+      st.hardware === false
+        ? 'Processador sobrecarregado: a codificação está no processador. Use H.264 no Chrome/Edge para usar a placa de vídeo, ou baixe para 720p.'
+        : 'Processador sobrecarregado: baixe para 720p · 60 FPS ou feche programas pesados.',
+    );
+  }
+  if (st.limitedBy === 'bandwidth') tips.push('Sua internet (upload) está limitando a qualidade. Diminua o bitrate ou a resolução.');
+  // O navegador só captura quando a imagem muda: tela parada = FPS baixo, e isso é normal.
+  if (st.captureFps > 0 && st.captureFps < targetFps * 0.75 && st.limitedBy === 'none') {
+    tips.push(
+      `A captura está abaixo de ${targetFps} FPS. Se for durante o jogo (e não uma tela parada), deixe o jogo em "janela sem bordas" (tela cheia em janela) em vez de tela cheia exclusiva.`,
+    );
+  }
+
+  const enc = st.hardware === null ? '' : st.hardware ? ' (placa de vídeo)' : ' (processador)';
+  const limited = { none: '', cpu: ' · limitado: processador', bandwidth: ' · limitado: internet', other: '' }[st.limitedBy];
+  return (
+    <div className="send-stats">
+      <div>
+        Captura {Math.round(st.captureFps)} FPS · Envio {st.width}×{st.height} {Math.round(st.fps)} FPS
+        {mbps !== null ? ` · ${mbps.toFixed(1)} Mbps` : ''} · {st.codec}
+        {enc}
+        {limited}
+      </div>
+      {tips.map((t) => (
+        <div key={t} className="send-tip">
+          ⚠️ {t}
+        </div>
+      ))}
     </div>
   );
 }
