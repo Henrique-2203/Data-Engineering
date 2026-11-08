@@ -19,7 +19,8 @@
     "test:e2e": "node e2e/smoke.mjs",
     "test:e2e:turn": "node e2e/turn.mjs",
     "test:e2e:voice": "node e2e/voice-features.mjs",
-    "test:e2e:codec": "node e2e/codec.mjs"
+    "test:e2e:codec": "node e2e/codec.mjs",
+    "test:e2e:social": "node e2e/social.mjs"
   },
   "devDependencies": {
     "concurrently": "^10.0.7"

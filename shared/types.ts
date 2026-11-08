@@ -7,7 +7,7 @@ export interface PublicUser {
   avatarColor: string;
 }
 
-export type ChannelType = 'text' | 'voice';
+export type ChannelType = 'text' | 'voice' | 'dm';
 
 export interface Channel {
   id: string;
@@ -15,6 +15,20 @@ export interface Channel {
   name: string;
   type: ChannelType;
   position: number;
+}
+
+/** Conversa direta entre duas pessoas (canal sem servidor; guildId vazio). */
+export interface DmChannel extends Channel {
+  type: 'dm';
+  recipient: PublicUser;
+  lastMessageAt: string | null;
+}
+
+export type FriendStatus = 'friend' | 'incoming' | 'outgoing';
+
+export interface Friend {
+  user: PublicUser;
+  status: FriendStatus;
 }
 
 export interface Member extends PublicUser {

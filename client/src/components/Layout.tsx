@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { findChannel, markRead, openModal, useApp } from '../store/app';
+import { findChannel, markRead, useApp } from '../store/app';
 import { ServerRail } from './ServerRail';
 import { ChannelSidebar } from './ChannelSidebar';
 import { ChatView } from './ChatView';
@@ -9,13 +9,13 @@ import { VoiceAudio } from './VoiceAudio';
 import { Modals } from './Modals';
 import { MobileHeader } from './MobileHeader';
 import { Hotkeys } from './Hotkeys';
+import { FriendsView } from './FriendsView';
 
 export function Layout({ onLogout }: { onLogout(): void }) {
   const mobilePanel = useApp((s) => s.mobilePanel);
   const showMembers = useApp((s) => s.showMembers);
   const selectedGuildId = useApp((s) => s.selectedGuildId);
   const selectedChannelId = useApp((s) => s.selectedChannelId);
-  const guildCount = useApp((s) => s.guildOrder.length);
   const connected = useApp((s) => s.connected);
   const toastMsg = useApp((s) => s.toast);
   // reavalia quando os canais mudam
@@ -31,8 +31,9 @@ export function Layout({ onLogout }: { onLogout(): void }) {
   }, []);
 
   let main;
-  if (!selectedGuildId || guildCount === 0) {
-    main = <Welcome />;
+  if (!selectedGuildId) {
+    // Início: conversa direta aberta ou a lista de amigos
+    main = channel?.type === 'dm' ? <ChatView channel={channel} /> : <FriendsView />;
   } else if (channel?.type === 'voice') {
     main = <VoiceStage channelId={channel.id} />;
   } else if (channel) {
@@ -72,23 +73,3 @@ export function Layout({ onLogout }: { onLogout(): void }) {
   );
 }
 
-function Welcome() {
-  return (
-    <div className="welcome">
-      <MobileHeader title="Resenha" />
-      <div className="welcome-body">
-        <img src="/icon.svg" alt="" width={72} height={72} />
-        <h2>Bem-vindo à Resenha!</h2>
-        <p className="muted">Crie um servidor para você e seus amigos ou entre em um com um link de convite.</p>
-        <div className="row gap">
-          <button className="btn primary" onClick={() => openModal({ kind: 'createGuild' })}>
-            Criar servidor
-          </button>
-          <button className="btn" onClick={() => openModal({ kind: 'joinGuild' })}>
-            Entrar com convite
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}

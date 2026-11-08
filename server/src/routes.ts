@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { Router, type Request, type Response, type NextFunction } from 'express';
+import { Router } from 'express';
 import { z } from 'zod';
 import { config } from './config.ts';
 import type { Db } from './db.ts';
@@ -15,28 +15,10 @@ import {
   verifyPassword,
 } from './auth.ts';
 import type { Channel, Guild, Member, Message, PublicUser } from '../../shared/types.ts';
+import { HttpError, parse, wrap } from './http.ts';
+import { dmMemberIds, registerSocialRoutes } from './social.ts';
 
-export class HttpError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
-type Handler = (req: Request, res: Response) => Promise<unknown>;
-const wrap = (fn: Handler) => (req: Request, res: Response, next: NextFunction) => {
-  fn(req, res).then((body) => {
-    if (!res.headersSent) res.json(body ?? { ok: true });
-  }, next);
-};
-
-function parse<T extends z.ZodType>(schema: T, data: unknown): z.infer<T> {
-  const r = schema.safeParse(data);
-  if (!r.success) throw new HttpError(400, r.error.issues[0]?.message ?? 'Dados inválidos.');
-  return r.data;
-}
+export { HttpError };
 
 const AVATAR_COLORS = ['#f97316', '#ef4444', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899'];
 const randomColor = () => AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
@@ -116,16 +98,28 @@ export function createRoutes(db: Db, rt: Realtime) {
     if (!m.isOwner) throw new HttpError(403, 'Apenas o dono do servidor pode fazer isso.');
   }
 
+  /** Canal de servidor (sendo membro) ou conversa direta (sendo participante). */
   async function channelForMember(channelId: string, userId: string) {
-    const [c] = await db.query<Channel & { ownerId: string }>(
+    const [c] = await db.query<Channel & { ownerId: string | null }>(
       `select c.id, c.guild_id as "guildId", c.name, c.type, c.position, g.owner_id as "ownerId"
-       from channels c join guilds g on g.id = c.guild_id
-       join members m on m.guild_id = c.guild_id and m.user_id = $2
-       where c.id = $1`,
+       from channels c left join guilds g on g.id = c.guild_id
+       where c.id = $1 and (
+         exists (select 1 from members m where m.guild_id = c.guild_id and m.user_id = $2)
+         or exists (select 1 from dm_members d where d.channel_id = c.id and d.user_id = $2)
+       )`,
       [channelId, userId],
     );
     if (!c) throw new HttpError(404, 'Canal não encontrado.');
     return c;
+  }
+
+  /** Entrega um evento de mensagem a quem vê o canal: o servidor todo ou só os dois da DM. */
+  async function emitToChannel(c: { id: string; guildId: string | null }, event: string, payload: object) {
+    if (c.guildId) {
+      rt.emitGuild(c.guildId, event, { guildId: c.guildId, ...payload });
+    } else {
+      for (const uid of await dmMemberIds(db, c.id)) rt.emitUser(uid, event, { guildId: null, ...payload });
+    }
   }
 
   const MESSAGE_SELECT = `select msg.id, msg.channel_id as "channelId", msg.content,
@@ -221,6 +215,8 @@ export function createRoutes(db: Db, rt: Realtime) {
     auth,
     wrap(async (req) => ({ user: req.user, guilds: await loadGuilds(req.user!.id) })),
   );
+
+  registerSocialRoutes(r, db, rt, auth);
 
   r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers(), hasTurn: hasTurn() })));
 
@@ -427,7 +423,7 @@ export function createRoutes(db: Db, rt: Realtime) {
     auth,
     wrap(async (req) => {
       const c = await channelForMember(String(req.params.id), req.user!.id);
-      if (c.type !== 'text') throw new HttpError(400, 'Este canal não aceita mensagens.');
+      if (c.type === 'voice') throw new HttpError(400, 'Este canal não aceita mensagens.');
       const body = parse(
         z.object({ content: z.string().trim().min(1, 'Mensagem vazia.').max(4000, 'Mensagem muito longa.') }),
         req.body,
@@ -440,7 +436,7 @@ export function createRoutes(db: Db, rt: Realtime) {
         body.content,
       ]);
       const [message] = await db.query<Message>(`${MESSAGE_SELECT} where msg.id = $1`, [id]);
-      rt.emitGuild(c.guildId, 'message:new', { guildId: c.guildId, message });
+      await emitToChannel(c, 'message:new', { message });
       return { message };
     }),
   );
@@ -452,7 +448,7 @@ export function createRoutes(db: Db, rt: Realtime) {
     );
     if (!m) throw new HttpError(404, 'Mensagem não encontrada.');
     const c = await channelForMember(m.channelId, userId);
-    return { ...m, guildId: c.guildId, isOwner: c.ownerId === userId };
+    return { ...m, channel: c, isOwner: !!c.ownerId && c.ownerId === userId };
   }
 
   r.patch(
@@ -464,7 +460,7 @@ export function createRoutes(db: Db, rt: Realtime) {
       const body = parse(z.object({ content: z.string().trim().min(1).max(4000) }), req.body);
       await db.query('update messages set content = $2, edited_at = now() where id = $1', [m.id, body.content]);
       const [message] = await db.query<Message>(`${MESSAGE_SELECT} where msg.id = $1`, [m.id]);
-      rt.emitGuild(m.guildId, 'message:update', { guildId: m.guildId, message });
+      await emitToChannel(m.channel, 'message:update', { message });
       return { message };
     }),
   );
@@ -476,7 +472,7 @@ export function createRoutes(db: Db, rt: Realtime) {
       const m = await messageForEdit(String(req.params.id), req.user!.id);
       if (m.authorId !== req.user!.id && !m.isOwner) throw new HttpError(403, 'Sem permissão.');
       await db.query('delete from messages where id = $1', [m.id]);
-      rt.emitGuild(m.guildId, 'message:delete', { guildId: m.guildId, channelId: m.channelId, id: m.id });
+      await emitToChannel(m.channel, 'message:delete', { channelId: m.channelId, id: m.id });
     }),
   );
 

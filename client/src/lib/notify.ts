@@ -25,9 +25,11 @@ export function onIncomingMessage(message: Message) {
   if (!hidden || !notifications || !notificationsSupported() || Notification.permission !== 'granted') return;
   const channel = findChannel(message.channelId);
   const guild = channel ? app.guilds[channel.guildId] : undefined;
+  const title =
+    channel?.type === 'dm' ? `Mensagem de ${message.author.displayName}` : `${message.author.displayName} em #${channel?.name ?? 'canal'}`;
   try {
     // Obs.: no Android o construtor Notification não é permitido (exige service worker) e lança erro.
-    const n = new Notification(`${message.author.displayName} em #${channel?.name ?? 'canal'}`, {
+    const n = new Notification(title, {
       body: message.content.slice(0, 200),
       icon: '/icon.svg',
       tag: message.channelId,

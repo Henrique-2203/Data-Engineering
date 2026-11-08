@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Guild, PublicUser } from '../../shared/types';
+import type { DmChannel, Friend, Guild, PublicUser } from '../../shared/types';
 import { api, getToken, setToken, setUnauthorizedHandler } from './lib/api';
 import { connectSocket, disconnectSocket } from './lib/socket';
-import { openModal, selectGuild, setGuilds, useApp } from './store/app';
+import { goHome, openModal, selectGuild, setDms, setFriends, setGuilds, useApp } from './store/app';
 import { voice } from './voice/engine';
 import { AuthScreen } from './components/AuthScreen';
 import { Layout } from './components/Layout';
@@ -25,14 +25,32 @@ export function App() {
     voice.leave();
     disconnectSocket();
     setToken(null);
-    useApp.setState({ me: null, guilds: {}, guildOrder: [], messages: {}, selectedGuildId: null, selectedChannelId: null });
+    useApp.setState({
+      me: null,
+      guilds: {},
+      guildOrder: [],
+      dms: {},
+      dmOrder: [],
+      friends: [],
+      messages: {},
+      unread: {},
+      selectedGuildId: null,
+      selectedChannelId: null,
+    });
   }, []);
 
   const start = useCallback(async (token: string) => {
-    const data = await api<{ user: PublicUser; guilds: Guild[] }>('/bootstrap');
+    const [data, dms, friends] = await Promise.all([
+      api<{ user: PublicUser; guilds: Guild[] }>('/bootstrap'),
+      api<{ dms: DmChannel[] }>('/dms'),
+      api<{ friends: Friend[] }>('/friends'),
+    ]);
     setGuilds(data.guilds);
+    setDms(dms.dms);
+    setFriends(friends.friends);
     useApp.setState({ me: data.user, mobilePanel: 'nav' });
     if (data.guilds[0]) selectGuild(data.guilds[0].id);
+    else goHome();
     connectSocket(token);
     if (pendingInvite.code) {
       openModal({ kind: 'joinGuild', code: pendingInvite.code });

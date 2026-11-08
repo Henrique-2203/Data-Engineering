@@ -75,7 +75,8 @@ try {
   await phone.getByText('Galera').waitFor();
   await phone.screenshot({ path: `${shots}/02-celular-entrar.png` });
   await phone.getByRole('button', { name: 'Entrar', exact: true }).click();
-  await phone.getByRole('button', { name: 'geral' }).click();
+  // ao aceitar o convite, o celular já cai direto no #geral
+  await phone.getByPlaceholder('Conversar em #geral').waitFor();
   step('celular entrou pelo convite');
 
   // --- Chat em tempo real ---

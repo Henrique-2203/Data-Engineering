@@ -1,7 +1,12 @@
 import { io, type Socket } from 'socket.io-client';
 import type { Channel, Guild, Member, Message, PublicUser, VoiceState } from '../../../shared/types';
+import { api } from './api';
+import type { DmChannel, Friend } from '../../../shared/types';
 import {
   addMessage,
+  findChannel,
+  setDms,
+  setFriends,
   deleteMessage,
   patchGuild,
   removeGuild,
@@ -59,10 +64,14 @@ export function connectSocket(token: string) {
   });
 
   // mensagens
-  s.on('message:new', ({ message }: { message: Message }) => {
+  s.on('message:new', async ({ message }: { message: Message }) => {
+    // primeira mensagem de uma conversa direta nova: carrega a lista de DMs antes
+    if (!findChannel(message.channelId)) await refreshDms();
     addMessage(message);
     onIncomingMessage(message);
   });
+  s.on('dms:changed', () => void refreshDms());
+  s.on('friends:changed', () => void refreshFriends());
   s.on('message:update', ({ message }: { message: Message }) => updateMessage(message));
   s.on('message:delete', ({ channelId, id }: { channelId: string; id: string }) => deleteMessage(channelId, id));
 
@@ -129,6 +138,22 @@ export function connectSocket(token: string) {
   });
 
   return s;
+}
+
+export async function refreshDms() {
+  try {
+    setDms((await api<{ dms: DmChannel[] }>('/dms')).dms);
+  } catch {
+    /* tenta de novo no próximo evento */
+  }
+}
+
+export async function refreshFriends() {
+  try {
+    setFriends((await api<{ friends: Friend[] }>('/friends')).friends);
+  } catch {
+    /* idem */
+  }
 }
 
 export function disconnectSocket() {

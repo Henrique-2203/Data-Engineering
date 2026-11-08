@@ -103,7 +103,8 @@ export class Realtime {
 
     const count = (this.online.get(user.id) ?? 0) + 1;
     this.online.set(user.id, count);
-    if (count === 1) this.broadcastToUserGuilds(socket, 'presence:update', { userId: user.id, online: true });
+    // presença vai para todos: amigos podem não ter nenhum servidor em comum
+    if (count === 1) this.io.emit('presence:update', { userId: user.id, online: true });
 
     socket.emit('ready', {
       socketId: socket.id,
@@ -112,10 +113,21 @@ export class Realtime {
       maxVoicePeers: config.maxVoicePeers,
     });
 
-    socket.on('typing', (payload: unknown) => {
-      const p = z.object({ guildId: z.string(), channelId: z.string() }).safeParse(payload);
-      if (!p.success || !socket.rooms.has(`guild:${p.data.guildId}`)) return;
-      socket.to(`guild:${p.data.guildId}`).emit('typing', { ...p.data, userId: user.id });
+    socket.on('typing', async (payload: unknown) => {
+      const p = z.object({ guildId: z.string().optional(), channelId: z.string() }).safeParse(payload);
+      if (!p.success) return;
+      const { guildId, channelId } = p.data;
+      if (guildId) {
+        if (!socket.rooms.has(`guild:${guildId}`)) return;
+        socket.to(`guild:${guildId}`).emit('typing', { channelId, userId: user.id });
+        return;
+      }
+      // conversa direta: avisa só o outro participante
+      const rows = await this.db
+        .query<{ user_id: string }>('select user_id from dm_members where channel_id = $1', [channelId])
+        .catch(() => []);
+      if (!rows.some((r) => r.user_id === user.id)) return;
+      for (const r of rows) if (r.user_id !== user.id) this.emitUser(r.user_id, 'typing', { channelId, userId: user.id });
     });
 
     socket.on('voice:join', (payload: unknown, ack?: Ack) => {
@@ -158,17 +170,13 @@ export class Realtime {
       const left = (this.online.get(user.id) ?? 1) - 1;
       if (left <= 0) {
         this.online.delete(user.id);
-        this.broadcastToUserGuilds(socket, 'presence:update', { userId: user.id, online: false });
+        this.io.emit('presence:update', { userId: user.id, online: false });
       } else {
         this.online.set(user.id, left);
       }
     });
   }
 
-  private broadcastToUserGuilds(socket: Socket, event: string, payload: unknown) {
-    const rooms = [...socket.rooms].filter((r) => r.startsWith('guild:'));
-    if (rooms.length) this.io.to(rooms).emit(event, payload);
-  }
 
   // ---------- Voz ----------
 

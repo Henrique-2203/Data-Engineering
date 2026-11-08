@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Hash, Pencil, SendHorizontal, Trash2 } from 'lucide-react';
-import type { Channel, Message } from '../../../shared/types';
+import type { Channel, DmChannel, Message } from '../../../shared/types';
 import { api } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { channelMessages, findMember, patchMessages, toast, useApp } from '../store/app';
@@ -33,6 +33,8 @@ async function loadMessages(channelId: string, older = false) {
 
 export function ChatView({ channel }: { channel: Channel }) {
   const cm = useApp((s) => s.messages[channel.id]);
+  const dm = channel.type === 'dm' ? (channel as DmChannel) : null;
+  const recipientOnline = useApp((s) => (dm ? !!s.online[dm.recipient.id] : false));
   const connected = useApp((s) => s.connected);
   const listRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -73,15 +75,31 @@ export function ChatView({ channel }: { channel: Channel }) {
 
   return (
     <div className="chat">
-      <MobileHeader title={channel.name} icon={<Hash size={20} className="muted" />} showMembersButton />
+      {dm ? (
+        <MobileHeader title={dm.recipient.displayName} icon={<Avatar user={dm.recipient} size={26} online={recipientOnline} />} />
+      ) : (
+        <MobileHeader title={channel.name} icon={<Hash size={20} className="muted" />} showMembersButton />
+      )}
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {cm?.loaded && !cm.hasMore && (
           <div className="channel-start">
-            <div className="channel-start-icon">
-              <Hash size={36} />
-            </div>
-            <h3>Bem-vindo a #{channel.name}!</h3>
-            <p className="muted">Este é o começo do canal.</p>
+            {dm ? (
+              <>
+                <Avatar user={dm.recipient} size={72} />
+                <h3>{dm.recipient.displayName}</h3>
+                <p className="muted">
+                  Este é o começo da sua conversa com <strong>@{dm.recipient.username}</strong>. Só vocês dois veem estas mensagens.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="channel-start-icon">
+                  <Hash size={36} />
+                </div>
+                <h3>Bem-vindo a #{channel.name}!</h3>
+                <p className="muted">Este é o começo do canal.</p>
+              </>
+            )}
           </div>
         )}
         {cm?.loading && <div className="muted center small-pad">Carregando…</div>}
@@ -238,7 +256,7 @@ function Composer({ channel, onSent }: { channel: Channel; onSent(): void }) {
     const now = Date.now();
     if (value && now - lastTyping.current > 3000) {
       lastTyping.current = now;
-      getSocket()?.emit('typing', { guildId: channel.guildId, channelId: channel.id });
+      getSocket()?.emit('typing', { guildId: channel.guildId || undefined, channelId: channel.id });
     }
   }
 
@@ -248,7 +266,7 @@ function Composer({ channel, onSent }: { channel: Channel; onSent(): void }) {
         ref={ref}
         rows={1}
         value={text}
-        placeholder={`Conversar em #${channel.name}`}
+        placeholder={channel.type === 'dm' ? `Conversar com ${channel.name}` : `Conversar em #${channel.name}`}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
         maxLength={4000}

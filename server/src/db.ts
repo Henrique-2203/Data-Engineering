@@ -59,6 +59,27 @@ create table if not exists messages (
   edited_at timestamptz
 );
 create index if not exists messages_channel_idx on messages(channel_id, created_at desc);
+
+-- v2: mensagens diretas (canais sem servidor) e amizades
+alter table channels alter column guild_id drop not null;
+alter table channels drop constraint if exists channels_type_check;
+alter table channels add constraint channels_type_check check (type in ('text', 'voice', 'dm'));
+
+create table if not exists dm_members (
+  channel_id text not null references channels(id) on delete cascade,
+  user_id text not null references users(id) on delete cascade,
+  primary key (channel_id, user_id)
+);
+create index if not exists dm_members_user_idx on dm_members(user_id);
+
+create table if not exists friendships (
+  requester_id text not null references users(id) on delete cascade,
+  addressee_id text not null references users(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted')),
+  created_at timestamptz not null default now(),
+  primary key (requester_id, addressee_id)
+);
+create index if not exists friendships_addressee_idx on friendships(addressee_id);
 `;
 
 export async function createDb(): Promise<Db> {

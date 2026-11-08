@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Channel, Guild, Member, Message, PublicUser, VoiceState } from '../../../shared/types';
+import type { Channel, DmChannel, Friend, Guild, Member, Message, PublicUser, VoiceState } from '../../../shared/types';
 
 interface ChannelMessages {
   items: Message[];
@@ -14,6 +14,11 @@ export interface AppState {
   me: PublicUser | null;
   guilds: Record<string, Guild>;
   guildOrder: string[];
+  /** conversas diretas, por id do canal */
+  dms: Record<string, DmChannel>;
+  /** ids das DMs, da conversa mais recente para a mais antiga */
+  dmOrder: string[];
+  friends: Friend[];
   messages: Record<string, ChannelMessages>;
   online: Record<string, true>;
   voiceStates: Record<string, VoiceState>; // por socketId
@@ -46,6 +51,9 @@ export const useApp = create<AppState>(() => ({
   me: null,
   guilds: {},
   guildOrder: [],
+  dms: {},
+  dmOrder: [],
+  friends: [],
   messages: {},
   online: {},
   voiceStates: {},
@@ -78,6 +86,8 @@ export const closeModal = () => set({ modal: null });
 
 export function findChannel(channelId: string | null): Channel | undefined {
   if (!channelId) return undefined;
+  const dm = get().dms[channelId];
+  if (dm) return dm;
   for (const g of Object.values(get().guilds)) {
     const c = g.channels.find((c) => c.id === channelId);
     if (c) return c;
@@ -95,7 +105,30 @@ export function findMember(guildId: string | null | undefined, userId: string): 
     const m = g.members.find((m) => m.id === userId);
     if (m) return m;
   }
+  for (const dm of Object.values(s.dms)) if (dm.recipient.id === userId) return dm.recipient;
+  return s.friends.find((f) => f.user.id === userId)?.user;
 }
+
+// ---------- início (amigos e mensagens diretas) ----------
+
+/** Vai para o Início: abre a última conversa direta, ou a lista de amigos. */
+export function goHome(channelId: string | null = null) {
+  set({ selectedGuildId: null, selectedChannelId: channelId, mobilePanel: 'main' });
+  if (channelId) markRead(channelId);
+}
+
+export function setDms(dms: DmChannel[]) {
+  set({ dms: Object.fromEntries(dms.map((d) => [d.id, d])), dmOrder: dms.map((d) => d.id) });
+}
+
+export function upsertDm(dm: DmChannel) {
+  set((s) => ({
+    dms: { ...s.dms, [dm.id]: dm },
+    dmOrder: s.dmOrder.includes(dm.id) ? s.dmOrder : [dm.id, ...s.dmOrder],
+  }));
+}
+
+export const setFriends = (friends: Friend[]) => set({ friends });
 
 // ---------- seleção ----------
 
@@ -114,7 +147,7 @@ export function selectChannel(channelId: string) {
   const c = findChannel(channelId);
   if (!c) return;
   set((s) => ({
-    selectedGuildId: c.guildId,
+    selectedGuildId: c.type === 'dm' ? null : c.guildId,
     selectedChannelId: c.id,
     lastChannelByGuild: c.type === 'text' ? { ...s.lastChannelByGuild, [c.guildId]: c.id } : s.lastChannelByGuild,
     mobilePanel: 'main',
@@ -165,8 +198,6 @@ export function removeGuild(id: string) {
       ...(wasSelected ? { selectedGuildId: null, selectedChannelId: null } : {}),
     };
   });
-  const s = get();
-  if (!s.selectedGuildId && s.guildOrder[0]) selectGuild(s.guildOrder[0]);
 }
 
 export function updateGuildChannels(guildId: string, fn: (channels: Channel[]) => Channel[]) {
@@ -208,6 +239,14 @@ export function addMessage(message: Message) {
     delete t[message.author.id];
     return { typing: { ...s.typing, [message.channelId]: t } };
   });
+  // conversa direta com mensagem nova sobe para o topo da lista
+  const dm = get().dms[message.channelId];
+  if (dm) {
+    set((s) => ({
+      dms: { ...s.dms, [dm.id]: { ...dm, lastMessageAt: message.createdAt } },
+      dmOrder: [dm.id, ...s.dmOrder.filter((id) => id !== dm.id)],
+    }));
+  }
   const s = get();
   const visible = s.selectedChannelId === message.channelId && document.visibilityState === 'visible';
   if (!visible && message.author.id !== s.me?.id) set({ unread: { ...s.unread, [message.channelId]: true } });

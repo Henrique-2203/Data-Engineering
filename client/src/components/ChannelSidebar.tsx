@@ -24,6 +24,7 @@ import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { canShareScreen } from '../voice/settings';
 import { Avatar } from './Avatar';
+import { HomeSidebar } from './HomeSidebar';
 
 export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
   const guildId = useApp((s) => s.selectedGuildId);
@@ -90,11 +91,12 @@ export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
         </div>
       ) : (
         <div className="sidebar-header">
-          <span className="guild-name static">Resenha</span>
+          <span className="guild-name static">Início</span>
         </div>
       )}
 
       <div className="channel-list">
+        {!guild && <HomeSidebar />}
         {guild && (
           <>
             <Section title="Canais de texto" onAdd={isOwner ? () => openModal({ kind: 'createChannel', guildId: guild.id, type: 'text' }) : undefined} />
