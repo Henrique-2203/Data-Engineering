@@ -1,0 +1,63 @@
+{
+  "name": "resenha-desktop",
+  "productName": "Resenha",
+  "version": "0.1.0",
+  "private": true,
+  "description": "App de desktop do Resenha: chat, voz e transmissão de tela com push-to-talk global.",
+  "author": "Resenha",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --url=http://localhost:5173",
+    "dist": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.10",
+    "uiohook-napi": "1.5.5"
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "app.resenha.desktop",
+    "productName": "Resenha",
+    "copyright": "Resenha",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Resenha-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Resenha",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Henrique-2203",
+        "repo": "resenha-app",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

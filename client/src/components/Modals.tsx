@@ -20,6 +20,7 @@ import { CODECS, SCREEN_PRESETS, effectiveBitrate, keyLabel, presetById } from '
 import { notificationsSupported, requestNotificationPermission } from '../lib/notify';
 import { playSound } from '../lib/sounds';
 import { mouseCode } from './Hotkeys';
+import { DESKTOP_DOWNLOAD_URL, desktop, isDesktop, type DesktopSettings } from '../lib/desktop';
 import { Avatar } from './Avatar';
 
 export function Modals({ onLogout }: { onLogout(): void }) {
@@ -476,9 +477,12 @@ function UserSettings({ onLogout }: { onLogout(): void }) {
         )}
       </ul>
       <p className="muted small">
-        Os atalhos funcionam enquanto a janela do Resenha está em foco. Para jogar com o jogo em primeiro plano, use a
-        ativação por voz.
+        {isDesktop
+          ? '✅ No app, os atalhos e o push-to-talk funcionam mesmo com o jogo em primeiro plano.'
+          : 'No site, os atalhos funcionam com a janela do Resenha em foco. Para usar com o jogo em primeiro plano, use a ativação por voz ou o app de desktop.'}
       </p>
+
+      <DesktopSettingsSection />
 
       <h3 className="subhead">Conta</h3>
       <button
@@ -551,7 +555,9 @@ function InputModeSettings() {
           <label className={settings.inputMode === 'ptt' ? 'selected' : ''}>
             <input type="radio" checked={settings.inputMode === 'ptt'} onChange={() => set({ inputMode: 'ptt' })} />
             <strong>⌨️ Aperte para falar</strong>
-            <span className="muted small">Só com a janela do Resenha em foco.</span>
+            <span className="muted small">
+              {isDesktop ? 'Funciona com o jogo em primeiro plano.' : 'No site, só com a janela do Resenha em foco (no app, funciona sempre).'}
+            </span>
           </label>
         </div>
       </div>
@@ -590,6 +596,84 @@ function InputModeSettings() {
           <span className="muted small">Clique e aperte a tecla desejada (Esc cancela).</span>
         </div>
       )}
+    </>
+  );
+}
+
+/** App de desktop: no app, opções de bandeja/inicialização e atualização; no site, link de download. */
+function DesktopSettingsSection() {
+  const [ds, setDs] = useState<DesktopSettings | null>(null);
+  const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    if (!desktop) return;
+    void desktop.getSettings().then(setDs);
+    return desktop.onUpdate((update) => setDs((d) => (d ? { ...d, update } : d)));
+  }, []);
+
+  if (!desktop) {
+    return (
+      <>
+        <h3 className="subhead">App para Windows</h3>
+        <p className="muted small">
+          Com o app, o push-to-talk e os atalhos funcionam por cima do jogo e a transmissão roda sem os limites do navegador.
+        </p>
+        <a className="btn" href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
+          📥 Baixar o app para Windows
+        </a>
+      </>
+    );
+  }
+  if (!ds) return null;
+  const u = ds.update;
+  const status =
+    u.state === 'ready'
+      ? `Versão ${u.version} pronta para instalar.`
+      : u.state === 'downloading'
+        ? `Baixando atualização${u.version ? ` ${u.version}` : ''}… ${u.percent ?? 0}%`
+        : u.state === 'checking'
+          ? 'Procurando atualizações…'
+          : u.state === 'error'
+            ? `Não foi possível procurar atualizações${u.message ? ` (${u.message})` : ''}.`
+            : u.state === 'dev'
+              ? 'Modo de desenvolvimento (sem atualização automática).'
+              : 'Você está na versão mais recente.';
+  const set = async (patch: Partial<Pick<DesktopSettings, 'closeToTray' | 'openAtLogin'>>) => setDs(await desktop!.setSettings(patch));
+  return (
+    <>
+      <h3 className="subhead">App de desktop</h3>
+      <div className="form">
+        <label className="check">
+          <input type="checkbox" checked={ds.openAtLogin} onChange={(e) => void set({ openAtLogin: e.target.checked })} />
+          Abrir junto com o Windows (minimizado na bandeja)
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={ds.closeToTray} onChange={(e) => void set({ closeToTray: e.target.checked })} />
+          Ao fechar a janela, continuar na bandeja (a chamada não cai)
+        </label>
+        <div className="desktop-version">
+          <span className="muted small">
+            Resenha v{ds.version} · {status}
+          </span>
+          {u.state === 'ready' ? (
+            <button className="btn small primary" onClick={() => desktop!.installUpdate()}>
+              Reiniciar e atualizar
+            </button>
+          ) : (
+            <button
+              className="btn small"
+              disabled={checking || u.state === 'dev' || u.state === 'downloading'}
+              onClick={async () => {
+                setChecking(true);
+                const update = await desktop!.checkForUpdates();
+                setDs((d) => (d ? { ...d, update } : d));
+                setChecking(false);
+              }}
+            >
+              Procurar atualizações
+            </button>
+          )}
+        </div>
+      </div>
     </>
   );
 }

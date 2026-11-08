@@ -22,7 +22,8 @@
     "test:e2e:codec": "node e2e/codec.mjs",
     "test:e2e:social": "node e2e/social.mjs",
     "test:e2e:chat": "node e2e/chat.mjs",
-    "test:e2e:call": "node e2e/dm-call.mjs"
+    "test:e2e:call": "node e2e/dm-call.mjs",
+    "test:e2e:desktop": "xvfb-run -a node e2e/desktop.mjs"
   },
   "devDependencies": {
     "concurrently": "^10.0.7"

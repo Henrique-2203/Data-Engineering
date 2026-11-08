@@ -11,6 +11,7 @@ import { MobileHeader } from './MobileHeader';
 import { Hotkeys } from './Hotkeys';
 import { FriendsView } from './FriendsView';
 import { CallOverlay } from './CallOverlay';
+import { DesktopBridge } from './DesktopBridge';
 
 export function Layout({ onLogout }: { onLogout(): void }) {
   const mobilePanel = useApp((s) => s.mobilePanel);
@@ -64,6 +65,7 @@ export function Layout({ onLogout }: { onLogout(): void }) {
       <VoiceAudio />
       <Hotkeys />
       <CallOverlay />
+      <DesktopBridge />
       <Modals onLogout={onLogout} />
       {!connected && <div className="offline-bar">Reconectando ao servidor…</div>}
       {toastMsg && (

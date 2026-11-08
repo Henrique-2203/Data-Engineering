@@ -20,6 +20,7 @@ const pendingInvite = { code: takeInviteFromUrl() };
 export function App() {
   const me = useApp((s) => s.me);
   const [booting, setBooting] = useState(!!getToken());
+  const [bootError, setBootError] = useState<string | null>(null);
 
   const logout = useCallback(() => {
     voice.leave();
@@ -63,14 +64,30 @@ export function App() {
     const onUnauthorized = () => logout();
     window.addEventListener('resenha:unauthorized', onUnauthorized);
     const token = getToken();
-    if (token) {
-      start(token)
+    let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    // Falha passageira (internet oscilando, servidor acordando) não pode virar "tela de login":
+    // a sessão continua válida, então tenta de novo com espera crescente.
+    const attempt = (n: number) => {
+      start(token!)
+        .then(() => !cancelled && setBooting(false))
         .catch((err) => {
-          if (err.status === 401) logout();
-        })
-        .finally(() => setBooting(false));
-    }
-    return () => window.removeEventListener('resenha:unauthorized', onUnauthorized);
+          if (cancelled) return;
+          if (err.status === 401) {
+            logout();
+            setBooting(false);
+            return;
+          }
+          setBootError(err.status ? `Erro ${err.status} do servidor` : 'Sem conexão com o servidor');
+          retry = setTimeout(() => attempt(n + 1), Math.min(1000 * 2 ** n, 10_000));
+        });
+    };
+    if (token) attempt(0);
+    return () => {
+      cancelled = true;
+      clearTimeout(retry);
+      window.removeEventListener('resenha:unauthorized', onUnauthorized);
+    };
   }, [logout, start]);
 
   if (booting) {
@@ -78,6 +95,7 @@ export function App() {
       <div className="splash">
         <img src="/icon.svg" alt="" width={64} height={64} />
         <p>Conectando…</p>
+        {bootError && <p className="muted small">{bootError}. Tentando de novo…</p>}
       </div>
     );
   }

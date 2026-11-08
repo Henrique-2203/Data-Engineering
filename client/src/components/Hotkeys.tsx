@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
+import { isDesktop } from '../lib/desktop';
 
 const isTyping = (target: EventTarget | null) => {
   const el = target as HTMLElement | null;
@@ -18,6 +19,8 @@ export const mouseCode = (button: number) => `Mouse${button}`;
  */
 export function Hotkeys() {
   useEffect(() => {
+    // no app de desktop os atalhos vêm do hook global (DesktopBridge), inclusive com a janela em foco
+    if (isDesktop) return;
     const inCall = () => useVoice.getState().status !== 'idle';
     const ptt = () => {
       const s = useVoice.getState().settings;

@@ -101,6 +101,31 @@ todas as conexões passarão pelo TURN (apague a chave para voltar ao normal).
 Também é possível usar a Cloudflare (`CLOUDFLARE_TURN_KEY_ID` e `CLOUDFLARE_TURN_API_TOKEN`, pede cartão)
 ou qualquer TURN com usuário e senha fixos (`TURN_URLS`, `TURN_USERNAME` e `TURN_CREDENTIAL`).
 
+## App de desktop (Windows)
+
+O app (`desktop/`, Electron) abre o mesmo Resenha do servidor, então **novidades do site chegam no
+app na hora, sem reinstalar**. Ele acrescenta o que o navegador não consegue:
+
+- **Push-to-talk e atalhos globais** (`Ctrl+Shift+M`, `Ctrl+Shift+D`) que funcionam com o jogo em
+  primeiro plano. Por privacidade, o app só observa a tecla do push-to-talk e esses atalhos.
+- **Transmissão sem freios**: sem a redução de ritmo de janelas em segundo plano e usando a placa de
+  vídeo dedicada em notebooks com duas placas.
+- **Seletor de tela ou janela** com áudio do computador.
+- **Ícone na bandeja**: fechar a janela não derruba a chamada; dá para silenciar pelo menu e abrir com o Windows.
+- **Atualização automática** da própria casca: baixa sozinha e avisa "Reiniciar e atualizar".
+
+**Como sai uma versão:** o GitHub Actions (`.github/workflows/desktop.yml`) gera o instalador num
+Windows a cada mudança em `desktop/`; ele fica na página da execução (Actions → artifact
+"Resenha-Windows"). Para publicar para todo mundo com atualização automática, aumente o `version` em
+`desktop/package.json`; com o segredo `RELEASES_TOKEN` configurado, a versão vai para o repositório
+público de versões e os apps instalados se atualizam sozinhos.
+
+Sem certificado de assinatura, o Windows mostra "O Windows protegeu seu computador" na primeira
+instalação: clique em **Mais informações → Executar assim mesmo**.
+
+Para rodar em desenvolvimento: `cd desktop && npm install && npm run dev` (abre `localhost:5173`;
+rode `npm run dev` na raiz antes). Opções: `--url=<endereço>` e `--profile=<pasta>`.
+
 ## Rodar no seu computador
 
 Requer Node.js 20+.
@@ -123,6 +148,7 @@ Outros comandos:
 | `npm start` | Sobe o servidor de produção (serve API e frontend na porta `PORT`) |
 | `npm run typecheck` | Checa os tipos do servidor e do cliente |
 | `npm run test:e2e` | Teste ponta a ponta com dois navegadores (PC + celular): convite, chat, voz, câmera e tela |
+| `npm run test:e2e:desktop` | App de desktop: push-to-talk e atalhos globais, seletor de tela, bandeja (precisa de `cd desktop && npm install`) |
 | `npm run test:e2e:call` | Ligação na DM: atender (no celular), recusar, desistir, não atender e offline |
 | `npm run test:e2e:chat` | Responder, @menções, reações, envio de imagens e visualizador |
 | `npm run test:e2e:social` | Amigos e mensagens diretas com três pessoas (uma no celular) |
