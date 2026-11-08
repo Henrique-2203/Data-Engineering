@@ -37,12 +37,44 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
-      - name: Gerar instalador e publicar a versão
+      - name: Ver se esta versão já foi publicada
+        id: rel
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Versão $(node -p "require('./package.json').version")"
-          npx electron-builder --win --publish always
+          VER=$(node -p "require('./package.json').version")
+          TAG="v$VER"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # rascunho parado (execução interrompida) conta como incompleto
+          ASSETS=$(gh release view "$TAG" --json assets,isDraft --jq 'if .isDraft then "rascunho" else ([.assets[].name] | join(",")) end' 2>/dev/null || echo "__nenhuma__")
+          if [ "$ASSETS" = "__nenhuma__" ]; then
+            echo "Versão $TAG ainda não publicada: vai publicar."
+            echo "publish=yes" >> "$GITHUB_OUTPUT"
+          elif echo "$ASSETS" | grep -q "\.exe" && echo "$ASSETS" | grep -q "latest.yml"; then
+            echo "Versão $TAG já publicada e completa: só gera o instalador. Para lançar, aumente o version."
+            echo "publish=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "Versão $TAG incompleta ($ASSETS): apagando para publicar de novo."
+            gh release delete "$TAG" --cleanup-tag --yes
+            echo "publish=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      # O empacotador envia para um RASCUNHO (evita a corrida de dois envios criando a mesma
+      # Release); depois o rascunho é publicado de uma vez, já com todos os arquivos.
+      - name: Gerar instalador
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --publish ${{ steps.rel.outputs.publish == 'yes' && 'always' || 'never' }}
+
+      - name: Publicar a versão
+        if: steps.rel.outputs.publish == 'yes'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.rel.outputs.tag }}
+        run: |
+          gh release view "$TAG" --json assets --jq '.assets[].name'
+          gh release edit "$TAG" --draft=false --latest --target "$GITHUB_SHA" --title "Resenha $TAG" \
+            --notes "App de desktop do Resenha para Windows. Baixe e abra o **Resenha-Setup-${TAG#v}.exe**. Os outros arquivos são usados pela atualização automática."
 
       - name: Guardar instalador
         uses: actions/upload-artifact@v4

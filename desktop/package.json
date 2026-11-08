@@ -56,7 +56,7 @@
         "provider": "github",
         "owner": "Henrique-2203",
         "repo": "Data-Engineering",
-        "releaseType": "release"
+        "releaseType": "draft"
       }
     ]
   }
