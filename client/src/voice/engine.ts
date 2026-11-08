@@ -1,6 +1,7 @@
 import type { Socket } from 'socket.io-client';
 import type { RtcSignal } from '../../../shared/types';
 import { api } from '../lib/api';
+import { playSound } from '../lib/sounds';
 import { getSocket, onSocketReady } from '../lib/socket';
 import { findChannel, toast, useApp } from '../store/app';
 import { useVoice, type MediaKind, type RemoteMedia } from '../store/voice';
@@ -33,6 +34,11 @@ class VoiceEngine {
   private peers = new Map<string, Peer>();
   private iceServers: RTCIceServer[] | null = null;
   private micTrack: MediaStreamTrack | null = null;
+  /** cópia do microfone só para medir o volume (o original é ligado/desligado pelo portão) */
+  private micMonitor: MediaStreamTrack | null = null;
+  private pttDown = false;
+  private vadOpen = false;
+  private meLastLoud = 0;
   private camTrack: MediaStreamTrack | null = null;
   private screenStream: MediaStream | null = null;
   /** MediaStreams "rótulo": o id delas vai na SDP e diz ao outro lado o que é cada faixa. */
@@ -61,9 +67,14 @@ class VoiceEngine {
     this.boundSockets.add(socket);
 
     socket.on('voice:peer-joined', ({ socketId, userId }: { socketId: string; userId: string }) => {
-      if (getV().status !== 'idle') this.createPeer(socketId, userId);
+      if (getV().status === 'idle') return;
+      this.createPeer(socketId, userId);
+      playSound('peerJoin');
     });
-    socket.on('voice:peer-left', ({ socketId }: { socketId: string }) => this.closePeer(socketId));
+    socket.on('voice:peer-left', ({ socketId }: { socketId: string }) => {
+      if (this.peers.has(socketId)) playSound('peerLeave');
+      this.closePeer(socketId);
+    });
     socket.on('voice:kicked', ({ reason }: { reason: string }) => {
       this.leave(false);
       toast(reason);
@@ -121,6 +132,7 @@ class VoiceEngine {
       if (getV().channelId !== channelId) return; // saiu enquanto conectava
 
       setV({ status: 'connected' });
+      if (!rejoin) playSound('join');
       if (getV().camera || getV().screen) {
         socket.emit('voice:update', { camera: !!this.camTrack, screen: !!this.screenStream });
       }
@@ -132,9 +144,13 @@ class VoiceEngine {
   }
 
   leave(notifyServer = true) {
+    if (getV().status !== 'idle') playSound('leave');
     if (notifyServer) getSocket()?.emit('voice:leave');
     this.resetPeers();
     this.micTrack?.stop();
+    this.micMonitor?.stop();
+    this.micMonitor = null;
+    this.pttDown = this.vadOpen = false;
     this.camTrack?.stop();
     this.screenStream?.getTracks().forEach((t) => t.stop());
     this.micTrack = this.camTrack = this.screenStream = null;
@@ -157,6 +173,8 @@ class VoiceEngine {
       watching: {},
       focus: null,
       audioBlocked: false,
+      pttActive: false,
+      micLevelDb: -100,
     });
   }
 
@@ -178,9 +196,11 @@ class VoiceEngine {
         },
       });
       this.micTrack = stream.getAudioTracks()[0];
-      this.micTrack.enabled = !getV().muted;
-      this.monitor('me', new MediaStream([this.micTrack]));
+      this.micMonitor = this.micTrack.clone();
+      this.micMonitor.enabled = true;
+      this.monitor('me', new MediaStream([this.micMonitor]));
       setV({ noMic: false });
+      this.updateGate();
     } catch (err) {
       console.warn('microfone indisponível', err);
       setV({ noMic: true, muted: true });
@@ -192,7 +212,8 @@ class VoiceEngine {
   async restartMic() {
     if (getV().status === 'idle') return;
     this.micTrack?.stop();
-    this.micTrack = null;
+    this.micMonitor?.stop();
+    this.micTrack = this.micMonitor = null;
     setV({ noMic: false });
     await this.acquireMic();
     for (const p of this.peers.values()) await p.setTrack('mic', this.micTrack, this.msid.mic);
@@ -275,18 +296,39 @@ class VoiceEngine {
       });
       return;
     }
-    if (this.micTrack) this.micTrack.enabled = !muted;
     const patch = { muted, ...(muted ? {} : { deafened: false }) };
     setV(patch);
+    this.updateGate();
     getSocket()?.emit('voice:update', patch);
+    playSound(muted ? 'mute' : 'unmute');
   }
 
   setDeafened(deafened: boolean) {
     // Ensurdecer também silencia o microfone, como de costume
     const patch = deafened ? { deafened: true, muted: true } : { deafened: false, muted: getV().noMic };
-    if (this.micTrack) this.micTrack.enabled = !patch.muted;
     setV(patch);
+    this.updateGate();
     getSocket()?.emit('voice:update', patch);
+    playSound(deafened ? 'mute' : 'unmute');
+  }
+
+  /** Push-to-talk: chamado pelos atalhos ao apertar/soltar a tecla. */
+  setPtt(down: boolean) {
+    if (this.pttDown === down) return;
+    this.pttDown = down;
+    setV({ pttActive: down });
+    this.updateGate();
+  }
+
+  /**
+   * Decide se o microfone transmite agora: nunca se silenciado; no push-to-talk só com a
+   * tecla apertada; na ativação por voz só quando o volume passa da sensibilidade.
+   * Desligar a faixa (enabled=false) faz o navegador mandar silêncio, sem renegociar.
+   */
+  updateGate() {
+    const { muted, settings } = getV();
+    const open = !muted && (settings.inputMode === 'ptt' ? this.pttDown : this.vadOpen);
+    if (this.micTrack && this.micTrack.enabled !== open) this.micTrack.enabled = open;
   }
 
   // ---------------- câmera ----------------
@@ -509,13 +551,34 @@ class VoiceEngine {
         let sum = 0;
         for (const x of m.data) sum += x * x;
         const rms = Math.sqrt(sum / m.data.length);
-        if (rms > SPEAKING_THRESHOLD) m.lastLoud = now;
-        const speaking = now - m.lastLoud < 300 && !(id === 'me' && getV().muted);
+        let speaking: boolean;
+        if (id === 'me') {
+          speaking = this.meterSelf(rms, now);
+        } else {
+          if (rms > SPEAKING_THRESHOLD) m.lastLoud = now;
+          speaking = now - m.lastLoud < 300;
+        }
         next[id] = speaking;
         if (!!current[id] !== speaking) changed = true;
       }
       if (changed) setV({ speaking: next });
-    }, 100);
+    }, 50);
+  }
+
+  /** Mede o próprio microfone: alimenta o medidor, a ativação por voz e o indicador de fala. */
+  private meterSelf(rms: number, now: number): boolean {
+    const { settings, micLevelDb } = getV();
+    const db = rms > 0 ? Math.max(-100, 20 * Math.log10(rms)) : -100;
+    if (Math.abs(db - micLevelDb) >= 1.5) setV({ micLevelDb: Math.round(db) });
+    const threshold = settings.inputMode === 'voice' ? settings.vadThresholdDb : -50;
+    if (db > threshold) this.meLastLoud = now;
+    // segura aberto por 400 ms para não cortar o fim das palavras
+    const loud = now - this.meLastLoud < 400;
+    if (settings.inputMode === 'voice' && loud !== this.vadOpen) {
+      this.vadOpen = loud;
+      this.updateGate();
+    }
+    return !!this.micTrack?.enabled && loud;
   }
 }
 

@@ -10,6 +10,11 @@ Funciona no navegador do PC e do celular, e é 100% gratuito para hospedar.
 - Chat em tempo real: editar/excluir mensagens, "fulano está digitando…", links e prévia de imagens, mensagens não lidas
 - Quem está online, quem está em cada canal de voz, quem está falando
 - Voz com supressão de ruído, silenciar/ensurdecer, volume individual por pessoa
+- **Ativação por voz com sensibilidade** (portão de ruído com medidor) ou **push-to-talk** com tecla
+  ou botão lateral do mouse configurável
+- Atalhos: `Ctrl+Shift+M` silencia, `Ctrl+Shift+D` desativa o áudio (com a janela do Resenha em foco)
+- Sons de entrar/sair da chamada, silenciar, mensagem nova e transmissão iniciada; notificações do
+  navegador para mensagens novas
 - Câmera
 - **Transmissão de tela**:
   - 720p até 4K, 30 ou 60 FPS, bitrate ajustável até 40 Mbps
@@ -105,6 +110,7 @@ Outros comandos:
 | `npm start` | Sobe o servidor de produção (serve API e frontend na porta `PORT`) |
 | `npm run typecheck` | Checa os tipos do servidor e do cliente |
 | `npm run test:e2e` | Teste ponta a ponta com dois navegadores (PC + celular): convite, chat, voz, câmera e tela |
+| `npm run test:e2e:voice` | Push-to-talk, ativação por voz, atalho de silenciar e gravação de tecla |
 | `npm run test:e2e:turn` | Força a conexão pelo TURN (precisa do `coturn` instalado) e confere a economia de cota |
 
 Veja todas as variáveis de ambiente em [`.env.example`](.env.example).

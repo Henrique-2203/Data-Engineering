@@ -10,6 +10,9 @@ import {
   updateUserEverywhere,
   useApp,
 } from '../store/app';
+import { useVoice } from '../store/voice';
+import { onIncomingMessage } from './notify';
+import { playSound } from './sounds';
 
 let socket: Socket | null = null;
 const listeners = new Set<(s: Socket) => void>();
@@ -56,7 +59,10 @@ export function connectSocket(token: string) {
   });
 
   // mensagens
-  s.on('message:new', ({ message }: { message: Message }) => addMessage(message));
+  s.on('message:new', ({ message }: { message: Message }) => {
+    addMessage(message);
+    onIncomingMessage(message);
+  });
   s.on('message:update', ({ message }: { message: Message }) => updateMessage(message));
   s.on('message:delete', ({ channelId, id }: { channelId: string; id: string }) => deleteMessage(channelId, id));
 
@@ -94,7 +100,14 @@ export function connectSocket(token: string) {
   s.on('user:update', (user: PublicUser) => updateUserEverywhere(user));
 
   // estado de voz (quem está em qual canal)
-  s.on('voice:state', (v: VoiceState) => set((st) => ({ voiceStates: { ...st.voiceStates, [v.socketId]: v } })));
+  s.on('voice:state', (v: VoiceState) => {
+    const prev = useApp.getState().voiceStates[v.socketId];
+    // aviso sonoro quando alguém da sua chamada começa a transmitir a tela
+    if (prev && !prev.screen && v.screen && v.socketId !== s.id && v.channelId === useVoice.getState().channelId) {
+      playSound('stream');
+    }
+    set((st) => ({ voiceStates: { ...st.voiceStates, [v.socketId]: v } }));
+  });
   s.on('voice:state-remove', ({ socketId }: { socketId: string }) =>
     set((st) => {
       const next = { ...st.voiceStates };

@@ -18,6 +18,7 @@ export const SCREEN_PRESETS: ScreenPreset[] = [
 ];
 
 export type ContentType = 'motion' | 'detail';
+export type InputMode = 'voice' | 'ptt';
 export type CodecChoice = 'h264' | 'vp9' | 'av1' | 'vp8';
 
 export const CODECS: { id: CodecChoice; label: string; mime: string }[] = [
@@ -39,6 +40,14 @@ export interface VoiceSettings {
   volumes: Record<string, number>; // userId -> 0..1
   /** Reduz a qualidade enviada para quem está conectado via TURN (economiza a cota grátis). */
   turnSaver: boolean;
+  /** 'voice' = ativação por voz (com sensibilidade); 'ptt' = aperte para falar */
+  inputMode: InputMode;
+  /** tecla/botão do push-to-talk: KeyboardEvent.code ou 'Mouse3'/'Mouse4' (botões laterais) */
+  pttKey: string;
+  /** sensibilidade da ativação por voz, em dBFS (-100 = sempre transmite, -20 = só voz alta) */
+  vadThresholdDb: number;
+  sounds: boolean;
+  notifications: boolean;
 }
 
 const KEY = 'resenha.voiceSettings';
@@ -53,7 +62,36 @@ export const DEFAULT_SETTINGS: VoiceSettings = {
   noiseSuppression: true,
   volumes: {},
   turnSaver: true,
+  inputMode: 'voice',
+  pttKey: 'Backquote',
+  vadThresholdDb: -55,
+  sounds: true,
+  notifications: false,
 };
+
+/** Nome legível da tecla de push-to-talk. */
+export function keyLabel(code: string): string {
+  if (code === 'Mouse3') return 'Botão lateral do mouse (voltar)';
+  if (code === 'Mouse4') return 'Botão lateral do mouse (avançar)';
+  if (code === 'Mouse1') return 'Botão do meio do mouse';
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Numpad')) return `Num ${code.slice(6)}`;
+  const names: Record<string, string> = {
+    Backquote: "' (ao lado do 1)",
+    Space: 'Espaço',
+    CapsLock: 'Caps Lock',
+    ShiftLeft: 'Shift esquerdo',
+    ShiftRight: 'Shift direito',
+    ControlLeft: 'Ctrl esquerdo',
+    ControlRight: 'Ctrl direito',
+    AltLeft: 'Alt',
+    AltRight: 'Alt Gr',
+    Tab: 'Tab',
+    IntlBackslash: '\\ (ao lado do Shift)',
+  };
+  return names[code] ?? code;
+}
 
 export function loadSettings(): VoiceSettings {
   try {

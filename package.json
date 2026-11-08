@@ -17,7 +17,8 @@
     "start": "npm run start -w server",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w client",
     "test:e2e": "node e2e/smoke.mjs",
-    "test:e2e:turn": "node e2e/turn.mjs"
+    "test:e2e:turn": "node e2e/turn.mjs",
+    "test:e2e:voice": "node e2e/voice-features.mjs"
   },
   "devDependencies": {
     "concurrently": "^10.0.7"

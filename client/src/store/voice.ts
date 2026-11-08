@@ -33,6 +33,10 @@ export interface VoiceStore {
   audioBlocked: boolean;
   /** o servidor tem TURN configurado (necessário para 4G/5G) */
   hasTurn: boolean;
+  /** tecla de push-to-talk pressionada */
+  pttActive: boolean;
+  /** nível do microfone em dBFS (para o medidor nas configurações) */
+  micLevelDb: number;
   settings: VoiceSettings;
 }
 
@@ -53,6 +57,8 @@ export const useVoice = create<VoiceStore>(() => ({
   focus: null,
   audioBlocked: false,
   hasTurn: true,
+  pttActive: false,
+  micLevelDb: -100,
   settings: loadSettings(),
 }));
 

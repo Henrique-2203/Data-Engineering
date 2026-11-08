@@ -18,7 +18,7 @@ import type { VoiceState } from '../../../shared/types';
 import { findChannel, findMember, openModal, useApp } from '../store/app';
 import { setUserVolume, useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
-import { canShareScreen } from '../voice/settings';
+import { canShareScreen, keyLabel } from '../voice/settings';
 import { Avatar } from './Avatar';
 import { MobileHeader } from './MobileHeader';
 
@@ -96,6 +96,7 @@ export function VoiceStage({ channelId }: { channelId: string }) {
                 ))}
             </div>
           </div>
+          <PttHint />
           <VoiceControls />
         </>
       )}
@@ -306,6 +307,19 @@ function StreamStats({ socketId, relayed }: { socketId: string; relayed: boolean
           via TURN
         </span>
       )}
+    </div>
+  );
+}
+
+function PttHint() {
+  const mode = useVoice((s) => s.settings.inputMode);
+  const key = useVoice((s) => s.settings.pttKey);
+  const active = useVoice((s) => s.pttActive);
+  const muted = useVoice((s) => s.muted);
+  if (mode !== 'ptt' || muted) return null;
+  return (
+    <div className={`ptt-hint${active ? ' on' : ''}`}>
+      {active ? '🎙️ Transmitindo…' : `Segure ${keyLabel(key)} para falar`}
     </div>
   );
 }

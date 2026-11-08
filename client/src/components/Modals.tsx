@@ -16,7 +16,10 @@ import {
 } from '../store/app';
 import { updateSettings, useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
-import { CODECS, SCREEN_PRESETS, effectiveBitrate, presetById } from '../voice/settings';
+import { CODECS, SCREEN_PRESETS, effectiveBitrate, keyLabel, presetById } from '../voice/settings';
+import { notificationsSupported, requestNotificationPermission } from '../lib/notify';
+import { playSound } from '../lib/sounds';
+import { mouseCode } from './Hotkeys';
 import { Avatar } from './Avatar';
 
 export function Modals({ onLogout }: { onLogout(): void }) {
@@ -440,7 +443,23 @@ function UserSettings({ onLogout }: { onLogout(): void }) {
           <input type="checkbox" checked={settings.noiseSuppression} onChange={(e) => setMicSetting({ noiseSuppression: e.target.checked })} />
           Supressão de ruído
         </label>
+        <InputModeSettings />
       </div>
+
+      <SoundSettings />
+
+      <h3 className="subhead">Atalhos</h3>
+      <ul className="shortcut-list">
+        <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>M</kbd> <span>Silenciar / ativar microfone</span></li>
+        <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> <span>Desativar / ativar áudio</span></li>
+        {settings.inputMode === 'ptt' && (
+          <li><kbd>{keyLabel(settings.pttKey)}</kbd> <span>Segure para falar</span></li>
+        )}
+      </ul>
+      <p className="muted small">
+        Os atalhos funcionam enquanto a janela do Resenha está em foco. Para jogar com o jogo em primeiro plano, use a
+        ativação por voz.
+      </p>
 
       <h3 className="subhead">Conta</h3>
       <button
@@ -454,6 +473,150 @@ function UserSettings({ onLogout }: { onLogout(): void }) {
         Sair da conta
       </button>
     </Modal>
+  );
+}
+
+function InputModeSettings() {
+  const settings = useVoice((s) => s.settings);
+  const inCall = useVoice((s) => s.status !== 'idle');
+  const level = useVoice((s) => s.micLevelDb);
+  const pttActive = useVoice((s) => s.pttActive);
+  const [binding, setBinding] = useState(false);
+
+  function set(patch: Partial<typeof settings>) {
+    updateSettings(patch);
+    voice.setPtt(false);
+    voice.updateGate();
+  }
+
+  // grava a próxima tecla ou botão do mouse como tecla do push-to-talk
+  useEffect(() => {
+    if (!binding) return;
+    document.body.dataset.bindingKey = '1';
+    const done = (code: string | null) => {
+      if (code) set({ pttKey: code });
+      setBinding(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      done(e.code === 'Escape' ? null : e.code);
+    };
+    const onMouse = (e: MouseEvent) => {
+      if (e.button === 0 || e.button === 2) return; // botões principal e direito não servem
+      e.preventDefault();
+      done(mouseCode(e.button));
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('mousedown', onMouse, true);
+    return () => {
+      delete document.body.dataset.bindingKey;
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('mousedown', onMouse, true);
+    };
+  }, [binding]);
+
+  // medidor: -80 dB à esquerda, 0 dB à direita
+  const pct = (db: number) => Math.max(0, Math.min(100, ((db + 80) / 80) * 100));
+
+  return (
+    <>
+      <div className="field">
+        <span>Modo de entrada</span>
+        <div className="radio-cards">
+          <label className={settings.inputMode === 'voice' ? 'selected' : ''}>
+            <input type="radio" checked={settings.inputMode === 'voice'} onChange={() => set({ inputMode: 'voice' })} />
+            <strong>🎙️ Ativação por voz</strong>
+            <span className="muted small">Transmite quando você fala. Funciona com o jogo em primeiro plano.</span>
+          </label>
+          <label className={settings.inputMode === 'ptt' ? 'selected' : ''}>
+            <input type="radio" checked={settings.inputMode === 'ptt'} onChange={() => set({ inputMode: 'ptt' })} />
+            <strong>⌨️ Aperte para falar</strong>
+            <span className="muted small">Só com a janela do Resenha em foco.</span>
+          </label>
+        </div>
+      </div>
+
+      {settings.inputMode === 'voice' ? (
+        <label>
+          Sensibilidade: {settings.vadThresholdDb} dB
+          <div className="vad-meter" aria-hidden>
+            <div className={`vad-level${level > settings.vadThresholdDb ? ' open' : ''}`} style={{ width: `${pct(level)}%` }} />
+            <div className="vad-threshold" style={{ left: `${pct(settings.vadThresholdDb)}%` }} />
+          </div>
+          <input
+            type="range"
+            min={-80}
+            max={-10}
+            step={1}
+            value={settings.vadThresholdDb}
+            onChange={(e) => set({ vadThresholdDb: Number(e.target.value) })}
+            aria-label="Sensibilidade da ativação por voz"
+          />
+          <span className="muted small">
+            {inCall
+              ? 'Fale normalmente: a barra fica verde quando o microfone está transmitindo. Arraste para a direita se ruídos (teclado, ventilador) estiverem passando.'
+              : 'Entre em uma chamada para ver o medidor e testar a sensibilidade.'}
+          </span>
+        </label>
+      ) : (
+        <div className="field">
+          <span>Tecla do push-to-talk</span>
+          <div className="row ptt-row">
+            <button type="button" className={`btn${binding ? ' on' : ''}`} onClick={() => setBinding(true)}>
+              {binding ? 'Aperte uma tecla ou botão lateral do mouse…' : keyLabel(settings.pttKey)}
+            </button>
+            {inCall && <span className={`ptt-state${pttActive ? ' on' : ''}`}>{pttActive ? 'Transmitindo' : 'Solto'}</span>}
+          </div>
+          <span className="muted small">Clique e aperte a tecla desejada (Esc cancela).</span>
+        </div>
+      )}
+    </>
+  );
+}
+
+function SoundSettings() {
+  const settings = useVoice((s) => s.settings);
+  const [permission, setPermission] = useState(notificationsSupported() ? Notification.permission : 'denied');
+  return (
+    <>
+      <h3 className="subhead">Sons e notificações</h3>
+      <div className="form">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={settings.sounds}
+            onChange={(e) => {
+              updateSettings({ sounds: e.target.checked });
+              if (e.target.checked) playSound('join');
+            }}
+          />
+          Sons (entrar/sair da chamada, silenciar, mensagem nova, transmissão iniciada)
+        </label>
+        {notificationsSupported() && (
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.notifications && permission === 'granted'}
+              disabled={permission === 'denied'}
+              onChange={async (e) => {
+                if (e.target.checked) {
+                  const ok = await requestNotificationPermission();
+                  setPermission(Notification.permission);
+                  updateSettings({ notifications: ok });
+                } else {
+                  updateSettings({ notifications: false });
+                }
+              }}
+            />
+            Notificações de mensagens quando o Resenha estiver em segundo plano
+          </label>
+        )}
+        {permission === 'denied' && notificationsSupported() && (
+          <p className="muted small">As notificações estão bloqueadas no navegador. Libere nas permissões do site (ícone ao lado do endereço).</p>
+        )}
+      </div>
+    </>
   );
 }
 

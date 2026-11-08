@@ -8,6 +8,7 @@ import { MemberList } from './MemberList';
 import { VoiceAudio } from './VoiceAudio';
 import { Modals } from './Modals';
 import { MobileHeader } from './MobileHeader';
+import { Hotkeys } from './Hotkeys';
 
 export function Layout({ onLogout }: { onLogout(): void }) {
   const mobilePanel = useApp((s) => s.mobilePanel);
@@ -59,6 +60,7 @@ export function Layout({ onLogout }: { onLogout(): void }) {
         <div className="backdrop" onClick={() => useApp.setState({ mobilePanel: 'main' })} />
       )}
       <VoiceAudio />
+      <Hotkeys />
       <Modals onLogout={onLogout} />
       {!connected && <div className="offline-bar">Reconectando ao servidor…</div>}
       {toastMsg && (
