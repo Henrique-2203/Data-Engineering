@@ -27,13 +27,26 @@ async function cloudflareServers(): Promise<IceServer[]> {
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const body = (await res.json()) as { iceServers: IceServer | IceServer[] };
-    const servers = Array.isArray(body.iceServers) ? body.iceServers : [body.iceServers];
+    const raw = Array.isArray(body.iceServers) ? body.iceServers : [body.iceServers];
+    // A Cloudflare inclui URLs na porta 53, que os navegadores bloqueiam (fazem a conexão demorar).
+    const servers = raw
+      .map((s) => ({ ...s, urls: (Array.isArray(s.urls) ? s.urls : [s.urls]).filter((u) => !/:53(\?|$)/.test(u)) }))
+      .filter((s) => s.urls.length > 0);
     cache = { servers, expires: Date.now() + 12 * 3600_000 };
     return servers;
   } catch (err) {
     console.warn('[ice] falha ao gerar credenciais TURN da Cloudflare:', err);
     return [];
   }
+}
+
+export const hasTurn = () =>
+  !!(config.cloudflareTurn.keyId && config.cloudflareTurn.apiToken) || config.turn.urls.length > 0;
+
+if (!hasTurn()) {
+  console.warn(
+    '[ice] Nenhum servidor TURN configurado: chamadas entre redes móveis (4G/5G) podem não conectar. Veja o README.',
+  );
 }
 
 export async function getIceServers(): Promise<IceServer[]> {

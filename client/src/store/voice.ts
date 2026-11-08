@@ -29,6 +29,8 @@ export interface VoiceStore {
   watching: Record<string, true>; // socketIds cujas telas estou assistindo
   focus: string | null; // id do bloco em destaque
   audioBlocked: boolean;
+  /** o servidor tem TURN configurado (necessário para 4G/5G) */
+  hasTurn: boolean;
   settings: VoiceSettings;
 }
 
@@ -48,6 +50,7 @@ export const useVoice = create<VoiceStore>(() => ({
   watching: {},
   focus: null,
   audioBlocked: false,
+  hasTurn: true,
   settings: loadSettings(),
 }));
 

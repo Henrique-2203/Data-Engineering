@@ -88,8 +88,11 @@ class VoiceEngine {
       void this.audioCtx.resume();
 
       if (!this.iceServers) {
-        this.iceServers = await api<{ iceServers: RTCIceServer[] }>('/ice')
-          .then((r) => r.iceServers)
+        this.iceServers = await api<{ iceServers: RTCIceServer[]; hasTurn: boolean }>('/ice')
+          .then((r) => {
+            setV({ hasTurn: r.hasTurn });
+            return r.iceServers;
+          })
           .catch(() => [{ urls: 'stun:stun.l.google.com:19302' }]);
       }
 

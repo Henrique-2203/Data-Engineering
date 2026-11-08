@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { config } from './config.ts';
 import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
-import { getIceServers } from './ice.ts';
+import { getIceServers, hasTurn } from './ice.ts';
 import {
   USER_COLUMNS,
   bearer,
@@ -222,7 +222,7 @@ export function createRoutes(db: Db, rt: Realtime) {
     wrap(async (req) => ({ user: req.user, guilds: await loadGuilds(req.user!.id) })),
   );
 
-  r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers() })));
+  r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers(), hasTurn: hasTurn() })));
 
   r.patch(
     '/me',

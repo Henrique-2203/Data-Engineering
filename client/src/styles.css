@@ -1075,6 +1075,12 @@ input[type='radio'] {
   font-size: 12px;
   color: var(--warn);
 }
+.tile-badge.warn-box {
+  right: 8px;
+  white-space: normal;
+  line-height: 1.35;
+  padding: 6px 10px;
+}
 .tile-volume {
   position: absolute;
   right: 8px;

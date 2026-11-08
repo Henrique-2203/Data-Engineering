@@ -187,8 +187,26 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
           {tile.isMe ? ' (você)' : ''}
         </span>
       </div>
-      {connecting && <div className="tile-badge">{remote!.connection === 'failed' ? 'Falha na conexão' : 'Conectando…'}</div>}
+      {connecting && <ConnectingBadge failed={remote!.connection === 'failed'} />}
       {!tile.isMe && <VolumeSlider userId={tile.state.userId} />}
+    </div>
+  );
+}
+
+/** Depois de alguns segundos sem conectar, explica o provável motivo. */
+function ConnectingBadge({ failed }: { failed: boolean }) {
+  const hasTurn = useVoice((s) => s.hasTurn);
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 12000);
+    return () => clearTimeout(t);
+  }, []);
+  if (!slow && !failed) return <div className="tile-badge">Conectando…</div>;
+  return (
+    <div className="tile-badge warn-box">
+      {hasTurn
+        ? 'Não foi possível conectar com esta pessoa. Tente sair e entrar de novo.'
+        : 'Sem conexão direta (comum no 4G/5G). O dono do site precisa configurar um servidor TURN — veja o README.'}
     </div>
   );
 }
