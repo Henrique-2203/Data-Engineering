@@ -228,7 +228,7 @@ function VoicePanel() {
             {status === 'connected' ? 'Voz conectada' : 'Conectando…'}
           </strong>
           <span className="muted ellipsis">
-            {channelName} / {guildName}
+            {guildName ? `${channelName} / ${guildName}` : `Chamada com ${channelName}`}
           </span>
         </button>
         <button className="icon-btn" title="Desconectar" aria-label="Desconectar" onClick={() => voice.leave()}>

@@ -1,5 +1,8 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Hash, ImagePlus } from 'lucide-react';
+import { Hash, ImagePlus, Phone } from 'lucide-react';
+import { useVoice } from '../store/voice';
+import { voice } from '../voice/engine';
+import { VoiceStage } from './VoiceStage';
 import type { Channel, DmChannel, Message } from '../../../shared/types';
 import { api } from '../lib/api';
 import { channelMessages, findMember, patchMessages, toast, useApp } from '../store/app';
@@ -37,6 +40,9 @@ export function ChatView({ channel }: { channel: Channel }) {
   const dm = channel.type === 'dm' ? (channel as DmChannel) : null;
   const recipientOnline = useApp((s) => (dm ? !!s.online[dm.recipient.id] : false));
   const connected = useApp((s) => s.connected);
+  // ligação ativa nesta DM (alguém na chamada) e se eu estou nela
+  const callActive = useApp((s) => !!dm && Object.values(s.voiceStates).some((v) => v.channelId === dm.id));
+  const inThisCall = useVoice((s) => !!dm && s.channelId === dm.id && s.status !== 'idle');
   const listRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<ComposerHandle>(null);
   const stickToBottom = useRef(true);
@@ -126,10 +132,26 @@ export function ChatView({ channel }: { channel: Channel }) {
       }}
     >
       {dm ? (
-        <MobileHeader title={dm.recipient.displayName} icon={<Avatar user={dm.recipient} size={26} online={recipientOnline} />} />
+        <MobileHeader
+          title={dm.recipient.displayName}
+          icon={<Avatar user={dm.recipient} size={26} online={recipientOnline} />}
+          actions={
+            !inThisCall && (
+              <button
+                className="icon-btn"
+                aria-label={callActive ? 'Entrar na chamada' : `Ligar para ${dm.recipient.displayName}`}
+                title={callActive ? 'Entrar na chamada' : 'Iniciar chamada de voz'}
+                onClick={() => void voice.join(dm.id)}
+              >
+                <Phone size={20} />
+              </button>
+            )
+          }
+        />
       ) : (
         <MobileHeader title={channel.name} icon={<Hash size={20} className="muted" />} showMembersButton />
       )}
+      {dm && (callActive || inThisCall) && <VoiceStage channelId={dm.id} embedded />}
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {cm?.loaded && !cm.hasMore && (
           <div className="channel-start">

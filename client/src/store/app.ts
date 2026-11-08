@@ -27,6 +27,10 @@ export interface AppState {
   unread: Record<string, true>;
   /** menções a você ainda não vistas, por canal */
   mentions: Record<string, number>;
+  /** ligação de DM chegando para você */
+  incomingCall: { channelId: string; from: PublicUser } | null;
+  /** você ligou numa DM e está esperando a pessoa atender (canal) */
+  outgoingRing: string | null;
   connected: boolean;
   socketId: string | null;
   maxVoicePeers: number;
@@ -64,6 +68,8 @@ export const useApp = create<AppState>(() => ({
   typing: {},
   unread: {},
   mentions: {},
+  incomingCall: null,
+  outgoingRing: null,
   connected: false,
   socketId: null,
   maxVoicePeers: 10,

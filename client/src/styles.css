@@ -1965,6 +1965,95 @@ kbd {
   color: var(--text);
 }
 
+/* ---------- ligações em conversas diretas ---------- */
+
+.chat .voice-stage.embedded {
+  flex: 0 0 auto;
+  height: min(46vh, 440px);
+  border-bottom: 1px solid var(--line);
+}
+.chat .voice-stage.embedded:has(.call-bar) {
+  height: auto;
+}
+.voice-stage.embedded .voice-controls {
+  padding-bottom: 12px;
+}
+.call-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--accent-soft);
+}
+.call-bar .avatar-row {
+  flex-wrap: nowrap;
+}
+.call-bar .ellipsis {
+  flex: 1;
+}
+.calling-hint {
+  margin: 8px auto 0;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--bg-3);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+.dm-call {
+  margin-left: auto;
+  color: var(--accent);
+  display: inline-flex;
+}
+.incoming-call {
+  position: fixed;
+  top: calc(24px + var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 65;
+  width: min(300px, calc(100% - 32px));
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 22px 20px 20px;
+  border-radius: 18px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  animation: fade 0.15s ease-out;
+}
+.incoming-avatar {
+  border-radius: 50%;
+  margin-bottom: 6px;
+  animation: ringpulse 1.6s ease-out infinite;
+}
+@keyframes ringpulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(61, 220, 151, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 22px rgba(61, 220, 151, 0);
+  }
+}
+.incoming-name {
+  font-size: 18px;
+}
+.incoming-actions {
+  display: flex;
+  gap: 28px;
+  margin-top: 12px;
+}
+.round-btn.accept {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
 /* ---------- avisos ---------- */
 
 .toast {

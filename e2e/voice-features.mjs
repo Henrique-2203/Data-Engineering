@@ -2,7 +2,7 @@
 // atalho Ctrl+Shift+M e gravação da tecla do push-to-talk.
 // Uso: npm run build && node e2e/voice-features.mjs
 import { spawn } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -19,6 +19,41 @@ const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'
 server.stderr.on('data', (d) => process.stderr.write(`[server] ${d}`));
 
 const step = (msg) => console.log(`✓ ${msg}`);
+
+/**
+ * Microfone de teste: "fala" sintética contínua (harmônicos com sílabas a 4 Hz), pico ~0,25
+ * (≈ -18 dBFS). Fica sempre abaixo de -10 dB e bem acima do ruído, deixando o teste estável
+ * (o bipe padrão do Chrome é alto e intermitente).
+ */
+function speechWav(file) {
+  const rate = 48000;
+  const seconds = 10;
+  const n = rate * seconds;
+  const buf = Buffer.alloc(44 + n * 2);
+  buf.write('RIFF', 0);
+  buf.writeUInt32LE(36 + n * 2, 4);
+  buf.write('WAVEfmt ', 8);
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22);
+  buf.writeUInt32LE(rate, 24);
+  buf.writeUInt32LE(rate * 2, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write('data', 36);
+  buf.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) {
+    const t = i / rate;
+    const f0 = 140 + 40 * Math.sin(2 * Math.PI * 0.7 * t);
+    let v = 0;
+    for (let h = 1; h <= 6; h++) v += Math.sin(2 * Math.PI * f0 * h * t) / h;
+    const syllable = 0.55 + 0.45 * Math.sin(2 * Math.PI * 4 * t);
+    buf.writeInt16LE(Math.round(Math.max(-1, Math.min(1, v * 0.11 * syllable)) * 32767), 44 + i * 2);
+  }
+  writeFileSync(file, buf);
+  return file;
+}
+const micFile = speechWav(path.join(mkdtempSync(path.join(tmpdir(), 'resenha-mic-')), 'fala.wav'));
 async function api(p, body, token) {
   const res = await fetch(`${BASE}/api${p}`, {
     method: body ? 'POST' : 'GET',
@@ -65,7 +100,12 @@ try {
   await api(`/invites/${guild.inviteCode}/join`, {}, b.token);
 
   browser = await chromium.launch({
-    args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'],
+    args: [
+      '--use-fake-ui-for-media-stream',
+      '--use-fake-device-for-media-stream',
+      `--use-file-for-fake-audio-capture=${micFile}`,
+      '--autoplay-policy=no-user-gesture-required',
+    ],
   });
   const open = async (token, settings) => {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, permissions: ['microphone', 'camera'] });
@@ -100,7 +140,17 @@ try {
   await speaker.locator('body').click({ position: { x: 700, y: 400 } });
   await speaker.keyboard.down('KeyT');
   await speaker.getByText('Transmitindo…').waitFor();
-  if (!(await sawSpeaking(listener, 'Falante', 5000))) throw new Error('segurando a tecla, o áudio não chegou');
+  if (!(await sawSpeaking(listener, 'Falante', 8000))) {
+    const levels = [];
+    for (let i = 0; i < 6; i++) {
+      levels.push(JSON.stringify(await listener.evaluate(() => globalThis.__resenhaVoice.inboundAudioLevels())));
+      await listener.waitForTimeout(300);
+    }
+    const speaking = await listener.evaluate(() => document.querySelector('.tile.user.speaking')?.textContent);
+    console.log('LOG OUVINTE:\n' + (await listener.evaluate(() => globalThis.__resenhaVoice.debugLog.join('\n'))));
+    console.log('LOG FALANTE:\n' + (await speaker.evaluate(() => globalThis.__resenhaVoice.debugLog.join('\n'))));
+    throw new Error(`segurando a tecla, o áudio não chegou. níveis recebidos: ${levels.join(' ')} | tile falando: ${speaking}`);
+  }
   step('push-to-talk: segurando T, o áudio chega do outro lado');
   await speaker.keyboard.up('KeyT');
   await listener.waitForTimeout(800);

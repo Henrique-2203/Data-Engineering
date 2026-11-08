@@ -21,6 +21,8 @@ export interface PeerCallbacks {
   onWatch(on: boolean): void;
   /** chamado quando a negociação estabiliza, para reaplicar bitrate/fps nos envios */
   onStable(): void;
+  /** diagnóstico */
+  log?(msg: string): void;
   /** a rota da conexão mudou entre direta (P2P) e retransmitida pelo TURN */
   onRelayChange(relayed: boolean): void;
 }
@@ -39,6 +41,11 @@ export class Peer {
   private remoteMeta: Record<string, MediaKind> = {};
   private remoteStreams: Partial<Record<MediaKind, MediaStream>> = {};
   private closed = false;
+  /** callbacks à espera da primeira oferta do outro lado (ver afterFirstOffer) */
+  private firstOfferWaiters: (() => void)[] = [];
+  private gotFirstOffer = false;
+  private iceWatchdog: ReturnType<typeof setTimeout> | null = null;
+  private iceRestarts = 0;
   /** true quando a mídia passa pelo servidor TURN (consome a cota) */
   relayed = false;
   private relayTimer: ReturnType<typeof setInterval> | null = null;
@@ -59,9 +66,12 @@ export class Peer {
     this.pc.onnegotiationneeded = async () => {
       try {
         this.makingOffer = true;
+        this.cb.log?.(`negotiationneeded (state=${this.pc.signalingState})`);
         await this.pc.setLocalDescription();
+        this.cb.log?.(`oferta enviada (state=${this.pc.signalingState})`);
         this.sendDescription();
       } catch (err) {
+        this.cb.log?.(`falha ao criar oferta: ${err}`);
         console.warn('[rtc] falha ao criar oferta', err);
       } finally {
         this.makingOffer = false;
@@ -74,6 +84,7 @@ export class Peer {
 
     this.pc.onconnectionstatechange = () => {
       const state = this.pc.connectionState;
+      this.cb.log?.(`connection=${state}`);
       this.cb.onConnectionState(state);
       if (state === 'failed') this.pc.restartIce();
       if (state === 'connected') {
@@ -84,7 +95,9 @@ export class Peer {
     };
 
     this.pc.onsignalingstatechange = () => {
-      if (this.pc.signalingState === 'stable') this.cb.onStable();
+      if (this.pc.signalingState !== 'stable') return;
+      this.cb.onStable();
+      this.armIceWatchdog();
     };
 
     this.pc.ontrack = (e) => {
@@ -121,6 +134,7 @@ export class Peer {
           !this.makingOffer && (this.pc.signalingState === 'stable' || this.settingRemoteAnswer);
         const collision = description.type === 'offer' && !readyForOffer;
         this.ignoreOffer = !this.polite && collision;
+        this.cb.log?.(`recebeu ${description.type} (state=${this.pc.signalingState} colisão=${collision} ignorar=${this.ignoreOffer})`);
         if (this.ignoreOffer) return;
         this.settingRemoteAnswer = description.type === 'answer';
         await this.pc.setRemoteDescription(description);
@@ -128,6 +142,10 @@ export class Peer {
         if (description.type === 'offer') {
           await this.pc.setLocalDescription();
           this.sendDescription();
+          if (!this.gotFirstOffer) {
+            this.gotFirstOffer = true;
+            this.firstOfferWaiters.splice(0).forEach((fn) => fn());
+          }
         }
       } else if (data.type === 'candidate') {
         try {
@@ -141,6 +159,7 @@ export class Peer {
         this.cb.onWatch(data.on);
       }
     } catch (err) {
+      this.cb.log?.(`erro de sinalização (${data.type}): ${err}`);
       console.warn('[rtc] erro de sinalização', err);
     }
   }
@@ -281,8 +300,45 @@ export class Peer {
     }
   }
 
+  /**
+   * Quem acabou de entrar espera a oferta de quem já estava na chamada antes de oferecer a
+   * própria mídia: evita que os dois ofereçam ao mesmo tempo (o empate descartava candidatos
+   * ICE e a conexão travava). Se nada chegar em `timeoutMs`, segue mesmo assim.
+   */
+  afterFirstOffer(fn: () => void, timeoutMs: number) {
+    let done = false;
+    const run = () => {
+      if (done || this.closed) return;
+      done = true;
+      fn();
+    };
+    if (this.gotFirstOffer) return run();
+    this.firstOfferWaiters.push(run);
+    setTimeout(run, timeoutMs);
+  }
+
+  /**
+   * Rede de segurança: se a negociação terminou mas o ICE não conecta em 6 s, reinicia o ICE
+   * (novas credenciais e candidatos). Só o lado "impolite" reinicia, até 3 vezes.
+   */
+  private armIceWatchdog() {
+    if (this.iceWatchdog || this.polite || this.closed) return;
+    this.iceWatchdog = setTimeout(() => {
+      this.iceWatchdog = null;
+      if (this.closed) return;
+      const ice = this.pc.iceConnectionState;
+      const hasMedia = this.pc.getTransceivers().some((t) => t.currentDirection && t.currentDirection !== 'inactive');
+      if (hasMedia && (ice === 'new' || ice === 'checking') && this.iceRestarts < 3) {
+        this.iceRestarts++;
+        this.cb.log?.(`ICE parado em "${ice}": reiniciando (tentativa ${this.iceRestarts})`);
+        this.pc.restartIce();
+      }
+    }, 6000);
+  }
+
   close() {
     this.closed = true;
+    if (this.iceWatchdog) clearTimeout(this.iceWatchdog);
     if (this.relayTimer) clearInterval(this.relayTimer);
     this.pc.ontrack = null;
     this.pc.onicecandidate = null;

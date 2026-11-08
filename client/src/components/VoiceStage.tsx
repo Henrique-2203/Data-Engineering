@@ -30,7 +30,8 @@ interface Tile {
   isMe: boolean;
 }
 
-export function VoiceStage({ channelId }: { channelId: string }) {
+/** `embedded`: versão compacta usada no topo de uma conversa direta durante a ligação. */
+export function VoiceStage({ channelId, embedded = false }: { channelId: string; embedded?: boolean }) {
   const channel = useApp(() => findChannel(channelId));
   const voiceStates = useApp((s) => s.voiceStates);
   const mySocket = useApp((s) => s.socketId);
@@ -39,6 +40,7 @@ export function VoiceStage({ channelId }: { channelId: string }) {
   const focus = useVoice((s) => s.focus);
   const audioBlocked = useVoice((s) => s.audioBlocked);
   const maxPeers = useApp((s) => s.maxVoicePeers);
+  const ringing = useApp((s) => s.outgoingRing === channelId);
 
   const participants = Object.values(voiceStates).filter((v) => v.channelId === channelId);
   const joined = myChannel === channelId && status !== 'idle';
@@ -55,10 +57,25 @@ export function VoiceStage({ channelId }: { channelId: string }) {
   const focused = joined ? tiles.find((t) => t.id === focus) : undefined;
 
   return (
-    <div className="voice-stage">
-      <MobileHeader title={channel?.name ?? 'Voz'} icon={<Volume2 size={20} className="muted" />} />
+    <div className={`voice-stage${embedded ? ' embedded' : ''}`}>
+      {!embedded && <MobileHeader title={channel?.name ?? 'Voz'} icon={<Volume2 size={20} className="muted" />} />}
 
-      {!joined ? (
+      {!joined && embedded ? (
+        <div className="call-bar">
+          <div className="avatar-row">
+            {participants.map((p) => (
+              <Avatar key={p.socketId} user={findMember(p.guildId, p.userId)} size={36} />
+            ))}
+          </div>
+          <span className="ellipsis">
+            <strong>{participants.map((p) => findMember(p.guildId, p.userId)?.displayName ?? 'Alguém').join(', ')}</strong> está na
+            chamada
+          </span>
+          <button className="btn primary" disabled={status === 'connecting'} onClick={() => void voice.join(channelId)}>
+            {status === 'connecting' ? 'Conectando…' : 'Entrar'}
+          </button>
+        </div>
+      ) : !joined ? (
         <div className="voice-join">
           <h3>{channel?.name}</h3>
           <p className="muted">
@@ -82,6 +99,11 @@ export function VoiceStage({ channelId }: { channelId: string }) {
             <button className="audio-blocked" onClick={() => window.dispatchEvent(new Event('resenha:unlock-audio'))}>
               <Volume2 size={18} /> Toque aqui para ativar o áudio
             </button>
+          )}
+          {ringing && (
+            <div className="calling-hint" role="status">
+              Chamando {channel?.name}…
+            </div>
           )}
           <div className={`stage${focused ? ' focused' : ''}`}>
             {focused && (

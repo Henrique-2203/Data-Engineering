@@ -18,6 +18,10 @@ export class Realtime {
   private online = new Map<string, number>();
   /** socketId -> estado de voz */
   private voice = new Map<string, VoiceState>();
+  /** participantes de cada conversa direta com chamada ativa (para entregar eventos só a eles) */
+  private dmMembers = new Map<string, string[]>();
+  /** chamadas tocando: canal da DM -> quem ligou, quem recebe e o tempo limite */
+  private rings = new Map<string, { caller: PublicUser; callerSocket: string; callee: string; timer: ReturnType<typeof setTimeout> }>();
 
   constructor(
     http: HttpServer,
@@ -106,11 +110,26 @@ export class Realtime {
     // presença vai para todos: amigos podem não ter nenhum servidor em comum
     if (count === 1) this.io.emit('presence:update', { userId: user.id, online: true });
 
+    const dmRows = await this.db.query<{ channel_id: string }>('select channel_id from dm_members where user_id = $1', [user.id]);
+    const dmIds = new Set(dmRows.map((r) => r.channel_id));
     socket.emit('ready', {
       socketId: socket.id,
       online: [...this.online.keys()],
-      voiceStates: [...this.voice.values()].filter((s) => guildIds.includes(s.guildId)),
+      voiceStates: [...this.voice.values()].filter((s) => (s.guildId ? guildIds.includes(s.guildId) : dmIds.has(s.channelId))),
       maxVoicePeers: config.maxVoicePeers,
+    });
+    // ligação tocando para mim enquanto eu estava desconectado/recarregando
+    for (const [channelId, ring] of this.rings) {
+      if (ring.callee === user.id) socket.emit('call:ring', { channelId, from: ring.caller });
+    }
+
+    socket.on('call:decline', (payload: unknown) => {
+      const channelId = typeof (payload as { channelId?: unknown })?.channelId === 'string' ? (payload as { channelId: string }).channelId : null;
+      const ring = channelId ? this.rings.get(channelId) : undefined;
+      if (!channelId || !ring || ring.callee !== user.id) return;
+      this.stopRing(channelId);
+      this.io.to(ring.callerSocket).emit('call:declined', { channelId, by: user });
+      this.emitUser(user.id, 'call:end-ring', { channelId });
     });
 
     socket.on('typing', async (payload: unknown) => {
@@ -153,7 +172,7 @@ export class Realtime {
         .safeParse(payload);
       if (!state || !p.success) return;
       Object.assign(state, p.data);
-      this.emitGuild(state.guildId, 'voice:state', state);
+      this.emitVoice(state, 'voice:state', state);
     });
 
     socket.on('rtc:signal', (payload: { to?: unknown; data?: RtcSignal }) => {
@@ -187,13 +206,24 @@ export class Realtime {
       .safeParse(payload);
     if (!p.success) return { ok: false, error: 'Requisição inválida.' };
 
-    const [channel] = await this.db.query<{ guild_id: string; type: string }>(
+    // canal de voz de um servidor do qual é membro, ou conversa direta da qual participa
+    const [channel] = await this.db.query<{ guild_id: string | null; type: string }>(
       `select c.guild_id, c.type from channels c
-       join members m on m.guild_id = c.guild_id and m.user_id = $2
-       where c.id = $1`,
+       where c.id = $1 and (
+         exists (select 1 from members m where m.guild_id = c.guild_id and m.user_id = $2)
+         or exists (select 1 from dm_members d where d.channel_id = c.id and d.user_id = $2)
+       )`,
       [p.data.channelId, user.id],
     );
-    if (!channel || channel.type !== 'voice') return { ok: false, error: 'Canal de voz não encontrado.' };
+    if (!channel || (channel.type !== 'voice' && channel.type !== 'dm')) {
+      return { ok: false, error: 'Canal de voz não encontrado.' };
+    }
+    if (channel.type === 'dm') {
+      const members = await this.db.query<{ user_id: string }>('select user_id from dm_members where channel_id = $1', [
+        p.data.channelId,
+      ]);
+      this.dmMembers.set(p.data.channelId, members.map((m) => m.user_id));
+    }
 
     // Um usuário só pode estar em uma chamada por vez (desconecta outro dispositivo/aba).
     for (const [sid, s] of this.voice) {
@@ -211,7 +241,7 @@ export class Realtime {
     const state: VoiceState = {
       socketId: socket.id,
       userId: user.id,
-      guildId: channel.guild_id,
+      guildId: channel.guild_id ?? '',
       channelId: p.data.channelId,
       muted: p.data.muted ?? false,
       deafened: p.data.deafened ?? false,
@@ -223,8 +253,51 @@ export class Realtime {
     for (const peer of peers) {
       this.io.to(peer.socketId).emit('voice:peer-joined', { socketId: socket.id, userId: user.id });
     }
-    this.emitGuild(state.guildId, 'voice:state', state);
+    this.emitVoice(state, 'voice:state', state);
+
+    if (channel.type === 'dm') {
+      if (peers.length > 0) {
+        // atendeu: para de tocar (inclusive nos outros aparelhos de quem atendeu)
+        this.stopRing(state.channelId);
+        this.emitUser(user.id, 'call:end-ring', { channelId: state.channelId });
+      } else {
+        this.startRing(socket, user, state.channelId);
+      }
+    }
     return { ok: true, peers: peers.map((s) => ({ socketId: s.socketId, userId: s.userId })) };
+  }
+
+  /** Entrega eventos de voz: ao servidor inteiro, ou só aos dois participantes da DM. */
+  private emitVoice(state: VoiceState, event: string, payload: unknown) {
+    if (state.guildId) {
+      this.emitGuild(state.guildId, event, payload);
+      return;
+    }
+    for (const uid of this.dmMembers.get(state.channelId) ?? []) this.emitUser(uid, event, payload);
+  }
+
+  private startRing(socket: Socket, caller: PublicUser, channelId: string) {
+    const callee = (this.dmMembers.get(channelId) ?? []).find((id) => id !== caller.id);
+    if (!callee) return;
+    if (!this.online.has(callee)) {
+      socket.emit('call:unavailable', { channelId, userId: callee });
+      return;
+    }
+    this.stopRing(channelId);
+    const timer = setTimeout(() => {
+      this.rings.delete(channelId);
+      this.emitUser(callee, 'call:end-ring', { channelId, missed: true, from: caller });
+      this.io.to(socket.id).emit('call:missed', { channelId, userId: callee });
+    }, config.ringTimeoutMs);
+    this.rings.set(channelId, { caller, callerSocket: socket.id, callee, timer });
+    this.emitUser(callee, 'call:ring', { channelId, from: caller });
+  }
+
+  private stopRing(channelId: string) {
+    const ring = this.rings.get(channelId);
+    if (!ring) return;
+    clearTimeout(ring.timer);
+    this.rings.delete(channelId);
   }
 
   private leaveVoice(socketId: string) {
@@ -233,7 +306,13 @@ export class Realtime {
     this.voice.delete(socketId);
     this.io.in(socketId).socketsLeave(`voice:${state.channelId}`);
     this.io.to(`voice:${state.channelId}`).emit('voice:peer-left', { socketId });
-    this.emitGuild(state.guildId, 'voice:state-remove', { socketId, guildId: state.guildId });
+    this.emitVoice(state, 'voice:state-remove', { socketId, guildId: state.guildId });
+    // quem ligou desistiu antes de atenderem: vira "chamada perdida" para o outro
+    const ring = this.rings.get(state.channelId);
+    if (ring && ring.callerSocket === socketId) {
+      this.stopRing(state.channelId);
+      this.emitUser(ring.callee, 'call:end-ring', { channelId: state.channelId, missed: true, from: ring.caller });
+    }
   }
 
   private kickFromVoice(socketId: string, reason: string) {

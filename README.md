@@ -9,6 +9,8 @@ Funciona no navegador do PC e do celular, e é 100% gratuito para hospedar.
 - Servidores com link de convite, canais de texto e de voz
 - **Amigos**: adicionar pelo nome de usuário, aceitar/recusar pedidos, ver quem está online
 - **Mensagens diretas** com amigos ou membros dos seus servidores (clique no membro → Enviar mensagem)
+- **Ligações nas mensagens diretas** (📞 no topo da conversa): toque com Atender/Recusar, "chamando…",
+  aviso de recusa, de chamada perdida e de amigo offline; voz, câmera e tela como nos canais de voz
 - Chat em tempo real: editar/excluir mensagens, "fulano está digitando…", links e prévia de imagens, mensagens não lidas
 - **Responder** mensagens (com citação clicável), **reações** com emoji e **@menções** com
   autocompletar, destaque, som próprio e contador; `@todos` avisa o servidor inteiro
@@ -121,13 +123,14 @@ Outros comandos:
 | `npm start` | Sobe o servidor de produção (serve API e frontend na porta `PORT`) |
 | `npm run typecheck` | Checa os tipos do servidor e do cliente |
 | `npm run test:e2e` | Teste ponta a ponta com dois navegadores (PC + celular): convite, chat, voz, câmera e tela |
+| `npm run test:e2e:call` | Ligação na DM: atender (no celular), recusar, desistir, não atender e offline |
 | `npm run test:e2e:chat` | Responder, @menções, reações, envio de imagens e visualizador |
 | `npm run test:e2e:social` | Amigos e mensagens diretas com três pessoas (uma no celular) |
 | `npm run test:e2e:codec` | O codec escolhido é o usado mesmo quando o espectador iniciou a negociação; estatísticas de envio |
 | `npm run test:e2e:voice` | Push-to-talk, ativação por voz, atalho de silenciar e gravação de tecla |
 | `npm run test:e2e:turn` | Força a conexão pelo TURN (precisa do `coturn` instalado) e confere a economia de cota |
 
-Veja todas as variáveis de ambiente em [`.env.example`](.env.example).
+Veja todas as variáveis de ambiente (inclusive `RING_TIMEOUT_MS`, o tempo que a ligação toca) em [`.env.example`](.env.example).
 
 ## Estrutura
 

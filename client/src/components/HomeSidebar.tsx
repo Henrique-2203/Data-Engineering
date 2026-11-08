@@ -1,4 +1,4 @@
-import { Users } from 'lucide-react';
+import { Phone, Users } from 'lucide-react';
 import { goHome, useApp } from '../store/app';
 import { Avatar } from './Avatar';
 
@@ -9,6 +9,8 @@ export function HomeSidebar() {
   const dms = useApp((s) => s.dms);
   const online = useApp((s) => s.online);
   const unread = useApp((s) => s.unread);
+  const voiceStates = useApp((s) => s.voiceStates);
+  const inCall = new Set(Object.values(voiceStates).filter((v) => !v.guildId).map((v) => v.channelId));
   const incoming = useApp((s) => s.friends.filter((f) => f.status === 'incoming').length);
 
   return (
@@ -33,6 +35,11 @@ export function HomeSidebar() {
             <button className="channel-main" onClick={() => goHome(id)}>
               <Avatar user={dm.recipient} size={30} online={!!online[dm.recipient.id]} />
               <span className="ellipsis">{dm.recipient.displayName}</span>
+              {inCall.has(id) && (
+                <span className="dm-call" title="Chamada em andamento" aria-label="Chamada em andamento">
+                  <Phone size={14} />
+                </span>
+              )}
               {unread[id] && <span className="unread-dot" aria-label="mensagens não lidas" />}
             </button>
           </div>

@@ -1,9 +1,9 @@
 import type { Socket } from 'socket.io-client';
-import type { RtcSignal } from '../../../shared/types';
+import type { PublicUser, RtcSignal } from '../../../shared/types';
 import { api } from '../lib/api';
 import { playSound } from '../lib/sounds';
 import { getSocket, onSocketReady } from '../lib/socket';
-import { findChannel, toast, useApp } from '../store/app';
+import { findChannel, findMember, toast, useApp } from '../store/app';
 import { useVoice, type MediaKind, type RemoteMedia } from '../store/voice';
 import { Peer, type SenderSlot } from './peer';
 import { preferCodec } from './sdp';
@@ -62,9 +62,16 @@ class VoiceEngine {
   private meterTimer: ReturnType<typeof setInterval> | null = null;
   private boundSockets = new WeakSet<Socket>();
   private joining = false;
+  /** últimos eventos internos (diagnóstico: __resenhaVoice.debugLog no console) */
+  readonly debugLog: string[] = [];
+  private dbg(msg: string) {
+    this.debugLog.push(`${new Date().toISOString().slice(11, 23)} ${msg}`);
+    if (this.debugLog.length > 200) this.debugLog.shift();
+  }
 
   constructor() {
     onSocketReady((socket) => {
+      this.dbg(`ready socket=${socket.id} status=${getV().status} channel=${getV().channelId} joining=${this.joining}`);
       this.bind(socket);
       // reconexão: o servidor esqueceu nosso estado de voz, então entramos de novo
       const { channelId, status } = getV();
@@ -80,25 +87,62 @@ class VoiceEngine {
     this.boundSockets.add(socket);
 
     socket.on('voice:peer-joined', ({ socketId, userId }: { socketId: string; userId: string }) => {
+      this.dbg(`peer-joined ${socketId} status=${getV().status}`);
       if (getV().status === 'idle') return;
-      this.createPeer(socketId, userId);
+      // eu já estava na chamada: eu inicio a negociação com quem chegou
+      this.createPeer(socketId, userId, true);
       playSound('peerJoin');
+      useApp.setState({ outgoingRing: null }); // atenderam
     });
     socket.on('voice:peer-left', ({ socketId }: { socketId: string }) => {
+      this.dbg(`peer-left ${socketId}`);
       if (this.peers.has(socketId)) playSound('peerLeave');
       this.closePeer(socketId);
     });
+    // ---- ligações em conversas diretas ----
+    socket.on('call:ring', ({ channelId, from }: { channelId: string; from: PublicUser }) => {
+      if (getV().channelId === channelId && getV().status !== 'idle') return; // já estou nessa chamada
+      useApp.setState({ incomingCall: { channelId, from } });
+    });
+    socket.on('call:end-ring', ({ channelId, missed, from }: { channelId: string; missed?: boolean; from?: PublicUser }) => {
+      if (useApp.getState().incomingCall?.channelId !== channelId) return;
+      useApp.setState({ incomingCall: null });
+      if (missed && from) toast(`Chamada perdida de ${from.displayName}`);
+    });
+    const endOutgoing = (channelId: string, message: string) => {
+      if (getV().channelId !== channelId) return;
+      useApp.setState({ outgoingRing: null });
+      // ninguém entrou: encerra a chamada vazia
+      if (this.peers.size === 0) this.leave();
+      toast(message);
+    };
+    socket.on('call:declined', ({ channelId, by }: { channelId: string; by: PublicUser }) =>
+      endOutgoing(channelId, `${by.displayName} recusou a chamada.`),
+    );
+    socket.on('call:missed', ({ channelId, userId }: { channelId: string; userId: string }) =>
+      endOutgoing(channelId, `${findMember(null, userId)?.displayName ?? 'A pessoa'} não atendeu.`),
+    );
+    socket.on('call:unavailable', ({ channelId, userId }: { channelId: string; userId: string }) =>
+      endOutgoing(channelId, `${findMember(null, userId)?.displayName ?? 'A pessoa'} está offline agora.`),
+    );
+
     socket.on('voice:kicked', ({ reason }: { reason: string }) => {
       this.leave(false);
       toast(reason);
     });
     socket.on('rtc:signal', ({ from, data }: { from: string; data: RtcSignal }) => {
-      if (getV().status === 'idle') return;
+      if (getV().status === 'idle') {
+        this.dbg(`signal ${data.type} de ${from} ignorado (idle)`);
+        return;
+      }
       let peer = this.peers.get(from);
       if (!peer) {
         const state = useApp.getState().voiceStates[from];
-        if (!state || state.channelId !== getV().channelId) return;
-        peer = this.createPeer(from, state.userId);
+        if (!state || state.channelId !== getV().channelId) {
+          this.dbg(`signal ${data.type} de ${from} ignorado (estado=${state?.channelId ?? 'nenhum'})`);
+          return;
+        }
+        peer = this.createPeer(from, state.userId, false);
       }
       void peer.handle(data);
     });
@@ -114,6 +158,7 @@ class VoiceEngine {
     if (!rejoin && getV().status !== 'idle') this.leave(true);
 
     this.joining = true;
+    this.dbg(`join ${channelId} rejoin=${rejoin}`);
     setV({ status: 'connecting', channelId, guildId: channel.guildId });
     try {
       // AudioContext precisa nascer de um clique do usuário (regra de autoplay dos navegadores)
@@ -142,14 +187,19 @@ class VoiceEngine {
         this.leave(false);
         return;
       }
+      this.dbg(`join ack ok=${res.ok} peers=${(res.peers ?? []).map((p) => p.socketId).join(',')}`);
       if (getV().channelId !== channelId) return; // saiu enquanto conectava
 
       setV({ status: 'connected' });
       if (!rejoin) playSound('join');
+      // ligando numa DM sem ninguém do outro lado: fica "chamando…" até atenderem
+      if (channel.type === 'dm' && !res.peers?.length && !rejoin) useApp.setState({ outgoingRing: channelId });
+      if (useApp.getState().incomingCall?.channelId === channelId) useApp.setState({ incomingCall: null });
       if (getV().camera || getV().screen) {
         socket.emit('voice:update', { camera: !!this.camTrack, screen: !!this.screenStream });
       }
-      for (const p of res.peers ?? []) this.createPeer(p.socketId, p.userId);
+      // acabei de chegar: espero quem já estava oferecer primeiro
+      for (const p of res.peers ?? []) this.createPeer(p.socketId, p.userId, false);
       this.startMeters();
     } finally {
       this.joining = false;
@@ -157,7 +207,9 @@ class VoiceEngine {
   }
 
   leave(notifyServer = true) {
+    this.dbg(`leave notify=${notifyServer}`);
     if (getV().status !== 'idle') playSound('leave');
+    useApp.setState({ outgoingRing: null });
     if (notifyServer) getSocket()?.emit('voice:leave');
     this.resetPeers();
     this.micTrack?.stop();
@@ -192,6 +244,7 @@ class VoiceEngine {
   }
 
   private resetPeers() {
+    this.dbg(`resetPeers (${this.peers.size})`);
     for (const p of this.peers.values()) p.close();
     this.peers.clear();
     setV({ remotes: {} });
@@ -234,9 +287,11 @@ class VoiceEngine {
 
   // ---------------- pares ----------------
 
-  private createPeer(socketId: string, userId: string): Peer {
+  /** `initiator`: eu ofereço minha mídia já; senão, espero a primeira oferta do outro lado. */
+  private createPeer(socketId: string, userId: string, initiator: boolean): Peer {
     const existing = this.peers.get(socketId);
     if (existing) return existing;
+    this.dbg(`createPeer ${socketId}`);
     const mySocketId = getSocket()?.id ?? '';
     const peer = new Peer(socketId, userId, mySocketId < socketId, this.iceServers ?? [], {
       signal: (data) => getSocket()?.emit('rtc:signal', { to: socketId, data }),
@@ -245,6 +300,7 @@ class VoiceEngine {
       onConnectionState: (connection) => this.patchRemote(socketId, () => ({ connection })),
       onWatch: (on) => this.onWatchRequest(socketId, on),
       onStable: () => this.applyEncodings(peer),
+      log: (msg) => this.dbg(`[${socketId.slice(0, 6)}] ${msg}`),
       onRelayChange: (relayed) => {
         this.patchRemote(socketId, () => ({ relayed }));
         this.applyEncodings(peer);
@@ -262,14 +318,19 @@ class VoiceEngine {
       } satisfies RtcSignal,
     });
 
-    if (this.micTrack) void peer.setTrack('mic', this.micTrack, this.msid.mic);
-    if (this.camTrack) void this.addCamera(peer);
+    const addLocalMedia = () => {
+      if (this.micTrack) void peer.setTrack('mic', this.micTrack, this.msid.mic);
+      if (this.camTrack) void this.addCamera(peer);
+    };
+    if (initiator) addLocalMedia();
+    else peer.afterFirstOffer(addLocalMedia, 1500);
     // após reconexão, refaz o pedido para continuar assistindo a tela dessa pessoa
     if (getV().watching[socketId]) this.sendWatch(socketId, true);
     return peer;
   }
 
   private closePeer(socketId: string) {
+    this.dbg(`closePeer ${socketId}`);
     this.peers.get(socketId)?.close();
     this.peers.delete(socketId);
     this.screenWatchers.delete(socketId);
@@ -550,6 +611,18 @@ class VoiceEngine {
     getSocket()?.emit('rtc:signal', { to: socketId, data: { type: 'watch', on } satisfies RtcSignal });
   }
 
+  /** Diagnóstico: nível do áudio recebido de cada participante (0..1, via getStats). */
+  async inboundAudioLevels(): Promise<Record<string, number>> {
+    const out: Record<string, number> = {};
+    for (const [id, p] of this.peers) {
+      const report = await p.pc.getStats();
+      report.forEach((r: any) => {
+        if (r.type === 'inbound-rtp' && r.kind === 'audio') out[id] = Math.max(out[id] ?? 0, r.audioLevel ?? 0);
+      });
+    }
+    return out;
+  }
+
   async screenStats(socketId: string) {
     return this.peers.get(socketId)?.screenStats() ?? null;
   }
@@ -625,4 +698,6 @@ class VoiceEngine {
 }
 
 export const voice = new VoiceEngine();
+// acesso para diagnóstico no console do navegador (e para os testes automáticos)
+(globalThis as { __resenhaVoice?: VoiceEngine }).__resenhaVoice = voice;
 export type { SenderSlot };

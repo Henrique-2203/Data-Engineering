@@ -8,6 +8,8 @@ export const config = {
   dataDir: process.env.DATA_DIR || './data/pglite',
   registrationCode: process.env.REGISTRATION_CODE || null,
   maxVoicePeers: Number(process.env.MAX_VOICE_PEERS ?? 10),
+  /** quanto tempo uma ligação de DM toca antes de virar "não atendeu" */
+  ringTimeoutMs: Number(process.env.RING_TIMEOUT_MS ?? 30_000),
   /** tamanho máximo de cada imagem enviada (o navegador já reduz fotos grandes antes) */
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB ?? 8),
   turn: {
