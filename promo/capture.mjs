@@ -147,7 +147,7 @@ try {
   await api(`/guilds/${guild.id}/channels`, { name: 'Valorant 5v5', type: 'voice' }, H);
   const mod = await api(`/guilds/${guild.id}/roles`, { name: 'Mod', color: '#ef4444', permissions: 0 }, H).catch(() => null);
   const crias = await api(`/guilds/${guild.id}/roles`, { name: 'Crias', color: '#22c55e', permissions: 0 }, H).catch(() => null);
-  const roleId = (r) => r?.role?.id ?? r?.id;
+  const roleId = (r) => r?.roleId ?? r?.role?.id ?? r?.id;
   if (mod) await api(`/guilds/${guild.id}/members/${users.lucas.user.id}/roles`, { roleIds: [roleId(mod)] }, H, 'PUT').catch((e) => console.warn(e.message));
   if (crias) for (const u of ['bia', 'pedro', 'duda']) await api(`/guilds/${guild.id}/members/${users[u].user.id}/roles`, { roleIds: [roleId(crias)] }, H, 'PUT').catch((e) => console.warn(e.message));
 
