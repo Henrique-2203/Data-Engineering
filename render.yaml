@@ -4,6 +4,7 @@ services:
     name: resenha
     runtime: node
     plan: free
+    region: virginia # mesma região do banco no Neon (AWS US East 1)
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /api/health

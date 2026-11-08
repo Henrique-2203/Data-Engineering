@@ -43,7 +43,7 @@ A troca é que quem transmite envia uma cópia para cada pessoa assistindo. A 10
 
 ### 1. Banco de dados gratuito (Neon)
 
-1. Crie uma conta em <https://neon.tech> (plano Free) e crie um projeto.
+1. Crie uma conta em <https://neon.tech> (plano Free) e crie um projeto na região **AWS US East 1 (N. Virginia)**, a mesma do Render (que não tem servidor no Brasil).
 2. Copie a **connection string**. Ela parece com `postgresql://usuario:senha@ep-xxx.neon.tech/neondb?sslmode=require`.
 
 ### 2. Hospedagem gratuita (Render)
