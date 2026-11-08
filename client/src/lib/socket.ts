@@ -8,6 +8,7 @@ import {
   setDms,
   setFriends,
   updateReactions,
+  upsertGuild,
   deleteMessage,
   patchGuild,
   removeGuild,
@@ -89,6 +90,8 @@ export function connectSocket(token: string) {
 
   // servidores, canais e membros
   s.on('guild:update', (patch: Partial<Guild> & { id: string }) => patchGuild(patch.id, patch));
+  // mudanças estruturais (cargos, canais, permissões...): recarrega o servidor do jeito que EU vejo
+  s.on('guild:refresh', ({ guildId }: { guildId: string }) => scheduleGuildRefresh(guildId));
   s.on('guild:delete', ({ id }: { id: string }) => removeGuild(id));
   s.on('channel:create', (c: Channel) =>
     updateGuildChannels(c.guildId, (list) => (list.some((x) => x.id === c.id) ? list : [...list, c])),
@@ -144,6 +147,40 @@ export function connectSocket(token: string) {
   });
 
   return s;
+}
+
+const pendingRefresh = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** Junta vários avisos seguidos (ex.: arrastar canais) em um só recarregamento. */
+export function scheduleGuildRefresh(guildId: string) {
+  clearTimeout(pendingRefresh.get(guildId));
+  pendingRefresh.set(
+    guildId,
+    setTimeout(() => {
+      pendingRefresh.delete(guildId);
+      void refreshGuild(guildId);
+    }, 150),
+  );
+}
+
+export async function refreshGuild(guildId: string) {
+  try {
+    const { guild, voiceStates } = await api<{ guild: Guild; voiceStates: VoiceState[] }>(`/guilds/${guildId}`);
+    upsertGuild(guild);
+    useApp.setState((st) => ({
+      voiceStates: {
+        ...Object.fromEntries(Object.entries(st.voiceStates).filter(([, v]) => v.guildId !== guildId)),
+        ...Object.fromEntries(voiceStates.map((v) => [v.socketId, v])),
+      },
+    }));
+    // o canal aberto sumiu (excluído ou virou privado para mim): vai para o primeiro canal de texto
+    const st = useApp.getState();
+    if (st.selectedGuildId === guildId && st.selectedChannelId && !guild.channels.some((c) => c.id === st.selectedChannelId)) {
+      useApp.setState({ selectedChannelId: guild.channels.find((c) => c.type === 'text')?.id ?? null });
+    }
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) removeGuild(guildId);
+  }
 }
 
 export async function refreshDms() {

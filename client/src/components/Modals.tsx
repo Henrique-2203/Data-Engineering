@@ -20,6 +20,9 @@ import { CODECS, SCREEN_PRESETS, effectiveBitrate, keyLabel, presetById } from '
 import { notificationsSupported, requestNotificationPermission } from '../lib/notify';
 import { playSound } from '../lib/sounds';
 import { mouseCode } from './Hotkeys';
+import { GuildSettings } from './GuildSettings';
+import { Perm, useCan } from '../lib/perms';
+import { refreshGuild } from '../lib/socket';
 import { DESKTOP_DOWNLOAD_URL, desktop, isDesktop, type DesktopSettings } from '../lib/desktop';
 import { Avatar } from './Avatar';
 
@@ -41,9 +44,13 @@ export function Modals({ onLogout }: { onLogout(): void }) {
     case 'invite':
       return <Invite guildId={modal.guildId} />;
     case 'createChannel':
-      return <CreateChannel guildId={modal.guildId} type={modal.type} />;
+      return <CreateChannel guildId={modal.guildId} type={modal.type} categoryId={modal.categoryId ?? null} />;
     case 'guildSettings':
-      return <GuildSettings guildId={modal.guildId} />;
+      return <GuildSettings guildId={modal.guildId} initialTab={modal.tab} />;
+    case 'createCategory':
+      return <CategoryModal guildId={modal.guildId} />;
+    case 'categorySettings':
+      return <CategoryModal guildId={modal.guildId} categoryId={modal.categoryId} />;
     case 'channelSettings':
       return <ChannelSettings channelId={modal.channelId} />;
     case 'userSettings':
@@ -191,10 +198,16 @@ function JoinGuild({ initialCode }: { initialCode?: string }) {
 
 function Invite({ guildId }: { guildId: string }) {
   const guild = useApp((s) => s.guilds[guildId]);
-  const me = useApp((s) => s.me)!;
+  const canRegenerate = useCan(guildId, Perm.MANAGE_GUILD);
   if (!guild) return null;
   const link = `${location.origin}/invite/${guild.inviteCode}`;
-  const isOwner = guild.ownerId === me.id;
+  if (!guild.inviteCode) {
+    return (
+      <Modal title="Convidar amigos">
+        <p className="muted">Você não tem permissão para convidar pessoas neste servidor. Peça para alguém com cargo.</p>
+      </Modal>
+    );
+  }
 
   async function copy() {
     try {
@@ -230,7 +243,7 @@ function Invite({ guildId }: { guildId: string }) {
             <Share2 size={16} /> Compartilhar
           </button>
         )}
-        {isOwner && (
+        {canRegenerate && (
           <button className="link-btn small" onClick={regenerate}>
             Gerar novo link (invalida o atual)
           </button>
@@ -240,77 +253,111 @@ function Invite({ guildId }: { guildId: string }) {
   );
 }
 
-function GuildSettings({ guildId }: { guildId: string }) {
+const BITRATE_OPTIONS = [
+  { value: 64, label: '64 kbps (leve, bom para internet ruim)' },
+  { value: 96, label: '96 kbps' },
+  { value: 128, label: '128 kbps (padrão)' },
+  { value: 192, label: '192 kbps' },
+  { value: 256, label: '256 kbps (alta)' },
+  { value: 384, label: '384 kbps' },
+  { value: 510, label: '510 kbps (máxima, estúdio)' },
+];
+
+/** Campos comuns de canal: categoria, privacidade por cargo e (voz) qualidade e limite. */
+function ChannelFields({
+  guildId,
+  type,
+  value,
+  onChange,
+}: {
+  guildId: string;
+  type: 'text' | 'voice';
+  value: { categoryId: string | null; allowedRoleIds: string[] | null; bitrate: number; userLimit: number };
+  onChange(v: Partial<typeof value>): void;
+}) {
   const guild = useApp((s) => s.guilds[guildId]);
-  const me = useApp((s) => s.me)!;
-  const [name, setName] = useState(guild?.name ?? '');
-  const { busy, error, submit } = useSubmit(async () => {
-    await api(`/guilds/${guildId}`, { method: 'PATCH', body: { name } });
-    patchGuild(guildId, { name: name.trim() });
-    toast('Servidor atualizado.');
-  });
-  if (!guild) return null;
-
-  async function kick(user: PublicUser) {
-    if (!confirm(`Remover ${user.displayName} do servidor?`)) return;
-    try {
-      await api(`/guilds/${guildId}/members/${user.id}`, { method: 'DELETE' });
-    } catch (err) {
-      toast((err as Error).message);
-    }
-  }
-
-  async function remove() {
-    const typed = prompt(`Isto apaga o servidor, canais e mensagens para sempre.\nDigite o nome do servidor para confirmar:`);
-    if (typed?.trim() !== guild!.name) return;
-    try {
-      await api(`/guilds/${guildId}`, { method: 'DELETE' });
-      closeModal();
-    } catch (err) {
-      toast((err as Error).message);
-    }
-  }
-
+  const roles = [...(guild?.roles ?? [])].sort((a, b) => b.position - a.position);
+  const isPrivate = value.allowedRoleIds !== null;
   return (
-    <Modal title="Configurações do servidor">
-      <form onSubmit={submit} className="form">
+    <>
+      {(guild?.categories.length ?? 0) > 0 && (
         <label>
-          Nome
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={50} required />
+          Categoria
+          <select value={value.categoryId ?? ''} onChange={(e) => onChange({ categoryId: e.target.value || null })}>
+            <option value="">Sem categoria</option>
+            {guild!.categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
         </label>
-        {error && <p className="error">{error}</p>}
-        <div className="modal-actions">
-          <button className="btn primary" disabled={busy || !name.trim() || name.trim() === guild.name}>Salvar</button>
+      )}
+      <label className="check">
+        <input type="checkbox" checked={isPrivate} onChange={(e) => onChange({ allowedRoleIds: e.target.checked ? [] : null })} />
+        🔒 Canal privado (só cargos escolhidos veem)
+      </label>
+      {isPrivate && (
+        <div className="field">
+          {roles.length === 0 ? (
+            <p className="muted small">Crie cargos em Configurações do servidor → Cargos. Sem cargos marcados, só o dono e administradores veem.</p>
+          ) : (
+            <div className="role-pills">
+              {roles.map((r) => {
+                const on = value.allowedRoleIds!.includes(r.id);
+                return (
+                  <button
+                    type="button"
+                    key={r.id}
+                    className={`role-pill${on ? ' on' : ''}`}
+                    style={{ '--role': r.color } as React.CSSProperties}
+                    aria-pressed={on}
+                    onClick={() =>
+                      onChange({ allowedRoleIds: on ? value.allowedRoleIds!.filter((x) => x !== r.id) : [...value.allowedRoleIds!, r.id] })
+                    }
+                  >
+                    <span className="role-dot" style={{ background: r.color }} />
+                    {r.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <span className="muted small">O dono e quem tem Administrador sempre veem.</span>
         </div>
-      </form>
-      <h3 className="subhead">Membros ({guild.members.length})</h3>
-      <ul className="member-admin">
-        {guild.members.map((m) => (
-          <li key={m.id}>
-            <Avatar user={m} size={28} />
-            <span className="ellipsis">
-              {m.displayName} <span className="muted">@{m.username}</span>
-            </span>
-            {m.id !== me.id && (
-              <button className="btn small ghost danger" onClick={() => kick(m)}>Remover</button>
-            )}
-          </li>
-        ))}
-      </ul>
-      <h3 className="subhead danger-text">Zona de perigo</h3>
-      <button className="btn danger" onClick={remove}>Excluir servidor</button>
-    </Modal>
+      )}
+      {type === 'voice' && (
+        <>
+          <label>
+            Qualidade do áudio
+            <select value={value.bitrate} onChange={(e) => onChange({ bitrate: Number(e.target.value) })}>
+              {BITRATE_OPTIONS.map((b) => (
+                <option key={b.value} value={b.value}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+            <span className="muted small">No Discord sem boost, o máximo é 96 kbps. Aqui é grátis até 510.</span>
+          </label>
+          <label>
+            Limite de pessoas: <strong>{value.userLimit === 0 ? 'sem limite' : value.userLimit}</strong>
+            <input type="range" min={0} max={25} value={value.userLimit} onChange={(e) => onChange({ userLimit: Number(e.target.value) })} aria-label="Limite de pessoas" />
+          </label>
+        </>
+      )}
+    </>
   );
 }
 
-// ---------- canais ----------
-
-function CreateChannel({ guildId, type: initialType }: { guildId: string; type: 'text' | 'voice' }) {
+function CreateChannel({ guildId, type: initialType, categoryId }: { guildId: string; type: 'text' | 'voice'; categoryId: string | null }) {
   const [type, setType] = useState(initialType);
   const [name, setName] = useState('');
+  const [fields, setFields] = useState({ categoryId, allowedRoleIds: null as string[] | null, bitrate: 128, userLimit: 0 });
   const { busy, error, submit } = useSubmit(async () => {
-    const { channel } = await api<{ channel: Channel }>(`/guilds/${guildId}/channels`, { body: { name, type } });
-    updateGuildChannels(guildId, (list) => (list.some((c) => c.id === channel.id) ? list : [...list, channel]));
+    const { channel } = await api<{ channel: Channel }>(`/guilds/${guildId}/channels`, {
+      body: { name, type, ...fields, ...(type === 'text' ? { bitrate: undefined, userLimit: undefined } : {}) },
+    });
+    await refreshGuild(guildId);
     closeModal();
     if (channel.type === 'text') selectChannel(channel.id);
   });
@@ -333,6 +380,7 @@ function CreateChannel({ guildId, type: initialType }: { guildId: string; type: 
           Nome do canal
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} required autoFocus placeholder={type === 'text' ? 'novo-canal' : 'Jogatina'} />
         </label>
+        <ChannelFields guildId={guildId} type={type} value={fields} onChange={(v) => setFields({ ...fields, ...v })} />
         {error && <p className="error">{error}</p>}
         <div className="modal-actions">
           <button type="button" className="btn ghost" onClick={closeModal}>Cancelar</button>
@@ -346,11 +394,21 @@ function CreateChannel({ guildId, type: initialType }: { guildId: string; type: 
 function ChannelSettings({ channelId }: { channelId: string }) {
   const channel = useApp(() => findChannel(channelId));
   const [name, setName] = useState(channel?.name ?? '');
-  const { busy, error, submit } = useSubmit(async () => {
-    await api(`/channels/${channelId}`, { method: 'PATCH', body: { name } });
-    closeModal();
+  const [fields, setFields] = useState({
+    categoryId: channel?.categoryId ?? null,
+    allowedRoleIds: channel?.allowedRoleIds ?? null,
+    bitrate: channel?.bitrate ?? 128,
+    userLimit: channel?.userLimit ?? 0,
   });
-  if (!channel) return null;
+  const { busy, error, submit } = useSubmit(async () => {
+    await api(`/channels/${channelId}`, {
+      method: 'PATCH',
+      body: { name, ...fields, ...(channel?.type === 'text' ? { bitrate: undefined, userLimit: undefined } : {}) },
+    });
+    closeModal();
+    toast('Canal salvo.');
+  });
+  if (!channel || channel.type === 'dm') return null;
 
   async function remove() {
     if (!confirm(`Excluir o canal "${channel!.name}"? ${channel!.type === 'text' ? 'Todas as mensagens serão apagadas.' : ''}`)) return;
@@ -369,10 +427,59 @@ function ChannelSettings({ channelId }: { channelId: string }) {
           Nome do canal
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} required autoFocus />
         </label>
+        <ChannelFields guildId={channel.guildId} type={channel.type} value={fields} onChange={(v) => setFields({ ...fields, ...v })} />
         {error && <p className="error">{error}</p>}
         <div className="modal-actions spread">
           <button type="button" className="btn danger ghost" onClick={remove}>Excluir canal</button>
           <button className="btn primary" disabled={busy || !name.trim()}>Salvar</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function CategoryModal({ guildId, categoryId }: { guildId: string; categoryId?: string }) {
+  const category = useApp((s) => s.guilds[guildId]?.categories.find((c) => c.id === categoryId));
+  const [name, setName] = useState(category?.name ?? '');
+  const { busy, error, submit } = useSubmit(async () => {
+    if (categoryId) await api(`/categories/${categoryId}`, { method: 'PATCH', body: { name } });
+    else await api(`/guilds/${guildId}/categories`, { body: { name } });
+    await refreshGuild(guildId);
+    closeModal();
+  });
+  return (
+    <Modal title={categoryId ? 'Editar categoria' : 'Criar categoria'}>
+      <form onSubmit={submit} className="form">
+        <p className="muted small">Categorias agrupam canais na barra lateral (ex.: "Jogos", "Papo"). Arraste canais para dentro delas.</p>
+        <label>
+          Nome da categoria
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} required autoFocus placeholder="Jogos" />
+        </label>
+        {error && <p className="error">{error}</p>}
+        <div className="modal-actions spread">
+          {categoryId ? (
+            <button
+              type="button"
+              className="btn danger ghost"
+              onClick={async () => {
+                if (!confirm(`Excluir a categoria "${category?.name}"? Os canais dela continuam, só ficam sem categoria.`)) return;
+                try {
+                  await api(`/categories/${categoryId}`, { method: 'DELETE' });
+                  await refreshGuild(guildId);
+                  closeModal();
+                } catch (err) {
+                  toast((err as Error).message);
+                }
+              }}
+            >
+              Excluir categoria
+            </button>
+          ) : (
+            <span />
+          )}
+          <button className="btn primary" disabled={busy || !name.trim()}>
+            {categoryId ? 'Salvar' : 'Criar categoria'}
+          </button>
         </div>
       </form>
     </Modal>

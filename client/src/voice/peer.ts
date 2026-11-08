@@ -56,6 +56,8 @@ export class Peer {
     private readonly polite: boolean,
     iceServers: RTCIceServer[],
     private readonly cb: PeerCallbacks,
+    /** qualidade de voz do canal em kbps */
+    private readonly opusKbps = 128,
   ) {
     this.pc = new RTCPeerConnection({
       iceServers,
@@ -129,7 +131,7 @@ export class Peer {
     if (this.closed) return;
     try {
       if (data.type === 'description') {
-        const description = { ...data.description, sdp: tuneRemoteSdp(data.description.sdp) };
+        const description = { ...data.description, sdp: tuneRemoteSdp(data.description.sdp, 4000, this.opusKbps) };
         const readyForOffer =
           !this.makingOffer && (this.pc.signalingState === 'stable' || this.settingRemoteAnswer);
         const collision = description.type === 'offer' && !readyForOffer;

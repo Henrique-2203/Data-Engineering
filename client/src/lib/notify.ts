@@ -19,7 +19,7 @@ export function onIncomingMessage(message: Message) {
   if (message.author.id === app.me?.id) return;
   const hidden = document.visibilityState !== 'visible';
   const channel = findChannel(message.channelId);
-  const mentioned = !!app.me && mentionsUser(message.content, app.me.username, channel?.type === 'text');
+  const mentioned = !!app.me && channel?.type !== 'dm' && mentionsUser(message.content, app.me.username, message.mentionEveryone);
   // menção toca mesmo com o canal aberto, se a aba estiver escondida
   if (!hidden && app.selectedChannelId === message.channelId) return;
 

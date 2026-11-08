@@ -3,6 +3,7 @@ import { Server, type Socket } from 'socket.io';
 import { z } from 'zod';
 import { config } from './config.ts';
 import { userFromToken } from './auth.ts';
+import { canSee, channelAudience, isTimedOut, loadChannel, memberAccess } from './access.ts';
 import type { Db } from './db.ts';
 import type { PublicUser, RtcSignal, VoiceState } from '../../shared/types.ts';
 
@@ -20,6 +21,8 @@ export class Realtime {
   private voice = new Map<string, VoiceState>();
   /** participantes de cada conversa direta com chamada ativa (para entregar eventos só a eles) */
   private dmMembers = new Map<string, string[]>();
+  /** canais de voz privados de servidor: quem pode ver (null/ausente = todos do servidor) */
+  private voiceAudience = new Map<string, string[] | null>();
   /** chamadas tocando: canal da DM -> quem ligou, quem recebe e o tempo limite */
   private rings = new Map<string, { caller: PublicUser; callerSocket: string; callee: string; timer: ReturnType<typeof setTimeout> }>();
 
@@ -67,8 +70,7 @@ export class Realtime {
   userJoinedGuild(userId: string, guildId: string) {
     this.io.in(`user:${userId}`).socketsJoin(`guild:${guildId}`);
     // envia ao novo membro quem está online e em voz nesse servidor
-    const states = [...this.voice.values()].filter((s) => s.guildId === guildId);
-    this.emitUser(userId, 'voice:states', { guildId, states });
+    this.emitUser(userId, 'voice:states', { guildId, states: this.voiceStatesFor(guildId, userId) });
     this.emitUser(userId, 'presence:bulk', { online: [...this.online.keys()] });
   }
 
@@ -84,6 +86,42 @@ export class Realtime {
       if (s.guildId === guildId) this.kickFromVoice(sid, 'O servidor foi excluído.');
     }
     this.io.in(`guild:${guildId}`).socketsLeave(`guild:${guildId}`);
+  }
+
+  /** Algo mudou na estrutura do servidor (cargos, canais, permissões...): todos recarregam. */
+  guildChanged(guildId: string) {
+    this.emitGuild(guildId, 'guild:refresh', { guildId });
+  }
+
+  private canSeeVoice(state: VoiceState, userId: string) {
+    const audience = this.voiceAudience.get(state.channelId);
+    return !audience || audience.includes(userId);
+  }
+
+  /** Quem está em voz nesse servidor, do ponto de vista dessa pessoa (sem canais privados que ela não vê). */
+  voiceStatesFor(guildId: string, userId: string): VoiceState[] {
+    return [...this.voice.values()].filter((s) => s.guildId === guildId && this.canSeeVoice(s, userId));
+  }
+
+  /**
+   * Depois de mudar cargos/permissões/castigos: recalcula quem vê cada canal de voz ocupado,
+   * tira da voz quem perdeu acesso ou ficou de castigo, e reenvia a lista de quem está em voz.
+   */
+  async recheckVoice(guildId: string) {
+    const channelIds = new Set([...this.voice.values()].filter((s) => s.guildId === guildId).map((s) => s.channelId));
+    for (const channelId of channelIds) {
+      const channel = await loadChannel(this.db, channelId);
+      if (!channel) continue;
+      this.voiceAudience.set(channelId, await channelAudience(this.db, channel));
+      for (const [sid, s] of this.voice) {
+        if (s.channelId !== channelId) continue;
+        const access = await memberAccess(this.db, guildId, s.userId);
+        if (!access || !canSee(access, channel)) this.kickFromVoice(sid, 'Você não tem mais acesso a esse canal de voz.');
+        else if (isTimedOut(access)) this.kickFromVoice(sid, 'Você foi colocado de castigo e saiu da chamada.');
+      }
+    }
+    const members = await this.db.query<{ user_id: string }>('select user_id from members where guild_id = $1', [guildId]);
+    for (const m of members) this.emitUser(m.user_id, 'voice:states', { guildId, states: this.voiceStatesFor(guildId, m.user_id) });
   }
 
   channelDeleted(channelId: string) {
@@ -115,7 +153,9 @@ export class Realtime {
     socket.emit('ready', {
       socketId: socket.id,
       online: [...this.online.keys()],
-      voiceStates: [...this.voice.values()].filter((s) => (s.guildId ? guildIds.includes(s.guildId) : dmIds.has(s.channelId))),
+      voiceStates: [...this.voice.values()].filter((s) =>
+        s.guildId ? guildIds.includes(s.guildId) && this.canSeeVoice(s, user.id) : dmIds.has(s.channelId),
+      ),
       maxVoicePeers: config.maxVoicePeers,
     });
     // ligação tocando para mim enquanto eu estava desconectado/recarregando
@@ -138,7 +178,13 @@ export class Realtime {
       const { guildId, channelId } = p.data;
       if (guildId) {
         if (!socket.rooms.has(`guild:${guildId}`)) return;
-        socket.to(`guild:${guildId}`).emit('typing', { channelId, userId: user.id });
+        const channel = await loadChannel(this.db, channelId).catch(() => null);
+        if (!channel || channel.guildId !== guildId) return;
+        const audience = await channelAudience(this.db, channel).catch((): string[] => []);
+        if (audience === null) socket.to(`guild:${guildId}`).emit('typing', { channelId, userId: user.id });
+        else if (audience.includes(user.id)) {
+          for (const uid of audience) if (uid !== user.id) this.emitUser(uid, 'typing', { channelId, userId: user.id });
+        }
         return;
       }
       // conversa direta: avisa só o outro participante
@@ -223,6 +269,16 @@ export class Realtime {
         p.data.channelId,
       ]);
       this.dmMembers.set(p.data.channelId, members.map((m) => m.user_id));
+    } else {
+      const full = await loadChannel(this.db, p.data.channelId);
+      const access = full?.guildId ? await memberAccess(this.db, full.guildId, user.id) : null;
+      if (!full || !access || !canSee(access, full)) return { ok: false, error: 'Canal de voz não encontrado.' };
+      if (isTimedOut(access)) return { ok: false, error: 'Você está de castigo neste servidor e não pode entrar em voz agora.' };
+      const inChannel = [...this.voice.values()].filter((s) => s.channelId === full.id && s.userId !== user.id).length;
+      if (full.userLimit > 0 && inChannel >= full.userLimit) {
+        return { ok: false, error: `Canal cheio (limite de ${full.userLimit} pessoa${full.userLimit > 1 ? "s" : ""}).` };
+      }
+      this.voiceAudience.set(full.id, await channelAudience(this.db, full));
     }
 
     // Um usuário só pode estar em uma chamada por vez (desconecta outro dispositivo/aba).
@@ -270,7 +326,9 @@ export class Realtime {
   /** Entrega eventos de voz: ao servidor inteiro, ou só aos dois participantes da DM. */
   private emitVoice(state: VoiceState, event: string, payload: unknown) {
     if (state.guildId) {
-      this.emitGuild(state.guildId, event, payload);
+      const audience = this.voiceAudience.get(state.channelId);
+      if (!audience) this.emitGuild(state.guildId, event, payload);
+      else for (const uid of audience) this.emitUser(uid, event, payload);
       return;
     }
     for (const uid of this.dmMembers.get(state.channelId) ?? []) this.emitUser(uid, event, payload);

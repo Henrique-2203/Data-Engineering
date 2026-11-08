@@ -5,6 +5,7 @@ import { api } from '../../lib/api';
 import { mentionsUser } from '../../lib/mentions';
 import { attachmentUrl } from '../../lib/upload';
 import { findMember, openModal, toast, updateReactions, useApp } from '../../store/app';
+import { memberColor } from '../../lib/perms';
 import { Avatar } from '../Avatar';
 import { EmojiPicker } from '../EmojiPicker';
 import { formatDateTime, formatTime, renderContent } from './format';
@@ -35,8 +36,9 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
   const [draft, setDraft] = useState(message.content);
   const [picker, setPicker] = useState(false);
   const mine = message.author.id === me.id;
+  const nameColor = useApp((s) => memberColor(s.guilds[channel.guildId], message.author.id, author.avatarColor));
   const inGuild = channel.type === 'text';
-  const mentioned = !mine && mentionsUser(message.content, me.username, inGuild);
+  const mentioned = !mine && mentionsUser(message.content, me.username, message.mentionEveryone);
 
   async function saveEdit() {
     const content = draft.trim();
@@ -69,7 +71,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
       <div className="message-body">
         {!grouped && (
           <div className="message-head">
-            <strong style={{ color: author.avatarColor }}>{author.displayName}</strong>
+            <strong style={{ color: nameColor }}>{author.displayName}</strong>
             <span className="muted small">{formatDateTime(message.createdAt)}</span>
           </div>
         )}
@@ -95,7 +97,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
         ) : (
           message.content && (
             <div className="message-content">
-              {renderContent(message.content, { meUsername: me.username, inGuild })}
+              {renderContent(message.content, { meUsername: me.username, everyone: message.mentionEveryone })}
               {message.editedAt && <span className="muted small"> (editada)</span>}
             </div>
           )

@@ -53,7 +53,9 @@ export function ServerRail() {
             onClick={() => selectGuild(id)}
           >
             {hasUnread && selected !== id && <span className="rail-pill" />}
-            <span className="rail-icon">{initials(g.name)}</span>
+            <span className="rail-icon">
+              {g.iconId ? <img src={`/api/images/${g.iconId}`} alt="" className="rail-img" /> : initials(g.name)}
+            </span>
             {voiceGuild === id && <span className="rail-voice" title="Você está em uma chamada aqui" />}
             {mentionCount > 0 && <span className="rail-count">{mentionCount}</span>}
           </button>

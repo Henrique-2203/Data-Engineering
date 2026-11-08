@@ -3,6 +3,7 @@ import express, { type Router } from 'express';
 import { config } from './config.ts';
 import type { Db } from './db.ts';
 import { HttpError, wrap } from './http.ts';
+import { requireStorage } from './access.ts';
 import type { Attachment } from '../../shared/types.ts';
 import type { requireAuth } from './auth.ts';
 
@@ -17,7 +18,7 @@ import type { requireAuth } from './auth.ts';
  */
 
 /** Descobre o tipo real pelos primeiros bytes (não confia no que o navegador diz). */
-function sniffImage(buf: Buffer): string | null {
+export function sniffImage(buf: Buffer): string | null {
   if (buf.length < 12) return null;
   if (buf[0] === 0x89 && buf.toString('ascii', 1, 4) === 'PNG') return 'image/png';
   if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
@@ -47,6 +48,7 @@ export function registerAttachmentRoutes(r: Router, db: Db, auth: ReturnType<typ
       if (!Buffer.isBuffer(data) || data.length === 0) throw new HttpError(400, 'Arquivo vazio.');
       const mime = sniffImage(data);
       if (!mime) throw new HttpError(415, 'Só dá para enviar imagens (PNG, JPG, GIF, WebP ou AVIF).');
+      await requireStorage(db, data.length);
 
       const dim = (h: unknown) => {
         const n = Number(h);

@@ -1,11 +1,11 @@
 /** @usuario (mesmas regras do cadastro) ou @todos. */
 export const MENTION_RE = /(^|[^\w@])@(todos|[a-z0-9_.]{3,24})(?![\w])/gi;
 
-/** A mensagem menciona este usuário? (@todos só vale em canais de servidor) */
-export function mentionsUser(content: string, username: string, inGuild: boolean): boolean {
+/** A mensagem menciona este usuário? `everyone` = o servidor confirmou um @todos com permissão. */
+export function mentionsUser(content: string, username: string, everyone: boolean): boolean {
+  if (everyone) return true;
   for (const m of content.matchAll(MENTION_RE)) {
-    const name = m[2].toLowerCase();
-    if (name === username.toLowerCase() || (inGuild && name === 'todos')) return true;
+    if (m[2].toLowerCase() === username.toLowerCase()) return true;
   }
   return false;
 }

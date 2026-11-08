@@ -48,9 +48,11 @@ export type ModalState =
   | { kind: 'createGuild' }
   | { kind: 'joinGuild'; code?: string }
   | { kind: 'invite'; guildId: string }
-  | { kind: 'createChannel'; guildId: string; type: 'text' | 'voice' }
-  | { kind: 'guildSettings'; guildId: string }
+  | { kind: 'createChannel'; guildId: string; type: 'text' | 'voice'; categoryId?: string | null }
+  | { kind: 'guildSettings'; guildId: string; tab?: 'overview' | 'roles' | 'members' | 'bans' }
   | { kind: 'channelSettings'; channelId: string }
+  | { kind: 'createCategory'; guildId: string }
+  | { kind: 'categorySettings'; guildId: string; categoryId: string }
   | { kind: 'userSettings' }
   | { kind: 'screenShare' }
   | { kind: 'image'; src: string; name: string };
@@ -264,7 +266,7 @@ export function addMessage(message: Message) {
   const visible = s.selectedChannelId === message.channelId && document.visibilityState === 'visible';
   if (!visible && message.author.id !== s.me?.id) {
     const channel = findChannel(message.channelId);
-    const mentioned = !!s.me && mentionsUser(message.content, s.me.username, channel?.type === 'text');
+    const mentioned = !!s.me && channel?.type !== 'dm' && mentionsUser(message.content, s.me.username, message.mentionEveryone);
     set({
       unread: { ...s.unread, [message.channelId]: true },
       ...(mentioned ? { mentions: { ...s.mentions, [message.channelId]: (s.mentions[message.channelId] ?? 0) + 1 } } : {}),

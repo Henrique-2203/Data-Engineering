@@ -18,6 +18,9 @@ import type { Channel, Guild, Member, Message, PublicUser } from '../../shared/t
 import { HttpError, parse, wrap } from './http.ts';
 import { dmMemberIds, registerSocialRoutes } from './social.ts';
 import { registerAttachmentRoutes } from './attachments.ts';
+import { loadGuilds, registerGuildRoutes } from './guilds.ts';
+import { type MemberAccess, canSee, channelAudience, loadChannel, memberAccess, requireNotTimedOut } from './access.ts';
+import { Perm, has } from '../../shared/permissions.ts';
 
 export { HttpError };
 
@@ -56,68 +59,29 @@ export function createRoutes(db: Db, rt: Realtime) {
 
   // ---------- helpers de consulta ----------
 
-  async function loadGuilds(userId: string, onlyGuildId?: string): Promise<Guild[]> {
-    const guilds = await db.query<Omit<Guild, 'channels' | 'members'>>(
-      `select g.id, g.name, g.owner_id as "ownerId", g.invite_code as "inviteCode"
-       from guilds g join members m on m.guild_id = g.id
-       where m.user_id = $1 ${onlyGuildId ? 'and g.id = $2' : ''}
-       order by m.joined_at`,
-      onlyGuildId ? [userId, onlyGuildId] : [userId],
-    );
-    if (!guilds.length) return [];
-    const ids = guilds.map((g) => g.id);
-    const channels = await db.query<Channel>(
-      `select id, guild_id as "guildId", name, type, position from channels
-       where guild_id = any($1) order by position, created_at`,
-      [ids],
-    );
-    const members = await db.query<Member & { guildId: string }>(
-      `select m.guild_id as "guildId", m.joined_at as "joinedAt", ${USER_COLUMNS}
-       from members m join users u on u.id = m.user_id
-       where m.guild_id = any($1) order by m.joined_at`,
-      [ids],
-    );
-    return guilds.map((g) => ({
-      ...g,
-      channels: channels.filter((c) => c.guildId === g.id),
-      members: members.filter((m) => m.guildId === g.id).map(({ guildId, ...m }) => m),
-    }));
-  }
-
-  async function requireMember(guildId: string, userId: string) {
-    const [g] = await db.query<{ ownerId: string }>(
-      `select g.owner_id as "ownerId" from guilds g
-       join members m on m.guild_id = g.id and m.user_id = $2 where g.id = $1`,
-      [guildId, userId],
-    );
-    if (!g) throw new HttpError(404, 'Servidor não encontrado.');
-    return { isOwner: g.ownerId === userId, ownerId: g.ownerId };
-  }
-
-  async function requireOwner(guildId: string, userId: string) {
-    const m = await requireMember(guildId, userId);
-    if (!m.isOwner) throw new HttpError(403, 'Apenas o dono do servidor pode fazer isso.');
-  }
-
-  /** Canal de servidor (sendo membro) ou conversa direta (sendo participante). */
+  /**
+   * Canal de servidor (sendo membro e podendo ver o canal) ou conversa direta (sendo participante).
+   * Junto vem o acesso no servidor (permissões, castigo), ou null em DMs.
+   */
   async function channelForMember(channelId: string, userId: string) {
-    const [c] = await db.query<Channel & { ownerId: string | null }>(
-      `select c.id, c.guild_id as "guildId", c.name, c.type, c.position, g.owner_id as "ownerId"
-       from channels c left join guilds g on g.id = c.guild_id
-       where c.id = $1 and (
-         exists (select 1 from members m where m.guild_id = c.guild_id and m.user_id = $2)
-         or exists (select 1 from dm_members d where d.channel_id = c.id and d.user_id = $2)
-       )`,
-      [channelId, userId],
-    );
+    const c = await loadChannel(db, channelId);
     if (!c) throw new HttpError(404, 'Canal não encontrado.');
-    return c;
+    if (!c.guildId) {
+      const [dm] = await db.query('select 1 from dm_members where channel_id = $1 and user_id = $2', [c.id, userId]);
+      if (!dm) throw new HttpError(404, 'Canal não encontrado.');
+      return { ...c, access: null as MemberAccess | null };
+    }
+    const access = await memberAccess(db, c.guildId, userId);
+    if (!access || !canSee(access, c)) throw new HttpError(404, 'Canal não encontrado.');
+    return { ...c, access };
   }
 
-  /** Entrega um evento de mensagem a quem vê o canal: o servidor todo ou só os dois da DM. */
-  async function emitToChannel(c: { id: string; guildId: string | null }, event: string, payload: object) {
+  /** Entrega um evento de mensagem só a quem vê o canal: servidor todo, só os cargos do canal privado, ou os dois da DM. */
+  async function emitToChannel(c: { id: string; guildId: string | null; allowedRoleIds: string[] | null }, event: string, payload: object) {
     if (c.guildId) {
-      rt.emitGuild(c.guildId, event, { guildId: c.guildId, ...payload });
+      const audience = await channelAudience(db, c);
+      if (audience === null) rt.emitGuild(c.guildId, event, { guildId: c.guildId, ...payload });
+      else for (const uid of audience) rt.emitUser(uid, event, { guildId: c.guildId, ...payload });
     } else {
       for (const uid of await dmMemberIds(db, c.id)) rt.emitUser(uid, event, { guildId: null, ...payload });
     }
@@ -128,7 +92,7 @@ export function createRoutes(db: Db, rt: Realtime) {
 
   /** Mensagem completa: autor, trecho respondido, reações agrupadas por emoji e imagens. */
   const MESSAGE_SELECT = `select msg.id, msg.channel_id as "channelId", msg.content,
-      msg.created_at as "createdAt", msg.edited_at as "editedAt",
+      msg.created_at as "createdAt", msg.edited_at as "editedAt", msg.mention_everyone as "mentionEveryone",
       ${userJson('u')} as author,
       case
         when msg.reply_to_id is null then null
@@ -239,10 +203,11 @@ export function createRoutes(db: Db, rt: Realtime) {
   r.get(
     '/bootstrap',
     auth,
-    wrap(async (req) => ({ user: req.user, guilds: await loadGuilds(req.user!.id) })),
+    wrap(async (req) => ({ user: req.user, guilds: await loadGuilds(db, req.user!.id) })),
   );
 
   registerSocialRoutes(r, db, rt, auth);
+  registerGuildRoutes(r, db, rt, auth);
 
   r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers(), hasTurn: hasTurn() })));
 
@@ -275,157 +240,6 @@ export function createRoutes(db: Db, rt: Realtime) {
     }),
   );
 
-  // Servidores (guilds)
-  r.post(
-    '/guilds',
-    auth,
-    wrap(async (req) => {
-      const body = parse(z.object({ name: z.string().trim().min(1, 'Dê um nome ao servidor.').max(50) }), req.body);
-      const id = randomUUID();
-      const me = req.user!.id;
-      await db.query('insert into guilds (id, name, owner_id, invite_code) values ($1, $2, $3, $4)', [
-        id,
-        body.name,
-        me,
-        inviteCode(),
-      ]);
-      await db.query('insert into members (guild_id, user_id) values ($1, $2)', [id, me]);
-      await db.query(
-        `insert into channels (id, guild_id, name, type, position) values
-         ($1, $3, 'geral', 'text', 0), ($2, $3, 'Sala de voz', 'voice', 1)`,
-        [randomUUID(), randomUUID(), id],
-      );
-      rt.userJoinedGuild(me, id);
-      const [guild] = await loadGuilds(me, id);
-      return { guild };
-    }),
-  );
-
-  r.patch(
-    '/guilds/:id',
-    auth,
-    wrap(async (req) => {
-      const id = String(req.params.id);
-      await requireOwner(id, req.user!.id);
-      const body = parse(z.object({ name: z.string().trim().min(1).max(50) }), req.body);
-      await db.query('update guilds set name = $2 where id = $1', [id, body.name]);
-      rt.emitGuild(id, 'guild:update', { id, name: body.name });
-    }),
-  );
-
-  r.delete(
-    '/guilds/:id',
-    auth,
-    wrap(async (req) => {
-      const id = String(req.params.id);
-      await requireOwner(id, req.user!.id);
-      rt.emitGuild(id, 'guild:delete', { id });
-      rt.guildDeleted(id);
-      await db.query('delete from guilds where id = $1', [id]);
-    }),
-  );
-
-  r.post(
-    '/guilds/:id/invite',
-    auth,
-    wrap(async (req) => {
-      const id = String(req.params.id);
-      await requireOwner(id, req.user!.id);
-      const code = inviteCode();
-      await db.query('update guilds set invite_code = $2 where id = $1', [id, code]);
-      rt.emitGuild(id, 'guild:update', { id, inviteCode: code });
-      return { inviteCode: code };
-    }),
-  );
-
-  r.post(
-    '/invites/:code/join',
-    auth,
-    wrap(async (req) => {
-      const me = req.user!;
-      const [g] = await db.query<{ id: string }>('select id from guilds where invite_code = $1', [req.params.code]);
-      if (!g) throw new HttpError(404, 'Convite inválido ou expirado.');
-      const inserted = await db.query(
-        'insert into members (guild_id, user_id) values ($1, $2) on conflict do nothing returning joined_at',
-        [g.id, me.id],
-      );
-      if (inserted.length) {
-        rt.emitGuild(g.id, 'member:join', { guildId: g.id, member: { ...me, joinedAt: inserted[0].joined_at } });
-        rt.userJoinedGuild(me.id, g.id);
-      }
-      const [guild] = await loadGuilds(me.id, g.id);
-      return { guild };
-    }),
-  );
-
-  r.delete(
-    '/guilds/:id/members/:userId',
-    auth,
-    wrap(async (req) => {
-      const id = String(req.params.id);
-      const me = req.user!.id;
-      const target = req.params.userId === '@me' ? me : String(req.params.userId);
-      const { isOwner, ownerId } = await requireMember(id, me);
-      if (target !== me && !isOwner) throw new HttpError(403, 'Apenas o dono pode remover membros.');
-      if (target === ownerId) throw new HttpError(400, 'O dono não pode sair. Exclua o servidor.');
-      await db.query('delete from members where guild_id = $1 and user_id = $2', [id, target]);
-      rt.emitGuild(id, 'member:leave', { guildId: id, userId: target });
-      rt.emitUser(target, 'guild:delete', { id });
-      rt.userLeftGuild(target, id);
-    }),
-  );
-
-  // Canais
-  r.post(
-    '/guilds/:id/channels',
-    auth,
-    wrap(async (req) => {
-      const guildId = String(req.params.id);
-      await requireOwner(guildId, req.user!.id);
-      const body = parse(z.object({ name: channelNameSchema, type: z.enum(['text', 'voice']) }), req.body);
-      const name = body.type === 'text' ? body.name.toLowerCase().replace(/\s+/g, '-') : body.name;
-      const [{ max }] = await db.query<{ max: number | null }>(
-        'select max(position) as max from channels where guild_id = $1',
-        [guildId],
-      );
-      const channel: Channel = { id: randomUUID(), guildId, name, type: body.type, position: (max ?? 0) + 1 };
-      await db.query('insert into channels (id, guild_id, name, type, position) values ($1, $2, $3, $4, $5)', [
-        channel.id,
-        guildId,
-        channel.name,
-        channel.type,
-        channel.position,
-      ]);
-      rt.emitGuild(guildId, 'channel:create', channel);
-      return { channel };
-    }),
-  );
-
-  r.patch(
-    '/channels/:id',
-    auth,
-    wrap(async (req) => {
-      const c = await channelForMember(String(req.params.id), req.user!.id);
-      if (c.ownerId !== req.user!.id) throw new HttpError(403, 'Apenas o dono do servidor pode fazer isso.');
-      const body = parse(z.object({ name: channelNameSchema }), req.body);
-      const name = c.type === 'text' ? body.name.toLowerCase().replace(/\s+/g, '-') : body.name;
-      await db.query('update channels set name = $2 where id = $1', [c.id, name]);
-      rt.emitGuild(c.guildId, 'channel:update', { ...c, ownerId: undefined, name });
-    }),
-  );
-
-  r.delete(
-    '/channels/:id',
-    auth,
-    wrap(async (req) => {
-      const c = await channelForMember(String(req.params.id), req.user!.id);
-      if (c.ownerId !== req.user!.id) throw new HttpError(403, 'Apenas o dono do servidor pode fazer isso.');
-      rt.channelDeleted(c.id);
-      await db.query('delete from channels where id = $1', [c.id]);
-      rt.emitGuild(c.guildId, 'channel:delete', { id: c.id, guildId: c.guildId });
-    }),
-  );
-
   // Mensagens
   r.get(
     '/channels/:id/messages',
@@ -450,6 +264,7 @@ export function createRoutes(db: Db, rt: Realtime) {
     wrap(async (req) => {
       const c = await channelForMember(String(req.params.id), req.user!.id);
       if (c.type === 'voice') throw new HttpError(400, 'Este canal não aceita mensagens.');
+      if (c.access) requireNotTimedOut(c.access);
       const body = parse(
         z.object({
           content: z.string().trim().max(4000, 'Mensagem muito longa.').default(''),
@@ -470,14 +285,14 @@ export function createRoutes(db: Db, rt: Realtime) {
         );
         if (owned.length !== body.attachmentIds.length) throw new HttpError(400, 'Imagem inválida. Envie de novo.');
       }
+      // @todos só notifica se a pessoa tem permissão (senão vira texto comum)
+      const mentionEveryone =
+        !!c.access && has(c.access.perms, Perm.MENTION_EVERYONE) && /(^|[^\w@])@todos(?![\w])/i.test(body.content);
       const id = randomUUID();
-      await db.query('insert into messages (id, channel_id, author_id, content, reply_to_id) values ($1, $2, $3, $4, $5)', [
-        id,
-        c.id,
-        req.user!.id,
-        body.content,
-        body.replyToId ?? null,
-      ]);
+      await db.query(
+        'insert into messages (id, channel_id, author_id, content, reply_to_id, mention_everyone) values ($1, $2, $3, $4, $5, $6)',
+        [id, c.id, req.user!.id, body.content, body.replyToId ?? null, mentionEveryone],
+      );
       if (body.attachmentIds.length) {
         await db.query('update attachments set message_id = $1 where id = any($2)', [id, body.attachmentIds]);
       }
@@ -494,7 +309,8 @@ export function createRoutes(db: Db, rt: Realtime) {
     );
     if (!m) throw new HttpError(404, 'Mensagem não encontrada.');
     const c = await channelForMember(m.channelId, userId);
-    return { ...m, channel: c, isOwner: !!c.ownerId && c.ownerId === userId };
+    // apagar mensagens dos outros: permissão "Gerenciar mensagens" no servidor
+    return { ...m, channel: c, canModerate: !!c.access && has(c.access.perms, Perm.MANAGE_MESSAGES) };
   }
 
   r.patch(
@@ -520,7 +336,7 @@ export function createRoutes(db: Db, rt: Realtime) {
     auth,
     wrap(async (req) => {
       const m = await messageForEdit(String(req.params.id), req.user!.id);
-      if (m.authorId !== req.user!.id && !m.isOwner) throw new HttpError(403, 'Sem permissão.');
+      if (m.authorId !== req.user!.id && !m.canModerate) throw new HttpError(403, 'Sem permissão.');
       await db.query('delete from messages where id = $1', [m.id]);
       await emitToChannel(m.channel, 'message:delete', { channelId: m.channelId, id: m.id });
     }),
@@ -532,6 +348,7 @@ export function createRoutes(db: Db, rt: Realtime) {
     auth,
     wrap(async (req) => {
       const m = await messageForEdit(String(req.params.id), req.user!.id);
+      if (m.channel.access) requireNotTimedOut(m.channel.access);
       const { emoji } = parse(
         z.object({
           emoji: z

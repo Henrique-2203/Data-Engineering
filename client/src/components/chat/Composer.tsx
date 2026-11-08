@@ -6,6 +6,7 @@ import { mentionQuery } from '../../lib/mentions';
 import { getSocket } from '../../lib/socket';
 import { isImageFile, uploadImage } from '../../lib/upload';
 import { findMember, toast, useApp } from '../../store/app';
+import { Perm, has, myPermissions, timeoutUntil } from '../../lib/perms';
 import { Avatar } from '../Avatar';
 
 const MAX_ATTACHMENTS = 4;
@@ -40,10 +41,12 @@ function mentionCandidates(channel: Channel): Candidate[] {
     const dm = s.dms[channel.id];
     return [dm?.recipient, s.me].filter(Boolean).map((u) => ({ username: u!.username, label: u!.displayName, user: u! }));
   }
-  const members = s.guilds[channel.guildId]?.members ?? [];
+  const guild = s.guilds[channel.guildId];
+  const members = guild?.members ?? [];
+  const canEveryone = has(myPermissions(guild, s.me?.id), Perm.MENTION_EVERYONE);
   return [
     ...members.map((m) => ({ username: m.username, label: m.displayName, user: m as PublicUser })),
-    { username: 'todos', label: 'Notificar todos do servidor', user: null },
+    ...(canEveryone ? [{ username: 'todos', label: 'Notificar todos do servidor', user: null }] : []),
   ];
 }
 
@@ -60,6 +63,15 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
   /** posição do cursor a aplicar logo após o próximo render (sem atraso, para quem digita rápido) */
   const pendingCaret = useRef<number | null>(null);
   const replyAuthor = useApp(() => (replyTo ? findMember(channel.guildId, replyTo.author.id) : undefined)) ?? replyTo?.author;
+  // castigo: recalculado a cada minuto para liberar o campo sozinho quando acabar
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  // (seletor devolve número: um Date novo a cada leitura faria o React renderizar em laço)
+  const punishedMs = useApp((s) => (channel.type === 'dm' ? null : (timeoutUntil(s.guilds[channel.guildId], s.me?.id)?.getTime() ?? null)));
+  const punishedUntil = punishedMs ? new Date(punishedMs) : null;
 
   useEffect(() => {
     setText('');
@@ -195,6 +207,17 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
       lastTyping.current = now;
       getSocket()?.emit('typing', { guildId: channel.guildId || undefined, channelId: channel.id });
     }
+  }
+
+  if (punishedUntil) {
+    return (
+      <div className="composer-wrap">
+        <div className="composer timed-out" role="status">
+          ⏳ Você está de castigo neste servidor até{' '}
+          {punishedUntil.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}. Dá para ler, mas não escrever.
+        </div>
+      </div>
+    );
   }
 
   return (

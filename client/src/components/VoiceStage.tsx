@@ -19,6 +19,7 @@ import { findChannel, findMember, openModal, useApp } from '../store/app';
 import { setUserVolume, useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { CODECS, canShareScreen, keyLabel, presetById } from '../voice/settings';
+import { Perm, has, myPermissions } from '../lib/perms';
 import type { SendStats } from '../voice/engine';
 import { Avatar } from './Avatar';
 import { MobileHeader } from './MobileHeader';
@@ -419,6 +420,10 @@ function VoiceControls() {
   const camera = useVoice((s) => s.camera);
   const screen = useVoice((s) => s.screen);
   const shareSupported = canShareScreen();
+  const streamAllowed = useApp((s) => {
+    const gid = useVoice.getState().guildId;
+    return !gid || has(myPermissions(s.guilds[gid], s.me?.id), Perm.STREAM);
+  });
   return (
     <div className="voice-controls">
       <button className={`round-btn${muted ? ' off' : ''}`} aria-label={muted ? 'Ativar microfone' : 'Silenciar'} title={muted ? 'Ativar microfone' : 'Silenciar'} onClick={() => voice.setMuted(!muted)}>
@@ -433,8 +438,16 @@ function VoiceControls() {
       <button
         className={`round-btn${screen ? ' on' : ''}`}
         aria-label={screen ? 'Parar transmissão' : 'Transmitir tela'}
-        title={shareSupported ? (screen ? 'Parar transmissão' : 'Transmitir tela') : 'Transmitir tela só funciona no computador'}
-        disabled={!shareSupported}
+        title={
+          !shareSupported
+            ? 'Transmitir tela só funciona no computador'
+            : !streamAllowed && !screen
+              ? 'Seu cargo não tem permissão para transmitir neste servidor'
+              : screen
+                ? 'Parar transmissão'
+                : 'Transmitir tela'
+        }
+        disabled={!shareSupported || (!streamAllowed && !screen)}
         onClick={() => (screen ? voice.stopScreen() : openModal({ kind: 'screenShare' }))}
       >
         {screen ? <MonitorX /> : <MonitorUp />}

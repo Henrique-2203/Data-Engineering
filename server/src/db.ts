@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { config } from './config.ts';
+import { DEFAULT_EVERYONE_PERMISSIONS } from '../../shared/permissions.ts';
 
 export interface Db {
   query<T = Record<string, any>>(sql: string, params?: unknown[]): Promise<T[]>;
@@ -105,6 +106,67 @@ create table if not exists attachments (
   created_at timestamptz not null default now()
 );
 create index if not exists attachments_message_idx on attachments(message_id);
+
+-- v4: cargos, permissões, categorias, moderação e personalização do servidor
+alter table guilds add column if not exists description text not null default '';
+alter table guilds add column if not exists icon_id text;
+alter table guilds add column if not exists banner_id text;
+alter table guilds add column if not exists everyone_permissions integer not null default ${DEFAULT_EVERYONE_PERMISSIONS};
+
+create table if not exists roles (
+  id text primary key,
+  guild_id text not null references guilds(id) on delete cascade,
+  name text not null,
+  color text not null default '#99aab5',
+  position integer not null default 0,
+  permissions integer not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists roles_guild_idx on roles(guild_id);
+
+create table if not exists member_roles (
+  guild_id text not null,
+  user_id text not null,
+  role_id text not null references roles(id) on delete cascade,
+  primary key (guild_id, user_id, role_id),
+  foreign key (guild_id, user_id) references members(guild_id, user_id) on delete cascade
+);
+
+alter table members add column if not exists timeout_until timestamptz;
+
+create table if not exists bans (
+  guild_id text not null references guilds(id) on delete cascade,
+  user_id text not null references users(id) on delete cascade,
+  reason text not null default '',
+  banned_by text,
+  created_at timestamptz not null default now(),
+  primary key (guild_id, user_id)
+);
+
+create table if not exists categories (
+  id text primary key,
+  guild_id text not null references guilds(id) on delete cascade,
+  name text not null,
+  position integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table channels add column if not exists category_id text references categories(id) on delete set null;
+alter table channels add column if not exists allowed_role_ids text[];
+alter table channels add column if not exists bitrate integer not null default 128;
+alter table channels add column if not exists user_limit integer not null default 0;
+
+alter table messages add column if not exists mention_everyone boolean not null default false;
+
+-- imagens do servidor (ícone, banner): pequenas e substituídas, nunca acumuladas
+create table if not exists images (
+  id text primary key,
+  uploader_id text references users(id) on delete set null,
+  mime text not null,
+  size integer not null,
+  data bytea not null,
+  created_at timestamptz not null default now()
+);
 `;
 
 export async function createDb(): Promise<Db> {

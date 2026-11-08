@@ -12,6 +12,8 @@ export const config = {
   ringTimeoutMs: Number(process.env.RING_TIMEOUT_MS ?? 30_000),
   /** tamanho máximo de cada imagem enviada (o navegador já reduz fotos grandes antes) */
   maxUploadMb: Number(process.env.MAX_UPLOAD_MB ?? 8),
+  /** tamanho máximo do banco: acima disso novos arquivos são recusados (Neon grátis = 512 MB) */
+  maxStorageMb: Number(process.env.MAX_STORAGE_MB ?? 450),
   turn: {
     urls: list(process.env.TURN_URLS),
     username: process.env.TURN_USERNAME || undefined,

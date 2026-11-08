@@ -4,6 +4,8 @@ import type { Member } from '../../../shared/types';
 import { openDm, sendFriendRequest } from '../lib/social';
 import { toast, useApp } from '../store/app';
 import { Avatar } from './Avatar';
+import { MemberModeration } from './GuildSettings';
+import { memberColor } from '../lib/perms';
 
 export function MemberList({ guildId }: { guildId: string }) {
   const guild = useApp((s) => s.guilds[guildId]);
@@ -39,14 +41,16 @@ export function MemberList({ guildId }: { guildId: string }) {
                     aria-expanded={openId === m.id}
                   >
                     <Avatar user={m} size={32} online={group.isOn} />
-                    <span className="ellipsis">{m.displayName}</span>
+                    <span className="ellipsis" style={{ color: memberColor(guild, m.id, 'inherit') }}>
+                      {m.displayName}
+                    </span>
                     {m.id === guild.ownerId && (
                       <span title="Dono do servidor">
                         <Crown size={14} className="owner-icon" />
                       </span>
                     )}
                   </button>
-                  {openId === m.id && <MemberCard member={m} top={open!.top} onClose={() => setOpen(null)} />}
+                  {openId === m.id && <MemberCard guildId={guildId} member={m} top={open!.top} onClose={() => setOpen(null)} />}
                 </div>
               ))}
             </div>
@@ -57,7 +61,8 @@ export function MemberList({ guildId }: { guildId: string }) {
 }
 
 /** Mini perfil com ações: mandar mensagem e adicionar amigo. */
-function MemberCard({ member, top, onClose }: { member: Member; top: number; onClose(): void }) {
+function MemberCard({ guildId, member, top, onClose }: { guildId: string; member: Member; top: number; onClose(): void }) {
+  const guild = useApp((s) => s.guilds[guildId]);
   const meId = useApp((s) => s.me?.id);
   const status = useApp((s) => s.friends.find((f) => f.user.id === member.id)?.status);
   const ref = useRef<HTMLDivElement>(null);
@@ -80,6 +85,7 @@ function MemberCard({ member, top, onClose }: { member: Member; top: number; onC
           <div className="muted small">@{member.username}</div>
         </div>
       </div>
+      {guild && <MemberModeration guild={guild} member={guild.members.find((m) => m.id === member.id) ?? member} compact />}
       {isMe ? (
         <p className="muted small">Esse é você!</p>
       ) : (

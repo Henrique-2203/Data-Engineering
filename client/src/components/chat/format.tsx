@@ -20,14 +20,14 @@ export function findByUsername(username: string): PublicUser | undefined {
 }
 
 /** Texto com @menções destacadas (só quando a pessoa existe, ou @todos em servidores). */
-function renderMentions(text: string, keyPrefix: string, meUsername: string, inGuild: boolean): ReactNode[] {
+function renderMentions(text: string, keyPrefix: string, meUsername: string, everyone: boolean): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(MENTION_RE)) {
     const start = m.index! + m[1].length;
     const name = m[2].toLowerCase();
     const user = name === 'todos' ? null : findByUsername(name);
-    if (name === 'todos' ? !inGuild : !user) continue;
+    if (name === 'todos' ? !everyone : !user) continue;
     if (start > last) out.push(<Fragment key={`${keyPrefix}-t${last}`}>{text.slice(last, start)}</Fragment>);
     const isMe = name === 'todos' || name === meUsername;
     out.push(
@@ -41,7 +41,7 @@ function renderMentions(text: string, keyPrefix: string, meUsername: string, inG
   return out;
 }
 
-export function renderContent(text: string, opts: { meUsername: string; inGuild: boolean }): ReactNode[] {
+export function renderContent(text: string, opts: { meUsername: string; everyone: boolean }): ReactNode[] {
   const parts = text.split(URL_RE);
   const out: ReactNode[] = [];
   const images: string[] = [];
@@ -54,7 +54,7 @@ export function renderContent(text: string, opts: { meUsername: string; inGuild:
       );
       if (IMG_RE.test(part)) images.push(part);
     } else if (part) {
-      out.push(...renderMentions(part, String(i), opts.meUsername, opts.inGuild));
+      out.push(...renderMentions(part, String(i), opts.meUsername, opts.everyone));
     }
   });
   for (const src of images.slice(0, 4)) {

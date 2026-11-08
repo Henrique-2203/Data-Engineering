@@ -62,6 +62,8 @@ class VoiceEngine {
   private meterTimer: ReturnType<typeof setInterval> | null = null;
   private boundSockets = new WeakSet<Socket>();
   private joining = false;
+  /** qualidade de voz do canal atual (kbps) */
+  private opusKbps = 128;
   /** últimos eventos internos (diagnóstico: __resenhaVoice.debugLog no console) */
   readonly debugLog: string[] = [];
   private dbg(msg: string) {
@@ -160,6 +162,7 @@ class VoiceEngine {
     this.joining = true;
     this.dbg(`join ${channelId} rejoin=${rejoin}`);
     setV({ status: 'connecting', channelId, guildId: channel.guildId });
+    this.opusKbps = channel.bitrate ?? 128;
     try {
       // AudioContext precisa nascer de um clique do usuário (regra de autoplay dos navegadores)
       if (!this.audioCtx) this.audioCtx = new AudioContext();
@@ -305,7 +308,7 @@ class VoiceEngine {
         this.patchRemote(socketId, () => ({ relayed }));
         this.applyEncodings(peer);
       },
-    });
+    }, this.opusKbps);
     this.peers.set(socketId, peer);
     setV((s) => ({ remotes: { ...s.remotes, [socketId]: { userId, connection: 'new', v: 0 } } }));
 
@@ -543,6 +546,8 @@ class VoiceEngine {
           });
     }
     if (peer.isSending('screenAudio')) void peer.setEncoding('screenAudio', { maxBitrate: save ? 64_000 : 128_000 });
+    // microfone na qualidade escolhida para o canal (via TURN, no máximo 64 kbps para poupar a cota)
+    if (peer.isSending('mic')) void peer.setEncoding('mic', { maxBitrate: Math.min(this.opusKbps, save ? 64 : 510) * 1000 });
     if (peer.isSending('camera')) {
       void peer.setEncoding('camera', save ? TURN_LIMITS.camera : { maxBitrate: CAMERA_BITRATE, maxFramerate: 30 });
     }

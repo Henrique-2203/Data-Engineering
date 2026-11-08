@@ -7,7 +7,8 @@
  */
 const VIDEO_CODECS = new Set(['VP8', 'VP9', 'H264', 'AV1']);
 
-export function tuneRemoteSdp(sdp: string, startBitrateKbps = 4000): string {
+/** `opusKbps`: qualidade de voz do canal (32-510 kbps). */
+export function tuneRemoteSdp(sdp: string, startBitrateKbps = 4000, opusKbps = 128): string {
   const lines = sdp.split('\r\n');
   const codecByPt = new Map<string, string>();
   for (const line of lines) {
@@ -23,7 +24,7 @@ export function tuneRemoteSdp(sdp: string, startBitrateKbps = 4000): string {
     hasFmtp.add(pt);
     const codec = codecByPt.get(pt);
     if (codec === 'OPUS') {
-      return `a=fmtp:${pt} ${addParams(params, { stereo: '1', 'sprop-stereo': '1', maxaveragebitrate: '128000' })}`;
+      return `a=fmtp:${pt} ${addParams(params, { stereo: '1', 'sprop-stereo': '1', maxaveragebitrate: String(opusKbps * 1000) })}`;
     }
     if (codec && VIDEO_CODECS.has(codec)) {
       return `a=fmtp:${pt} ${addParams(params, { 'x-google-start-bitrate': String(startBitrateKbps) })}`;

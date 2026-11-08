@@ -67,3 +67,38 @@ export async function uploadImage(file: File): Promise<Attachment> {
   if (!res.ok) throw new ApiError(res.status, data.error ?? `Erro ${res.status} ao enviar a imagem.`);
   return data.attachment as Attachment;
 }
+
+/**
+ * Recorta no centro e reduz para o tamanho exato (ícone 256×256, banner 960×400), em WebP.
+ * Fica com uns 15-80 KB: quase nada do espaço grátis do banco.
+ */
+export async function prepareCover(file: File, width: number, height: number): Promise<Blob> {
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) throw new Error('Não foi possível ler essa imagem.');
+  const scale = Math.max(width / bitmap.width, height / bitmap.height);
+  const sw = width / scale;
+  const sh = height / scale;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext('2d')!.drawImage(bitmap, (bitmap.width - sw) / 2, (bitmap.height - sh) / 2, sw, sh, 0, 0, width, height);
+  bitmap.close();
+  const toBlob = (type: string, q: number) =>
+    new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Falha ao comprimir.'))), type, q));
+  const webp = await toBlob('image/webp', 0.82);
+  return webp.type === 'image/webp' ? webp : toBlob('image/jpeg', 0.85);
+}
+
+export async function uploadGuildImage(guildId: string, kind: 'icon' | 'banner', file: File) {
+  const blob = kind === 'icon' ? await prepareCover(file, 256, 256) : await prepareCover(file, 960, 400);
+  const res = await fetch(`/api/guilds/${guildId}/${kind}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': blob.type },
+    body: blob,
+  }).catch(() => {
+    throw new ApiError(0, 'Sem conexão com o servidor.');
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(res.status, data.error ?? `Erro ${res.status} ao enviar a imagem.`);
+  return { imageId: data.imageId as string, bytes: blob.size };
+}

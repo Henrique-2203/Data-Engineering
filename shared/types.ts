@@ -1,4 +1,6 @@
 // Tipos compartilhados entre servidor e cliente.
+import type { Role } from './permissions';
+export type { Role } from './permissions';
 
 export interface PublicUser {
   id: string;
@@ -15,6 +17,26 @@ export interface Channel {
   name: string;
   type: ChannelType;
   position: number;
+  /** categoria (null = sem categoria) */
+  categoryId?: string | null;
+  /** canal privado: só estes cargos veem (null = todos) */
+  allowedRoleIds?: string[] | null;
+  /** voz: qualidade do áudio em kbps */
+  bitrate?: number;
+  /** voz: máximo de pessoas (0 = sem limite) */
+  userLimit?: number;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  position: number;
+}
+
+export interface Ban {
+  user: PublicUser;
+  reason: string;
+  createdAt: string;
 }
 
 /** Conversa direta entre duas pessoas (canal sem servidor; guildId vazio). */
@@ -33,13 +55,24 @@ export interface Friend {
 
 export interface Member extends PublicUser {
   joinedAt: string;
+  roleIds: string[];
+  /** castigo: não pode escrever/reagir/entrar em voz até esta hora */
+  timeoutUntil: string | null;
 }
 
 export interface Guild {
   id: string;
   name: string;
   ownerId: string;
+  /** vazio se você não tem permissão de convidar */
   inviteCode: string;
+  description: string;
+  iconId: string | null;
+  bannerId: string | null;
+  everyonePermissions: number;
+  roles: Role[];
+  categories: Category[];
+  /** só os canais que você pode ver */
   channels: Channel[];
   members: Member[];
 }
@@ -72,6 +105,8 @@ export interface Message {
   createdAt: string;
   editedAt: string | null;
   replyTo: ReplyPreview | null;
+  /** usou @todos com permissão para isso */
+  mentionEveryone: boolean;
   reactions: Reaction[];
   attachments: Attachment[];
 }

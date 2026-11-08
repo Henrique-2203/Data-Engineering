@@ -11,6 +11,11 @@ Funciona no navegador do PC e do celular, e é 100% gratuito para hospedar.
 - **Mensagens diretas** com amigos ou membros dos seus servidores (clique no membro → Enviar mensagem)
 - **Ligações nas mensagens diretas** (📞 no topo da conversa): toque com Atender/Recusar, "chamando…",
   aviso de recusa, de chamada perdida e de amigo offline; voz, câmera e tela como nos canais de voz
+- **Cargos e permissões**: cargos com cor (pintam o nome), 11 permissões (administrar, gerenciar
+  canais/cargos/mensagens, expulsar, banir, castigar, @todos, convidar, transmitir) e hierarquia
+- **Canais privados** por cargo, **categorias** e organização arrastando; ícone, banner e descrição
+  do servidor; voz com **qualidade por canal até 510 kbps** e **limite de pessoas**
+- **Moderação**: castigo temporário, expulsar, banir/desbanir
 - Chat em tempo real: editar/excluir mensagens, "fulano está digitando…", links e prévia de imagens, mensagens não lidas
 - **Responder** mensagens (com citação clicável), **reações** com emoji e **@menções** com
   autocompletar, destaque, som próprio e contador; `@todos` avisa o servidor inteiro
@@ -149,6 +154,8 @@ Outros comandos:
 | `npm start` | Sobe o servidor de produção (serve API e frontend na porta `PORT`) |
 | `npm run typecheck` | Checa os tipos do servidor e do cliente |
 | `npm run test:e2e` | Teste ponta a ponta com dois navegadores (PC + celular): convite, chat, voz, câmera e tela |
+| `npm run test:e2e:permissions` | API de cargos, permissões, canais privados, castigo, banimento e limite de voz |
+| `npm run test:e2e:server-settings` | Telas de configurações do servidor: ícone, banner, cargos, canal privado, categorias, castigo |
 | `npm run test:e2e:desktop` | App de desktop: push-to-talk e atalhos globais, seletor de tela, bandeja (precisa de `cd desktop && npm install`) |
 | `npm run test:e2e:call` | Ligação na DM: atender (no celular), recusar, desistir, não atender e offline |
 | `npm run test:e2e:chat` | Responder, @menções, reações, envio de imagens e visualizador |
@@ -157,7 +164,7 @@ Outros comandos:
 | `npm run test:e2e:voice` | Push-to-talk, ativação por voz, atalho de silenciar e gravação de tecla |
 | `npm run test:e2e:turn` | Força a conexão pelo TURN (precisa do `coturn` instalado) e confere a economia de cota |
 
-Veja todas as variáveis de ambiente (inclusive `RING_TIMEOUT_MS`, o tempo que a ligação toca) em [`.env.example`](.env.example).
+Veja todas as variáveis de ambiente (inclusive `MAX_STORAGE_MB`, o limite do banco antes de recusar arquivos) (inclusive `RING_TIMEOUT_MS`, o tempo que a ligação toca) em [`.env.example`](.env.example).
 
 ## Estrutura
 
