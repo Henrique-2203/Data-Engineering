@@ -35,4 +35,4 @@ export const desktop: DesktopBridge | null =
 export const isDesktop = !!desktop;
 
 /** Onde baixar o app (página de versões públicas). */
-export const DESKTOP_DOWNLOAD_URL = 'https://github.com/Henrique-2203/resenha-app/releases/latest';
+export const DESKTOP_DOWNLOAD_URL = 'https://github.com/Henrique-2203/Data-Engineering/releases/latest';

@@ -116,9 +116,10 @@ app na hora, sem reinstalar**. Ele acrescenta o que o navegador não consegue:
 
 **Como sai uma versão:** o GitHub Actions (`.github/workflows/desktop.yml`) gera o instalador num
 Windows a cada mudança em `desktop/`; ele fica na página da execução (Actions → artifact
-"Resenha-Windows"). Para publicar para todo mundo com atualização automática, aumente o `version` em
-`desktop/package.json`; com o segredo `RELEASES_TOKEN` configurado, a versão vai para o repositório
-público de versões e os apps instalados se atualizam sozinhos.
+"Resenha-Windows"). A versão (`version` em `desktop/package.json`) é publicada em
+[Releases](https://github.com/Henrique-2203/Data-Engineering/releases/latest), de onde todos baixam e
+de onde os apps instalados se atualizam sozinhos. Para lançar uma atualização do app, aumente o
+`version`; versões já publicadas não são sobrescritas.
 
 Sem certificado de assinatura, o Windows mostra "O Windows protegeu seu computador" na primeira
 instalação: clique em **Mais informações → Executar assim mesmo**.

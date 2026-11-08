@@ -1,8 +1,7 @@
-# Gera o instalador do app de desktop para Windows a cada mudança em desktop/.
-#  - Sempre: o instalador fica disponível como "artifact" na página da execução (Actions).
-#  - Se o segredo RELEASES_TOKEN existir: publica a versão (desktop/package.json -> "version")
-#    no repositório público de versões, e os apps instalados se atualizam sozinhos.
-#    Versão já publicada não é sobrescrita: para lançar, aumente o "version".
+# Gera o instalador do app de desktop para Windows a cada mudança em desktop/ e publica a versão
+# (desktop/package.json -> "version") em Releases deste repositório. Os apps instalados olham
+# essas Releases e se atualizam sozinhos.
+# Versão já publicada não é sobrescrita: para lançar uma atualização, aumente o "version".
 name: App de desktop (Windows)
 
 on:
@@ -12,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # criar a Release com o instalador
 
 concurrency:
   group: desktop-${{ github.ref }}
@@ -38,17 +37,12 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
-      - name: Gerar instalador (e publicar, se configurado)
+      - name: Gerar instalador e publicar a versão
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -n "$GH_TOKEN" ]; then
-            echo "Publicando a versão $(node -p "require('./package.json').version")"
-            npx electron-builder --win --publish always
-          else
-            echo "Segredo RELEASES_TOKEN não configurado: só gerando o instalador."
-            npx electron-builder --win --publish never
-          fi
+          echo "Versão $(node -p "require('./package.json').version")"
+          npx electron-builder --win --publish always
 
       - name: Guardar instalador
         uses: actions/upload-artifact@v4
