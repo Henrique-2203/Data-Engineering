@@ -7,6 +7,7 @@ import {
   findChannel,
   setDms,
   setFriends,
+  updateReactions,
   deleteMessage,
   patchGuild,
   removeGuild,
@@ -71,6 +72,11 @@ export function connectSocket(token: string) {
     onIncomingMessage(message);
   });
   s.on('dms:changed', () => void refreshDms());
+  s.on(
+    'message:reactions',
+    ({ channelId, messageId, reactions }: { channelId: string; messageId: string; reactions: Message['reactions'] }) =>
+      updateReactions(channelId, messageId, reactions),
+  );
   s.on('friends:changed', () => void refreshFriends());
   s.on('message:update', ({ message }: { message: Message }) => updateMessage(message));
   s.on('message:delete', ({ channelId, id }: { channelId: string; id: string }) => deleteMessage(channelId, id));

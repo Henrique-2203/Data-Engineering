@@ -4,7 +4,7 @@ import { useVoice } from '../store/voice';
  * Efeitos sonoros sintetizados com Web Audio (sem arquivos para baixar).
  * Cada som é uma sequência curta de notas com envelope suave.
  */
-export type SoundName = 'join' | 'leave' | 'peerJoin' | 'peerLeave' | 'mute' | 'unmute' | 'message' | 'stream';
+export type SoundName = 'join' | 'leave' | 'peerJoin' | 'peerLeave' | 'mute' | 'unmute' | 'message' | 'mention' | 'stream';
 
 type Note = { freq: number; at: number; dur: number; type?: OscillatorType; gain?: number };
 
@@ -30,6 +30,11 @@ const SOUNDS: Record<SoundName, Note[]> = {
   message: [
     { freq: 1046.5, at: 0, dur: 0.08, gain: 0.5 },
     { freq: 1318.5, at: 0.07, dur: 0.16, gain: 0.5 },
+  ],
+  mention: [
+    { freq: 880, at: 0, dur: 0.09, type: 'triangle' },
+    { freq: 1174.7, at: 0.08, dur: 0.09, type: 'triangle' },
+    { freq: 1760, at: 0.16, dur: 0.2, type: 'triangle', gain: 0.8 },
   ],
   stream: [
     { freq: 523.25, at: 0, dur: 0.1 },

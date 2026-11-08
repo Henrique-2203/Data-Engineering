@@ -17,6 +17,7 @@ import {
 import type { Channel, Guild, Member, Message, PublicUser } from '../../shared/types.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { dmMemberIds, registerSocialRoutes } from './social.ts';
+import { registerAttachmentRoutes } from './attachments.ts';
 
 export { HttpError };
 
@@ -122,10 +123,35 @@ export function createRoutes(db: Db, rt: Realtime) {
     }
   }
 
+  const userJson = (t: string) =>
+    `json_build_object('id', ${t}.id, 'username', ${t}.username, 'displayName', ${t}.display_name, 'avatarColor', ${t}.avatar_color)`;
+
+  /** Mensagem completa: autor, trecho respondido, reações agrupadas por emoji e imagens. */
   const MESSAGE_SELECT = `select msg.id, msg.channel_id as "channelId", msg.content,
       msg.created_at as "createdAt", msg.edited_at as "editedAt",
-      json_build_object('id', u.id, 'username', u.username, 'displayName', u.display_name, 'avatarColor', u.avatar_color) as author
-    from messages msg join users u on u.id = msg.author_id`;
+      ${userJson('u')} as author,
+      case
+        when msg.reply_to_id is null then null
+        when rm.id is null then json_build_object('id', msg.reply_to_id, 'deleted', true)
+        else json_build_object('id', rm.id, 'content', left(rm.content, 200), 'author', ${userJson('ru')},
+          'hasAttachments', exists (select 1 from attachments ra where ra.message_id = rm.id))
+      end as "replyTo",
+      coalesce((
+        select json_agg(json_build_object('emoji', r.emoji, 'userIds', r.user_ids) order by r.first_at)
+        from (
+          select emoji, array_agg(user_id order by created_at) as user_ids, min(created_at) as first_at
+          from reactions where message_id = msg.id group by emoji
+        ) r
+      ), '[]'::json) as reactions,
+      coalesce((
+        select json_agg(json_build_object('id', a.id, 'name', a.filename, 'mime', a.mime, 'size', a.size,
+          'width', a.width, 'height', a.height) order by a.created_at)
+        from attachments a where a.message_id = msg.id
+      ), '[]'::json) as attachments
+    from messages msg
+    join users u on u.id = msg.author_id
+    left join messages rm on rm.id = msg.reply_to_id
+    left join users ru on ru.id = rm.author_id`;
 
   // ---------- públicas ----------
 
@@ -425,16 +451,36 @@ export function createRoutes(db: Db, rt: Realtime) {
       const c = await channelForMember(String(req.params.id), req.user!.id);
       if (c.type === 'voice') throw new HttpError(400, 'Este canal não aceita mensagens.');
       const body = parse(
-        z.object({ content: z.string().trim().min(1, 'Mensagem vazia.').max(4000, 'Mensagem muito longa.') }),
+        z.object({
+          content: z.string().trim().max(4000, 'Mensagem muito longa.').default(''),
+          replyToId: z.string().optional(),
+          attachmentIds: z.array(z.string()).max(4, 'No máximo 4 imagens por mensagem.').default([]),
+        }),
         req.body,
       );
+      if (!body.content && body.attachmentIds.length === 0) throw new HttpError(400, 'Mensagem vazia.');
+      if (body.replyToId) {
+        const [target] = await db.query('select 1 from messages where id = $1 and channel_id = $2', [body.replyToId, c.id]);
+        if (!target) throw new HttpError(400, 'A mensagem respondida não existe mais.');
+      }
+      if (body.attachmentIds.length) {
+        const owned = await db.query(
+          'select id from attachments where id = any($1) and uploader_id = $2 and message_id is null',
+          [body.attachmentIds, req.user!.id],
+        );
+        if (owned.length !== body.attachmentIds.length) throw new HttpError(400, 'Imagem inválida. Envie de novo.');
+      }
       const id = randomUUID();
-      await db.query('insert into messages (id, channel_id, author_id, content) values ($1, $2, $3, $4)', [
+      await db.query('insert into messages (id, channel_id, author_id, content, reply_to_id) values ($1, $2, $3, $4, $5)', [
         id,
         c.id,
         req.user!.id,
         body.content,
+        body.replyToId ?? null,
       ]);
+      if (body.attachmentIds.length) {
+        await db.query('update attachments set message_id = $1 where id = any($2)', [id, body.attachmentIds]);
+      }
       const [message] = await db.query<Message>(`${MESSAGE_SELECT} where msg.id = $1`, [id]);
       await emitToChannel(c, 'message:new', { message });
       return { message };
@@ -457,7 +503,11 @@ export function createRoutes(db: Db, rt: Realtime) {
     wrap(async (req) => {
       const m = await messageForEdit(String(req.params.id), req.user!.id);
       if (m.authorId !== req.user!.id) throw new HttpError(403, 'Você só pode editar suas mensagens.');
-      const body = parse(z.object({ content: z.string().trim().min(1).max(4000) }), req.body);
+      const body = parse(z.object({ content: z.string().trim().max(4000) }), req.body);
+      if (!body.content) {
+        const [att] = await db.query('select 1 from attachments where message_id = $1 limit 1', [m.id]);
+        if (!att) throw new HttpError(400, 'Mensagem vazia.');
+      }
       await db.query('update messages set content = $2, edited_at = now() where id = $1', [m.id, body.content]);
       const [message] = await db.query<Message>(`${MESSAGE_SELECT} where msg.id = $1`, [m.id]);
       await emitToChannel(m.channel, 'message:update', { message });
@@ -475,6 +525,46 @@ export function createRoutes(db: Db, rt: Realtime) {
       await emitToChannel(m.channel, 'message:delete', { channelId: m.channelId, id: m.id });
     }),
   );
+
+  // Reação: o mesmo emoji de novo tira a sua reação
+  r.post(
+    '/messages/:id/reactions',
+    auth,
+    wrap(async (req) => {
+      const m = await messageForEdit(String(req.params.id), req.user!.id);
+      const { emoji } = parse(
+        z.object({
+          emoji: z
+            .string()
+            .min(1)
+            .max(32)
+            .refine((e) => /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(e), 'Emoji inválido.'),
+        }),
+        req.body,
+      );
+      const removed = await db.query(
+        'delete from reactions where message_id = $1 and user_id = $2 and emoji = $3 returning 1',
+        [m.id, req.user!.id, emoji],
+      );
+      if (!removed.length) {
+        const [{ n }] = await db.query<{ n: number }>(
+          'select count(distinct emoji)::int as n from reactions where message_id = $1 and emoji <> $2',
+          [m.id, emoji],
+        );
+        if (n >= 20) throw new HttpError(400, 'Limite de 20 emojis diferentes por mensagem.');
+        await db.query('insert into reactions (message_id, user_id, emoji) values ($1, $2, $3) on conflict do nothing', [
+          m.id,
+          req.user!.id,
+          emoji,
+        ]);
+      }
+      const [{ reactions }] = await db.query<Message>(`${MESSAGE_SELECT} where msg.id = $1`, [m.id]);
+      await emitToChannel(m.channel, 'message:reactions', { channelId: m.channelId, messageId: m.id, reactions });
+      return { reactions };
+    }),
+  );
+
+  registerAttachmentRoutes(r, db, auth);
 
   return r;
 }

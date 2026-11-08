@@ -44,6 +44,26 @@ export interface Guild {
   members: Member[];
 }
 
+export interface Attachment {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  width: number | null;
+  height: number | null;
+}
+
+export interface Reaction {
+  emoji: string;
+  /** quem reagiu, na ordem em que reagiu */
+  userIds: string[];
+}
+
+/** Trecho da mensagem respondida (ou só o id, se ela foi apagada). */
+export type ReplyPreview =
+  | { id: string; deleted: true }
+  | { id: string; deleted?: false; author: PublicUser; content: string; hasAttachments: boolean };
+
 export interface Message {
   id: string;
   channelId: string;
@@ -51,6 +71,9 @@ export interface Message {
   content: string;
   createdAt: string;
   editedAt: string | null;
+  replyTo: ReplyPreview | null;
+  reactions: Reaction[];
+  attachments: Attachment[];
 }
 
 export interface VoiceState {

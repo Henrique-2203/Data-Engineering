@@ -49,7 +49,26 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       return <UserSettings onLogout={onLogout} />;
     case 'screenShare':
       return <ScreenShare />;
+    case 'image':
+      return <Lightbox src={modal.src} name={modal.name} />;
   }
+}
+
+function Lightbox({ src, name }: { src: string; name: string }) {
+  return (
+    <div className="lightbox" role="dialog" aria-modal="true" aria-label={name} onClick={closeModal}>
+      <img src={src} alt={name} onClick={(e) => e.stopPropagation()} />
+      <div className="lightbox-bar" onClick={(e) => e.stopPropagation()}>
+        <span className="ellipsis">{name}</span>
+        <a href={src} target="_blank" rel="noopener noreferrer" className="btn small">
+          Abrir original
+        </a>
+        <button className="icon-btn" aria-label="Fechar" onClick={closeModal}>
+          <X size={20} />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function Modal({ title, children, wide }: { title: string; children: ReactNode; wide?: boolean }) {

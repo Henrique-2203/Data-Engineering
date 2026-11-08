@@ -15,6 +15,7 @@ export function ServerRail() {
   const guilds = useApp((s) => s.guilds);
   const selected = useApp((s) => s.selectedGuildId);
   const unread = useApp((s) => s.unread);
+  const mentions = useApp((s) => s.mentions);
   const voiceGuild = useVoice((s) => s.guildId);
   const homeAlerts = useApp(
     (s) => s.friends.filter((f) => f.status === 'incoming').length + s.dmOrder.filter((id) => s.unread[id]).length,
@@ -42,6 +43,7 @@ export function ServerRail() {
         const g = guilds[id];
         if (!g) return null;
         const hasUnread = g.channels.some((c) => unread[c.id]);
+        const mentionCount = g.channels.reduce((n, c) => n + (mentions[c.id] ?? 0), 0);
         return (
           <button
             key={id}
@@ -53,6 +55,7 @@ export function ServerRail() {
             {hasUnread && selected !== id && <span className="rail-pill" />}
             <span className="rail-icon">{initials(g.name)}</span>
             {voiceGuild === id && <span className="rail-voice" title="Você está em uma chamada aqui" />}
+            {mentionCount > 0 && <span className="rail-count">{mentionCount}</span>}
           </button>
         );
       })}

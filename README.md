@@ -10,6 +10,10 @@ Funciona no navegador do PC e do celular, e é 100% gratuito para hospedar.
 - **Amigos**: adicionar pelo nome de usuário, aceitar/recusar pedidos, ver quem está online
 - **Mensagens diretas** com amigos ou membros dos seus servidores (clique no membro → Enviar mensagem)
 - Chat em tempo real: editar/excluir mensagens, "fulano está digitando…", links e prévia de imagens, mensagens não lidas
+- **Responder** mensagens (com citação clicável), **reações** com emoji e **@menções** com
+  autocompletar, destaque, som próprio e contador; `@todos` avisa o servidor inteiro
+- **Imagens**: botão, colar (Ctrl+V) ou arrastar; fotos grandes são reduzidas no navegador
+  (máx. 2560 px) antes de enviar, para caber no plano grátis do banco
 - Quem está online, quem está em cada canal de voz, quem está falando
 - Voz com supressão de ruído, silenciar/ensurdecer, volume individual por pessoa
 - **Ativação por voz com sensibilidade** (portão de ruído com medidor) ou **push-to-talk** com tecla
@@ -117,6 +121,7 @@ Outros comandos:
 | `npm start` | Sobe o servidor de produção (serve API e frontend na porta `PORT`) |
 | `npm run typecheck` | Checa os tipos do servidor e do cliente |
 | `npm run test:e2e` | Teste ponta a ponta com dois navegadores (PC + celular): convite, chat, voz, câmera e tela |
+| `npm run test:e2e:chat` | Responder, @menções, reações, envio de imagens e visualizador |
 | `npm run test:e2e:social` | Amigos e mensagens diretas com três pessoas (uma no celular) |
 | `npm run test:e2e:codec` | O codec escolhido é o usado mesmo quando o espectador iniciou a negociação; estatísticas de envio |
 | `npm run test:e2e:voice` | Push-to-talk, ativação por voz, atalho de silenciar e gravação de tecla |

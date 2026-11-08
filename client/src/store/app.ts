@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { mentionsUser } from '../lib/mentions';
 import type { Channel, DmChannel, Friend, Guild, Member, Message, PublicUser, VoiceState } from '../../../shared/types';
 
 interface ChannelMessages {
@@ -24,6 +25,8 @@ export interface AppState {
   voiceStates: Record<string, VoiceState>; // por socketId
   typing: Record<string, Record<string, number>>; // channelId -> userId -> expira em
   unread: Record<string, true>;
+  /** menções a você ainda não vistas, por canal */
+  mentions: Record<string, number>;
   connected: boolean;
   socketId: string | null;
   maxVoicePeers: number;
@@ -45,7 +48,8 @@ export type ModalState =
   | { kind: 'guildSettings'; guildId: string }
   | { kind: 'channelSettings'; channelId: string }
   | { kind: 'userSettings' }
-  | { kind: 'screenShare' };
+  | { kind: 'screenShare' }
+  | { kind: 'image'; src: string; name: string };
 
 export const useApp = create<AppState>(() => ({
   me: null,
@@ -59,6 +63,7 @@ export const useApp = create<AppState>(() => ({
   voiceStates: {},
   typing: {},
   unread: {},
+  mentions: {},
   connected: false,
   socketId: null,
   maxVoicePeers: 10,
@@ -156,11 +161,13 @@ export function selectChannel(channelId: string) {
 }
 
 export function markRead(channelId: string) {
-  if (!get().unread[channelId]) return;
+  if (!get().unread[channelId] && !get().mentions[channelId]) return;
   set((s) => {
     const unread = { ...s.unread };
     delete unread[channelId];
-    return { unread };
+    const mentions = { ...s.mentions };
+    delete mentions[channelId];
+    return { unread, mentions };
   });
 }
 
@@ -249,15 +256,42 @@ export function addMessage(message: Message) {
   }
   const s = get();
   const visible = s.selectedChannelId === message.channelId && document.visibilityState === 'visible';
-  if (!visible && message.author.id !== s.me?.id) set({ unread: { ...s.unread, [message.channelId]: true } });
+  if (!visible && message.author.id !== s.me?.id) {
+    const channel = findChannel(message.channelId);
+    const mentioned = !!s.me && mentionsUser(message.content, s.me.username, channel?.type === 'text');
+    set({
+      unread: { ...s.unread, [message.channelId]: true },
+      ...(mentioned ? { mentions: { ...s.mentions, [message.channelId]: (s.mentions[message.channelId] ?? 0) + 1 } } : {}),
+    });
+  }
+}
+
+export function updateReactions(channelId: string, messageId: string, reactions: Message['reactions']) {
+  const cm = get().messages[channelId];
+  if (cm) patchMessages(channelId, { items: cm.items.map((m) => (m.id === messageId ? { ...m, reactions } : m)) });
 }
 
 export function updateMessage(message: Message) {
   const cm = get().messages[message.channelId];
-  if (cm) patchMessages(message.channelId, { items: cm.items.map((m) => (m.id === message.id ? message : m)) });
+  if (!cm) return;
+  patchMessages(message.channelId, {
+    items: cm.items.map((m) => {
+      if (m.id === message.id) return message;
+      // respostas a esta mensagem mostram o texto editado
+      if (m.replyTo?.id === message.id && !m.replyTo.deleted) {
+        return { ...m, replyTo: { ...m.replyTo, content: message.content.slice(0, 200) } };
+      }
+      return m;
+    }),
+  });
 }
 
 export function deleteMessage(channelId: string, id: string) {
   const cm = get().messages[channelId];
-  if (cm) patchMessages(channelId, { items: cm.items.filter((m) => m.id !== id) });
+  if (!cm) return;
+  patchMessages(channelId, {
+    items: cm.items
+      .filter((m) => m.id !== id)
+      .map((m) => (m.replyTo?.id === id ? { ...m, replyTo: { id, deleted: true as const } } : m)),
+  });
 }

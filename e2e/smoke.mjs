@@ -84,7 +84,7 @@ try {
   await pc.keyboard.press('Enter');
   await phone.getByText('Bora jogar hoje? 🎮').waitFor({ timeout: 5000 });
   await phone.getByPlaceholder('Conversar em #geral').fill('Bora! Liga a transmissão');
-  await phone.getByRole('button', { name: 'Enviar' }).click();
+  await phone.getByRole('button', { name: 'Enviar', exact: true }).click();
   await pc.getByText('Bora! Liga a transmissão').waitFor({ timeout: 5000 });
   await phone.screenshot({ path: `${shots}/03-celular-chat.png` });
   await pc.screenshot({ path: `${shots}/04-pc-chat.png` });

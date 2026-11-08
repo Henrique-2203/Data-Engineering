@@ -133,11 +133,17 @@ function Section({ title, onAdd }: { title: string; onAdd?: () => void }) {
 function TextChannelItem({ channel, canEdit }: { channel: Channel; canEdit: boolean }) {
   const active = useApp((s) => s.selectedChannelId === channel.id);
   const unread = useApp((s) => !!s.unread[channel.id]);
+  const mentions = useApp((s) => s.mentions[channel.id] ?? 0);
   return (
     <div className={`channel${active ? ' active' : ''}${unread ? ' unread' : ''}`}>
       <button className="channel-main" onClick={() => selectChannel(channel.id)}>
         <Hash size={18} className="channel-icon" />
         <span className="ellipsis">{channel.name}</span>
+        {mentions > 0 && (
+          <span className="count-badge" aria-label={`${mentions} menções`}>
+            {mentions}
+          </span>
+        )}
       </button>
       {canEdit && (
         <button className="icon-btn small channel-edit" aria-label="Editar canal" onClick={() => openModal({ kind: 'channelSettings', channelId: channel.id })}>

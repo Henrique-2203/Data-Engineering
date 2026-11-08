@@ -80,6 +80,31 @@ create table if not exists friendships (
   primary key (requester_id, addressee_id)
 );
 create index if not exists friendships_addressee_idx on friendships(addressee_id);
+
+-- v3: respostas, reações e imagens
+alter table messages add column if not exists reply_to_id text;
+
+create table if not exists reactions (
+  message_id text not null references messages(id) on delete cascade,
+  user_id text not null references users(id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default clock_timestamp(),
+  primary key (message_id, user_id, emoji)
+);
+
+create table if not exists attachments (
+  id text primary key,
+  message_id text references messages(id) on delete cascade,
+  uploader_id text not null references users(id) on delete cascade,
+  filename text not null,
+  mime text not null,
+  size integer not null,
+  width integer,
+  height integer,
+  data bytea not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists attachments_message_idx on attachments(message_id);
 `;
 
 export async function createDb(): Promise<Db> {
