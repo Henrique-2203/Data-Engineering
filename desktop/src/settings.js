@@ -8,7 +8,8 @@ const DEFAULTS = {
   openAtLogin: false,
   bounds: null,
   /** overlay no jogo (quem está na chamada, quem fala, sons do soundboard) */
-  overlay: { enabled: true, position: 'top-left', onlySpeaking: false, opacity: 0.95 },
+  // showWhen: 'game' = só com um jogo aberto | 'always' = sempre que estiver em call (fora do Resenha)
+  overlay: { enabled: true, position: 'top-left', onlySpeaking: false, opacity: 0.95, showWhen: 'game' },
 };
 
 const file = () => path.join(app.getPath('userData'), 'settings.json');

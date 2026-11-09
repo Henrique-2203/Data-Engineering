@@ -17,8 +17,12 @@ const MARGIN = 14;
 /** @type {BrowserWindow | null} */
 let overlay = null;
 let lastState = null;
-let config = { enabled: true, position: 'top-left', onlySpeaking: false, opacity: 0.95 };
+let config = { enabled: true, position: 'top-left', onlySpeaking: false, opacity: 0.95, showWhen: 'game' };
 let hiddenByHotkey = false;
+/** a janela do Resenha está na frente (a call já aparece nela: o overlay sai do caminho) */
+let appFocused = false;
+/** algum jogo reconhecido está aberto (mesma detecção do "Jogando agora") */
+let gameOpen = false;
 
 function place() {
   if (!overlay || overlay.isDestroyed()) return;
@@ -61,6 +65,8 @@ function create() {
   overlay.setAlwaysOnTop(true, 'screen-saver');
   overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   overlay.setIgnoreMouseEvents(true);
+  // não aparece em capturas de tela nem na sua transmissão (Windows 10 2004 ou mais novo)
+  overlay.setContentProtection(true);
   overlay.on('closed', () => (overlay = null));
   overlay.webContents.on('did-finish-load', () => {
     overlay?.webContents.send('overlay:config', config);
@@ -71,7 +77,8 @@ function create() {
 }
 
 function refresh() {
-  const shouldShow = config.enabled && !hiddenByHotkey && !!lastState?.inCall;
+  const shouldShow =
+    config.enabled && !hiddenByHotkey && !!lastState?.inCall && !appFocused && (config.showWhen === 'always' || gameOpen);
   if (!shouldShow) {
     if (overlay && !overlay.isDestroyed() && overlay.isVisible()) overlay.hide();
     return;
@@ -97,6 +104,14 @@ module.exports = {
       overlay.webContents.send('overlay:config', config);
       place();
     }
+    refresh();
+  },
+  setAppFocused(focused) {
+    appFocused = !!focused;
+    refresh();
+  },
+  setGameOpen(open) {
+    gameOpen = !!open;
     refresh();
   },
   /** Ctrl+Shift+O: esconde/mostra durante a partida */

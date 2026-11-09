@@ -105,6 +105,19 @@ try {
   await win.getByText('Segure T para falar').waitFor();
 
   // ---- overlay no jogo ----
+  // mesmo módulo do app (cache compartilhado): simula foco da janela e jogo aberto
+  const overlayPath = path.resolve('desktop/src/overlay.js');
+  const ovCall = (fn, arg) => app.evaluate((_e, [p, f, a]) => process.mainModule.constructor._load(p)[f](a), [overlayPath, fn, arg]);
+  const ovVisible = () =>
+    app.evaluate(({ BrowserWindow }) => !!BrowserWindow.getAllWindows().find((x) => x.getTitle() === 'Resenha overlay' && x.isVisible()));
+  await ovCall('setAppFocused', true);
+  await ovCall('setGameOpen', false);
+  await sleep(300);
+  if (await ovVisible()) throw new Error('o overlay apareceu sem jogo aberto');
+  await ovCall('setGameOpen', true); // um jogo abriu...
+  await sleep(300);
+  if (await ovVisible()) throw new Error('o overlay apareceu por cima da própria janela do Resenha');
+  await ovCall('setAppFocused', false); // ...e o jogo ficou na frente
   let ov;
   for (let i = 0; i < 40 && !ov; i++) {
     ov = app.windows().find((w) => w.url().includes('overlay.html'));
@@ -131,14 +144,30 @@ try {
   if (await ov.locator('.p', { hasText: 'Ana' }).isVisible()) throw new Error('"só quem fala" ainda mostra quem está calado');
   await win.evaluate(() => window.resenhaDesktop.setSettings({ overlay: { position: 'top-left', onlySpeaking: false } }));
   await ov.locator('.p', { hasText: 'Ana' }).waitFor({ timeout: 3000 });
+  // voltar para o Resenha esconde; "Sempre" mostra mesmo sem jogo reconhecido
+  await ovCall('setAppFocused', true);
+  await sleep(200);
+  if ((await overlayWin()).visible) throw new Error('o overlay não sumiu com o Resenha na frente');
+  await ovCall('setAppFocused', false);
+  await ovCall('setGameOpen', false);
+  await sleep(200);
+  if ((await overlayWin()).visible) throw new Error('o overlay continuou sem jogo aberto');
+  await win.evaluate(() => window.resenhaDesktop.setSettings({ overlay: { showWhen: 'always' } }));
+  await sleep(300);
+  if (!(await overlayWin()).visible) throw new Error('"Sempre" não mostrou o overlay');
+  const protectedFromCapture = await app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() === 'Resenha overlay');
+    // só existe no Windows e no Mac (no Linux do teste não há como proteger)
+    return process.platform !== 'linux' && typeof w.isContentProtected === 'function' ? w.isContentProtected() : null;
+  });
+  if (protectedFromCapture === false) throw new Error('o overlay apareceria na transmissão de tela');
   // Ctrl+Shift+O esconde e mostra (chama o mesmo toggle do atalho global)
-  const overlayPath = path.resolve('desktop/src/overlay.js');
   const toggle = () => app.evaluate((_e, p) => process.mainModule.constructor._load(p).toggle(), overlayPath);
   await toggle();
   if ((await overlayWin()).visible) throw new Error('Ctrl+Shift+O não escondeu o overlay');
   await toggle();
   if (!(await overlayWin()).visible) throw new Error('Ctrl+Shift+O não mostrou o overlay de novo');
-  step('overlay no jogo: aparece ao entrar na chamada, por cima e sem roubar o foco; mostra quem tocou som; muda de canto; "só quem fala"; Ctrl+Shift+O');
+  step(`overlay no jogo: só com jogo aberto e fora do Resenha (ou "Sempre"), por cima e sem roubar o foco${protectedFromCapture ? ', fora da transmissão de tela' : ''}; quem tocou som; canto; "só quem fala"; Ctrl+Shift+O`);
 
   // ---- push-to-talk global ----
   // O Xvfb não repassa teclas sintéticas ao hook (XRecord), então injetamos o evento no próprio

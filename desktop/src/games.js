@@ -8,6 +8,13 @@ const { execFile } = require('node:child_process');
 /** processo (minúsculo, sem .exe) -> nome do jogo. A ordem define a prioridade. */
 const KNOWN = {
   'valorant-win64-shipping': 'Valorant',
+  // emuladores de Android (Wild Rift, Free Fire e outros jogos de celular no PC)
+  'hd-player': 'BlueStacks',
+  dnplayer: 'LDPlayer',
+  mumuplayer: 'MuMu Player',
+  'mumunxdevice': 'MuMu Player',
+  memu: 'MEmu',
+  nox: 'NoxPlayer',
   'league of legends': 'League of Legends',
   cs2: 'Counter-Strike 2',
   'fortniteclient-win64-shipping': 'Fortnite',

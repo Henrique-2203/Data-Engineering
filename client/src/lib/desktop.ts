@@ -11,6 +11,8 @@ export interface OverlaySettings {
   position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   onlySpeaking: boolean;
   opacity: number;
+  /** 'game' = só com um jogo aberto; 'always' = sempre em call (fora da janela do Resenha) */
+  showWhen?: 'game' | 'always';
 }
 
 export interface OverlayState {

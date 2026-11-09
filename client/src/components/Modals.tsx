@@ -717,6 +717,17 @@ export function DesktopSettingsSection() {
             <input type="checkbox" checked={ds.overlay.enabled} onChange={(e) => void setOverlay({ enabled: e.target.checked })} />
             Mostrar o overlay quando eu estiver em uma chamada
           </label>
+          <label>
+            Quando mostrar
+            <select value={ds.overlay.showWhen ?? 'game'} onChange={(e) => void setOverlay({ showWhen: e.target.value as 'game' | 'always' })}>
+              <option value="game">Só quando um jogo estiver aberto (recomendado)</option>
+              <option value="always">Sempre que eu estiver numa call</option>
+            </select>
+            <span className="muted small">
+              Some quando a janela do Resenha está na frente e não aparece na sua transmissão. Se o seu jogo não for reconhecido (o "Jogando
+              agora" não aparece), escolha "Sempre".
+            </span>
+          </label>
           <label className="check">
             <input type="checkbox" checked={ds.overlay.onlySpeaking} onChange={(e) => void setOverlay({ onlySpeaking: e.target.checked })} />
             Mostrar só quem está falando (mais discreto)

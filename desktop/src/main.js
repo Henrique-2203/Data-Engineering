@@ -347,7 +347,7 @@ const publicSettings = () => {
   return {
     closeToTray: s.closeToTray,
     openAtLogin: s.openAtLogin,
-    overlay: { ...settings.load().overlay },
+    overlay: { showWhen: 'game', ...settings.load().overlay },
     version: app.getVersion(),
     platform: process.platform,
     update: updateState,
@@ -430,6 +430,7 @@ ipcMain.handle('resenha:set-settings', (_e, patch) => {
     if (typeof o.onlySpeaking === 'boolean') next.onlySpeaking = o.onlySpeaking;
     if (['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(o.position)) next.position = o.position;
     if (typeof o.opacity === 'number' && o.opacity >= 0.3 && o.opacity <= 1) next.opacity = o.opacity;
+    if (o.showWhen === 'game' || o.showWhen === 'always') next.showWhen = o.showWhen;
     clean.overlay = next;
     overlay.configure(next);
   }
@@ -481,7 +482,11 @@ app.on('activate', showWindow);
 let gameWatcher = null;
 function setupGameWatcher() {
   const intervalMs = Number(process.env.RESENHA_GAME_INTERVAL_MS) || 15_000;
-  gameWatcher = watchGames((game) => send('resenha:activity', { name: game }), intervalMs);
+  gameWatcher = watchGames((game) => {
+    send('resenha:activity', { name: game });
+    overlay.setGameOpen(!!game);
+  }, intervalMs);
+  overlay.setGameOpen(!!gameWatcher.current());
   // a página recarregou (ou abriu agora): manda o jogo atual de novo
   win?.webContents.on('did-finish-load', () => send('resenha:activity', { name: gameWatcher?.current() ?? null }));
   app.on('will-quit', () => gameWatcher?.stop());
@@ -491,7 +496,13 @@ ipcMain.handle('resenha:get-activity', () => ({ name: gameWatcher?.current() ?? 
 app.whenReady().then(() => {
   setupSession();
   createWindow();
-  overlay.configure(settings.load().overlay);
+  overlay.configure({ showWhen: 'game', ...settings.load().overlay });
+  // com a janela do Resenha na frente, o overlay sai do caminho
+  win.on('focus', () => overlay.setAppFocused(true));
+  win.on('blur', () => overlay.setAppFocused(false));
+  win.on('hide', () => overlay.setAppFocused(false));
+  win.on('minimize', () => overlay.setAppFocused(false));
+  overlay.setAppFocused(win.isFocused());
   // Ctrl+Shift+O: esconde/mostra o overlay no meio da partida
   globalShortcut.register('CommandOrControl+Shift+O', () => overlay.toggle());
   app.on('will-quit', () => globalShortcut.unregisterAll());
