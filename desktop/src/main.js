@@ -10,10 +10,11 @@
  *  - ícone na bandeja e atualização automática da própria casca.
  */
 const path = require('node:path');
-const { app, BrowserWindow, Menu, Tray, desktopCapturer, ipcMain, nativeImage, Notification, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, desktopCapturer, globalShortcut, ipcMain, nativeImage, Notification, session, shell } = require('electron');
 const settings = require('./settings');
 const { buildKeymap, MOUSE } = require('./keymap');
 const { watchGames } = require('./games');
+const overlay = require('./overlay');
 
 const DEFAULT_URL = 'https://resenha-m2bt.onrender.com';
 const argUrl = process.argv.find((a) => a.startsWith('--url='))?.slice(6);
@@ -343,7 +344,14 @@ function applySettings(patch) {
 
 const publicSettings = () => {
   const s = settings.load();
-  return { closeToTray: s.closeToTray, openAtLogin: s.openAtLogin, version: app.getVersion(), platform: process.platform, update: updateState };
+  return {
+    closeToTray: s.closeToTray,
+    openAtLogin: s.openAtLogin,
+    overlay: { ...settings.load().overlay },
+    version: app.getVersion(),
+    platform: process.platform,
+    update: updateState,
+  };
 };
 
 // ---------- atualização automática (da casca; o site se atualiza sozinho) ----------
@@ -415,7 +423,44 @@ ipcMain.handle('resenha:set-settings', (_e, patch) => {
   const clean = {};
   if (typeof patch?.closeToTray === 'boolean') clean.closeToTray = patch.closeToTray;
   if (typeof patch?.openAtLogin === 'boolean') clean.openAtLogin = patch.openAtLogin;
+  if (patch?.overlay && typeof patch.overlay === 'object') {
+    const o = patch.overlay;
+    const next = { ...settings.load().overlay };
+    if (typeof o.enabled === 'boolean') next.enabled = o.enabled;
+    if (typeof o.onlySpeaking === 'boolean') next.onlySpeaking = o.onlySpeaking;
+    if (['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(o.position)) next.position = o.position;
+    if (typeof o.opacity === 'number' && o.opacity >= 0.3 && o.opacity <= 1) next.opacity = o.opacity;
+    clean.overlay = next;
+    overlay.configure(next);
+  }
   return applySettings(clean);
+});
+
+// ---------- overlay no jogo ----------
+
+const fromMainWindow = (e) => !!win && !win.isDestroyed() && e.sender === win.webContents;
+const str = (v, max = 64) => (typeof v === 'string' ? v.slice(0, max) : '');
+ipcMain.on('resenha:overlay-state', (e, s) => {
+  if (!fromMainWindow(e)) return;
+  // só passa o que o overlay precisa (e fotos só do próprio Resenha)
+  const people = Array.isArray(s?.people)
+    ? s.people.slice(0, 25).map((p) => ({
+        id: str(p?.id),
+        name: str(p?.name, 40) || 'Alguém',
+        color: /^#[0-9a-f]{3,8}$/i.test(p?.color ?? '') ? p.color : '#555',
+        avatar: typeof p?.avatar === 'string' && p.avatar.startsWith(`${APP_ORIGIN}/api/images/`) ? p.avatar.slice(0, 200) : null,
+        speaking: !!p?.speaking,
+        muted: !!p?.muted,
+        deafened: !!p?.deafened,
+        streaming: !!p?.streaming,
+        me: !!p?.me,
+      }))
+    : [];
+  overlay.setState({ inCall: !!s?.inCall, channel: str(s?.channel, 40), people });
+});
+ipcMain.on('resenha:overlay-event', (e, ev) => {
+  if (!fromMainWindow(e) || ev?.type !== 'sound') return;
+  overlay.event({ type: 'sound', id: str(ev.id), name: str(ev.name, 40), sound: str(ev.sound, 40), emoji: str(ev.emoji, 16) });
 });
 ipcMain.handle('resenha:check-updates', () => checkForUpdates(true));
 ipcMain.on('resenha:install-update', () => installUpdate());
@@ -446,6 +491,10 @@ ipcMain.handle('resenha:get-activity', () => ({ name: gameWatcher?.current() ?? 
 app.whenReady().then(() => {
   setupSession();
   createWindow();
+  overlay.configure(settings.load().overlay);
+  // Ctrl+Shift+O: esconde/mostra o overlay no meio da partida
+  globalShortcut.register('CommandOrControl+Shift+O', () => overlay.toggle());
+  app.on('will-quit', () => globalShortcut.unregisterAll());
   createTray();
   setupGlobalHook();
   setupUpdater();

@@ -5,7 +5,10 @@ import {
   Headphones,
   HeadphoneOff,
   Maximize,
+  Maximize2,
   Mic,
+  Minimize2,
+  PictureInPicture2,
   MicOff,
   MonitorUp,
   MonitorX,
@@ -17,7 +20,7 @@ import {
 import type { VoiceState } from '../../../shared/types';
 import { findChannel, findMember, openModal, useApp } from '../store/app';
 import { SoundBurstBadge, SoundboardButton } from './Soundboard';
-import { setUserVolume, useVoice } from '../store/voice';
+import { setUserVolume, updateSettings, useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { CODECS, canShareScreen, keyLabel, presetById } from '../voice/settings';
 import { Perm, has, myPermissions } from '../lib/perms';
@@ -57,6 +60,8 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
     tiles.push({ id: `${isMe ? 'me' : p.socketId}:user`, kind: 'user', state: p, isMe });
   }
   const focused = joined ? tiles.find((t) => t.id === focus) : undefined;
+  const mainPct = useVoice((s) => s.settings.stageMainPct);
+  const stageRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className={`voice-stage${embedded ? ' embedded' : ''}`}>
@@ -107,11 +112,14 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
               Chamando {channel?.name}…
             </div>
           )}
-          <div className={`stage${focused ? ' focused' : ''}`}>
+          <div className={`stage${focused ? ' focused' : ''}`} ref={stageRef}>
             {focused && (
-              <div className="stage-main">
-                <TileView tile={focused} big />
-              </div>
+              <>
+                <div className="stage-main" style={{ flex: `0 0 ${mainPct}%` }}>
+                  <TileView tile={focused} big />
+                </div>
+                <StageResizer stageRef={stageRef} />
+              </>
             )}
             <div className={`tiles count-${Math.min(tiles.length, 9)}`}>
               {tiles
@@ -129,6 +137,63 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
   );
 }
 
+/**
+ * Divisória arrastável do modo destaque: cada pessoa escolhe o tamanho da transmissão em destaque
+ * na própria tela (não muda nada para os outros). Também funciona pelo teclado (setas).
+ */
+function StageResizer({ stageRef }: { stageRef: React.RefObject<HTMLDivElement | null> }) {
+  const pct = useVoice((s) => s.settings.stageMainPct);
+  const set = (v: number) => updateSettings({ stageMainPct: Math.round(Math.min(92, Math.max(35, v))) });
+  const onPointerDown = (e: React.PointerEvent) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    const rect = stage.getBoundingClientRect();
+    const move = (ev: PointerEvent) => set(((ev.clientY - rect.top) / rect.height) * 100);
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <div
+      className="stage-resizer"
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Tamanho da transmissão em destaque"
+      aria-valuemin={35}
+      aria-valuemax={92}
+      aria-valuenow={pct}
+      tabIndex={0}
+      title="Arraste para mudar o tamanho (só na sua tela). Duplo clique volta ao padrão."
+      onPointerDown={onPointerDown}
+      onDoubleClick={() => set(78)}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowUp') set(pct - 5);
+        else if (e.key === 'ArrowDown') set(pct + 5);
+      }}
+    >
+      <span />
+    </div>
+  );
+}
+
+/** Janela flutuante (picture-in-picture): a transmissão fica por cima de tudo, redimensionável. */
+const canPip = typeof document !== 'undefined' && 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled;
+async function togglePip(container: HTMLElement | null) {
+  const video = container?.querySelector('video');
+  if (!video) return;
+  try {
+    if (document.pictureInPictureElement === video) await document.exitPictureInPicture();
+    else await video.requestPictureInPicture();
+  } catch {
+    /* o navegador recusou (ex.: vídeo ainda carregando) */
+  }
+}
+
 function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
   const user = useApp(() => findMember(tile.state.guildId, tile.state.userId));
   const sid = tile.state.socketId;
@@ -138,9 +203,18 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
   const speaking = useVoice((s) => (tile.isMe ? s.speaking.me : s.speaking[sid]));
   const watching = useVoice((s) => !!s.watching[sid]);
   const focus = useVoice((s) => s.focus);
+  const enlarged = useVoice((s) => !!s.bigTiles[tile.id]);
   const ref = useRef<HTMLDivElement>(null);
 
   const toggleFocus = () => useVoice.setState({ focus: focus === tile.id ? null : tile.id });
+  const toggleBig = () =>
+    useVoice.setState((s) => {
+      const bigTiles = { ...s.bigTiles };
+      if (bigTiles[tile.id]) delete bigTiles[tile.id];
+      else bigTiles[tile.id] = true;
+      return { bigTiles };
+    });
+  const sizeClass = !big && enlarged ? ' enlarged' : '';
 
   const name = user?.displayName ?? 'Alguém';
 
@@ -148,7 +222,7 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
     const stream = tile.isMe ? localScreen : remote?.screen;
     const canWatch = !tile.isMe;
     return (
-      <div ref={ref} className={`tile screen${big ? ' big' : ''}`} onDoubleClick={tile.isMe ? undefined : () => fullscreen(ref.current)}>
+      <div ref={ref} className={`tile screen${big ? ' big' : ''}${sizeClass}`} onDoubleClick={tile.isMe ? undefined : () => fullscreen(ref.current)}>
         {tile.isMe || watching ? (
           stream && stream.getVideoTracks().length > 0 ? (
             <VideoEl stream={stream} version={remote?.v} contain />
@@ -177,7 +251,28 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
           {/* Sem tela cheia/destaque na própria transmissão: ela capturaria a si mesma (efeito espelho). */}
           {!tile.isMe && watching && (
             <>
-              <button className="icon-btn overlay" title="Destacar" aria-label="Destacar" onClick={toggleFocus}>
+              {!big && (
+                <button
+                  className="icon-btn overlay"
+                  title={enlarged ? 'Diminuir (só na sua tela)' : 'Aumentar (só na sua tela)'}
+                  aria-label={enlarged ? 'Diminuir transmissão' : 'Aumentar transmissão'}
+                  aria-pressed={enlarged}
+                  onClick={toggleBig}
+                >
+                  {enlarged ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                </button>
+              )}
+              {canPip && (
+                <button
+                  className="icon-btn overlay"
+                  title="Janela flutuante: fica por cima do jogo e você muda o tamanho"
+                  aria-label="Abrir em janela flutuante"
+                  onClick={() => void togglePip(ref.current)}
+                >
+                  <PictureInPicture2 size={18} />
+                </button>
+              )}
+              <button className="icon-btn overlay" title={big ? 'Tirar do destaque' : 'Destacar'} aria-label={big ? 'Tirar do destaque' : 'Destacar'} onClick={toggleFocus}>
                 <MonitorUp size={18} />
               </button>
               <button className="icon-btn overlay" title="Tela cheia" aria-label="Tela cheia" onClick={() => fullscreen(ref.current)}>
@@ -198,7 +293,7 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
   return (
     <div
       ref={ref}
-      className={`tile user${big ? ' big' : ''}${speaking && !tile.state.muted ? ' speaking' : ''}`}
+      className={`tile user${big ? ' big' : ''}${sizeClass}${speaking && !tile.state.muted ? ' speaking' : ''}`}
       onClick={showCam ? toggleFocus : undefined}
     >
       {showCam ? (

@@ -4,6 +4,7 @@ import { desktop, type DesktopUpdate } from '../lib/desktop';
 import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { getSocket, onSocketReady } from '../lib/socket';
+import { findChannel, findMember, useApp } from '../store/app';
 
 /**
  * Liga o site aos recursos do app de desktop: atalhos globais (push-to-talk com o jogo em
@@ -72,6 +73,51 @@ export function DesktopBridge() {
     });
     void d.getSettings().then((s) => setUpdate(s.update));
 
+    // overlay no jogo: quem está na chamada, quem fala, quem está mutado/transmitindo
+    let overlayTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastSent = '';
+    const sendOverlay = () => {
+      overlayTimer = null;
+      if (!d.setOverlayState) return;
+      const v = useVoice.getState();
+      const app = useApp.getState();
+      const inCall = v.status !== 'idle' && !!v.channelId;
+      const channel = inCall ? findChannel(v.channelId!) : null;
+      const people = inCall
+        ? Object.values(app.voiceStates)
+            .filter((p) => p.channelId === v.channelId)
+            .map((p) => {
+              const me = p.socketId === app.socketId;
+              const m = findMember(p.guildId, p.userId);
+              return {
+                id: p.socketId,
+                name: m?.displayName ?? 'Alguém',
+                color: m?.avatarColor ?? '#555',
+                avatar: m?.avatarId ? `${location.origin}/api/images/${m.avatarId}` : null,
+                speaking: !p.muted && !p.deafened && !!(me ? v.speaking.me : v.speaking[p.socketId]),
+                muted: p.muted,
+                deafened: p.deafened,
+                streaming: !!p.screen,
+                me,
+              };
+            })
+        : [];
+      const state = { inCall, channel: channel?.name ?? '', people };
+      const json = JSON.stringify(state);
+      if (json === lastSent) return;
+      lastSent = json;
+      d.setOverlayState(state);
+    };
+    // no máximo ~8 atualizações por segundo (quem fala muda o tempo todo)
+    const queueOverlay = () => {
+      overlayTimer ??= setTimeout(sendOverlay, 120);
+    };
+    const unsubOverlayVoice = useVoice.subscribe(queueOverlay);
+    const unsubOverlayApp = useApp.subscribe((s, prev) => {
+      if (s.voiceStates !== prev.voiceStates || s.socketId !== prev.socketId) queueOverlay();
+    });
+    queueOverlay();
+
     return () => {
       unsubVoice();
       offKey();
@@ -80,6 +126,10 @@ export function DesktopBridge() {
       offActivity?.();
       offReady();
       unsubShare();
+      unsubOverlayVoice();
+      unsubOverlayApp();
+      if (overlayTimer) clearTimeout(overlayTimer);
+      d.setOverlayState?.({ inCall: false, channel: '', people: [] });
     };
   }, []);
 

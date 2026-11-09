@@ -1,6 +1,7 @@
 import { fileUrl } from './expressions';
 import { getSocket } from './socket';
-import { toast } from '../store/app';
+import { findMember, toast, useApp } from '../store/app';
+import { desktop } from './desktop';
 import { useVoice } from '../store/voice';
 
 export interface SoundboardEvent {
@@ -44,6 +45,9 @@ export function onSoundboardEvent(e: SoundboardEvent) {
       return { soundBursts: next };
     });
   }, 2500);
+  // overlay no jogo (app de Windows): mostra quem tocou o quê
+  const who = useApp.getState().voiceStates[e.socketId];
+  desktop?.overlayEvent?.({ type: 'sound', id: e.socketId, name: findMember(who?.guildId ?? null, e.userId)?.displayName ?? 'Alguém', sound: e.name, emoji: e.emoji });
   if (v.deafened) return;
   // volume do soundboard × volume que você deu para essa pessoa (silenciou alguém = silencia os sons dela)
   const volume = v.settings.soundboardVolume * (v.settings.volumes[e.userId] ?? 1);

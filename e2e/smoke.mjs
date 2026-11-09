@@ -126,6 +126,36 @@ try {
     return `${v.videoWidth}x${v.videoHeight}`;
   });
   await phone.screenshot({ path: `${shots}/05-celular-assistindo.png` });
+
+  // ---- tamanho da transmissão: só na tela de quem assiste ----
+  await phone.setViewportSize({ width: 1280, height: 800 });
+  // assistir já põe a transmissão em destaque: a divisória ajusta o tamanho dela
+  const resizer = phone.getByRole('separator', { name: 'Tamanho da transmissão em destaque' });
+  await resizer.waitFor();
+  const h1 = await phone.locator('.stage-main').evaluate((e) => e.getBoundingClientRect().height);
+  await resizer.focus();
+  for (let i = 0; i < 4; i++) await phone.keyboard.press('ArrowUp');
+  const h2 = await phone.locator('.stage-main').evaluate((e) => e.getBoundingClientRect().height);
+  if (!(h2 < h1 - 40)) throw new Error(`a divisória não mudou o tamanho do destaque (${h1} → ${h2})`);
+  const box = await resizer.boundingBox();
+  await phone.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await phone.mouse.down();
+  await phone.mouse.move(box.x + box.width / 2, box.y + 200, { steps: 5 });
+  await phone.mouse.up();
+  const h3 = await phone.locator('.stage-main').evaluate((e) => e.getBoundingClientRect().height);
+  if (!(h3 > h2 + 100)) throw new Error(`arrastar a divisória não aumentou o destaque (${h2} → ${h3})`);
+  const pip = await phone.getByRole('button', { name: 'Abrir em janela flutuante' }).count();
+  await phone.screenshot({ path: `${shots}/05b-destaque-redimensionado.png` });
+  // na grade: aumentar/diminuir
+  await phone.getByRole('button', { name: 'Tirar do destaque' }).click();
+  await phone.getByRole('button', { name: 'Aumentar transmissão' }).click();
+  await phone.locator('.tile.screen.enlarged').waitFor();
+  if (await pc.locator('.tile.enlarged').count()) throw new Error('ampliar mudou a tela de quem transmite');
+  await phone.screenshot({ path: `${shots}/05c-transmissao-ampliada.png` });
+  await phone.getByRole('button', { name: 'Diminuir transmissão' }).click();
+  await phone.locator('.tile.screen.enlarged').waitFor({ state: 'detached' });
+  await phone.setViewportSize({ width: 390, height: 844 });
+  step(`tamanho da transmissão só para quem assiste: aumentar/diminuir, divisória do destaque (${Math.round(h1)}→${Math.round(h2)}→${Math.round(h3)} px)${pip ? ', janela flutuante' : ''}`);
   await pc.screenshot({ path: `${shots}/06-pc-transmitindo.png` });
   step(`celular recebendo a tela: ${size} — ${stats}`);
 

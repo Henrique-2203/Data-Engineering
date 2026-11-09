@@ -14,6 +14,7 @@ import { HttpError, wrap } from './http.ts';
 import { storageUsage } from './access.ts';
 import { fileStore, r2Configured } from './storage.ts';
 import { isPlatformAdmin } from './reports.ts';
+import { emailEnabled, emailStatus, sendEmail } from './email.ts';
 import { limit } from './security.ts';
 import type { requireAuth } from './auth.ts';
 
@@ -344,9 +345,26 @@ export function registerSystemRoutes(r: Router, db: Db, auth: ReturnType<typeof 
         pendingDeletes: trash.n,
         filesStillInDatabase: Number(legacy.n),
         quotas: { userMb: config.userQuotaMb, guildMb: config.guildQuotaMb, dailyMb: config.userDailyMb, fileMb: config.maxFileMb },
+        email: emailStatus(),
       };
     }),
   );
+  // manda um e-mail de teste e mostra exatamente o que o provedor respondeu
+  r.post(
+    '/admin/email/test',
+    auth,
+    wrap(async (req) => {
+      requireTeam(req.user!.username);
+      limit(`email-test:${req.user!.id}`, 10, 60 * 60_000, 'Testes demais nesta hora.');
+      if (!emailEnabled()) throw new HttpError(400, 'Configure EMAIL_PROVIDER, EMAIL_API_KEY e EMAIL_FROM no Render.');
+      const to = typeof req.body?.to === 'string' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(req.body.to) ? req.body.to.trim() : null;
+      const [me] = await db.query<{ email: string | null }>('select email from users where id = $1', [req.user!.id]);
+      const target = to ?? me?.email ?? config.email.from;
+      const ok = await sendEmail({ to: target, subject: 'Teste de e-mail do Resenha', lines: ['Se você recebeu esta mensagem, os e-mails do Resenha estão funcionando. ✅'] });
+      return { ok, to: target, status: emailStatus() };
+    }),
+  );
+
   r.post(
     '/admin/backups/run',
     auth,

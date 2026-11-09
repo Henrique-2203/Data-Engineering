@@ -104,6 +104,42 @@ try {
   await win.getByText('Voz conectada').waitFor({ timeout: 15000 });
   await win.getByText('Segure T para falar').waitFor();
 
+  // ---- overlay no jogo ----
+  let ov;
+  for (let i = 0; i < 40 && !ov; i++) {
+    ov = app.windows().find((w) => w.url().includes('overlay.html'));
+    if (!ov) await sleep(250);
+  }
+  if (!ov) throw new Error('o overlay não abriu ao entrar na chamada');
+  await ov.locator('.p', { hasText: 'Ana' }).waitFor({ timeout: 8000 });
+  await ov.getByText('🎧 Sala de voz').waitFor();
+  const overlayWin = () =>
+    app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() === 'Resenha overlay');
+      return w && { visible: w.isVisible(), top: w.isAlwaysOnTop(), focusable: w.isFocusable(), x: w.getBounds().x };
+    });
+  const info = await overlayWin();
+  if (!info?.visible || !info.top || info.focusable) throw new Error(`overlay deveria estar visível, por cima e sem pegar foco: ${JSON.stringify(info)}`);
+  // soundboard: quem tocou aparece no overlay
+  await win.evaluate(() => window.resenhaDesktop.overlayEvent({ type: 'sound', id: 'x', name: 'Bia', sound: 'Bruh', emoji: '😂' }));
+  await ov.getByText('😂 Bia tocou "Bruh"').waitFor({ timeout: 3000 });
+  // mudar o canto da tela e "só quem fala"
+  await win.evaluate(() => window.resenhaDesktop.setSettings({ overlay: { position: 'top-right', onlySpeaking: true } }));
+  await sleep(300);
+  const moved = await overlayWin();
+  if (!(moved.x > info.x)) throw new Error('o overlay não mudou de canto');
+  if (await ov.locator('.p', { hasText: 'Ana' }).isVisible()) throw new Error('"só quem fala" ainda mostra quem está calado');
+  await win.evaluate(() => window.resenhaDesktop.setSettings({ overlay: { position: 'top-left', onlySpeaking: false } }));
+  await ov.locator('.p', { hasText: 'Ana' }).waitFor({ timeout: 3000 });
+  // Ctrl+Shift+O esconde e mostra (chama o mesmo toggle do atalho global)
+  const overlayPath = path.resolve('desktop/src/overlay.js');
+  const toggle = () => app.evaluate((_e, p) => process.mainModule.constructor._load(p).toggle(), overlayPath);
+  await toggle();
+  if ((await overlayWin()).visible) throw new Error('Ctrl+Shift+O não escondeu o overlay');
+  await toggle();
+  if (!(await overlayWin()).visible) throw new Error('Ctrl+Shift+O não mostrou o overlay de novo');
+  step('overlay no jogo: aparece ao entrar na chamada, por cima e sem roubar o foco; mostra quem tocou som; muda de canto; "só quem fala"; Ctrl+Shift+O');
+
   // ---- push-to-talk global ----
   // O Xvfb não repassa teclas sintéticas ao hook (XRecord), então injetamos o evento no próprio
   // hook dentro do processo do app. A partir daí tudo é real: mapa de teclas, filtro de teclas,
@@ -117,7 +153,11 @@ try {
   await hookEmit('keydown', key(UiohookKey.T));
   await hookEmit('keydown', key(UiohookKey.T)); // repetição automática do teclado: deve ser ignorada
   await win.getByText('Transmitindo…').waitFor({ timeout: 5000 });
+  // quem fala ganha o contorno verde no overlay
+  const spoke = await ov.locator('.p.speaking', { hasText: 'Ana' }).waitFor({ timeout: 4000 }).then(() => true, () => false);
   await hookEmit('keyup', key(UiohookKey.T));
+  if (spoke) step('overlay: quem está falando ganha o contorno verde');
+  else console.log('  (o microfone de teste não fez som suficiente para marcar "falando" no overlay)');
   await win.getByText('Segure T para falar').waitFor({ timeout: 5000 });
   step('push-to-talk global: segurar T abre o microfone, soltar fecha (com o site sem foco de teclado)');
 
@@ -143,7 +183,7 @@ try {
 
   // ---- seletor de tela do app ----
   await win.getByRole('button', { name: 'Transmitir tela' }).click();
-  const pickerPromise = app.waitForEvent('window', { predicate: (p) => !p.isClosed() });
+  const pickerPromise = app.waitForEvent('window', { predicate: (p) => !p.isClosed() && p.url().includes('picker') });
   await win.getByRole('button', { name: 'Escolher tela e transmitir' }).click();
   const picker = await pickerPromise;
   await picker.locator('.source').first().waitFor({ timeout: 15000 });
@@ -171,10 +211,10 @@ try {
   step('cancelar o seletor volta normalmente');
 
   // ---- fechar = continua na bandeja, e a chamada segue ----
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((x) => x.getTitle() !== 'Resenha overlay' && !x.webContents.getURL().includes('picker')).close());
   await sleep(500);
   const state = await app.evaluate(({ BrowserWindow }) => {
-    const w = BrowserWindow.getAllWindows()[0];
+    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() !== 'Resenha overlay' && !x.webContents.getURL().includes('picker'));
     return { exists: !!w, visible: w?.isVisible() };
   });
   if (!state.exists || state.visible) throw new Error(`esperava janela escondida, veio ${JSON.stringify(state)}`);

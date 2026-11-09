@@ -5020,3 +5020,90 @@ input.switch:disabled {
     flex-wrap: wrap;
   }
 }
+.email-card.bad {
+  border-color: var(--danger);
+}
+.email-card.good {
+  border-color: var(--accent);
+}
+.email-card p {
+  margin: 0;
+}
+.email-error {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.email-error code {
+  display: block;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--bg-0);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-2);
+}
+.email-test input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- tamanho das transmissões (só na tela de quem muda) ---------- */
+.tiles .tile.enlarged {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+.stage.focused .tiles {
+  flex: 1 1 0;
+  height: auto;
+  min-height: 72px;
+}
+.stage-resizer {
+  flex: 0 0 auto;
+  height: 12px;
+  margin: -6px 0;
+  display: grid;
+  place-items: center;
+  cursor: row-resize;
+  touch-action: none;
+  z-index: 2;
+  border-radius: 6px;
+}
+.stage-resizer span {
+  width: 56px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--line);
+  transition: background 0.15s, width 0.15s;
+}
+.stage-resizer:hover span,
+.stage-resizer:focus-visible span {
+  background: var(--accent);
+  width: 90px;
+}
+.stage-resizer:focus-visible {
+  outline: none;
+}
+.stage-resizer:focus-visible span {
+  height: 6px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+@media (max-width: 900px) {
+  .tiles .tile.enlarged {
+    grid-column: auto;
+    grid-row: auto;
+  }
+  .stage.focused .tiles {
+    flex: 0 0 auto;
+    height: 100px;
+  }
+}
+@media (max-width: 900px) {
+  .stage.focused .stage-main {
+    flex: 1 1 auto !important;
+  }
+  .stage-resizer {
+    display: none;
+  }
+}

@@ -30,4 +30,7 @@ contextBridge.exposeInMainWorld('resenhaDesktop', {
   /** jogo aberto agora ({ name } ou { name: null }) */
   onActivity: (cb) => listen('resenha:activity', cb),
   getActivity: () => ipcRenderer.invoke('resenha:get-activity'),
+  /** overlay no jogo (a partir do app 0.3.0) */
+  setOverlayState: (state) => ipcRenderer.send('resenha:overlay-state', state),
+  overlayEvent: (event) => ipcRenderer.send('resenha:overlay-event', event),
 });

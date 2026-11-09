@@ -31,6 +31,8 @@ export interface VoiceStore {
   speaking: Record<string, boolean>; // 'me' | socketId
   watching: Record<string, true>; // socketIds cujas telas estou assistindo
   focus: string | null; // id do bloco em destaque
+  /** blocos que você ampliou na grade (ocupam o dobro): só na sua tela */
+  bigTiles: Record<string, true>;
   audioBlocked: boolean;
   /** o servidor tem TURN configurado (necessário para 4G/5G) */
   hasTurn: boolean;
@@ -58,6 +60,7 @@ export const useVoice = create<VoiceStore>(() => ({
   speaking: {},
   watching: {},
   focus: null,
+  bigTiles: {},
   audioBlocked: false,
   hasTurn: true,
   pttActive: false,

@@ -43,6 +43,34 @@ ${m.warning ? `<tr><td style="padding:10px 26px"><div style="padding:12px 14px;b
   return { text, html };
 }
 
+// último resultado (aparece no Painel da equipe → Sistema, para descobrir rápido o que está errado)
+let lastError: { at: string; status: number; detail: string; hint: string } | null = null;
+let lastOkAt: string | null = null;
+export const emailStatus = () => ({
+  enabled: emailEnabled(),
+  provider: config.email.provider || null,
+  from: config.email.from || null,
+  lastOkAt,
+  lastError,
+});
+
+/** Traduz as recusas mais comuns do provedor em "o que fazer". */
+function explain(status: number, body: string): string {
+  const b = body.toLowerCase();
+  if (/ip address|unrecogni[sz]ed ip|authorised ip|authorized ip/.test(b)) {
+    return 'A Brevo bloqueou o endereço do servidor. Na Brevo: menu do seu nome → Security → Authorized IPs → desative "Block unknown IP addresses" (o Render muda de IP).';
+  }
+  if (/sender|from/.test(b) && /valid|verif|not.*(allowed|exist)/.test(b)) {
+    return `O remetente (EMAIL_FROM = ${config.email.from}) não está confirmado na Brevo. Em Senders, domains & IPs → Senders, confirme esse e-mail.`;
+  }
+  if (/not.*activated|permission_denied|account.*(suspended|blocked)/.test(b) || status === 403) {
+    return 'A conta da Brevo ainda não está liberada para enviar e-mails (contas novas às vezes passam por análise). Veja o aviso no painel da Brevo ou fale com o suporte deles.';
+  }
+  if (/key not found|invalid api key|api key/.test(b) || status === 401) return 'A chave da API (EMAIL_API_KEY) está errada ou foi apagada. Gere outra na Brevo em SMTP & API → API keys.';
+  if (status === 402 || /credit|quota|limit/.test(b)) return 'O limite de e-mails do plano grátis acabou por hoje (300/dia na Brevo).';
+  return 'Veja a mensagem do provedor acima.';
+}
+
 /** Envia (sem travar quem chamou se o provedor falhar: o erro vai para o log). */
 export async function sendEmail(m: Mail): Promise<boolean> {
   if (!emailEnabled()) return false;
@@ -50,7 +78,13 @@ export async function sendEmail(m: Mail): Promise<boolean> {
   const { provider, apiKey, from, fromName } = config.email;
   try {
     if (provider === 'file') {
+      if (process.env.EMAIL_FAIL_TEST) {
+        // só nos testes: simula uma recusa do provedor
+        lastError = { at: new Date().toISOString(), status: 401, detail: process.env.EMAIL_FAIL_TEST, hint: explain(401, process.env.EMAIL_FAIL_TEST) };
+        return false;
+      }
       appendFileSync(config.email.outbox, JSON.stringify({ to: m.to, subject: m.subject, text, code: m.code ?? null, at: new Date().toISOString() }) + '\n');
+      lastOkAt = new Date().toISOString();
       return true;
     }
     const res =
@@ -68,11 +102,16 @@ export async function sendEmail(m: Mail): Promise<boolean> {
             signal: AbortSignal.timeout(10_000),
           });
     if (!res.ok) {
-      console.warn(`[email] ${provider} recusou: ${res.status} ${(await res.text().catch(() => '')).slice(0, 200)}`);
+      const body = (await res.text().catch(() => '')).slice(0, 400);
+      lastError = { at: new Date().toISOString(), status: res.status, detail: body, hint: explain(res.status, body) };
+      console.warn(`[email] ${provider} recusou: ${res.status} ${body}`);
       return false;
     }
+    lastOkAt = new Date().toISOString();
+    lastError = null;
     return true;
   } catch (err) {
+    lastError = { at: new Date().toISOString(), status: 0, detail: (err as Error).message, hint: 'O servidor não conseguiu falar com o provedor de e-mail (rede). Tente de novo em alguns minutos.' };
     console.warn('[email] falha ao enviar', (err as Error).message);
     return false;
   }

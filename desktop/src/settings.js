@@ -7,6 +7,8 @@ const DEFAULTS = {
   closeToTray: true,
   openAtLogin: false,
   bounds: null,
+  /** overlay no jogo (quem está na chamada, quem fala, sons do soundboard) */
+  overlay: { enabled: true, position: 'top-left', onlySpeaking: false, opacity: 0.95 },
 };
 
 const file = () => path.join(app.getPath('userData'), 'settings.json');

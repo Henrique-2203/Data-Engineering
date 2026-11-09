@@ -22,6 +22,66 @@ interface System {
   pendingDeletes: number;
   filesStillInDatabase: number;
   quotas: { userMb: number; guildMb: number; dailyMb: number; fileMb: number };
+  email: EmailStatus;
+}
+interface EmailStatus {
+  enabled: boolean;
+  provider: string | null;
+  from: string | null;
+  lastOkAt: string | null;
+  lastError: { at: string; status: number; detail: string; hint: string } | null;
+}
+
+/** E-mails: está configurado? O último envio funcionou? Se não, o que o provedor disse e o que fazer. */
+function EmailCard({ initial }: { initial: EmailStatus }) {
+  const [st, setSt] = useState(initial);
+  const [to, setTo] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const err = st.lastError;
+  return (
+    <div className={`settings-card email-card${err ? ' bad' : st.lastOkAt ? ' good' : ''}`}>
+      <strong>✉️ E-mails {st.enabled ? `(${st.provider}, remetente ${st.from})` : '— desligados'}</strong>
+      {!st.enabled && <p className="muted small">Configure EMAIL_PROVIDER, EMAIL_API_KEY e EMAIL_FROM no Render (veja o README).</p>}
+      {st.enabled && !err && <p className="muted small">{st.lastOkAt ? `Último envio funcionou em ${when(st.lastOkAt)}.` : 'Nenhum e-mail enviado desde que o servidor ligou.'}</p>}
+      {err && (
+        <div className="email-error">
+          <p>
+            <strong>❌ O último envio falhou</strong> ({when(err.at)}, código {err.status || 'rede'}).
+          </p>
+          <p>
+            <strong>O que fazer:</strong> {err.hint}
+          </p>
+          <code>{err.detail || '(sem resposta)'}</code>
+        </div>
+      )}
+      {st.enabled && (
+        <div className="row gap-s email-test">
+          <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="enviar teste para (vazio = seu e-mail)" type="email" />
+          <button
+            className="btn small"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setResult(null);
+              try {
+                const r = await api<{ ok: boolean; to: string; status: EmailStatus }>('/admin/email/test', { body: { to: to || undefined } });
+                setSt(r.status);
+                setResult(r.ok ? `✅ Enviado para ${r.to}. Confira a caixa de entrada (e o spam).` : '❌ Não foi enviado: veja o motivo acima.');
+              } catch (e) {
+                setResult((e as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? 'Enviando…' : 'Enviar e-mail de teste'}
+          </button>
+        </div>
+      )}
+      {result && <p className="small">{result}</p>}
+    </div>
+  );
 }
 
 const when = (d: string) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -93,6 +153,8 @@ export function SystemPanel() {
           {sys.pendingDeletes > 0 && `${sys.pendingDeletes} arquivo(s) apagado(s) aguardando limpeza.`}
         </p>
       ) : null}
+
+      <EmailCard initial={sys.email} />
 
       <h4>Backups recentes</h4>
       {sys.backups.length === 0 && <p className="muted small">Nenhum backup ainda.</p>}

@@ -57,6 +57,7 @@ const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'
     TURNSTILE_VERIFY_URL: `http://localhost:${MOCK}/turnstile`,
     PWNED_API_URL: `http://localhost:${MOCK}/range/`,
     PRIVACY_CONTACT: 'privacidade@exemplo.com',
+    PLATFORM_ADMINS: 'ana',
   },
   stdio: ['ignore', 'ignore', 'pipe'],
 });
@@ -266,6 +267,14 @@ try {
   const dead = await call('/auth/reset', { body: { login: 'caio', code: fresh.code, password: 'Verde-Nova-Ceu-12' } });
   assert(dead.status === 400, `depois de 5 erros, nem o código certo vale (${dead.status})`);
   step('código do e-mail morre depois de 5 tentativas erradas');
+
+  // ---------- diagnóstico de e-mail (painel da equipe) ----------
+  const sysEmail = await call('/admin/system', { token: reset.token });
+  assert(sysEmail.email?.enabled && sysEmail.email.lastOkAt, 'painel mostra que os e-mails estão funcionando');
+  const test = await call('/admin/email/test', { body: { to: 'teste@exemplo.com' }, token: reset.token });
+  assert(test.ok && lastMail('teste@exemplo.com', 'Teste de e-mail'), 'e-mail de teste enviado');
+  assert((await call('/admin/email/test', { body: {}, token: biaLogin.token })).status === 404, 'só a equipe testa o e-mail');
+  step('Painel da equipe → Sistema: status dos e-mails e botão de e-mail de teste');
 
   // ---------- histórico ----------
   const events = await call('/me/security/events', { token: reset.token });

@@ -687,6 +687,7 @@ export function DesktopSettingsSection() {
               ? 'Modo de desenvolvimento (sem atualização automática).'
               : 'Você está na versão mais recente.';
   const set = async (patch: Partial<Pick<DesktopSettings, 'closeToTray' | 'openAtLogin'>>) => setDs(await desktop!.setSettings(patch));
+  const setOverlay = async (patch: Partial<NonNullable<DesktopSettings['overlay']>>) => setDs(await desktop!.setSettings({ overlay: patch }));
   return (
     <>
       <h3 className="subhead">App de desktop</h3>
@@ -703,6 +704,54 @@ export function DesktopSettingsSection() {
           <input type="checkbox" checked={shareActivity} onChange={(e) => updateSettings({ shareActivity: e.target.checked })} />
           Mostrar no meu perfil o jogo que estou jogando ("Jogando agora")
         </label>
+      </div>
+
+      <h3 className="subhead">Overlay no jogo</h3>
+      {ds.overlay ? (
+        <div className="form overlay-settings">
+          <p className="muted small">
+            Mostra num canto da tela, por cima do jogo, quem está na chamada, quem está falando (contorno verde) e quem tocou som do
+            soundboard. Esconda ou mostre durante a partida com <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd>.
+          </p>
+          <label className="check">
+            <input type="checkbox" checked={ds.overlay.enabled} onChange={(e) => void setOverlay({ enabled: e.target.checked })} />
+            Mostrar o overlay quando eu estiver em uma chamada
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={ds.overlay.onlySpeaking} onChange={(e) => void setOverlay({ onlySpeaking: e.target.checked })} />
+            Mostrar só quem está falando (mais discreto)
+          </label>
+          <label>
+            Canto da tela
+            <select value={ds.overlay.position} onChange={(e) => void setOverlay({ position: e.target.value as 'top-left' })}>
+              <option value="top-left">Superior esquerdo</option>
+              <option value="top-right">Superior direito</option>
+              <option value="bottom-left">Inferior esquerdo</option>
+              <option value="bottom-right">Inferior direito</option>
+            </select>
+          </label>
+          <label>
+            Transparência ({Math.round(ds.overlay.opacity * 100)}%)
+            <input
+              type="range"
+              min={0.3}
+              max={1}
+              step={0.05}
+              value={ds.overlay.opacity}
+              onChange={(e) => void setOverlay({ opacity: Number(e.target.value) })}
+              aria-label="Opacidade do overlay"
+            />
+          </label>
+          <p className="muted small">
+            Aparece por cima de jogos em <strong>janela</strong> ou <strong>tela cheia sem bordas</strong> (o padrão da maioria dos jogos). Em
+            "tela cheia exclusiva" o Windows não deixa nada aparecer por cima: troque nas opções de vídeo do jogo.
+          </p>
+        </div>
+      ) : (
+        <p className="muted small">Atualize o app (botão abaixo) para ganhar o overlay no jogo.</p>
+      )}
+
+      <div className="form">
         <div className="desktop-version">
           <span className="muted small">
             Resenha v{ds.version} · {status}
