@@ -84,6 +84,74 @@ export function bearer(req: Request): string | null {
   return h?.startsWith('Bearer ') ? h.slice(7) : null;
 }
 
+// ---------- sessão em cookie protegido ----------
+//
+// O site guarda o login num cookie HttpOnly: scripts da página NÃO conseguem lê-lo (nem um script
+// malicioso, se um dia algum entrar), Secure (só HTTPS) e SameSite=Lax (outros sites não conseguem
+// fazer ações em seu nome). Com HTTPS, usa o prefixo __Host-, que impede subdomínios de mexer nele.
+// O cabeçalho "Authorization: Bearer" continua aceito para clientes sem navegador (testes, scripts).
+
+const COOKIE_SECURE = '__Host-resenha_sid';
+const COOKIE_DEV = 'resenha_sid';
+
+export function readCookie(header: string | undefined, name: string): string | null {
+  if (!header) return null;
+  for (const part of header.split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0 && part.slice(0, i).trim() === name) return decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return null;
+}
+
+/** Token da sessão: do cabeçalho Bearer ou do cookie protegido. */
+export function tokenFromHeaders(headers: { authorization?: string; cookie?: string }): string | null {
+  const h = headers.authorization;
+  if (h?.startsWith('Bearer ')) return h.slice(7);
+  return readCookie(headers.cookie, COOKIE_SECURE) ?? readCookie(headers.cookie, COOKIE_DEV);
+}
+
+export function setSessionCookie(req: Request, res: Response, token: string) {
+  const secure = req.secure;
+  // 400 dias é o máximo que os navegadores aceitam; quem expira de verdade é o servidor (60 dias sem uso)
+  res.append('Set-Cookie', `${secure ? COOKIE_SECURE : COOKIE_DEV}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${400 * 86400}${secure ? '; Secure' : ''}`);
+}
+
+export function clearSessionCookie(req: Request, res: Response) {
+  for (const name of [COOKIE_SECURE, COOKIE_DEV]) {
+    res.append('Set-Cookie', `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${name === COOKIE_SECURE || req.secure ? '; Secure' : ''}`);
+  }
+}
+
+/**
+ * Cria a sessão e entrega no cookie. O token só volta no corpo da resposta para clientes sem navegador
+ * (que não mandam "Origin"); o site nunca o vê, então não fica guardado em lugar nenhum que um script leia.
+ */
+export async function issueSession(db: Db, req: Request, res: Response, userId: string): Promise<{ token?: string }> {
+  const token = await createSession(db, userId, req.headers['user-agent']);
+  setSessionCookie(req, res, token);
+  return req.headers.origin ? {} : { token };
+}
+
+/**
+ * Proteção contra "CSRF" (outro site tentando agir em seu nome): pedidos que mudam algo
+ * só são aceitos se vierem do próprio Resenha.
+ */
+export function sameOriginOnly(req: Request, res: Response, next: NextFunction) {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  if (req.headers['sec-fetch-site'] === 'cross-site') return res.status(403).json({ error: 'Pedido recusado (origem desconhecida).' });
+  const origin = req.headers.origin;
+  if (origin && origin !== 'null') {
+    try {
+      if (new URL(origin).host !== req.headers.host) return res.status(403).json({ error: 'Pedido recusado (origem desconhecida).' });
+    } catch {
+      return res.status(403).json({ error: 'Pedido recusado (origem desconhecida).' });
+    }
+  } else if (origin === 'null') {
+    return res.status(403).json({ error: 'Pedido recusado (origem desconhecida).' });
+  }
+  next();
+}
+
 declare global {
   namespace Express {
     interface Request {
@@ -97,7 +165,7 @@ declare global {
 export function requireAuth(db: Db) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const s = await sessionFromToken(db, bearer(req));
+      const s = await sessionFromToken(db, tokenFromHeaders(req.headers));
       if (!s) return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
       req.user = s.user;
       req.sessionHash = s.sessionHash;

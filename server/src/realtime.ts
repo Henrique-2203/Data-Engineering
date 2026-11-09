@@ -2,7 +2,7 @@ import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
 import { z } from 'zod';
 import { config } from './config.ts';
-import { sessionFromToken } from './auth.ts';
+import { sessionFromToken, tokenFromHeaders } from './auth.ts';
 import { canSee, channelAudience, isTimedOut, loadChannel, memberAccess } from './access.ts';
 import type { Db } from './db.ts';
 import { usableExpression } from './expressions.ts';
@@ -53,7 +53,8 @@ export class Realtime {
 
     this.io.use(async (socket, next) => {
       try {
-        const session = await sessionFromToken(db, socket.handshake.auth?.token);
+        // o site entra pelo cookie protegido; clientes sem navegador mandam o token
+        const session = await sessionFromToken(db, socket.handshake.auth?.token ?? tokenFromHeaders(socket.handshake.headers));
         if (!session) return next(new Error('unauthorized'));
         socket.data.user = session.user;
         socket.data.sessionHash = session.sessionHash;

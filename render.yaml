@@ -32,6 +32,18 @@ services:
         sync: false
       - key: R2_SECRET_ACCESS_KEY
         sync: false
+      # Captcha invisível da Cloudflare (Turnstile): cadastro, login suspeito e "esqueci a senha"
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      # E-mails de segurança (Brevo: 300/dia grátis). EMAIL_PROVIDER=brevo, EMAIL_FROM = remetente verificado
+      - key: EMAIL_PROVIDER
+        sync: false
+      - key: EMAIL_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
       # Chave dos backups criptografados (uma frase longa). GUARDE UMA CÓPIA fora do Render:
       # sem ela, nenhum backup pode ser aberto. Sem esta variável, não há backup.
       - key: BACKUP_KEY

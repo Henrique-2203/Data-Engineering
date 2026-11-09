@@ -1,19 +1,55 @@
-const TOKEN_KEY = 'resenha.token';
+/**
+ * Login: fica num cookie protegido (HttpOnly) que scripts da página não conseguem ler.
+ * O site só guarda um aviso "tem sessão" (sem nada secreto) para saber se mostra a tela de entrada.
+ *
+ * Versões antigas guardavam o token aqui no localStorage: ele é trocado pelo cookie na primeira
+ * abertura (migrateLegacySession) e apagado.
+ */
+const LEGACY_TOKEN_KEY = 'resenha.token';
+const HINT_KEY = 'resenha.session';
 
-export function getToken(): string | null {
+const read = (k: string) => {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem(k);
   } catch {
     return null;
   }
-}
-
-export function setToken(token: string | null) {
+};
+const write = (k: string, v: string | null) => {
   try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
+    if (v) localStorage.setItem(k, v);
+    else localStorage.removeItem(k);
   } catch {
     /* modo privado: segue sem persistir */
+  }
+};
+
+/** Token antigo (só existe até a migração para o cookie). */
+const legacyToken = () => read(LEGACY_TOKEN_KEY);
+
+/** Parece haver uma sessão (para decidir entre "Conectando…" e a tela de entrada). */
+export const hasSession = () => read(HINT_KEY) === '1' || !!legacyToken();
+export const markSession = (on: boolean) => {
+  write(HINT_KEY, on ? '1' : null);
+  if (!on) write(LEGACY_TOKEN_KEY, null);
+};
+
+/** Cabeçalhos de autenticação: vazio (o cookie vai sozinho), exceto durante a migração do token antigo. */
+export const authHeaders = (): Record<string, string> => {
+  const t = legacyToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
+/** Troca o token antigo do localStorage pelo cookie protegido, e apaga o antigo. */
+export async function migrateLegacySession() {
+  const t = legacyToken();
+  if (!t) return;
+  const res = await fetch('/api/auth/cookie', { method: 'POST', headers: { Authorization: `Bearer ${t}` } }).catch(() => null);
+  if (res?.ok) {
+    write(LEGACY_TOKEN_KEY, null);
+    write(HINT_KEY, '1');
+  } else if (res?.status === 401) {
+    markSession(false);
   }
 }
 
@@ -34,14 +70,13 @@ export const setUnauthorizedHandler = (fn: () => void) => {
 };
 
 export async function api<T = any>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
-  const token = getToken();
   let res: Response;
   try {
     res = await fetch(`/api${path}`, {
       method: opts.method ?? (opts.body ? 'POST' : 'GET'),
       headers: {
         ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...authHeaders(),
       },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
     });
@@ -50,7 +85,7 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 401 && token && !path.startsWith('/auth/')) onUnauthorized?.();
+    if (res.status === 401 && hasSession() && !path.startsWith('/auth/')) onUnauthorized?.();
     throw new ApiError(res.status, data.error ?? `Erro ${res.status}`, data);
   }
   return data as T;

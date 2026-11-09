@@ -164,6 +164,35 @@ BACKUP_KEY='sua frase' DATABASE_URL='postgres://...banco-novo...' npx tsx server
 
 (`--check` só confere se o backup abre, sem restaurar nada.)
 
+### 6. Captcha invisível (Cloudflare Turnstile, grátis)
+
+Barra robôs no cadastro, no "esqueci a senha" e no login depois de 3 senhas erradas, sem "clique nos semáforos".
+
+1. No painel da Cloudflare: **Application security → Turnstile → Add widget**.
+2. Nome `resenha`, em **Hostnames** adicione o endereço do site (ex.: `resenha-m2bt.onrender.com`), modo **Managed**.
+3. Copie a **Site Key** e a **Secret Key** para `TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY` no Render.
+
+### 7. E-mails de segurança (Brevo, 300 por dia grátis)
+
+Confirmação de e-mail, código para criar uma senha nova e alertas (aparelho novo, senha trocada, 2FA desligado...).
+
+1. Crie uma conta em <https://www.brevo.com> (plano Free).
+2. **Senders, domains & IPs → Senders → Add a sender** com o e-mail do Resenha (ex.: `resenha.brasilgames@gmail.com`) e confirme pelo e-mail que a Brevo manda.
+3. **SMTP & API → API keys → Generate a new API key**.
+4. No Render: `EMAIL_PROVIDER=brevo`, `EMAIL_API_KEY=` a chave e `EMAIL_FROM=` o remetente confirmado.
+
+> Com um remetente @gmail.com, alguns e-mails podem cair no spam. Com domínio próprio (ex.: `resenhabrasil.app.br`),
+> dá para autenticar o domínio na Brevo (ou usar `EMAIL_PROVIDER=resend`) e a entrega fica bem melhor.
+
+Sem e-mail configurado, tudo continua funcionando e a recuperação é feita com os códigos de recuperação.
+
+### Conta segura
+
+- Login guardado em cookie protegido (HttpOnly, Secure, SameSite=Lax): scripts da página não conseguem lê-lo.
+  Quem estava logado na versão antiga é migrado sozinho. Pedidos vindos de outros sites são recusados (CSRF).
+- Senhas que aparecem em vazamentos (Have I Been Pwned, por k-anonimato) são recusadas, e o login avisa se a senha atual vazou.
+- Configurações → Segurança: **checkup**, **e-mail**, **histórico de segurança** (180 dias) e aparelhos conectados.
+
 ### Arquivos e cotas
 
 - Fotos, vídeos, áudios e arquivos (PDF, zip...) em DMs e canais. Até 25 MB por arquivo com o R2 (8 MB sem ele) — `MAX_FILE_MB`.

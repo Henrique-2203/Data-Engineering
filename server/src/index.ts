@@ -7,6 +7,7 @@ import { createDb } from './db.ts';
 import { Realtime } from './realtime.ts';
 import { HttpError, createRoutes } from './routes.ts';
 import { securityHeaders } from './security.ts';
+import { sameOriginOnly } from './auth.ts';
 import { startStorageJobs } from './storage.ts';
 import { startBackups } from './backup.ts';
 
@@ -21,6 +22,7 @@ app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(securityHeaders);
 app.use(express.json({ limit: '100kb' }));
+app.use('/api', sameOriginOnly);
 app.use('/api', createRoutes(db, rt));
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Rota não encontrada.' });

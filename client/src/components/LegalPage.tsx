@@ -108,6 +108,14 @@ function Privacy({ contact }: { contact: ReactNode }) {
             <td>Mostrar onde sua conta está aberta e deixar você encerrar sessões</td>
           </tr>
           <tr>
+            <td>E-mail (opcional, só se você adicionar em Configurações → Segurança)</td>
+            <td>Avisar de acessos novos e mudanças de segurança e enviar o código para criar uma senha nova. Nunca para propaganda</td>
+          </tr>
+          <tr>
+            <td>Histórico de segurança: entradas na conta, trocas de senha, 2FA e e-mail, com o tipo de aparelho e a data (180 dias)</td>
+            <td>Mostrar para você o que aconteceu na sua conta e detectar acessos suspeitos</td>
+          </tr>
+          <tr>
             <td>Lista de espera (só se você se inscrever na página inicial): nome, e-mail, WhatsApp opcional, plataformas e como conheceu</td>
             <td>Mandar o seu convite e avisar das novidades do Resenha (com o seu consentimento)</td>
           </tr>
@@ -124,7 +132,11 @@ function Privacy({ contact }: { contact: ReactNode }) {
       <p>
         <strong>O que não guardamos:</strong> o conteúdo das chamadas (não gravamos voz, vídeo nem tela), sua lista de programas
         (o app de desktop só manda o nome do jogo reconhecido), sua localização, seus contatos do celular. Para criar a conta não pedimos CPF,
-        telefone nem e-mail (só a lista de espera pede um contato, se você quiser entrar nela).
+        telefone nem e-mail (o e-mail é opcional, para segurança; a lista de espera pede um contato se você quiser entrar nela).
+      </p>
+      <p>
+        <strong>Cookies:</strong> usamos um único cookie, essencial, que mantém você conectado. Ele é protegido (HttpOnly e Secure): nem
+        scripts da página conseguem lê-lo, e outros sites não conseguem usá-lo. Não usamos cookies de propaganda nem de rastreamento.
       </p>
       <p>
         <strong>Estatísticas sem rastreador:</strong> contamos só totais por dia (quantas visitas a página inicial teve e de onde vieram,
@@ -142,7 +154,16 @@ function Privacy({ contact }: { contact: ReactNode }) {
         <li>Toda a comunicação com o site é criptografada (HTTPS/TLS).</li>
         <li>Senhas com hash scrypt e sal aleatório; sessões guardadas só como hash e encerradas após 60 dias sem uso.</li>
         <li>Verificação em duas etapas opcional (app autenticador) e códigos de recuperação.</li>
-        <li>Proteção contra tentativas de senha em massa, spam e envio de arquivos disfarçados.</li>
+        <li>Proteção contra tentativas de senha em massa, spam e envio de arquivos disfarçados; verificação anti-robô quando algo parece suspeito.</li>
+        <li>Senhas que já apareceram em vazamentos de outros sites são recusadas, e avisamos se a sua aparecer em um vazamento novo.</li>
+        <li>
+          Alertas por e-mail de acesso em aparelho novo e de mudanças de segurança. Os e-mails do Resenha nunca pedem sua senha nem têm link
+          para entrar.
+        </li>
+        <li>
+          Para criar uma senha nova pelo e-mail, quem tem verificação em duas etapas precisa também do código do app: só o e-mail não basta
+          para tomar a conta.
+        </li>
         <li>
           Chamadas usam criptografia de ponta a ponta do próprio WebRTC (DTLS-SRTP). Quando a conexão direta não é possível (ex.: 4G), o
           áudio e o vídeo passam por um servidor de retransmissão (TURN) <em>ainda criptografados</em>: ele não consegue ouvir nem ver.
@@ -171,6 +192,17 @@ function Privacy({ contact }: { contact: ReactNode }) {
         </li>
         <li>
           <strong>Cloudflare R2</strong> (armazenamento de arquivos): guarda fotos, vídeos, arquivos e os backups criptografados.
+        </li>
+        <li>
+          <strong>Cloudflare Turnstile</strong> (verificação anti-robô): analisa sinais técnicos do navegador no cadastro e em tentativas
+          suspeitas de login, sem "clique nos semáforos".
+        </li>
+        <li>
+          <strong>Brevo</strong> (envio de e-mails): entrega os e-mails de segurança para quem adicionou um e-mail.
+        </li>
+        <li>
+          <strong>Have I Been Pwned</strong> (senhas vazadas): recebe só os 5 primeiros caracteres de um código gerado a partir da senha,
+          nunca a senha em si, para saber se ela já apareceu em vazamentos de outros sites.
         </li>
         <li>
           <strong>Metered</strong> (servidor TURN): retransmite chamadas criptografadas quando não dá para conectar direto.

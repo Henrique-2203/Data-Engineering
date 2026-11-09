@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { DmChannel, Friend, Guild, PublicUser } from '../../shared/types';
-import { api, getToken, setToken, setUnauthorizedHandler } from './lib/api';
+import { api, hasSession, markSession, migrateLegacySession, setUnauthorizedHandler } from './lib/api';
 import { connectSocket, disconnectSocket } from './lib/socket';
 import { goHome, openModal, selectGuild, setDms, setFriends, setGuilds, useApp } from './store/app';
 import { voice } from './voice/engine';
@@ -30,7 +30,7 @@ const pendingInvite = { code: takeInviteFromUrl() };
 const showLanding =
   !pendingInvite.code &&
   location.pathname === '/' &&
-  !getToken() &&
+  !hasSession() &&
   !isDesktop &&
   !window.matchMedia?.('(display-mode: standalone)').matches;
 if (location.pathname === '/entrar') history.replaceState(null, '', '/');
@@ -43,13 +43,13 @@ export function App() {
 
 function MainApp() {
   const me = useApp((s) => s.me);
-  const [booting, setBooting] = useState(!!getToken());
+  const [booting, setBooting] = useState(hasSession());
   const [bootError, setBootError] = useState<string | null>(null);
 
   const logout = useCallback(() => {
     voice.leave();
     disconnectSocket();
-    setToken(null);
+    markSession(false);
     useApp.setState({
       me: null,
       guilds: {},
@@ -66,7 +66,7 @@ function MainApp() {
     });
   }, []);
 
-  const start = useCallback(async (token: string) => {
+  const start = useCallback(async () => {
     const [data, dms, friends] = await Promise.all([
       api<{ user: PublicUser; guilds: Guild[]; isPlatformAdmin?: boolean }>('/bootstrap'),
       api<{ dms: DmChannel[] }>('/dms'),
@@ -87,7 +87,7 @@ function MainApp() {
     if (data.isPlatformAdmin) void api<{ open: number }>('/admin/reports/count').then((r) => useApp.setState({ openReports: r.open }), () => {});
     if (data.guilds[0]) selectGuild(data.guilds[0].id);
     else goHome();
-    connectSocket(token);
+    connectSocket();
     if (pendingInvite.code) {
       openModal({ kind: 'joinGuild', code: pendingInvite.code });
       pendingInvite.code = null;
@@ -98,13 +98,14 @@ function MainApp() {
     setUnauthorizedHandler(logout);
     const onUnauthorized = () => logout();
     window.addEventListener('resenha:unauthorized', onUnauthorized);
-    const token = getToken();
+    const had = hasSession();
     let cancelled = false;
     let retry: ReturnType<typeof setTimeout> | undefined;
     // Falha passageira (internet oscilando, servidor acordando) não pode virar "tela de login":
     // a sessão continua válida, então tenta de novo com espera crescente.
     const attempt = (n: number) => {
-      start(token!)
+      migrateLegacySession()
+        .then(() => start())
         .then(() => !cancelled && setBooting(false))
         .catch((err) => {
           if (cancelled) return;
@@ -117,7 +118,13 @@ function MainApp() {
           retry = setTimeout(() => attempt(n + 1), Math.min(1000 * 2 ** n, 10_000));
         });
     };
-    if (token) attempt(0);
+    if (had) attempt(0);
+    // sem o aviso local (ex.: dados do site limpos), mas o cookie de sessão pode continuar valendo
+    else
+      start().then(
+        () => !cancelled && markSession(true),
+        () => {},
+      );
     return () => {
       cancelled = true;
       clearTimeout(retry);
@@ -139,9 +146,9 @@ function MainApp() {
     return (
       <AuthScreen
         hasInvite={!!pendingInvite.code}
-        onAuthenticated={async (token) => {
-          setToken(token);
-          await start(token);
+        onAuthenticated={async () => {
+          markSession(true);
+          await start();
         }}
       />
     );

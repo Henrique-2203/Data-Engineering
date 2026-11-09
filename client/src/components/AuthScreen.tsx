@@ -2,16 +2,21 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { EyeOff, Lock, ShieldCheck } from 'lucide-react';
 import { ApiError, api } from '../lib/api';
 import { SOURCE_URL } from './LegalPage';
+import { Turnstile } from './Turnstile';
 
 interface Props {
   hasInvite: boolean;
-  onAuthenticated(token: string): Promise<void>;
+  onAuthenticated(): Promise<void>;
 }
 
-type Mode = 'login' | 'register' | 'recover';
+/** recover = código de recuperação guardado; forgot/reset = código enviado por e-mail */
+type Mode = 'login' | 'register' | 'recover' | 'forgot' | 'reset';
 
 /** Força da senha (só uma dica visual; quem decide é o servidor). */
-export function passwordStrength(pw: string): { score: 0 | 1 | 2 | 3; label: string } {
+export function passwordStrength(pw: string): {
+  score: 0 | 1 | 2 | 3;
+  label: string;
+} {
   if (!pw) return { score: 0, label: '' };
   let s = 0;
   if (pw.length >= 8) s++;
@@ -52,50 +57,121 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
   const [accept, setAccept] = useState(false);
   const [needsCode, setNeedsCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [siteKey, setSiteKey] = useState<string | null>(null);
+  const [emailOn, setEmailOn] = useState(false);
+  /** o servidor pediu o captcha (login depois de erros) */
+  const [needCaptcha, setNeedCaptcha] = useState(false);
+  const [captcha, setCaptcha] = useState('');
+  /** cada resposta do captcha vale uma vez: muda a chave para gerar outra */
+  const [captchaRound, setCaptchaRound] = useState(0);
+  const [emailCode, setEmailCode] = useState('');
 
   useEffect(() => {
-    api<{ registrationRequiresCode: boolean }>('/config')
-      .then((c) => setNeedsCode(c.registrationRequiresCode))
+    api<{
+      registrationRequiresCode: boolean;
+      turnstileSiteKey: string | null;
+      emailEnabled: boolean;
+    }>('/config')
+      .then((c) => {
+        setNeedsCode(c.registrationRequiresCode);
+        setSiteKey(c.turnstileSiteKey);
+        setEmailOn(c.emailEnabled);
+      })
       .catch(() => {});
   }, []);
 
   function switchMode(m: Mode) {
     setMode(m);
     setError(null);
+    setInfo(null);
     setNeeds2fa(false);
     setOtp('');
+    setCaptcha('');
+    setCaptchaRound((n) => n + 1);
   }
+
+  const showCaptcha = !!siteKey && (mode === 'register' || mode === 'forgot' || (mode === 'login' && needCaptcha));
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      let res: { token: string; codesLeft?: number };
+      let res: { codesLeft?: number; passwordLeaked?: boolean };
+      if (mode === 'forgot') {
+        const r = await api<{ message: string }>('/auth/forgot', {
+          body: { login: username, captcha: captcha || undefined },
+        });
+        setMode('reset');
+        setInfo(r.message);
+        setBusy(false);
+        return;
+      }
       if (mode === 'login') {
-        res = await api('/auth/login', { body: { username, password, ...(needs2fa ? { code: otp } : {}) } });
+        res = await api('/auth/login', {
+          body: {
+            username,
+            password,
+            captcha: captcha || undefined,
+            ...(needs2fa ? { code: otp } : {}),
+          },
+        });
       } else if (mode === 'register') {
         res = await api('/auth/register', {
-          body: { username, password, displayName: displayName || undefined, registrationCode: code || undefined, acceptTerms: accept },
+          body: {
+            username,
+            password,
+            displayName: displayName || undefined,
+            registrationCode: code || undefined,
+            acceptTerms: accept,
+            captcha: captcha || undefined,
+          },
+        });
+      } else if (mode === 'reset') {
+        res = await api('/auth/reset', {
+          body: {
+            login: username,
+            code: emailCode,
+            password,
+            ...(needs2fa ? { totp: otp } : {}),
+          },
         });
       } else {
-        res = await api('/auth/recover', { body: { username, code: recoveryCode, password } });
+        res = await api('/auth/recover', {
+          body: { username, code: recoveryCode, password },
+        });
         if (res.codesLeft !== undefined && res.codesLeft <= 2) {
           alert(`Senha trocada! Restam ${res.codesLeft} códigos de recuperação. Gere novos em Configurações → Segurança e privacidade.`);
         }
       }
-      await onAuthenticated(res.token);
+      if (res.passwordLeaked) {
+        alert(
+          '⚠️ Atenção: a senha que você usou apareceu em vazamentos de dados de OUTROS sites.\n\nCriminosos testam essas senhas em todo lugar. Troque agora em Configurações → Segurança e privacidade (e não repita senhas entre sites).',
+        );
+      }
+      await onAuthenticated();
     } catch (err) {
+      if (err instanceof ApiError && err.data.needCaptcha) setNeedCaptcha(true);
       if (err instanceof ApiError && err.data.need2fa) {
         setNeeds2fa(true);
         if (needs2fa) setError(err.message);
       } else setError((err as Error).message);
+      // a resposta do captcha já foi usada: gera outra
+      setCaptcha('');
+      setCaptchaRound((n) => n + 1);
       setBusy(false);
     }
   }
 
-  const title = mode === 'recover' ? 'Recuperar a conta' : null;
+  const title = mode === 'recover' || mode === 'forgot' || mode === 'reset' ? 'Recuperar a conta' : null;
+  const subtitle =
+    mode === 'recover'
+      ? 'Use um dos códigos de recuperação que você guardou para criar uma senha nova.'
+      : mode === 'forgot'
+        ? 'Digite seu usuário ou o e-mail confirmado na conta. Vamos enviar um código para o e-mail.'
+        : 'Digite o código que chegou no seu e-mail e escolha uma senha nova.';
   return (
     <div className="auth">
       <form className="auth-card" onSubmit={submit}>
@@ -105,13 +181,13 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
         </div>
         <p className="muted">
           {title
-            ? 'Use um dos códigos de recuperação que você guardou para criar uma senha nova.'
+            ? subtitle
             : hasInvite
               ? 'Você recebeu um convite! Crie sua conta ou entre para aceitar.'
               : 'Chat, voz e transmissão de tela em alta qualidade com os amigos.'}
         </p>
 
-        {mode !== 'recover' && (
+        {!title && (
           <div className="tabs" role="tablist">
             <button type="button" role="tab" aria-selected={mode === 'login'} onClick={() => switchMode('login')}>
               Entrar
@@ -122,7 +198,7 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
           </div>
         )}
 
-        {needs2fa && mode === 'login' ? (
+        {needs2fa && (mode === 'login' || mode === 'reset') ? (
           <label>
             Código de verificação
             <input
@@ -140,7 +216,7 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
         ) : (
           <>
             <label>
-              Usuário
+              {mode === 'forgot' || mode === 'reset' ? 'Usuário ou e-mail' : 'Usuário'}
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -149,9 +225,23 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
                 autoCorrect="off"
                 spellCheck={false}
                 required
-                placeholder="ex.: joao_silva"
+                placeholder={mode === 'forgot' || mode === 'reset' ? 'ex.: joao_silva ou joao@email.com' : 'ex.: joao_silva'}
               />
             </label>
+            {mode === 'reset' && (
+              <label>
+                Código do e-mail
+                <input
+                  value={emailCode}
+                  onChange={(e) => setEmailCode(e.target.value)}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  required
+                  placeholder="6 dígitos"
+                  maxLength={12}
+                />
+              </label>
+            )}
             {mode === 'register' && (
               <label>
                 Nome de exibição <span className="muted">(opcional)</span>
@@ -171,18 +261,20 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
                 />
               </label>
             )}
-            <label>
-              {mode === 'recover' ? 'Nova senha' : 'Senha'}
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                required
-                minLength={mode === 'login' ? undefined : 8}
-              />
-              {mode !== 'login' && <StrengthMeter password={password} />}
-            </label>
+            {mode !== 'forgot' && (
+              <label>
+                {mode === 'recover' || mode === 'reset' ? 'Nova senha' : 'Senha'}
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  required
+                  minLength={mode === 'login' ? undefined : 8}
+                />
+                {mode !== 'login' && <StrengthMeter password={password} />}
+              </label>
+            )}
             {mode === 'register' && needsCode && (
               <label>
                 Código de cadastro
@@ -208,16 +300,40 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
           </>
         )}
 
+        {showCaptcha && <Turnstile key={captchaRound} siteKey={siteKey!} onToken={setCaptcha} onError={setError} />}
+        {info && <p className="notice">{info}</p>}
         {error && <p className="error">{error}</p>}
-        <button className="btn primary block" disabled={busy || (mode === 'register' && !accept)}>
-          {busy ? 'Aguarde…' : mode === 'login' ? (needs2fa ? 'Confirmar' : 'Entrar') : mode === 'register' ? 'Criar conta' : 'Trocar senha e entrar'}
+        <button className="btn primary block" disabled={busy || (mode === 'register' && !accept) || (showCaptcha && !captcha)}>
+          {busy
+            ? 'Aguarde…'
+            : showCaptcha && !captcha
+              ? 'Verificando que você não é um robô…'
+              : mode === 'login'
+                ? needs2fa
+                  ? 'Confirmar'
+                  : 'Entrar'
+                : mode === 'register'
+                  ? 'Criar conta'
+                  : mode === 'forgot'
+                    ? 'Enviar código'
+                    : 'Trocar senha e entrar'}
         </button>
         {mode === 'login' && !needs2fa && (
-          <button type="button" className="link-btn auth-forgot" onClick={() => switchMode('recover')}>
+          <button type="button" className="link-btn auth-forgot" onClick={() => switchMode(emailOn ? 'forgot' : 'recover')}>
             Esqueci minha senha
           </button>
         )}
-        {(mode === 'recover' || needs2fa) && (
+        {(mode === 'forgot' || mode === 'reset') && (
+          <button type="button" className="link-btn auth-forgot" onClick={() => switchMode('recover')}>
+            Tenho um código de recuperação
+          </button>
+        )}
+        {mode === 'recover' && emailOn && (
+          <button type="button" className="link-btn auth-forgot" onClick={() => switchMode('forgot')}>
+            Receber um código por e-mail
+          </button>
+        )}
+        {(title || needs2fa) && (
           <button type="button" className="link-btn auth-forgot" onClick={() => switchMode('login')}>
             Voltar para o login
           </button>

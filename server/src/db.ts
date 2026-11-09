@@ -296,6 +296,32 @@ create table if not exists server_secrets (
   name text primary key,
   value text not null
 );
+-- v12: e-mail confirmado, códigos por e-mail e histórico de segurança da conta
+alter table users add column if not exists email text;
+alter table users add column if not exists email_verified_at timestamptz;
+alter table users add column if not exists password_checked_at timestamptz;
+alter table users add column if not exists password_leaked boolean not null default false;
+create unique index if not exists users_email_idx on users (lower(email)) where email is not null;
+create table if not exists email_codes (
+  id text primary key,
+  user_id text not null references users(id) on delete cascade,
+  purpose text not null,
+  email text not null,
+  code_hash text not null,
+  attempts integer not null default 0,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists email_codes_user_idx on email_codes(user_id, purpose);
+create table if not exists security_events (
+  id text primary key,
+  user_id text not null references users(id) on delete cascade,
+  type text not null,
+  device text,
+  detail text,
+  created_at timestamptz not null default now()
+);
+create index if not exists security_events_user_idx on security_events(user_id, created_at desc);
 create table if not exists backups (
   id text primary key,
   started_at timestamptz not null default now(),

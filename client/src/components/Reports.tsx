@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Flag, ShieldAlert, X } from 'lucide-react';
-import { api, getToken } from '../lib/api';
+import { api, authHeaders } from '../lib/api';
 import { StatsPanel } from './StatsPanel';
 import { SystemPanel } from './SystemPanel';
 import { closeModal, toast, useApp } from '../store/app';
@@ -343,7 +343,7 @@ function WaitlistAdmin() {
   useEffect(load, []);
 
   async function exportCsv() {
-    const res = await fetch('/api/admin/waitlist?format=csv', { headers: { Authorization: `Bearer ${getToken()}` } });
+    const res = await fetch('/api/admin/waitlist?format=csv', { headers: authHeaders() });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(await res.blob());
     a.download = 'resenha-lista-de-espera.csv';

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download, KeyRound, LogOut, MonitorSmartphone, ShieldCheck, Trash2 } from 'lucide-react';
-import { api, getToken } from '../lib/api';
+import { api, authHeaders } from '../lib/api';
 import { toast } from '../store/app';
 import { StrengthMeter } from './AuthScreen';
 
@@ -9,7 +9,39 @@ interface SecurityInfo {
   codesLeft: number;
   passwordChangedAt: string | null;
   createdAt: string;
+  email: string | null;
+  emailVerified: boolean;
+  emailEnabled: boolean;
+  passwordLeaked: boolean;
+  checkup: { key: 'password' | '2fa' | 'email' | 'recovery' | 'sessions'; ok: boolean; label: string }[];
 }
+interface SecurityEvent {
+  id: string;
+  type: string;
+  device: string | null;
+  detail: string | null;
+  createdAt: string;
+}
+
+/** Como cada evento aparece no histórico (⚠️ = vale conferir se foi você). */
+const EVENT_LABEL: Record<string, [string, string]> = {
+  register: ['🎉', 'Conta criada'],
+  login: ['🔓', 'Entrou na conta'],
+  login_new_device: ['🆕', 'Entrou de um aparelho novo'],
+  login_blocked: ['⚠️', 'Tentativas de entrar bloqueadas (muitas senhas erradas)'],
+  password_changed: ['🔑', 'Senha trocada'],
+  password_reset: ['🔑', 'Senha trocada com código do e-mail'],
+  recovery_used: ['🔑', 'Senha trocada com código de recuperação'],
+  password_leaked: ['⚠️', 'Senha encontrada em vazamentos de outros sites'],
+  '2fa_enabled': ['🛡️', 'Verificação em duas etapas ativada'],
+  '2fa_disabled': ['⚠️', 'Verificação em duas etapas desativada'],
+  recovery_codes: ['🧾', 'Novos códigos de recuperação gerados'],
+  email_verified: ['✉️', 'E-mail confirmado'],
+  email_removed: ['✉️', 'E-mail removido'],
+  session_ended: ['🚪', 'Aparelho desconectado'],
+  logout_others: ['🚪', 'Saiu de todos os outros aparelhos'],
+  data_export: ['📦', 'Baixou uma cópia dos dados'],
+};
 interface Session {
   id: string;
   device: string;
@@ -63,11 +95,14 @@ export function SecuritySettings({ onLogout }: { onLogout(): void }) {
   const [info, setInfo] = useState<SecurityInfo | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [codes, setCodes] = useState<string[] | null>(null);
-  const [panel, setPanel] = useState<'password' | '2fa' | 'disable2fa' | 'codes' | 'delete' | null>(null);
+  const [panel, setPanel] = useState<'password' | '2fa' | 'disable2fa' | 'codes' | 'delete' | 'email' | 'removeEmail' | null>(null);
+  const [events, setEvents] = useState<SecurityEvent[] | null>(null);
+  const [showEvents, setShowEvents] = useState(false);
 
   const load = () => {
     void api<SecurityInfo>('/me/security').then(setInfo, () => {});
     void api<{ sessions: Session[] }>('/me/sessions').then((r) => setSessions(r.sessions), () => {});
+    void api<{ events: SecurityEvent[] }>('/me/security/events').then((r) => setEvents(r.events), () => {});
   };
   useEffect(load, []);
 
@@ -93,7 +128,7 @@ export function SecuritySettings({ onLogout }: { onLogout(): void }) {
 
   async function exportData() {
     try {
-      const res = await fetch('/api/me/export', { headers: { Authorization: `Bearer ${getToken()}` } });
+      const res = await fetch('/api/me/export', { headers: authHeaders() });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Não foi possível baixar.');
       const blob = await res.blob();
       const a = document.createElement('a');
@@ -112,6 +147,8 @@ export function SecuritySettings({ onLogout }: { onLogout(): void }) {
       <h3 className="subhead">
         <ShieldCheck size={18} /> Segurança e privacidade
       </h3>
+
+      {info && <Checkup info={info} onFix={(k) => setPanel(k === 'password' ? 'password' : k === '2fa' ? '2fa' : k === 'email' ? 'email' : k === 'recovery' ? 'codes' : null)} />}
 
       {codes && (
         <CodesBox
@@ -133,6 +170,43 @@ export function SecuritySettings({ onLogout }: { onLogout(): void }) {
         </button>
       </div>
       {panel === 'password' && <ChangePassword onDone={() => (setPanel(null), load())} />}
+
+      {info?.emailEnabled && (
+        <>
+          <div className="sec-row">
+            <div>
+              <strong>E-mail</strong>
+              <p className="muted small">
+                {info.email && info.emailVerified
+                  ? `✅ ${info.email} · recebe alertas de segurança e códigos para recuperar a conta.`
+                  : 'Adicione um e-mail para receber alertas de acessos novos e recuperar a conta se esquecer a senha.'}
+              </p>
+            </div>
+            <div className="row gap-s">
+              {info.email && info.emailVerified && (
+                <button className="btn small ghost" onClick={() => setPanel(panel === 'removeEmail' ? null : 'removeEmail')}>
+                  Remover e-mail
+                </button>
+              )}
+              <button className={`btn small${info.email && info.emailVerified ? '' : ' primary'}`} onClick={() => setPanel(panel === 'email' ? null : 'email')}>
+                {info.email && info.emailVerified ? 'Trocar e-mail' : 'Adicionar e-mail'}
+              </button>
+            </div>
+          </div>
+          {panel === 'email' && <EmailSetup onDone={() => (setPanel(null), load())} />}
+          {panel === 'removeEmail' && (
+            <PasswordConfirm
+              label="Remover o e-mail (você para de receber alertas)"
+              onConfirm={async (password) => {
+                await api('/me/email/remove', { body: { password } });
+                toast('E-mail removido.');
+                setPanel(null);
+                load();
+              }}
+            />
+          )}
+        </>
+      )}
 
       <div className="sec-row">
         <div>
@@ -218,6 +292,41 @@ export function SecuritySettings({ onLogout }: { onLogout(): void }) {
           ))}
         </ul>
         <p className="muted small">Não reconhece algum aparelho? Desconecte e troque sua senha.</p>
+      </div>
+
+      <div className="sec-row column">
+        <div className="row spread">
+          <strong>Histórico de segurança</strong>
+          <button className="btn small ghost" onClick={() => setShowEvents((v) => !v)}>
+            {showEvents ? 'Esconder' : 'Ver histórico'}
+          </button>
+        </div>
+        {showEvents && (
+          <ul className="sec-events">
+            {(events ?? []).map((e) => {
+              const [icon, label] = EVENT_LABEL[e.type] ?? ['•', e.type];
+              return (
+                <li key={e.id} className={icon === '⚠️' ? 'warn' : ''}>
+                  <span className="sec-ev-icon" aria-hidden>
+                    {icon}
+                  </span>
+                  <span>
+                    <strong>{label}</strong>
+                    {e.detail && e.type !== 'logout_others' && <span className="muted"> · {e.detail}</span>}
+                    {e.type === 'logout_others' && <span className="muted"> · {e.detail} aparelho(s)</span>}
+                    <span className="muted small">
+                      {' '}
+                      · {new Date(e.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      {e.device && ` · ${e.device}`}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+            {events?.length === 0 && <li className="muted small">Nada registrado ainda.</li>}
+          </ul>
+        )}
+        <p className="muted small">Só você vê este histórico. Fica guardado por 180 dias.</p>
       </div>
 
       <div className="sec-row">
@@ -435,6 +544,115 @@ function DeleteAccount({ needs2fa, onDeleted }: { needs2fa: boolean; onDeleted()
       </label>
       <button className="btn small danger" disabled={busy || confirm !== 'EXCLUIR'}>
         Excluir minha conta para sempre
+      </button>
+    </form>
+  );
+}
+
+/** Checkup: quantos itens de proteção a conta já tem e o que falta (com atalho para resolver). */
+function Checkup({ info, onFix }: { info: SecurityInfo; onFix(key: SecurityInfo['checkup'][number]['key']): void }) {
+  const done = info.checkup.filter((c) => c.ok).length;
+  const total = info.checkup.length;
+  const pct = Math.round((done / total) * 100);
+  return (
+    <div className={`checkup${done === total ? ' all-good' : ''}`}>
+      <div className="row spread">
+        <strong>Checkup de segurança</strong>
+        <span className="checkup-score">
+          {done} de {total}
+        </span>
+      </div>
+      <div className="quota-bar" aria-hidden>
+        <div className={pct < 60 ? 'warn' : ''} style={{ width: `${pct}%` }} />
+      </div>
+      <ul>
+        {info.checkup.map((c) => (
+          <li key={c.key} className={c.ok ? 'ok' : 'todo'}>
+            <span aria-hidden>{c.ok ? '✅' : '⚠️'}</span>
+            <span>{c.label}</span>
+            {!c.ok && c.key !== 'sessions' && (
+              <button className="link-btn small" onClick={() => onFix(c.key)}>
+                Resolver
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {done === total && <p className="muted small">Sua conta está com todas as proteções. 💪</p>}
+    </div>
+  );
+}
+
+/** Adicionar/trocar o e-mail: senha + e-mail → código de 6 dígitos que chega no e-mail. */
+function EmailSetup({ onDone }: { onDone(): void }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await fn();
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (sentTo) {
+    return (
+      <form
+        className="sec-panel"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void run(async () => {
+            await api('/me/email/verify', { body: { code } });
+            toast('E-mail confirmado! ✉️');
+            onDone();
+          });
+        }}
+      >
+        <p className="small">
+          Enviamos um código para <strong>{sentTo}</strong>. Ele vale por 15 minutos (confira também o spam).
+        </p>
+        <label>
+          Código
+          <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={12} required autoFocus placeholder="6 dígitos" />
+        </label>
+        <div className="row gap-s">
+          <button className="btn small primary" disabled={busy}>
+            Confirmar e-mail
+          </button>
+          <button type="button" className="btn small ghost" onClick={() => setSentTo(null)}>
+            Voltar
+          </button>
+        </div>
+      </form>
+    );
+  }
+  return (
+    <form
+      className="sec-panel"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void run(async () => {
+          const r = await api<{ sentTo: string }>('/me/email', { body: { email, password } });
+          setSentTo(r.sentTo);
+        });
+      }}
+    >
+      <label>
+        E-mail
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" placeholder="voce@email.com" />
+      </label>
+      <label>
+        Sua senha do Resenha
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+      </label>
+      <p className="muted small">O e-mail só é usado para segurança da conta. Nada de propaganda, e ele não aparece para ninguém.</p>
+      <button className="btn small primary" disabled={busy}>
+        Enviar código
       </button>
     </form>
   );

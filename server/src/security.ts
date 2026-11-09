@@ -7,7 +7,11 @@ import { config } from './config.ts';
 import { r2Configured } from './storage.ts';
 import type { Realtime } from './realtime.ts';
 import { HttpError, parse, wrap } from './http.ts';
-import { SESSION_IDLE_DAYS, createSession, hashPassword, sha256, verifyPassword, type requireAuth } from './auth.ts';
+import { SESSION_IDLE_DAYS, deviceLabel, issueSession, sha256, verifyPassword, type requireAuth } from './auth.ts';
+import { EVENT_NAMES, alertUser, logEvent, recordLogin, requireSafePassword, setPassword } from './account.ts';
+import { emailEnabled } from './email.ts';
+
+const when = () => new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'long', timeStyle: 'short' });
 import { deleteFiles, guildFileIds } from './expressions.ts';
 
 /**
@@ -20,6 +24,8 @@ import { deleteFiles, guildFileIds } from './expressions.ts';
 
 /** vídeos e áudios dos anexos tocam direto do R2 (por link assinado que expira) */
 const R2_ORIGIN = r2Configured() ? new URL(config.r2.endpoint).origin : '';
+/** captcha invisível da Cloudflare (só quando configurado) */
+const TURNSTILE = config.turnstile.siteKey && config.turnstile.secret ? ' https://challenges.cloudflare.com' : '';
 
 export function securityHeaders(req: Request, res: Response, next: NextFunction) {
   const host = req.headers.host ?? '';
@@ -27,11 +33,12 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self'",
+      `script-src 'self'${TURNSTILE}`,
+      `frame-src ${TURNSTILE ? TURNSTILE.trim() : "'none'"}`,
       "style-src 'self' 'unsafe-inline'",
       `img-src 'self' data: blob: https:${R2_ORIGIN ? ` ${R2_ORIGIN}` : ''}`,
       `media-src 'self' blob: data:${R2_ORIGIN ? ` ${R2_ORIGIN}` : ''}`,
-      `connect-src 'self' wss://${host} ws://${host}`,
+      `connect-src 'self' wss://${host} ws://${host}${TURNSTILE}`,
       "font-src 'self' data:",
       "worker-src 'self' blob:",
       "manifest-src 'self'",
@@ -74,6 +81,11 @@ export const limited = (key: string, max: number) => {
   return !!b && b.reset > Date.now() && b.count >= max;
 };
 export const clearLimit = (key: string) => buckets.delete(key);
+/** Quantas tentativas já foram contadas na janela atual. */
+export const hits = (key: string) => {
+  const b = buckets.get(key);
+  return b && b.reset > Date.now() ? b.count : 0;
+};
 
 // ---------- senha ----------
 
@@ -216,13 +228,40 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
     '/me/security',
     auth,
     wrap(async (req) => {
-      const [u] = await db.query<{ totpEnabled: boolean; passwordChangedAt: string | null; createdAt: string; codesLeft: number }>(
+      const [u] = await db.query<{
+        totpEnabled: boolean;
+        passwordChangedAt: string | null;
+        createdAt: string;
+        codesLeft: number;
+        email: string | null;
+        emailVerified: boolean;
+        passwordLeaked: boolean;
+        passwordChecked: boolean;
+        staleSessions: number;
+      }>(
         `select totp_enabled as "totpEnabled", password_changed_at as "passwordChangedAt", created_at as "createdAt",
-           (select count(*)::int from recovery_codes c where c.user_id = u.id and c.used_at is null) as "codesLeft"
+           (select count(*)::int from recovery_codes c where c.user_id = u.id and c.used_at is null) as "codesLeft",
+           email, email_verified_at is not null as "emailVerified", password_leaked as "passwordLeaked",
+           password_checked_at is not null as "passwordChecked",
+           (select count(*)::int from sessions s where s.user_id = u.id and s.last_seen_at < now() - interval '30 days') as "staleSessions"
          from users u where id = $1`,
         [req.user!.id],
       );
-      return u;
+      // checkup de segurança: o que já está protegido e o que falta
+      const checkup = [
+        { key: 'password', ok: !u.passwordLeaked, label: u.passwordLeaked ? 'Sua senha apareceu em vazamentos de outros sites: troque agora' : 'Senha que não aparece em vazamentos conhecidos' },
+        { key: '2fa', ok: u.totpEnabled, label: u.totpEnabled ? 'Verificação em duas etapas ativada' : 'Ative a verificação em duas etapas' },
+        ...(emailEnabled()
+          ? [{ key: 'email', ok: !!u.email && u.emailVerified, label: u.email && u.emailVerified ? 'E-mail confirmado (alertas e recuperação)' : 'Confirme um e-mail (alertas e recuperação da conta)' }]
+          : []),
+        {
+          key: 'recovery',
+          ok: u.codesLeft >= 3,
+          label: u.codesLeft >= 3 ? 'Códigos de recuperação guardados' : 'Gere e guarde os códigos de recuperação (para nunca ficar trancado fora)',
+        },
+        { key: 'sessions', ok: u.staleSessions === 0, label: u.staleSessions ? `${u.staleSessions} aparelho(s) sem uso há mais de 30 dias ainda conectado(s)` : 'Nenhum aparelho esquecido conectado' },
+      ];
+      return { ...u, emailEnabled: emailEnabled(), checkup };
     }),
   );
 
@@ -255,10 +294,11 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
       const id = String(req.params.id);
       if (!/^[0-9a-f]{16}$/.test(id)) throw new HttpError(400, 'Sessão inválida.');
       const rows = await db.query<{ token_hash: string }>(
-        `delete from sessions where user_id = $1 and left(token_hash, 16) = $2 returning token_hash`,
+        `delete from sessions where user_id = $1 and left(token_hash, 16) = $2 returning token_hash, device`,
         [req.user!.id, id],
       );
       rt.endSessions(rows.map((r) => r.token_hash));
+      if (rows[0]) await logEvent(db, req.user!.id, 'session_ended', req, (rows[0] as { device?: string }).device ?? undefined);
     }),
   );
 
@@ -271,6 +311,7 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
         req.sessionHash,
       ]);
       rt.endSessions(rows.map((r) => r.token_hash));
+      if (rows.length) await logEvent(db, req.user!.id, 'logout_others', req, String(rows.length));
       return { ended: rows.length };
     }),
   );
@@ -282,13 +323,15 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
     wrap(async (req) => {
       const body = parse(z.object({ current: z.string(), next: z.string() }), req.body);
       const u = await confirmIdentity(req.user!.id, body.current);
-      requireStrongPassword(body.next, u.username);
-      await db.query('update users set password_hash = $2, password_changed_at = now() where id = $1', [req.user!.id, await hashPassword(body.next)]);
+      const checked = await requireSafePassword(body.next, u.username);
+      await setPassword(db, req.user!.id, body.next, checked);
       const rows = await db.query<{ token_hash: string }>('delete from sessions where user_id = $1 and token_hash <> $2 returning token_hash', [
         req.user!.id,
         req.sessionHash,
       ]);
       rt.endSessions(rows.map((r) => r.token_hash));
+      await logEvent(db, req.user!.id, 'password_changed', req);
+      await alertUser(db, req.user!.id, 'Sua senha foi trocada', [`A senha da sua conta foi trocada em ${when()} (${deviceLabel(req.headers['user-agent'])}). Os outros aparelhos foram desconectados.`]);
       return { endedOtherSessions: rows.length };
     }),
   );
@@ -299,7 +342,9 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
     auth,
     wrap(async (req) => {
       await confirmIdentity(req.user!.id, req.body?.password);
-      return { codes: await saveRecoveryCodes(db, req.user!.id) };
+      const codes = await saveRecoveryCodes(db, req.user!.id);
+      await logEvent(db, req.user!.id, 'recovery_codes', req);
+      return { codes };
     }),
   );
 
@@ -330,6 +375,8 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
       const step = checkTotp(u.totp_secret, code.replace(/\s/g, ''), 0);
       if (step === null) throw new HttpError(400, 'Código incorreto. Confira se o relógio do celular está certo e tente o código novo.');
       await db.query('update users set totp_enabled = true, totp_last_step = $2 where id = $1', [req.user!.id, step]);
+      await logEvent(db, req.user!.id, '2fa_enabled', req);
+      await alertUser(db, req.user!.id, 'Verificação em duas etapas ativada', [`A verificação em duas etapas foi ativada na sua conta em ${when()}. A partir de agora, entrar pede também o código do app autenticador.`]);
       // junto com o 2FA vêm códigos novos de recuperação (para não ficar trancado fora se perder o celular)
       return { codes: await saveRecoveryCodes(db, req.user!.id) };
     }),
@@ -341,13 +388,15 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
     wrap(async (req) => {
       await confirmIdentity(req.user!.id, req.body?.password, req.body?.code ?? '');
       await db.query('update users set totp_enabled = false, totp_secret = null, totp_last_step = 0 where id = $1', [req.user!.id]);
+      await logEvent(db, req.user!.id, '2fa_disabled', req);
+      await alertUser(db, req.user!.id, 'Verificação em duas etapas DESATIVADA', [`A verificação em duas etapas foi desativada na sua conta em ${when()} (${deviceLabel(req.headers['user-agent'])}).`]);
     }),
   );
 
   // "Esqueci minha senha": usuário + código de recuperação + senha nova
   r.post(
     '/auth/recover',
-    wrap(async (req) => {
+    wrap(async (req, res) => {
       limit(`recover:${req.ip}`, 6, 15 * 60_000);
       const body = parse(z.object({ username: z.string().trim().toLowerCase(), code: z.string().trim(), password: z.string() }), req.body);
       limit(`recover-user:${body.username}`, 6, 15 * 60_000);
@@ -355,12 +404,15 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
       if (u?.suspended_at) throw new HttpError(403, 'Esta conta está suspensa por violar os Termos de uso.');
       // mesma resposta para usuário inexistente e código errado (não revela quem tem conta)
       if (!u || !(await useRecoveryCode(db, u.id, body.code))) throw new HttpError(400, 'Usuário ou código de recuperação incorreto.');
-      requireStrongPassword(body.password, u.username);
-      await db.query('update users set password_hash = $2, password_changed_at = now() where id = $1', [u.id, await hashPassword(body.password)]);
+      const checked = await requireSafePassword(body.password, u.username);
+      await setPassword(db, u.id, body.password, checked);
       const ended = await db.query<{ token_hash: string }>('delete from sessions where user_id = $1 returning token_hash', [u.id]);
       rt.endSessions(ended.map((r) => r.token_hash));
       const [left] = await db.query<{ n: number }>('select count(*)::int as n from recovery_codes where user_id = $1 and used_at is null', [u.id]);
-      return { token: await createSession(db, u.id, req.headers['user-agent']), codesLeft: left.n };
+      await alertUser(db, u.id, 'Sua senha foi trocada', [`A senha da sua conta foi trocada usando um código de recuperação, em ${when()}. Todos os aparelhos foram desconectados.`]);
+      const session = await issueSession(db, req, res, u.id);
+      await recordLogin(db, req, u.id, 'recover');
+      return { ...session, codesLeft: left.n };
     }),
   );
 
@@ -414,6 +466,13 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
         files,
         sessions,
       };
+      await logEvent(db, id, 'data_export', req);
+      (data as Record<string, unknown>).securityHistory = (
+        await db.query<{ type: keyof typeof EVENT_NAMES; device: string | null; detail: string | null; at: string }>(
+          `select type, device, detail, created_at as "at" from security_events where user_id = $1 order by created_at`,
+          [id],
+        )
+      ).map((e) => ({ evento: EVENT_NAMES[e.type] ?? e.type, aparelho: e.device, detalhe: e.detail, quando: e.at }));
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="resenha-meus-dados-${profile.username}.json"`);
       res.end(JSON.stringify(data, null, 2));
@@ -428,6 +487,8 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
       const body = parse(z.object({ password: z.string(), code: z.string().optional(), confirm: z.literal('EXCLUIR', { message: 'Digite EXCLUIR para confirmar.' }) }), req.body);
       const id = req.user!.id;
       await confirmIdentity(id, body.password, body.code ?? '');
+      // avisa antes de apagar (depois o e-mail não existe mais aqui)
+      await alertUser(db, id, 'Sua conta foi excluída', [`A conta @${req.user!.username} e todos os dados dela foram excluídos do Resenha em ${when()}, a seu pedido.`], `Não foi você? Escreva para ${config.privacyContact} imediatamente.`);
       const owned = await db.query<{ id: string; icon_id: string | null; banner_id: string | null }>('select id, icon_id, banner_id from guilds where owner_id = $1', [id]);
       const memberOf = await db.query<{ guild_id: string; avatar_id: string | null }>('select guild_id, avatar_id from members where user_id = $1', [id]);
       const [u] = await db.query<{ avatar_id: string | null; banner_id: string | null }>('select avatar_id, banner_id from users where id = $1', [id]);

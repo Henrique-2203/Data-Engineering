@@ -8,13 +8,17 @@ import { getIceServers, hasTurn } from './ice.ts';
 import {
   USER_COLUMNS,
   userJson,
-  bearer,
-  createSession,
+  clearSessionCookie,
+  setSessionCookie,
   deleteSession,
   hashPassword,
+  issueSession,
   requireAuth,
+  tokenFromHeaders,
   verifyPassword,
 } from './auth.ts';
+import { alertUser, finishLogin, logEvent, recordLogin, registerAccountRoutes, requireHuman, requireSafePassword, turnstileEnabled, verifyHuman } from './account.ts';
+import { emailEnabled } from './email.ts';
 import type { Channel, Guild, Member, Message, PublicUser } from '../../shared/types.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { dmMemberIds, registerSocialRoutes } from './social.ts';
@@ -29,7 +33,7 @@ import { registerExpressionRoutes, usableExpression } from './expressions.ts';
 import { isPlatformAdmin, registerReportRoutes } from './reports.ts';
 import { registerWaitlistRoutes } from './waitlist.ts';
 import { bump, registerStatsRoutes } from './stats.ts';
-import { checkSecondFactor, clearLimit, limit, limited, registerSecurityRoutes, requireStrongPassword } from './security.ts';
+import { checkSecondFactor, clearLimit, hits, limit, limited, registerSecurityRoutes } from './security.ts';
 
 export { HttpError };
 
@@ -132,6 +136,8 @@ export function createRoutes(db: Db, rt: Realtime) {
 
   r.get('/config', (_req, res) => {
     res.json({
+      turnstileSiteKey: turnstileEnabled() ? config.turnstile.siteKey : null,
+      emailEnabled: emailEnabled(),
       registrationRequiresCode: !!config.registrationCode,
       privacyContact: config.privacyContact,
       maxFileMb: Math.floor(maxFileBytes() / 1024 / 1024),
@@ -141,7 +147,7 @@ export function createRoutes(db: Db, rt: Realtime) {
 
   r.post(
     '/auth/register',
-    wrap(async (req) => {
+    wrap(async (req, res) => {
       rateLimit(`reg:${req.ip}`, 10);
       const body = parse(
         z.object({
@@ -150,10 +156,12 @@ export function createRoutes(db: Db, rt: Realtime) {
           displayName: displayNameSchema.optional(),
           registrationCode: z.string().optional(),
           acceptTerms: z.boolean().optional(),
+          captcha: z.string().optional(),
         }),
         req.body,
       );
-      requireStrongPassword(body.password, body.username);
+      await requireHuman(req, body.captcha);
+      const checked = await requireSafePassword(body.password, body.username);
       if (config.registrationCode && body.registrationCode?.trim() !== config.registrationCode) {
         throw new HttpError(403, 'Código de convite para cadastro inválido.');
       }
@@ -166,12 +174,14 @@ export function createRoutes(db: Db, rt: Realtime) {
         avatarColor: randomColor(),
       };
       await db.query(
-        `insert into users (id, username, display_name, password_hash, avatar_color, terms_accepted_at)
-         values ($1, $2, $3, $4, $5, case when $6 then now() else null end)`,
-        [user.id, user.username, user.displayName, await hashPassword(body.password), user.avatarColor, !!body.acceptTerms],
+        `insert into users (id, username, display_name, password_hash, avatar_color, terms_accepted_at, password_checked_at)
+         values ($1, $2, $3, $4, $5, case when $6 then now() else null end, case when $7 then now() else null end)`,
+        [user.id, user.username, user.displayName, await hashPassword(body.password), user.avatarColor, !!body.acceptTerms, checked],
       );
       bump('signup');
-      return { token: await createSession(db, user.id, req.headers['user-agent']), user };
+      const session = await issueSession(db, req, res, user.id);
+      await recordLogin(db, req, user.id, 'register');
+      return { ...session, user };
     }),
   );
 
@@ -179,31 +189,45 @@ export function createRoutes(db: Db, rt: Realtime) {
     '/auth/login',
     wrap(async (req, res) => {
       rateLimit(`login:${req.ip}`);
-      const body = parse(z.object({ username: z.string().trim().toLowerCase().max(64), password: z.string().max(200), code: z.string().max(20).optional() }), req.body);
+      const body = parse(
+        z.object({ username: z.string().trim().toLowerCase().max(64), password: z.string().max(200), code: z.string().max(20).optional(), captcha: z.string().optional() }),
+        req.body,
+      );
       // força bruta numa conta específica (de vários IPs): trava a conta por 15 min após 8 erros
       const failKey = `login-fail:${body.username}`;
+      const ipFailKey = `login-fail-ip:${req.ip}`;
       if (limited(failKey, 8)) throw new HttpError(429, 'Muitas tentativas erradas nessa conta. Aguarde 15 minutos.');
+      // depois de 3 erros (na conta ou vindos do mesmo lugar), pede o captcha invisível
+      const suspicious = () => turnstileEnabled() && (hits(failKey) >= 3 || hits(ipFailKey) >= 3);
+      if (suspicious() && !(await verifyHuman(body.captcha, req.ip))) {
+        return res.status(401).json({ error: 'Confirme que você não é um robô.', needCaptcha: true });
+      }
+      const failed = async (userId: string | null, message: string, extra: object = {}) => {
+        limit(failKey, 1000, 15 * 60_000);
+        limit(ipFailKey, 1000, 15 * 60_000);
+        if (userId && hits(failKey) === 8) {
+          await logEvent(db, userId, 'login_blocked');
+          await alertUser(db, userId, 'Tentativas de entrar na sua conta', [
+            `Bloqueamos por 15 minutos as tentativas de entrar na sua conta, depois de 8 senhas ou códigos errados seguidos.`,
+          ], 'Se não foi você, sua conta continua protegida, mas é uma boa hora para trocar a senha e ativar a verificação em duas etapas.');
+        }
+        return res.status(401).json({ error: message, needCaptcha: suspicious(), ...extra });
+      };
       const [row] = await db.query<PublicUser & { password_hash: string; suspended_at: string | null; suspended_reason: string | null }>(
         `select ${USER_COLUMNS}, u.password_hash, u.suspended_at, u.suspended_reason from users u where u.username = $1`,
         [body.username],
       );
-      if (!row || !(await verifyPassword(body.password, row.password_hash))) {
-        limit(failKey, 1000, 15 * 60_000);
-        throw new HttpError(401, 'Usuário ou senha incorretos.');
-      }
+      if (!row || !(await verifyPassword(body.password, row.password_hash))) return failed(row?.id ?? null, 'Usuário ou senha incorretos.');
       if (row.suspended_at) {
         throw new HttpError(403, `Esta conta foi suspensa por violar os Termos de uso${row.suspended_reason ? ` (${row.suspended_reason})` : ''}. Se acha que foi um engano, escreva para ${config.privacyContact}.`);
       }
       // verificação em duas etapas (se a pessoa ativou)
       const second = await checkSecondFactor(db, row.id, body.code);
       if (second === 'missing') return res.status(401).json({ error: 'Digite o código do seu app autenticador.', need2fa: true });
-      if (second === 'wrong') {
-        limit(failKey, 1000, 15 * 60_000);
-        return res.status(401).json({ error: 'Código de verificação incorreto.', need2fa: true });
-      }
+      if (second === 'wrong') return failed(row.id, 'Código de verificação incorreto.', { need2fa: true });
       clearLimit(failKey);
       const { password_hash, suspended_at, suspended_reason, ...user } = row;
-      return { token: await createSession(db, user.id, req.headers['user-agent']), user };
+      return finishLogin(db, req, res, user, body.password);
     }),
   );
 
@@ -222,12 +246,25 @@ export function createRoutes(db: Db, rt: Realtime) {
 
   // ---------- autenticadas ----------
 
+  // migração: o site antigo guardava o token no localStorage; aqui ele vira cookie protegido (HttpOnly)
+  r.post(
+    '/auth/cookie',
+    auth,
+    wrap(async (req, res) => {
+      const token = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null;
+      if (!token) throw new HttpError(400, 'Nada para migrar.');
+      setSessionCookie(req, res, token);
+      return { ok: true };
+    }),
+  );
+
   r.post(
     '/auth/logout',
     auth,
-    wrap(async (req) => {
-      const token = bearer(req);
+    wrap(async (req, res) => {
+      const token = tokenFromHeaders(req.headers);
       if (token) await deleteSession(db, token);
+      clearSessionCookie(req, res);
     }),
   );
 
@@ -242,6 +279,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerProfileRoutes(r, db, rt, auth);
   registerExpressionRoutes(r, db, rt, auth);
   registerSecurityRoutes(r, db, rt, auth);
+  registerAccountRoutes(r, db, rt, auth);
   registerReportRoutes(r, db, rt, auth);
   registerWaitlistRoutes(r, db, rt, auth);
   registerStatsRoutes(r, db, auth);

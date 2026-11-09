@@ -31,6 +31,7 @@
     "test:e2e:security": "node e2e/security.mjs",
     "test:e2e:reports": "node e2e/reports.mjs",
     "test:e2e:landing": "node e2e/landing.mjs",
+    "test:e2e:account": "node e2e/account.mjs",
     "test:e2e:files": "node --import tsx e2e/files-unit.ts && node e2e/files.mjs",
     "test:e2e:files:r2": "node e2e/files.mjs --r2 && node e2e/files-migrate.mjs"
   },

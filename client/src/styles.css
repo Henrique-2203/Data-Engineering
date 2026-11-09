@@ -4667,3 +4667,69 @@ input.switch:disabled {
 .pending.file.error {
   outline: 1px solid var(--danger);
 }
+
+/* ---------- checkup e histórico de segurança ---------- */
+.checkup {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--warn);
+}
+.checkup.all-good {
+  border-color: var(--accent);
+}
+.checkup-score {
+  font-weight: 800;
+  color: var(--accent);
+}
+.checkup ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.checkup li {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: start;
+  gap: 6px;
+}
+.checkup li.ok {
+  color: var(--text-2);
+}
+.sec-events {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.sec-events li {
+  display: flex;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--bg-2);
+  font-size: 13px;
+}
+.sec-events li.warn {
+  outline: 1px solid var(--warn);
+}
+.sec-ev-icon {
+  flex-shrink: 0;
+}
+.turnstile:empty {
+  display: none;
+}
+.turnstile {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0;
+}

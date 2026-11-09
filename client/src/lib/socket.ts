@@ -36,9 +36,10 @@ export function onSocketReady(fn: (s: Socket) => void) {
 
 const set = useApp.setState;
 
-export function connectSocket(token: string) {
+/** Conecta o tempo real (a sessão vai no cookie protegido, junto com a conexão). */
+export function connectSocket() {
   disconnectSocket();
-  const s = io({ auth: { token }, transports: ['websocket', 'polling'] });
+  const s = io({ transports: ['websocket', 'polling'] });
   socket = s;
 
   s.on('connect', () => set({ connected: true }));

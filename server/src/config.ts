@@ -41,6 +41,23 @@ export const config = {
   storageLimitGb: Number(process.env.STORAGE_LIMIT_GB ?? 9.5),
   /** chave para criptografar os backups (guarde uma cópia fora do Render!). Sem ela, não há backup. */
   backupKey: process.env.BACKUP_KEY || '',
+  /** e-mails de segurança (veja server/src/email.ts) */
+  email: {
+    provider: (process.env.EMAIL_PROVIDER || '').toLowerCase() as '' | 'brevo' | 'resend' | 'file',
+    apiKey: process.env.EMAIL_API_KEY || '',
+    from: process.env.EMAIL_FROM || '',
+    fromName: process.env.EMAIL_FROM_NAME || 'Resenha',
+    outbox: process.env.EMAIL_OUTBOX || './data/outbox.jsonl',
+  },
+  /** Cloudflare Turnstile: captcha invisível contra robôs no cadastro, login suspeito e recuperação de senha */
+  turnstile: {
+    siteKey: process.env.TURNSTILE_SITE_KEY || '',
+    secret: process.env.TURNSTILE_SECRET_KEY || '',
+    verifyUrl: process.env.TURNSTILE_VERIFY_URL || 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+  },
+  /** recusa senhas que já apareceram em vazamentos (Have I Been Pwned, sem enviar a senha: k-anonimato) */
+  pwnedCheck: process.env.PWNED_CHECK !== 'off',
+  pwnedApiUrl: process.env.PWNED_API_URL || 'https://api.pwnedpasswords.com/range/',
   /** quantos dias de backup manter */
   backupKeepDays: Number(process.env.BACKUP_KEEP_DAYS ?? 30),
   turn: {

@@ -1,5 +1,5 @@
 import type { Attachment } from '../../../shared/types';
-import { ApiError, getToken } from './api';
+import { ApiError, authHeaders } from './api';
 
 const MAX_DIMENSION = 2560;
 /** Abaixo disso (e já em tamanho razoável) a imagem vai como está. */
@@ -95,7 +95,7 @@ export async function uploadAttachment(file: File, channelId: string, onProgress
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `/api/attachments?channelId=${encodeURIComponent(channelId)}`);
-    xhr.setRequestHeader('Authorization', `Bearer ${getToken()}`);
+    for (const [k, v] of Object.entries(authHeaders())) xhr.setRequestHeader(k, v);
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
     xhr.setRequestHeader('X-Filename', encodeURIComponent(name));
     if (dims) {
@@ -123,7 +123,7 @@ const refreshed = new Map<string, string>();
 export const refreshedUrl = (id: string) => refreshed.get(id);
 export async function refreshAttachmentUrl(id: string): Promise<string | null> {
   try {
-    const res = await fetch(`/api/attachments/${id}/link`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` } });
+    const res = await fetch(`/api/attachments/${id}/link`, { method: 'POST', headers: authHeaders() });
     if (!res.ok) return null;
     const { url } = (await res.json()) as { url: string };
     refreshed.set(id, url);
@@ -165,7 +165,7 @@ export async function uploadGuildImage(guildId: string, kind: 'icon' | 'banner',
   const blob = kind === 'icon' ? await prepareCover(file, 256, 256) : await prepareCover(file, 960, 400);
   const res = await fetch(`/api/guilds/${guildId}/${kind}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': blob.type },
+    headers: { ...authHeaders(), 'Content-Type': blob.type },
     body: blob,
   }).catch(() => {
     throw new ApiError(0, 'Sem conexão com o servidor.');
@@ -189,7 +189,7 @@ export async function uploadProfileImage(kind: 'avatar' | 'banner', file: File) 
   }
   const res = await fetch(`/api/me/${kind}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': blob.type || 'application/octet-stream' },
+    headers: { ...authHeaders(), 'Content-Type': blob.type || 'application/octet-stream' },
     body: blob,
   }).catch(() => {
     throw new ApiError(0, 'Sem conexão com o servidor.');
@@ -287,7 +287,7 @@ export async function uploadExpression(guildId: string, kind: 'emoji' | 'sticker
   const qs = new URLSearchParams({ kind, name, ...(emoji ? { emoji } : {}) });
   const res = await fetch(`/api/guilds/${guildId}/expressions?${qs}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': blob.type || 'application/octet-stream' },
+    headers: { ...authHeaders(), 'Content-Type': blob.type || 'application/octet-stream' },
     body: blob,
   }).catch(() => {
     throw new ApiError(0, 'Sem conexão com o servidor.');
@@ -306,7 +306,7 @@ export async function uploadGuildAvatar(guildId: string, file: File) {
   } else blob = await prepareCover(file, 256, 256);
   const res = await fetch(`/api/guilds/${guildId}/members/@me/avatar`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': blob.type || 'application/octet-stream' },
+    headers: { ...authHeaders(), 'Content-Type': blob.type || 'application/octet-stream' },
     body: blob,
   }).catch(() => {
     throw new ApiError(0, 'Sem conexão com o servidor.');
