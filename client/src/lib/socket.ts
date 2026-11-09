@@ -17,6 +17,7 @@ import {
   updateMessage,
   updateUserEverywhere,
   useApp,
+  toast,
 } from '../store/app';
 import { useVoice } from '../store/voice';
 import { onIncomingMessage } from './notify';
@@ -152,6 +153,12 @@ export function connectSocket(token: string) {
       },
     })),
   );
+
+  // a sessão foi encerrada em outro aparelho (ou a senha foi trocada)
+  s.on('session:ended', () => {
+    toast('Você foi desconectado deste aparelho.');
+    window.dispatchEvent(new Event('resenha:unauthorized'));
+  });
 
   s.on('connect_error', (err) => {
     if (err.message === 'unauthorized') window.dispatchEvent(new Event('resenha:unauthorized'));

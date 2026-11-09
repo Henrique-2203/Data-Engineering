@@ -20,11 +20,22 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return timingSafeEqual(actual, expected);
 }
 
-const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+export const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
-export async function createSession(db: Db, userId: string): Promise<string> {
+/** Sessão sem uso por mais que isso deixa de valer (precisa entrar de novo). */
+export const SESSION_IDLE_DAYS = 60;
+
+/** "Chrome no Windows", "App Resenha no Windows", "Safari no iPhone"... (só para a lista de aparelhos) */
+export function deviceLabel(ua: string | undefined): string {
+  const u = ua ?? '';
+  const os = /iPhone|iPad/.test(u) ? (/iPad/.test(u) ? 'iPad' : 'iPhone') : /Android/.test(u) ? 'Android' : /Windows/.test(u) ? 'Windows' : /Mac OS X|Macintosh/.test(u) ? 'Mac' : /Linux/.test(u) ? 'Linux' : '';
+  const app = /Electron|Resenha\//.test(u) ? 'App Resenha' : /Edg\//.test(u) ? 'Edge' : /OPR\/|Opera/.test(u) ? 'Opera' : /Firefox\//.test(u) ? 'Firefox' : /Chrome\//.test(u) ? 'Chrome' : /Safari\//.test(u) ? 'Safari' : u ? 'Navegador' : 'Aparelho';
+  return os ? `${app} no ${os}` : app;
+}
+
+export async function createSession(db: Db, userId: string, userAgent?: string): Promise<string> {
   const token = randomBytes(32).toString('base64url');
-  await db.query('insert into sessions (token_hash, user_id) values ($1, $2)', [sha256(token), userId]);
+  await db.query('insert into sessions (token_hash, user_id, device) values ($1, $2, $3)', [sha256(token), userId, deviceLabel(userAgent)]);
   return token;
 }
 
@@ -47,12 +58,23 @@ export const userJson = (t: string) =>
     'avatarColor', ${t}.avatar_color, 'avatarId', ${t}.avatar_id, 'status', ${STATUS_JSON(t)})`;
 
 export async function userFromToken(db: Db, token: unknown): Promise<PublicUser | null> {
-  if (typeof token !== 'string' || !token) return null;
-  const rows = await db.query<PublicUser>(
-    `select ${USER_COLUMNS} from sessions s join users u on u.id = s.user_id where s.token_hash = $1`,
-    [sha256(token)],
+  return (await sessionFromToken(db, token))?.user ?? null;
+}
+
+/** Usuário + sessão (expira depois de SESSION_IDLE_DAYS sem uso; o último acesso é anotado a cada 10 min). */
+export async function sessionFromToken(db: Db, token: unknown): Promise<{ user: PublicUser; sessionHash: string } | null> {
+  if (typeof token !== 'string' || !token || token.length > 200) return null;
+  const hash = sha256(token);
+  const rows = await db.query<PublicUser & { stale: boolean }>(
+    `select ${USER_COLUMNS}, s.last_seen_at < now() - interval '10 minutes' as stale
+     from sessions s join users u on u.id = s.user_id
+     where s.token_hash = $1 and s.last_seen_at > now() - interval '${SESSION_IDLE_DAYS} days'`,
+    [hash],
   );
-  return rows[0] ?? null;
+  if (!rows[0]) return null;
+  const { stale, ...user } = rows[0];
+  if (stale) void db.query('update sessions set last_seen_at = now() where token_hash = $1', [hash]).catch(() => {});
+  return { user, sessionHash: hash };
 }
 
 export function bearer(req: Request): string | null {
@@ -64,6 +86,8 @@ declare global {
   namespace Express {
     interface Request {
       user?: PublicUser;
+      /** hash do token da sessão atual (para "sair dos outros aparelhos") */
+      sessionHash?: string;
     }
   }
 }
@@ -71,9 +95,10 @@ declare global {
 export function requireAuth(db: Db) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = await userFromToken(db, bearer(req));
-      if (!user) return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
-      req.user = user;
+      const s = await sessionFromToken(db, bearer(req));
+      if (!s) return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
+      req.user = s.user;
+      req.sessionHash = s.sessionHash;
       next();
     } catch (err) {
       next(err);

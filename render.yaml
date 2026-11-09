@@ -17,6 +17,9 @@ services:
       # Código exigido para criar conta (deixe só seus amigos entrarem).
       - key: REGISTRATION_CODE
         sync: false
+      # E-mail de contato de privacidade (LGPD), mostrado na Política de Privacidade.
+      - key: PRIVACY_CONTACT
+        sync: false
       # TURN (opcional, ajuda conexões pelo 4G/5G e provedores com CGNAT)
       # Metered: grátis e sem cartão (https://www.metered.ca/stun-turn)
       - key: METERED_TURN_DOMAIN

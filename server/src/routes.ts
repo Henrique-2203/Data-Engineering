@@ -25,6 +25,7 @@ import { Perm, has } from '../../shared/permissions.ts';
 import { siteVersion } from './version.ts';
 import { registerProfileRoutes } from './profile.ts';
 import { registerExpressionRoutes, usableExpression } from './expressions.ts';
+import { checkSecondFactor, clearLimit, limit, limited, registerSecurityRoutes, requireStrongPassword } from './security.ts';
 
 export { HttpError };
 
@@ -37,7 +38,6 @@ const usernameSchema = z
   .trim()
   .toLowerCase()
   .regex(/^[a-z0-9_.]{3,24}$/, 'O usuário deve ter 3 a 24 caracteres: letras, números, _ ou .');
-const passwordSchema = z.string().min(6, 'A senha precisa de pelo menos 6 caracteres.').max(200);
 const displayNameSchema = z.string().trim().min(1, 'Informe um nome.').max(32, 'Nome muito longo.');
 const channelNameSchema = z
   .string()
@@ -45,17 +45,7 @@ const channelNameSchema = z
   .min(1, 'Informe o nome do canal.')
   .max(40, 'Nome muito longo.');
 
-// Limite simples de tentativas de login por IP (proteção contra força bruta).
-const attempts = new Map<string, { count: number; reset: number }>();
-function rateLimit(key: string, max = 10, windowMs = 60_000) {
-  const now = Date.now();
-  const entry = attempts.get(key);
-  if (!entry || entry.reset < now) {
-    attempts.set(key, { count: 1, reset: now + windowMs });
-    return;
-  }
-  if (++entry.count > max) throw new HttpError(429, 'Muitas tentativas. Aguarde um minuto.');
-}
+const rateLimit = (key: string, max = 10, windowMs = 60_000) => limit(key, max, windowMs, 'Muitas tentativas. Aguarde um minuto.');
 
 export function createRoutes(db: Db, rt: Realtime) {
   const r = Router();
@@ -137,22 +127,24 @@ export function createRoutes(db: Db, rt: Realtime) {
   });
 
   r.get('/config', (_req, res) => {
-    res.json({ registrationRequiresCode: !!config.registrationCode });
+    res.json({ registrationRequiresCode: !!config.registrationCode, privacyContact: config.privacyContact });
   });
 
   r.post(
     '/auth/register',
     wrap(async (req) => {
-      rateLimit(`reg:${req.ip}`, 5);
+      rateLimit(`reg:${req.ip}`, 10);
       const body = parse(
         z.object({
           username: usernameSchema,
-          password: passwordSchema,
+          password: z.string().max(200),
           displayName: displayNameSchema.optional(),
           registrationCode: z.string().optional(),
+          acceptTerms: z.boolean().optional(),
         }),
         req.body,
       );
+      requireStrongPassword(body.password, body.username);
       if (config.registrationCode && body.registrationCode?.trim() !== config.registrationCode) {
         throw new HttpError(403, 'Código de convite para cadastro inválido.');
       }
@@ -165,27 +157,40 @@ export function createRoutes(db: Db, rt: Realtime) {
         avatarColor: randomColor(),
       };
       await db.query(
-        `insert into users (id, username, display_name, password_hash, avatar_color) values ($1, $2, $3, $4, $5)`,
-        [user.id, user.username, user.displayName, await hashPassword(body.password), user.avatarColor],
+        `insert into users (id, username, display_name, password_hash, avatar_color, terms_accepted_at)
+         values ($1, $2, $3, $4, $5, case when $6 then now() else null end)`,
+        [user.id, user.username, user.displayName, await hashPassword(body.password), user.avatarColor, !!body.acceptTerms],
       );
-      return { token: await createSession(db, user.id), user };
+      return { token: await createSession(db, user.id, req.headers['user-agent']), user };
     }),
   );
 
   r.post(
     '/auth/login',
-    wrap(async (req) => {
+    wrap(async (req, res) => {
       rateLimit(`login:${req.ip}`);
-      const body = parse(z.object({ username: z.string().trim().toLowerCase(), password: z.string() }), req.body);
+      const body = parse(z.object({ username: z.string().trim().toLowerCase().max(64), password: z.string().max(200), code: z.string().max(20).optional() }), req.body);
+      // força bruta numa conta específica (de vários IPs): trava a conta por 15 min após 8 erros
+      const failKey = `login-fail:${body.username}`;
+      if (limited(failKey, 8)) throw new HttpError(429, 'Muitas tentativas erradas nessa conta. Aguarde 15 minutos.');
       const [row] = await db.query<PublicUser & { password_hash: string }>(
         `select ${USER_COLUMNS}, u.password_hash from users u where u.username = $1`,
         [body.username],
       );
       if (!row || !(await verifyPassword(body.password, row.password_hash))) {
+        limit(failKey, 1000, 15 * 60_000);
         throw new HttpError(401, 'Usuário ou senha incorretos.');
       }
+      // verificação em duas etapas (se a pessoa ativou)
+      const second = await checkSecondFactor(db, row.id, body.code);
+      if (second === 'missing') return res.status(401).json({ error: 'Digite o código do seu app autenticador.', need2fa: true });
+      if (second === 'wrong') {
+        limit(failKey, 1000, 15 * 60_000);
+        return res.status(401).json({ error: 'Código de verificação incorreto.', need2fa: true });
+      }
+      clearLimit(failKey);
       const { password_hash, ...user } = row;
-      return { token: await createSession(db, user.id), user };
+      return { token: await createSession(db, user.id, req.headers['user-agent']), user };
     }),
   );
 
@@ -223,6 +228,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerGuildRoutes(r, db, rt, auth);
   registerProfileRoutes(r, db, rt, auth);
   registerExpressionRoutes(r, db, rt, auth);
+  registerSecurityRoutes(r, db, rt, auth);
 
   r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers(), hasTurn: hasTurn() })));
 
@@ -250,6 +256,7 @@ export function createRoutes(db: Db, rt: Realtime) {
     wrap(async (req) => {
       const c = await channelForMember(String(req.params.id), req.user!.id);
       if (c.type === 'voice') throw new HttpError(400, 'Este canal não aceita mensagens.');
+      limit(`msg:${req.user!.id}`, 12, 10_000, 'Calma! Muitas mensagens seguidas. Espere alguns segundos.');
       if (c.access) requireNotTimedOut(c.access);
       const body = parse(
         z.object({

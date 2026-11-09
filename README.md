@@ -23,6 +23,13 @@ Funciona no navegador do PC e do celular, e é 100% gratuito para hospedar.
   qualquer conversa e servidor (`:nome` autocompleta); **soundboard** na chamada (sons de até 5 s,
   recortados e comprimidos no navegador); **apelido e foto por servidor**. Tudo com permissões
   próprias (gerenciar emojis e sons, usar soundboard, mudar/gerenciar apelidos)
+- **Segurança e privacidade**:
+  - senhas com hash scrypt e regra de senha forte;
+  - sessões que expiram após 60 dias sem uso, com a lista de aparelhos conectados ("sair de todos os outros");
+  - **verificação em duas etapas** (app autenticador) e **códigos de recuperação** (o "esqueci a senha" sem e-mail);
+  - cabeçalhos de segurança (CSP, anti-clickjacking), limites contra força bruta e spam, e bloqueio de conexões vindas de outros sites;
+  - **Baixar meus dados** e **Excluir minha conta** (LGPD);
+  - páginas públicas de [Privacidade](/privacidade) e [Termos](/termos)
 - **Aviso de nova versão**: quando sai uma versão nova do site, aparece "Atualizar" em quem está com ele aberto
 - Chat em tempo real: editar/excluir mensagens, "fulano está digitando…", links e prévia de imagens, mensagens não lidas
 - **Responder** mensagens (com citação clicável), **reações** com emoji e **@menções** com
@@ -84,6 +91,7 @@ A troca é que quem transmite envia uma cópia para cada pessoa assistindo. A 10
 3. O Render lê o `render.yaml` e pede as variáveis:
    - `DATABASE_URL`: a connection string do Neon
    - `REGISTRATION_CODE`: uma senha que você passa só para os amigos (ex.: `galera2026`)
+   - `PRIVACY_CONTACT`: e-mail de contato de privacidade (LGPD), mostrado em `/privacidade`
    - `METERED_TURN_*` / `CLOUDFLARE_TURN_*`: TURN, veja o passo 3
 4. Espere o deploy terminar e abra o link `https://resenha-xxxx.onrender.com` no PC e no celular.
 

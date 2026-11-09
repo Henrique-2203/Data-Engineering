@@ -5,6 +5,7 @@ import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import { USER_COLUMNS } from './auth.ts';
 import { HttpError, parse, wrap } from './http.ts';
+import { limit } from './security.ts';
 import type { DmChannel, Friend, PublicUser } from '../../shared/types.ts';
 
 /**
@@ -64,6 +65,7 @@ export function registerSocialRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
     auth,
     wrap(async (req) => {
       const me = req.user!;
+      limit(`friend:${me.id}`, 20, 60_000, 'Muitos pedidos de amizade seguidos. Espere um minuto.');
       const { username } = parse(z.object({ username: z.string().trim().toLowerCase().min(1, 'Informe o usuário.') }), req.body);
       const [target] = await db.query<{ id: string }>('select id from users where username = $1', [username.replace(/^@/, '')]);
       if (!target) throw new HttpError(404, 'Não encontramos ninguém com esse usuário. Confira a grafia.');

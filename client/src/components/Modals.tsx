@@ -27,6 +27,7 @@ import { Perm, useCan } from '../lib/perms';
 import { refreshGuild } from '../lib/socket';
 import { DESKTOP_DOWNLOAD_URL, desktop, isDesktop, type DesktopSettings } from '../lib/desktop';
 import { Avatar } from './Avatar';
+import { SecuritySettings } from './SecuritySettings';
 
 export function Modals({ onLogout }: { onLogout(): void }) {
   const modal = useApp((s) => s.modal);
@@ -565,6 +566,14 @@ function UserSettings({ onLogout }: { onLogout(): void }) {
       </p>
 
       <DesktopSettingsSection />
+
+      <SecuritySettings
+        onLogout={async () => {
+          await api('/auth/logout', { method: 'POST' }).catch(() => {});
+          closeModal();
+          onLogout();
+        }}
+      />
 
       <h3 className="subhead">Conta</h3>
       <button

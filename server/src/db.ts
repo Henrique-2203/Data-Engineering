@@ -191,6 +191,22 @@ with first_time as (insert into schema_flags (name) values ('v6_everyone_perms')
 update guilds set everyone_permissions = everyone_permissions | ${Perm.USE_SOUNDBOARD | Perm.CHANGE_NICKNAME}
 where exists (select 1 from first_time);
 
+-- v7: segurança e privacidade
+alter table sessions add column if not exists device text not null default '';
+alter table sessions add column if not exists last_seen_at timestamptz not null default now();
+alter table users add column if not exists totp_secret text;
+alter table users add column if not exists totp_enabled boolean not null default false;
+alter table users add column if not exists totp_last_step bigint not null default 0;
+alter table users add column if not exists terms_accepted_at timestamptz;
+alter table users add column if not exists password_changed_at timestamptz;
+create table if not exists recovery_codes (
+  user_id text not null references users(id) on delete cascade,
+  code_hash text not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now(),
+  primary key (user_id, code_hash)
+);
+
 -- imagens (ícone/banner do servidor, foto/banner de perfil): pequenas e substituídas, nunca acumuladas
 create table if not exists images (
   id text primary key,

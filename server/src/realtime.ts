@@ -2,7 +2,7 @@ import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
 import { z } from 'zod';
 import { config } from './config.ts';
-import { userFromToken } from './auth.ts';
+import { sessionFromToken } from './auth.ts';
 import { canSee, channelAudience, isTimedOut, loadChannel, memberAccess } from './access.ts';
 import type { Db } from './db.ts';
 import { usableExpression } from './expressions.ts';
@@ -35,7 +35,16 @@ export class Realtime {
     private db: Db,
   ) {
     this.io = new Server(http, {
-      cors: { origin: true },
+      // só aceita conexões vindas do próprio site (ou de clientes sem navegador, que não mandam Origin)
+      allowRequest: (req, cb) => {
+        const origin = req.headers.origin;
+        if (!origin) return cb(null, true);
+        try {
+          cb(null, new URL(origin).host === req.headers.host);
+        } catch {
+          cb(null, false);
+        }
+      },
       maxHttpBufferSize: 1e6,
       pingInterval: 20000,
       pingTimeout: 20000,
@@ -43,9 +52,10 @@ export class Realtime {
 
     this.io.use(async (socket, next) => {
       try {
-        const user = await userFromToken(db, socket.handshake.auth?.token);
-        if (!user) return next(new Error('unauthorized'));
-        socket.data.user = user;
+        const session = await sessionFromToken(db, socket.handshake.auth?.token);
+        if (!session) return next(new Error('unauthorized'));
+        socket.data.user = session.user;
+        socket.data.sessionHash = session.sessionHash;
         next();
       } catch (err) {
         next(err as Error);
@@ -68,6 +78,27 @@ export class Realtime {
 
   emitUser(userId: string, event: string, payload: unknown) {
     this.io.to(`user:${userId}`).emit(event, payload);
+  }
+
+  /** Sessões encerradas (sair do aparelho, troca de senha): derruba as conexões delas na hora. */
+  endSessions(hashes: string[]) {
+    if (!hashes.length) return;
+    for (const socket of this.io.sockets.sockets.values()) {
+      if (hashes.includes(socket.data.sessionHash)) {
+        socket.emit('session:ended');
+        socket.disconnect(true);
+      }
+    }
+  }
+
+  /** Conta excluída: derruba todas as conexões dela. */
+  endUser(userId: string) {
+    for (const socket of this.io.sockets.sockets.values()) {
+      if ((socket.data.user as PublicUser | undefined)?.id === userId) {
+        socket.emit('session:ended');
+        socket.disconnect(true);
+      }
+    }
   }
 
   /** Coloca as conexões do usuário na sala do servidor (após entrar via convite). */

@@ -7,6 +7,8 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL || null,
   dataDir: process.env.DATA_DIR || './data/pglite',
   registrationCode: process.env.REGISTRATION_CODE || null,
+  /** contato de privacidade (LGPD) mostrado na Política de Privacidade, ex.: privacidade@seudominio.com */
+  privacyContact: process.env.PRIVACY_CONTACT || null,
   maxVoicePeers: Number(process.env.MAX_VOICE_PEERS ?? 10),
   /** quanto tempo uma ligação de DM toca antes de virar "não atendeu" */
   ringTimeoutMs: Number(process.env.RING_TIMEOUT_MS ?? 30_000),

@@ -21,6 +21,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** corpo completo da resposta de erro (ex.: { need2fa: true }) */
+    public data: Record<string, unknown> = {},
   ) {
     super(message);
   }
@@ -49,7 +51,7 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401 && token && !path.startsWith('/auth/')) onUnauthorized?.();
-    throw new ApiError(res.status, data.error ?? `Erro ${res.status}`);
+    throw new ApiError(res.status, data.error ?? `Erro ${res.status}`, data);
   }
   return data as T;
 }

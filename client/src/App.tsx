@@ -6,6 +6,10 @@ import { goHome, openModal, selectGuild, setDms, setFriends, setGuilds, useApp }
 import { voice } from './voice/engine';
 import { AuthScreen } from './components/AuthScreen';
 import { Layout } from './components/Layout';
+import { LegalPage } from './components/LegalPage';
+
+/** /privacidade e /termos são páginas públicas (abrem sem login). */
+const legalPage = /^\/(privacidade|termos)\/?$/.exec(location.pathname)?.[1] as 'privacidade' | 'termos' | undefined;
 
 /** Lê /invite/:code da URL (link de convite) e limpa a barra de endereço. */
 function takeInviteFromUrl(): string | null {
@@ -18,6 +22,11 @@ function takeInviteFromUrl(): string | null {
 const pendingInvite = { code: takeInviteFromUrl() };
 
 export function App() {
+  if (legalPage) return <LegalPage kind={legalPage} />;
+  return <MainApp />;
+}
+
+function MainApp() {
   const me = useApp((s) => s.me);
   const [booting, setBooting] = useState(!!getToken());
   const [bootError, setBootError] = useState<string | null>(null);

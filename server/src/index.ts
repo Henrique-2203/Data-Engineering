@@ -6,6 +6,7 @@ import { config } from './config.ts';
 import { createDb } from './db.ts';
 import { Realtime } from './realtime.ts';
 import { HttpError, createRoutes } from './routes.ts';
+import { securityHeaders } from './security.ts';
 
 const db = await createDb();
 const app = express();
@@ -14,6 +15,7 @@ const rt = new Realtime(http, db);
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
+app.use(securityHeaders);
 app.use(express.json({ limit: '100kb' }));
 app.use('/api', createRoutes(db, rt));
 app.use('/api', (_req, res) => {
