@@ -146,6 +146,24 @@ try {
   if (!(h3 > h2 + 100)) throw new Error(`arrastar a divisória não aumentou o destaque (${h2} → ${h3})`);
   const pip = await phone.getByRole('button', { name: 'Abrir em janela flutuante' }).count();
   await phone.screenshot({ path: `${shots}/05b-destaque-redimensionado.png` });
+  // pessoas ao lado: a divisória passa a mudar a LARGURA (arrasta para os lados)
+  await phone.getByRole('button', { name: 'Pessoas ao lado da transmissão' }).click();
+  await phone.locator('.stage.side').waitFor();
+  const w1 = await phone.locator('.stage-main').evaluate((e) => e.getBoundingClientRect().width);
+  await resizer.focus();
+  for (let i = 0; i < 4; i++) await phone.keyboard.press('ArrowLeft');
+  const w2 = await phone.locator('.stage-main').evaluate((e) => e.getBoundingClientRect().width);
+  if (!(w2 < w1 - 80)) throw new Error(`lado a lado: a divisória não diminuiu a largura (${w1} → ${w2})`);
+  const vbox = await resizer.boundingBox();
+  await phone.mouse.move(vbox.x + vbox.width / 2, vbox.y + vbox.height / 2);
+  await phone.mouse.down();
+  await phone.mouse.move(vbox.x + 220, vbox.y + vbox.height / 2, { steps: 5 });
+  await phone.mouse.up();
+  const w3 = await phone.locator('.stage-main').evaluate((e) => e.getBoundingClientRect().width);
+  if (!(w3 > w2 + 150)) throw new Error(`lado a lado: arrastar não aumentou a largura (${w2} → ${w3})`);
+  await phone.screenshot({ path: `${shots}/05d-lado-a-lado.png` });
+  await phone.getByRole('button', { name: 'Pessoas embaixo da transmissão' }).click();
+  await phone.locator('.stage.side').waitFor({ state: 'detached' });
   // na grade: aumentar/diminuir
   await phone.getByRole('button', { name: 'Tirar do destaque' }).click();
   await phone.getByRole('button', { name: 'Aumentar transmissão' }).click();
@@ -155,7 +173,7 @@ try {
   await phone.getByRole('button', { name: 'Diminuir transmissão' }).click();
   await phone.locator('.tile.screen.enlarged').waitFor({ state: 'detached' });
   await phone.setViewportSize({ width: 390, height: 844 });
-  step(`tamanho da transmissão só para quem assiste: aumentar/diminuir, divisória do destaque (${Math.round(h1)}→${Math.round(h2)}→${Math.round(h3)} px)${pip ? ', janela flutuante' : ''}`);
+  step(`tamanho da transmissão só para quem assiste: aumentar/diminuir, divisória do destaque para cima/baixo (${Math.round(h1)}→${Math.round(h2)}→${Math.round(h3)} px) e para os lados (${Math.round(w1)}→${Math.round(w2)}→${Math.round(w3)} px)${pip ? ', janela flutuante' : ''}`);
   await pc.screenshot({ path: `${shots}/06-pc-transmitindo.png` });
   step(`celular recebendo a tela: ${size} — ${stats}`);
 

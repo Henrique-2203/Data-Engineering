@@ -5059,15 +5059,22 @@ input.switch:disabled {
   height: auto;
   min-height: 72px;
 }
-.stage-resizer {
+.stage-resizer-wrap {
+  position: relative;
   flex: 0 0 auto;
-  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin: -6px 0;
+  z-index: 2;
+}
+.stage-resizer {
+  flex: 1;
+  height: 12px;
   display: grid;
   place-items: center;
   cursor: row-resize;
   touch-action: none;
-  z-index: 2;
   border-radius: 6px;
 }
 .stage-resizer span {
@@ -5075,7 +5082,61 @@ input.switch:disabled {
   height: 4px;
   border-radius: 99px;
   background: var(--line);
-  transition: background 0.15s, width 0.15s;
+  transition: background 0.15s, width 0.15s, height 0.15s;
+}
+.stage-layout-btn {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--text-3);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+.stage-layout-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+/* pessoas ao lado da transmissão: divisória vertical, arrasta para os lados */
+.stage.focused.side {
+  flex-direction: row;
+}
+.stage.focused.side .stage-resizer-wrap {
+  flex-direction: column;
+  margin: 0 -6px;
+}
+.stage.focused.side .stage-resizer {
+  height: auto;
+  width: 12px;
+  align-self: stretch;
+  cursor: col-resize;
+}
+.stage.focused.side .stage-resizer span {
+  width: 4px;
+  height: 56px;
+}
+.stage.focused.side .stage-layout-btn {
+  right: auto;
+  bottom: 4px;
+}
+.stage.focused.side .tiles {
+  flex: 1 1 0;
+  flex-direction: column;
+  height: auto;
+  min-width: 120px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.stage.focused.side .tiles .tile {
+  flex: 0 0 120px;
+}
+.stage.focused.side .stage-resizer:hover span,
+.stage.focused.side .stage-resizer:focus-visible span {
+  width: 4px;
+  height: 90px;
 }
 .stage-resizer:hover span,
 .stage-resizer:focus-visible span {
@@ -5103,7 +5164,18 @@ input.switch:disabled {
   .stage.focused .stage-main {
     flex: 1 1 auto !important;
   }
-  .stage-resizer {
+  .stage-resizer-wrap {
     display: none;
+  }
+  /* no celular não há espaço ao lado: sempre embaixo */
+  .stage.focused.side {
+    flex-direction: column;
+  }
+  .stage.focused.side .tiles {
+    flex: 0 0 auto;
+    flex-direction: row;
+    height: 100px;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 }

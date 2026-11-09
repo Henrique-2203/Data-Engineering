@@ -8,6 +8,8 @@ import {
   Maximize2,
   Mic,
   Minimize2,
+  PanelBottom,
+  PanelRight,
   PictureInPicture2,
   MicOff,
   MonitorUp,
@@ -60,7 +62,8 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
     tiles.push({ id: `${isMe ? 'me' : p.socketId}:user`, kind: 'user', state: p, isMe });
   }
   const focused = joined ? tiles.find((t) => t.id === focus) : undefined;
-  const mainPct = useVoice((s) => s.settings.stageMainPct);
+  const side = useVoice((s) => s.settings.stageLayout === 'side');
+  const mainPct = useVoice((s) => (s.settings.stageLayout === 'side' ? s.settings.stageSidePct : s.settings.stageMainPct));
   const stageRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -112,7 +115,7 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
               Chamando {channel?.name}…
             </div>
           )}
-          <div className={`stage${focused ? ' focused' : ''}`} ref={stageRef}>
+          <div className={`stage${focused ? ' focused' : ''}${focused && side ? ' side' : ''}`} ref={stageRef}>
             {focused && (
               <>
                 <div className="stage-main" style={{ flex: `0 0 ${mainPct}%` }}>
@@ -142,15 +145,20 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
  * na própria tela (não muda nada para os outros). Também funciona pelo teclado (setas).
  */
 function StageResizer({ stageRef }: { stageRef: React.RefObject<HTMLDivElement | null> }) {
-  const pct = useVoice((s) => s.settings.stageMainPct);
-  const set = (v: number) => updateSettings({ stageMainPct: Math.round(Math.min(92, Math.max(35, v))) });
+  const side = useVoice((s) => s.settings.stageLayout === 'side');
+  const pct = useVoice((s) => (side ? s.settings.stageSidePct : s.settings.stageMainPct));
+  const min = side ? 40 : 35;
+  const set = (v: number) => {
+    const n = Math.round(Math.min(92, Math.max(min, v)));
+    updateSettings(side ? { stageSidePct: n } : { stageMainPct: n });
+  };
   const onPointerDown = (e: React.PointerEvent) => {
     const stage = stageRef.current;
     if (!stage) return;
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     const rect = stage.getBoundingClientRect();
-    const move = (ev: PointerEvent) => set(((ev.clientY - rect.top) / rect.height) * 100);
+    const move = (ev: PointerEvent) => set(side ? ((ev.clientX - rect.left) / rect.width) * 100 : ((ev.clientY - rect.top) / rect.height) * 100);
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
@@ -159,24 +167,36 @@ function StageResizer({ stageRef }: { stageRef: React.RefObject<HTMLDivElement |
     window.addEventListener('pointerup', up);
   };
   return (
-    <div
-      className="stage-resizer"
-      role="separator"
-      aria-orientation="horizontal"
-      aria-label="Tamanho da transmissão em destaque"
-      aria-valuemin={35}
-      aria-valuemax={92}
-      aria-valuenow={pct}
-      tabIndex={0}
-      title="Arraste para mudar o tamanho (só na sua tela). Duplo clique volta ao padrão."
-      onPointerDown={onPointerDown}
-      onDoubleClick={() => set(78)}
-      onKeyDown={(e) => {
-        if (e.key === 'ArrowUp') set(pct - 5);
-        else if (e.key === 'ArrowDown') set(pct + 5);
-      }}
-    >
-      <span />
+    <div className="stage-resizer-wrap">
+      <div
+        className="stage-resizer"
+        role="separator"
+        aria-orientation={side ? 'vertical' : 'horizontal'}
+        aria-label="Tamanho da transmissão em destaque"
+        aria-valuemin={min}
+        aria-valuemax={92}
+        aria-valuenow={pct}
+        tabIndex={0}
+        title="Arraste para mudar o tamanho (só na sua tela). Duplo clique volta ao padrão."
+        onPointerDown={onPointerDown}
+        onDoubleClick={() => set(side ? 80 : 78)}
+        onKeyDown={(e) => {
+          const less = side ? 'ArrowLeft' : 'ArrowUp';
+          const more = side ? 'ArrowRight' : 'ArrowDown';
+          if (e.key === less) set(pct - 5);
+          else if (e.key === more) set(pct + 5);
+        }}
+      >
+        <span />
+      </div>
+      <button
+        className="stage-layout-btn"
+        title={side ? 'Pessoas embaixo da transmissão' : 'Pessoas ao lado da transmissão'}
+        aria-label={side ? 'Pessoas embaixo da transmissão' : 'Pessoas ao lado da transmissão'}
+        onClick={() => updateSettings({ stageLayout: side ? 'bottom' : 'side' })}
+      >
+        {side ? <PanelBottom size={15} /> : <PanelRight size={15} />}
+      </button>
     </div>
   );
 }

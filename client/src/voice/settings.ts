@@ -54,6 +54,10 @@ export interface VoiceSettings {
   soundboardVolume: number;
   /** modo destaque: quanto da área da chamada a transmissão em destaque ocupa (só na sua tela), em % */
   stageMainPct: number;
+  /** modo destaque: pessoas embaixo da transmissão ou ao lado (só na sua tela) */
+  stageLayout: 'bottom' | 'side';
+  /** largura da transmissão quando as pessoas ficam ao lado, em % */
+  stageSidePct: number;
 }
 
 const KEY = 'resenha.voiceSettings';
@@ -76,6 +80,8 @@ export const DEFAULT_SETTINGS: VoiceSettings = {
   shareActivity: true,
   soundboardVolume: 0.7,
   stageMainPct: 78,
+  stageLayout: 'bottom',
+  stageSidePct: 80,
 };
 
 /** Nome legível da tecla de push-to-talk. */
