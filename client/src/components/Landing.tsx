@@ -25,7 +25,8 @@ export function Landing() {
     document.title = 'Resenha · Call, chat e tela em Full HD de graça';
     // conta a visita (só um total por dia e a origem; nada que identifique a pessoa)
     try {
-      if (!sessionStorage.getItem('resenha.visit')) {
+      // aparelhos da equipe não contam (marcado ao entrar com uma conta da equipe)
+      if (!sessionStorage.getItem('resenha.visit') && localStorage.getItem('resenha.noStats') !== '1') {
         sessionStorage.setItem('resenha.visit', '1');
         const params = new URLSearchParams(location.search);
         void api('/stats/view', { body: { src: params.get('src') ?? params.get('utm_source') ?? undefined, ref: document.referrer || undefined } }).catch(() => {});

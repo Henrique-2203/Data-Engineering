@@ -76,6 +76,14 @@ function MainApp() {
     setDms(dms.dms);
     setFriends(friends.friends);
     useApp.setState({ me: data.user, mobilePanel: 'nav', isPlatformAdmin: !!data.isPlatformAdmin });
+    if (data.isPlatformAdmin) {
+      // as visitas da própria equipe não entram no painel de números
+      try {
+        if (localStorage.getItem('resenha.noStats') === null) localStorage.setItem('resenha.noStats', '1');
+      } catch {
+        /* sem armazenamento local */
+      }
+    }
     if (data.isPlatformAdmin) void api<{ open: number }>('/admin/reports/count').then((r) => useApp.setState({ openReports: r.open }), () => {});
     if (data.guilds[0]) selectGuild(data.guilds[0].id);
     else goHome();

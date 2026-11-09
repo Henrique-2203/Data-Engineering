@@ -117,11 +117,41 @@ export function StatsPanel() {
         <Sources title="De onde vêm as visitas" rows={stats.sources.landing_view} empty="Ninguém visitou a página no período ainda." />
         <Sources title="Como os inscritos conheceram" rows={stats.sources.waitlist} empty="Ninguém entrou na lista no período ainda." />
       </div>
+      <OwnVisitsToggle />
       <p className="muted small">
         💡 Dica: use links com origem para saber qual post funcionou, por exemplo <code>?src=ig_bio</code> na bio do Instagram e{' '}
         <code>?src=tiktok</code> no TikTok.
       </p>
     </div>
+  );
+}
+
+/** As visitas deste aparelho entram ou não na conta (a equipe começa fora). */
+function OwnVisitsToggle() {
+  const read = () => {
+    try {
+      return localStorage.getItem('resenha.noStats') === '1';
+    } catch {
+      return false;
+    }
+  };
+  const [off, setOff] = useState(read);
+  return (
+    <label className="check small">
+      <input
+        type="checkbox"
+        checked={off}
+        onChange={(e) => {
+          try {
+            localStorage.setItem('resenha.noStats', e.target.checked ? '1' : '0');
+          } catch {
+            /* sem armazenamento local */
+          }
+          setOff(read());
+        }}
+      />
+      Não contar as visitas deste aparelho (marcado sozinho quando você entra com a conta da equipe)
+    </label>
   );
 }
 

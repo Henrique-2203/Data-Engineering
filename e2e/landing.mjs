@@ -157,6 +157,19 @@ try {
   await pa.screenshot({ path: `${shots}/39-painel-numeros.png` });
   step('painel de números: visita do celular contada como Instagram; robôs (navegador automático e prévia de link) ignorados; 1 download, 2 inscritos por origem, contas e ativos');
 
+  // aparelho da equipe não conta visita: o mesmo navegador do painel abre a página inicial deslogado
+  const before = (await api('/admin/stats?days=7', null, equipe.token)).days.at(-1).landing_view;
+  const flag = await pa.evaluate(() => localStorage.getItem('resenha.noStats'));
+  const teamCtx = await browser.newContext({ ...devices['Pixel 7'] });
+  await teamCtx.addInitScript(() => localStorage.setItem('resenha.noStats', '1'));
+  const pt = await teamCtx.newPage();
+  await pt.goto(`${BASE}/?src=ig_bio`);
+  await pt.getByRole('heading', { name: /Sua call/ }).waitFor();
+  await new Promise((r) => setTimeout(r, 800));
+  const after = (await api('/admin/stats?days=7', null, equipe.token)).days.at(-1).landing_view;
+  if (flag !== '1' || after !== before) throw new Error(`visita da equipe contou (${flag}, ${before} -> ${after})`);
+  step('as visitas dos aparelhos da equipe não entram no painel');
+
   const relevant = errors.filter((e) => !/favicon|ERR_ABORTED|net::/.test(e));
   if (relevant.length) throw new Error(`erros no navegador: ${relevant.join(' | ')}`);
   step('nenhum erro no navegador (inclusive de Content-Security-Policy)');
