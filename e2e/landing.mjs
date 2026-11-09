@@ -155,6 +155,7 @@ try {
   if (st.totals.active7 < 1 || today.active_user < 1) throw new Error('ativos não contados');
   const statsDenied = await api('/admin/stats', null, (await api('/auth/login', { username: 'zeca', password: 'segredo123' })).token);
   if (statsDenied.status !== 404) throw new Error('números visíveis para quem não é da equipe');
+  if (!(await pa.getByRole('tab', { name: 'Números' }).isVisible())) await pa.getByRole('button', { name: /^Denúncias/ }).click();
   await pa.getByRole('tab', { name: 'Números' }).click();
   await pa.locator('.stat-tile', { hasText: 'Visitas à página' }).getByText('1', { exact: true }).waitFor();
   await pa.locator('.stat-source', { hasText: 'De onde vêm as visitas' }).getByText('Instagram').waitFor();
