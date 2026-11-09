@@ -1,4 +1,5 @@
-// Monta a conversa a partir dos 2 arquivos de voz (um por personagem): corta cada fala (tempos em
+// Monta a conversa a partir dos 2 arquivos de voz (um por personagem): corta cada fala (tempos gerados por
+// promo/align-voice.py com conversa-{amigo,criador}.txt, salvos em
 // promo/out/conversa/{amigo,criador}.json), intercala amigo -> criador com uma pausa natural e junta
 // o "Chama a resenha!" final dos dois. Gera conversa.json (quem fala quando, palavra a palavra) e as trilhas.
 // Uso: node promo/build-conversation.mjs <voz-amigo.mp3> <voz-criador.mp3>
@@ -13,8 +14,13 @@ const criador = JSON.parse(readFileSync(path.join(OUT, 'criador.json'), 'utf8'))
 
 // ordem das falas: [personagem, índice da fala]; 'both' = os dois juntos
 const ORDER = [['amigo', 0], ['criador', 0], ['amigo', 1], ['criador', 1], ['amigo', 2], ['criador', 2], ['amigo', 3], ['criador', 3], ['amigo', 4], ['criador', 4], ['amigo', 5], ['criador', 5], ['criador', 6], ['criador', 7], ['amigo', 6], ['criador', 8], ['both', [7, 9]]];
-const PAD_IN = 0.05, PAD_OUT = 0.12; // folga para não cortar o começo/fim das palavras
-const GAP_TURN = 0.28, GAP_SAME = 0.18;
+const PAD_IN = 0.08, PAD_OUT = 0.18; // folga para não cortar o começo/fim das palavras
+// ...mas sem invadir a fala vizinha no arquivo original (as falas vêm coladas umas nas outras)
+for (const list of [amigo, criador]) list.forEach((l, i) => {
+  l.cutFrom = Math.max(i ? (list[i - 1].end + l.start) / 2 : 0, l.start - PAD_IN);
+  l.cutTo = i + 1 < list.length ? Math.min((l.end + list[i + 1].start) / 2, l.end + PAD_OUT) : l.end + PAD_OUT;
+});
+const GAP_TURN = 0.4, GAP_SAME = 0.32;
 
 let t = 0.4, prev = null;
 const turns = [];
@@ -47,7 +53,10 @@ for (const who of ['amigo', 'criador']) {
   const mine = turns.filter((tr) => tr.who === who);
   const file = who === 'amigo' ? amigoFile : criadorFile;
   const inputs = mine.flatMap(() => ['-i', file]);
-  const parts = mine.map((tr, i) => `[${i}:a]atrim=${Math.max(0, tr.from - PAD_IN)}:${tr.to + PAD_OUT},asetpts=PTS-STARTPTS,afade=t=in:d=0.02,afade=t=out:st=${tr.to - tr.from + PAD_IN + PAD_OUT - 0.05}:d=0.05,adelay=${Math.round((tr.at - PAD_IN) * 1000)}:all=1[p${i}]`);
+  const parts = mine.map((tr, i) => {
+    const a = tr.line.cutFrom, b = tr.line.cutTo;
+    return `[${i}:a]atrim=${a}:${b},asetpts=PTS-STARTPTS,afade=t=in:d=0.015,afade=t=out:st=${(b - a - 0.04).toFixed(3)}:d=0.04,adelay=${Math.round((tr.at - (tr.from - a)) * 1000)}:all=1[p${i}]`;
+  });
   const mix = `${parts.join(';')};${mine.map((_, i) => `[p${i}]`).join('')}amix=inputs=${mine.length}:normalize=0:duration=longest,apad=whole_dur=${DURATION},loudnorm=I=-16:TP=-1.5:LRA=7[o]`;
   const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', ...inputs, '-filter_complex', mix, '-map', '[o]', '-ar', '44100', '-ac', '1', path.join(OUT, `voz-${who}.wav`)]);
   if (r.status !== 0) throw new Error(String(r.stderr));

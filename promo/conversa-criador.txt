@@ -1,0 +1,10 @@
+Com inteligência artificial. Mas não é só pedir e pronto, não.
+A IA escreve o código. Mas quem decide o que fazer, testa, descobre o que quebrou e explica o problema… sou eu.
+Muito! Na primeira chamada, o áudio não passava entre dois celulares no 4G. Tive que descobrir que precisava de um servidor de retransmissão… e configurar um, de graça.
+No PC de um amigo, travava em trinta FPS. Fui investigar e era o codec de vídeo: troquei pra um que usa a placa de vídeo, e pronto, rodando liso.
+Com a minha galera, de madrugada, no PC e no celular. E hoje, antes de cada atualização, dezesseis testes automáticos conferem o app inteiro.
+Não! E não é só promessa. A senha é guardada embaralhada: nem eu consigo ver.
+Tem verificação em duas etapas, lista dos aparelhos conectados, e bloqueio contra quem tenta adivinhar senha.
+As chamadas são criptografadas e não ficam gravadas. Sem anúncio, sem rastreador. E você baixa os seus dados ou apaga a conta quando quiser, como manda a LGPD.
+Link na bio! Ainda tá em beta, então entra na lista ou usa direto no navegador.
+Chama a resenha!

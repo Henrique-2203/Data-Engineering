@@ -102,18 +102,22 @@
 
   <!-- 6: 2FA, aparelhos, bloqueio -->
   <div class="panel" id="pSec">
-    <div class="shot" id="s2fa" style="left:150px;width:660px;top:0;height:760px"><img src="out/shots2/security-2fa.png" style="width:2063px;max-width:none;margin-left:-700px;margin-top:-470px" /></div>
-    <div class="shot" id="sDev" style="left:60px;right:60px;top:60px"><img src="out/shots3/aparelhos.png" /></div>
-    <div class="shot" id="sLock" style="left:260px;width:440px;top:0"><img src="out/shots3/bloqueio.png" /></div>
+    <div class="shot" id="s2fa" style="left:0;width:560px;top:0;height:640px"><img src="out/shots2/security-2fa.png" style="width:1750px;max-width:none;margin-left:-594px;margin-top:-399px" /></div>
+    <div class="shot" id="sDev" style="right:0;width:560px;top:110px"><img src="out/shots3/aparelhos.png" /></div>
+    <div class="shot" id="sLock" style="left:340px;width:280px;top:160px"><img src="out/shots3/bloqueio.png" /></div>
+    <div class="badge" id="secN1" style="left:10px;top:665px;z-index:12;background:#12151b;border:3px solid #3ddc97;color:#3ddc97;font-size:34px">① 2 etapas</div>
+    <div class="badge" id="secN2" style="left:330px;top:665px;z-index:12;background:#12151b;border:3px solid #3ddc97;color:#3ddc97;font-size:34px">② aparelhos</div>
+    <div class="badge" id="secN3" style="left:660px;top:665px;z-index:12;background:#12151b;border:3px solid #3ddc97;color:#3ddc97;font-size:34px">③ bloqueio</div>
   </div>
 
   <!-- 7: chamadas criptografadas, sem anúncio, LGPD -->
   <div class="panel" id="pPriv">
-    <div class="abs" id="e2e" style="left:0;right:0;top:120px;text-align:center"><div style="font-size:200px">📞🔒</div><div style="font-weight:900;font-size:52px">Chamadas criptografadas</div><div style="font-weight:700;font-size:36px;color:#a7adbb">e nunca gravadas</div></div>
-    <div class="shot" id="sPriv" style="left:0;right:0;top:120px"><img src="out/shots3/privacidade.png" /></div>
-    <div class="shot" id="sData" style="left:40px;right:40px;top:80px"><img src="out/shots3/dados.png" /></div>
-    <div class="shot" id="sDel" style="left:40px;right:40px;top:380px"><img src="out/shots3/excluir.png" /></div>
-    <div class="badge" id="lgpd" style="left:250px;top:660px;background:#3ddc97;color:#06281a">⚖️ conforme a LGPD</div>
+    <div class="abs" id="e2e" style="left:0;right:0;top:0;text-align:center;transform-origin:50% 0"><div style="font-size:150px">📞🔒</div><div style="font-weight:900;font-size:52px">Chamadas criptografadas</div><div style="font-weight:700;font-size:36px;color:#a7adbb">e nunca gravadas</div></div>
+    <div class="badge" id="noAd" style="left:40px;top:330px;background:#2a0f14;border:3px solid #f04d5e;color:#ff8b98;font-size:40px">🚫 sem anúncio</div>
+    <div class="badge" id="noTrack" style="right:40px;top:330px;background:#2a0f14;border:3px solid #f04d5e;color:#ff8b98;font-size:40px">🚫 sem rastreador</div>
+    <div class="shot" id="sData" style="left:100px;right:100px;top:450px"><img src="out/shots3/dados.png" /></div>
+    <div class="shot" id="sDel" style="left:100px;right:100px;top:650px"><img src="out/shots3/excluir.png" /></div>
+    <div class="badge" id="lgpd" style="left:420px;top:600px;background:#3ddc97;color:#06281a;z-index:4">⚖️ conforme a LGPD</div>
   </div>
 
   <!-- 8: lista de espera / link na bio -->
@@ -183,7 +187,7 @@ const PANELS = [
   ['pPriv', L[13].start, L[13].end + 0.25],
   ['pList', L[15].start, L[15].end + 0.1],
 ];
-const panelOn = (t) => PANELS.find(([, a, b]) => t >= a && t < b);
+for (let i = 0; i < PANELS.length - 1; i++) if (PANELS[i + 1][1] - PANELS[i][2] < 1.2) PANELS[i][2] = PANELS[i + 1][1] + 0.15;
 // quanto do "modo explicação" está ligado (transição suave)
 function brollK(t) {
   let k = 0;
@@ -300,7 +304,7 @@ window.seek = async function seek(t) {
 
   // painéis
   for (const [id, a, b] of PANELS) {
-    const k = Math.min(prog(t, a - 0.05, a + 0.35), 1 - prog(t, b - 0.2, b));
+    const k = Math.min(prog(t, a - 0.05, a + 0.45), 1 - prog(t, b - 0.3, b));
     css(id, { opacity: k > 0 ? k : 0, display: k > 0 ? 'block' : 'none', transform: `translateY(${lerp(80, 0, easeOut(clamp(k)))}px)` });
   }
 
@@ -371,18 +375,25 @@ window.seek = async function seek(t) {
   // 6: 2FA -> aparelhos -> bloqueio (telas reais)
   if (between(t, L[12].start, L[12].end + 0.2)) {
     const a = W(12, 'duas'), b = W(12, 'aparelhos'), c = W(12, 'bloqueio');
-    show('s2fa', pop(t, a - 0.4, 0.3) * (1 - pop(t, b - 0.3, 0.2)));
-    show('sDev', pop(t, b - 0.3, 0.3) * (1 - pop(t, c - 0.3, 0.2)));
-    show('sLock', pop(t, c - 0.3, 0.3));
+    const ka = pop(t, Math.min(a - 0.5, L[12].start + 0.2), 0.5), kb = pop(t, b - 0.4, 0.5), kc = pop(t, c - 0.4, 0.5);
+    // a mais nova fica na frente; as anteriores recuam um pouco, mas continuam na tela
+    const stack = (id, k, back1, rot) => css(id, { opacity: k, zIndex: Math.round(10 - back1 * 5), filter: `brightness(${lerp(1, 0.6, back1)})`, transform: `translateY(${lerp(70, 0, easeOut(k))}px) scale(${lerp(0.92, 1, easeOut(k)) * lerp(1, 0.94, back1)}) rotate(${rot}deg)` });
+    stack('s2fa', ka, Math.max(kb, kc), -3);
+    stack('sDev', kb, kc, 2.5);
+    stack('sLock', kc, 0, -1);
+    [ka, kb, kc].forEach((k, i) => css(`secN${i + 1}`, { opacity: k, transform: `scale(${lerp(1.5, 1, back(k))})` }));
   }
 
   // 7: criptografia, sem anúncio, baixar dados, apagar conta, LGPD
   if (between(t, L[13].start, L[13].end + 0.3)) {
     const ad = W(13, 'anúncio'), dl = W(13, 'baixa'), del = W(13, 'apaga'), lg = W(13, 'lgpd');
-    show('e2e', pop(t, L[13].start, 0.3) * (1 - pop(t, ad - 0.3, 0.2)));
-    show('sPriv', pop(t, ad - 0.3, 0.3) * (1 - pop(t, dl - 0.3, 0.2)));
-    show('sData', pop(t, dl - 0.3, 0.3));
-    show('sDel', pop(t, del - 0.2, 0.3));
+    const rt = W(13, 'rastreador');
+    show('e2e', pop(t, L[13].start, 0.45));
+    const na = pop(t, ad - 0.25, 0.4), nt = pop(t, rt - 0.25, 0.4);
+    css('noAd', { opacity: na, transform: `scale(${lerp(1.6, 1, back(na))}) rotate(-2deg)` });
+    css('noTrack', { opacity: nt, transform: `scale(${lerp(1.6, 1, back(nt))}) rotate(2deg)` });
+    show('sData', pop(t, dl - 0.35, 0.5));
+    show('sDel', pop(t, del - 0.3, 0.5));
     const lk = pop(t, lg - 0.3, 0.3);
     css('lgpd', { opacity: lk, transform: `scale(${lerp(2, 1, back(lk))}) rotate(-3deg)` });
   }
