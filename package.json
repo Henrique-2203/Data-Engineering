@@ -28,7 +28,8 @@
     "test:e2e:server-settings": "node e2e/server-settings.mjs",
     "test:e2e:profile": "node e2e/profile.mjs",
     "test:e2e:expressions": "node e2e/expressions.mjs",
-    "test:e2e:security": "node e2e/security.mjs"
+    "test:e2e:security": "node e2e/security.mjs",
+    "test:e2e:reports": "node e2e/reports.mjs"
   },
   "devDependencies": {
     "concurrently": "^10.0.7"

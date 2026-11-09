@@ -8,7 +8,9 @@ export const config = {
   dataDir: process.env.DATA_DIR || './data/pglite',
   registrationCode: process.env.REGISTRATION_CODE || null,
   /** contato de privacidade (LGPD) mostrado na Política de Privacidade, ex.: privacidade@seudominio.com */
-  privacyContact: process.env.PRIVACY_CONTACT || null,
+  privacyContact: process.env.PRIVACY_CONTACT || 'resenha.brasilgames@gmail.com',
+  /** equipe do Resenha (nomes de usuário, separados por vírgula): recebe e trata as denúncias */
+  platformAdmins: list(process.env.PLATFORM_ADMINS).map((u) => u.toLowerCase().replace(/^@/, '')),
   maxVoicePeers: Number(process.env.MAX_VOICE_PEERS ?? 10),
   /** quanto tempo uma ligação de DM toca antes de virar "não atendeu" */
   ringTimeoutMs: Number(process.env.RING_TIMEOUT_MS ?? 30_000),

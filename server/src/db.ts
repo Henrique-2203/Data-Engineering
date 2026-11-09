@@ -207,6 +207,27 @@ create table if not exists recovery_codes (
   primary key (user_id, code_hash)
 );
 
+-- v8: denúncias e suspensão de contas
+create table if not exists reports (
+  id text primary key,
+  reporter_id text references users(id) on delete set null,
+  target_type text not null check (target_type in ('message', 'user', 'guild')),
+  target_id text not null,
+  target_user_id text references users(id) on delete set null,
+  guild_id text,
+  reason text not null,
+  details text not null default '',
+  snapshot jsonb not null default '{}',
+  status text not null default 'open' check (status in ('open', 'resolved', 'dismissed')),
+  resolution text,
+  handled_by text references users(id) on delete set null,
+  handled_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists reports_status_idx on reports(status, created_at desc);
+alter table users add column if not exists suspended_at timestamptz;
+alter table users add column if not exists suspended_reason text;
+
 -- imagens (ícone/banner do servidor, foto/banner de perfil): pequenas e substituídas, nunca acumuladas
 create table if not exists images (
   id text primary key,

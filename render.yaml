@@ -20,6 +20,9 @@ services:
       # E-mail de contato de privacidade (LGPD), mostrado na Política de Privacidade.
       - key: PRIVACY_CONTACT
         sync: false
+      # Equipe do Resenha (seu nome de usuário; vários separados por vírgula): recebe as denúncias.
+      - key: PLATFORM_ADMINS
+        sync: false
       # TURN (opcional, ajuda conexões pelo 4G/5G e provedores com CGNAT)
       # Metered: grátis e sem cartão (https://www.metered.ca/stun-turn)
       - key: METERED_TURN_DOMAIN

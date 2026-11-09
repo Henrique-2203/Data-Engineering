@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   UserPen,
+  Flag,
+  ShieldAlert,
   ChevronDown,
   Hash,
   Headphones,
@@ -182,6 +184,11 @@ export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
               <button onClick={() => openModal({ kind: 'guildProfile', guildId: guild.id })}>
                 <UserPen size={16} /> Meu perfil neste servidor
               </button>
+              {!isOwner && (
+                <button onClick={() => openModal({ kind: 'report', target: { type: 'guild', id: guild.id, label: guild.name } })}>
+                  <Flag size={16} /> Denunciar servidor
+                </button>
+              )}
               {!isOwner && (
                 <button className="danger" onClick={leaveGuild}>
                   <LogOut size={16} /> Sair do servidor
@@ -476,9 +483,23 @@ function UserPanel({ onLogout: _onLogout }: { onLogout(): void }) {
       >
         {deafened ? <HeadphoneOff size={20} /> : <Headphones size={20} />}
       </button>
+      <AdminButton />
       <button className="icon-btn" title="Configurações" aria-label="Configurações" onClick={() => openModal({ kind: 'userSettings' })}>
         <Settings size={20} />
       </button>
     </div>
+  );
+}
+
+/** Só para a equipe do Resenha: abre a fila de denúncias (com contador). */
+function AdminButton() {
+  const admin = useApp((s) => s.isPlatformAdmin);
+  const open = useApp((s) => s.openReports);
+  if (!admin) return null;
+  return (
+    <button className="icon-btn admin-btn" title="Denúncias" aria-label={`Denúncias${open ? ` (${open} abertas)` : ''}`} onClick={() => openModal({ kind: 'adminReports' })}>
+      <ShieldAlert size={20} />
+      {open > 0 && <span className="admin-badge">{open > 99 ? '99+' : open}</span>}
+    </button>
   );
 }

@@ -28,6 +28,7 @@ import { refreshGuild } from '../lib/socket';
 import { DESKTOP_DOWNLOAD_URL, desktop, isDesktop, type DesktopSettings } from '../lib/desktop';
 import { Avatar } from './Avatar';
 import { SecuritySettings } from './SecuritySettings';
+import { AdminReports, ReportModal } from './Reports';
 
 export function Modals({ onLogout }: { onLogout(): void }) {
   const modal = useApp((s) => s.modal);
@@ -74,6 +75,10 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       return <StatusModal />;
     case 'guildProfile':
       return <GuildProfileModal guildId={modal.guildId} />;
+    case 'report':
+      return <ReportModal target={modal.target} />;
+    case 'adminReports':
+      return <AdminReports />;
   }
 }
 

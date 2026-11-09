@@ -44,6 +44,10 @@ export interface AppState {
   showMembers: boolean;
   modal: ModalState | null;
   toast: string | null;
+  /** faz parte da equipe do Resenha (trata denúncias) */
+  isPlatformAdmin: boolean;
+  /** denúncias abertas (só para a equipe) */
+  openReports: number;
 }
 
 export type ModalState =
@@ -60,7 +64,9 @@ export type ModalState =
   | { kind: 'image'; src: string; name: string }
   | { kind: 'profile'; userId: string; guildId?: string | null }
   | { kind: 'status' }
-  | { kind: 'guildProfile'; guildId: string };
+  | { kind: 'guildProfile'; guildId: string }
+  | { kind: 'report'; target: { type: 'message' | 'user' | 'guild'; id: string; label: string } }
+  | { kind: 'adminReports' };
 
 export const useApp = create<AppState>(() => ({
   me: null,
@@ -88,6 +94,8 @@ export const useApp = create<AppState>(() => ({
   showMembers: true,
   modal: null,
   toast: null,
+  isPlatformAdmin: false,
+  openReports: 0,
 }));
 
 const set = useApp.setState;

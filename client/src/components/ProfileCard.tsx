@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MessageCircle, Pencil, UserCheck, UserPlus } from 'lucide-react';
+import { MessageCircle, Pencil, UserCheck, UserPlus, Flag } from 'lucide-react';
 import type { Profile } from '../../../shared/types';
 import { api } from '../lib/api';
 import { imageUrl, memberColor } from '../lib/perms';
@@ -166,6 +166,17 @@ export function ProfileCard({ userId, guildId, onAction }: { userId: string; gui
                   <UserPlus size={15} /> {friendStatus === 'incoming' ? 'Aceitar amizade' : 'Adicionar amigo'}
                 </button>
               )}
+              <button
+                className="icon-btn small profile-report"
+                aria-label={`Denunciar ${user.displayName}`}
+                title="Denunciar"
+                onClick={() => {
+                  done();
+                  openModal({ kind: 'report', target: { type: 'user', id: userId, label: `@${user.username} (${user.displayName})` } });
+                }}
+              >
+                <Flag size={15} />
+              </button>
             </>
           )}
         </div>

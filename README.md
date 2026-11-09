@@ -30,6 +30,9 @@ Funciona no navegador do PC e do celular, e é 100% gratuito para hospedar.
   - cabeçalhos de segurança (CSP, anti-clickjacking), limites contra força bruta e spam, e bloqueio de conexões vindas de outros sites;
   - **Baixar meus dados** e **Excluir minha conta** (LGPD);
   - páginas públicas de [Privacidade](/privacidade) e [Termos](/termos)
+- **Denúncias**: botão 🚩 em mensagens, perfis e servidores, anônimo para o denunciado e com cópia da
+  prova (mesmo se apagarem). A equipe (`PLATFORM_ADMINS`) tem uma fila com contador em tempo real e pode
+  apagar a mensagem, suspender a conta no Resenha inteiro ou excluir o servidor
 - **Aviso de nova versão**: quando sai uma versão nova do site, aparece "Atualizar" em quem está com ele aberto
 - Chat em tempo real: editar/excluir mensagens, "fulano está digitando…", links e prévia de imagens, mensagens não lidas
 - **Responder** mensagens (com citação clicável), **reações** com emoji e **@menções** com
@@ -91,7 +94,8 @@ A troca é que quem transmite envia uma cópia para cada pessoa assistindo. A 10
 3. O Render lê o `render.yaml` e pede as variáveis:
    - `DATABASE_URL`: a connection string do Neon
    - `REGISTRATION_CODE`: uma senha que você passa só para os amigos (ex.: `galera2026`)
-   - `PRIVACY_CONTACT`: e-mail de contato de privacidade (LGPD), mostrado em `/privacidade`
+   - `PRIVACY_CONTACT`: e-mail de contato de privacidade (LGPD), mostrado em `/privacidade` (padrão: resenha.brasilgames@gmail.com)
+   - `PLATFORM_ADMINS`: seu nome de usuário no Resenha (vários separados por vírgula). Quem estiver aqui recebe as denúncias
    - `METERED_TURN_*` / `CLOUDFLARE_TURN_*`: TURN, veja o passo 3
 4. Espere o deploy terminar e abra o link `https://resenha-xxxx.onrender.com` no PC e no celular.
 

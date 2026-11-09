@@ -1,5 +1,5 @@
 import { Fragment, memo, useState } from 'react';
-import { CornerUpLeft, Image as ImageIcon, Pencil, Reply, SmilePlus, Trash2 } from 'lucide-react';
+import { CornerUpLeft, Flag, Image as ImageIcon, Pencil, Reply, SmilePlus, Trash2 } from 'lucide-react';
 import type { Channel, Message, StickerRef } from '../../../../shared/types';
 import { EmojiView, fileUrl, plainEmojis, renderCustomEmojis } from '../../lib/expressions';
 import { api } from '../../lib/api';
@@ -173,6 +173,21 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
               }}
             >
               <Pencil size={15} />
+            </button>
+          )}
+          {!mine && (
+            <button
+              className="icon-btn small"
+              aria-label="Denunciar"
+              title="Denunciar"
+              onClick={() =>
+                openModal({
+                  kind: 'report',
+                  target: { type: 'message', id: message.id, label: `${author.displayName}: ${plainEmojis(message.content).slice(0, 120) || (message.sticker ? 'figurinha' : 'imagem')}` },
+                })
+              }
+            >
+              <Flag size={15} />
             </button>
           )}
           {(mine || isOwner) && (

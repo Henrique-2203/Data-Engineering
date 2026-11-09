@@ -25,6 +25,7 @@ import { Perm, has } from '../../shared/permissions.ts';
 import { siteVersion } from './version.ts';
 import { registerProfileRoutes } from './profile.ts';
 import { registerExpressionRoutes, usableExpression } from './expressions.ts';
+import { isPlatformAdmin, registerReportRoutes } from './reports.ts';
 import { checkSecondFactor, clearLimit, limit, limited, registerSecurityRoutes, requireStrongPassword } from './security.ts';
 
 export { HttpError };
@@ -173,13 +174,16 @@ export function createRoutes(db: Db, rt: Realtime) {
       // força bruta numa conta específica (de vários IPs): trava a conta por 15 min após 8 erros
       const failKey = `login-fail:${body.username}`;
       if (limited(failKey, 8)) throw new HttpError(429, 'Muitas tentativas erradas nessa conta. Aguarde 15 minutos.');
-      const [row] = await db.query<PublicUser & { password_hash: string }>(
-        `select ${USER_COLUMNS}, u.password_hash from users u where u.username = $1`,
+      const [row] = await db.query<PublicUser & { password_hash: string; suspended_at: string | null; suspended_reason: string | null }>(
+        `select ${USER_COLUMNS}, u.password_hash, u.suspended_at, u.suspended_reason from users u where u.username = $1`,
         [body.username],
       );
       if (!row || !(await verifyPassword(body.password, row.password_hash))) {
         limit(failKey, 1000, 15 * 60_000);
         throw new HttpError(401, 'Usuário ou senha incorretos.');
+      }
+      if (row.suspended_at) {
+        throw new HttpError(403, `Esta conta foi suspensa por violar os Termos de uso${row.suspended_reason ? ` (${row.suspended_reason})` : ''}. Se acha que foi um engano, escreva para ${config.privacyContact}.`);
       }
       // verificação em duas etapas (se a pessoa ativou)
       const second = await checkSecondFactor(db, row.id, body.code);
@@ -189,7 +193,7 @@ export function createRoutes(db: Db, rt: Realtime) {
         return res.status(401).json({ error: 'Código de verificação incorreto.', need2fa: true });
       }
       clearLimit(failKey);
-      const { password_hash, ...user } = row;
+      const { password_hash, suspended_at, suspended_reason, ...user } = row;
       return { token: await createSession(db, user.id, req.headers['user-agent']), user };
     }),
   );
@@ -221,7 +225,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   r.get(
     '/bootstrap',
     auth,
-    wrap(async (req) => ({ user: req.user, guilds: await loadGuilds(db, req.user!.id) })),
+    wrap(async (req) => ({ user: req.user, guilds: await loadGuilds(db, req.user!.id), isPlatformAdmin: isPlatformAdmin(req.user!.username) })),
   );
 
   registerSocialRoutes(r, db, rt, auth);
@@ -229,6 +233,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerProfileRoutes(r, db, rt, auth);
   registerExpressionRoutes(r, db, rt, auth);
   registerSecurityRoutes(r, db, rt, auth);
+  registerReportRoutes(r, db, rt, auth);
 
   r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers(), hasTurn: hasTurn() })));
 

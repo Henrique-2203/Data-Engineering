@@ -108,6 +108,10 @@ function Privacy({ contact }: { contact: ReactNode }) {
             <td>Mostrar onde sua conta está aberta e deixar você encerrar sessões</td>
           </tr>
           <tr>
+            <td>Denúncias que você envia ou recebe: motivo, detalhes e uma cópia do conteúdo denunciado</td>
+            <td>Analisar abusos e cumprir a lei. Quem é denunciado não sabe quem denunciou</td>
+          </tr>
+          <tr>
             <td>"Jogando agora" (só o nome do jogo, se você usa o app de desktop)</td>
             <td>Mostrar no seu perfil. Fica só na memória enquanto você está online e pode ser desligado</td>
           </tr>
@@ -169,6 +173,7 @@ function Privacy({ contact }: { contact: ReactNode }) {
           de segurança automáticas do provedor do banco podem levar alguns dias para serem substituídas.
         </li>
         <li>Sessões sem uso por 60 dias são apagadas.</li>
+        <li>Denúncias são apagadas 6 meses depois de analisadas (salvo se a lei exigir guardar por mais tempo).</li>
       </ul>
 
       <h2>6. Seus direitos (LGPD, art. 18)</h2>
@@ -260,14 +265,21 @@ function Terms({ contact }: { contact: ReactNode }) {
         Civil da Internet (Lei 12.965/2014).
       </p>
 
-      <h2>6. O serviço</h2>
+      <h2>6. Denúncias</h2>
+      <p>
+        Viu algo que viola estes termos? Use o botão <strong>Denunciar</strong> (🚩) na mensagem, no perfil ou no menu do servidor. A
+        equipe do Resenha analisa, e quem foi denunciado não sabe quem denunciou. Conteúdo envolvendo abuso de menores é removido e
+        comunicado às autoridades. Se alguém corre risco de vida, ligue para o <strong>CVV (188)</strong> ou, em emergência, 190 ou 192.
+      </p>
+
+      <h2>7. O serviço</h2>
       <ul>
         <li>O Resenha é oferecido de graça e "como está". Fazemos o possível para ele funcionar bem, mas pode haver instabilidade e manutenção.</li>
         <li>Recursos podem mudar com o tempo. Mudanças importantes nestes termos serão avisadas no app.</li>
         <li>Você pode parar de usar quando quiser e excluir sua conta nas Configurações.</li>
       </ul>
 
-      <h2>7. Contato e lei aplicável</h2>
+      <h2>8. Contato e lei aplicável</h2>
       <p>
         Dúvidas, denúncias ou pedidos: fale conosco {contact}. Estes termos seguem as leis do Brasil, incluindo o Código de Defesa do
         Consumidor quando aplicável.

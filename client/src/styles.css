@@ -3417,3 +3417,146 @@ input.switch:disabled {
     align-items: flex-start;
   }
 }
+
+/* ---------- denúncias ---------- */
+.modal-head h2 svg {
+  vertical-align: -3px;
+  margin-right: 6px;
+}
+.report-target {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-2);
+}
+.reasons {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reasons legend {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.reason {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start;
+  gap: 10px !important;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+.reason > span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.reason input {
+  margin-top: 3px;
+}
+.reason.selected {
+  border-color: var(--danger);
+  background: rgba(240, 77, 94, 0.08);
+}
+.reason.severe strong {
+  color: var(--danger);
+}
+.help-box {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  font-size: 14px;
+}
+.help-box a {
+  color: var(--accent);
+}
+.admin-btn {
+  position: relative;
+  color: var(--warn);
+}
+.admin-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+.report-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.report-item {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg-2);
+  border-left: 4px solid var(--warn);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.report-item.urgent {
+  border-left-color: var(--danger);
+}
+.report-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.report-reason {
+  font-weight: 800;
+}
+.report-multi {
+  color: var(--danger);
+}
+.evidence {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-1);
+  border: 1px dashed var(--line);
+}
+.evidence-text {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.evidence-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+.evidence a {
+  margin-left: 6px;
+  color: var(--accent);
+}
+.report-details {
+  margin: 0;
+  font-style: italic;
+  color: var(--text-2);
+}
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.profile-report {
+  margin-left: auto;
+  color: var(--text-3);
+}

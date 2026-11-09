@@ -46,19 +46,22 @@ function MainApp() {
       unread: {},
       selectedGuildId: null,
       selectedChannelId: null,
+      isPlatformAdmin: false,
+      openReports: 0,
     });
   }, []);
 
   const start = useCallback(async (token: string) => {
     const [data, dms, friends] = await Promise.all([
-      api<{ user: PublicUser; guilds: Guild[] }>('/bootstrap'),
+      api<{ user: PublicUser; guilds: Guild[]; isPlatformAdmin?: boolean }>('/bootstrap'),
       api<{ dms: DmChannel[] }>('/dms'),
       api<{ friends: Friend[] }>('/friends'),
     ]);
     setGuilds(data.guilds);
     setDms(dms.dms);
     setFriends(friends.friends);
-    useApp.setState({ me: data.user, mobilePanel: 'nav' });
+    useApp.setState({ me: data.user, mobilePanel: 'nav', isPlatformAdmin: !!data.isPlatformAdmin });
+    if (data.isPlatformAdmin) void api<{ open: number }>('/admin/reports/count').then((r) => useApp.setState({ openReports: r.open }), () => {});
     if (data.guilds[0]) selectGuild(data.guilds[0].id);
     else goHome();
     connectSocket(token);

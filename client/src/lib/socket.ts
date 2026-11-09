@@ -154,6 +154,8 @@ export function connectSocket(token: string) {
     })),
   );
 
+  s.on('reports:count', ({ open }: { open: number }) => set({ openReports: open }));
+
   // a sessão foi encerrada em outro aparelho (ou a senha foi trocada)
   s.on('session:ended', () => {
     toast('Você foi desconectado deste aparelho.');

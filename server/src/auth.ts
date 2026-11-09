@@ -68,7 +68,7 @@ export async function sessionFromToken(db: Db, token: unknown): Promise<{ user: 
   const rows = await db.query<PublicUser & { stale: boolean }>(
     `select ${USER_COLUMNS}, s.last_seen_at < now() - interval '10 minutes' as stale
      from sessions s join users u on u.id = s.user_id
-     where s.token_hash = $1 and s.last_seen_at > now() - interval '${SESSION_IDLE_DAYS} days'`,
+     where s.token_hash = $1 and s.last_seen_at > now() - interval '${SESSION_IDLE_DAYS} days' and u.suspended_at is null`,
     [hash],
   );
   if (!rows[0]) return null;
