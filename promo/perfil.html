@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{width:1080px;height:1080px;overflow:hidden}
+.a{position:absolute;inset:0;display:grid;place-items:center}
+/* opção 1: fundo verde da marca, balão escuro */
+#v1{background:radial-gradient(circle at 30% 25%,#6ff0b8 0%,#3ddc97 45%,#1fae72 100%)}
+/* opção 2: fundo escuro com brilho, ícone verde */
+#v2{background:radial-gradient(circle at 50% 40%,#1c2a24 0%,#0b0d11 70%)}
+#v2::before{content:"";position:absolute;width:760px;height:760px;border-radius:50%;background:#3ddc97;filter:blur(160px);opacity:.35}
+svg{position:relative}
+</style></head><body>
+<div class="a" id="v1"><svg width="720" height="720" viewBox="136 112 248 288"><path d="M136 168a48 48 0 0 1 48-48h144a48 48 0 0 1 48 48v112a48 48 0 0 1-48 48h-72l-72 64v-64h0a48 48 0 0 1-48-48z" fill="#111318"/><circle cx="208" cy="224" r="20" fill="#3ddc97"/><circle cx="304" cy="224" r="20" fill="#3ddc97"/></svg></div>
+<div class="a" id="v2" style="display:none"><svg width="640" height="640" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#3ddc97"/><path d="M136 168a48 48 0 0 1 48-48h144a48 48 0 0 1 48 48v112a48 48 0 0 1-48 48h-72l-72 64v-64h0a48 48 0 0 1-48-48z" fill="#111318"/><circle cx="208" cy="224" r="20" fill="#3ddc97"/><circle cx="304" cy="224" r="20" fill="#3ddc97"/></svg></div>
+</body></html>
