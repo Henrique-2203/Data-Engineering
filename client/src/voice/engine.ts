@@ -43,6 +43,24 @@ const getV = useVoice.getState;
  * Motor de voz/vídeo em malha (P2P): cada participante conecta diretamente com os outros.
  * Grátis (sem servidor de mídia) e com a menor latência possível para grupos pequenos.
  */
+export interface CallSecurity {
+  state: RTCPeerConnectionState;
+  relayed: boolean;
+  /** "123 456 789 012": igual nos dois lados se ninguém estiver interceptando */
+  code: string | null;
+  cipher: string | null;
+  dtls: string | null;
+}
+
+/** Código de segurança: SHA-256 das duas impressões digitais (em ordem fixa) → 12 dígitos. */
+async function safetyCode(a: string, b: string) {
+  const [x, y] = [a.toUpperCase(), b.toUpperCase()].sort();
+  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`resenha-dtls|${x}|${y}`)));
+  const groups: string[] = [];
+  for (let i = 0; i < 4; i++) groups.push(String(((hash[i * 2] << 8) | hash[i * 2 + 1]) % 1000).padStart(3, '0'));
+  return groups.join(' ');
+}
+
 class VoiceEngine {
   private peers = new Map<string, Peer>();
   private iceServers: RTCIceServer[] | null = null;
@@ -624,6 +642,43 @@ class VoiceEngine {
       report.forEach((r: any) => {
         if (r.type === 'inbound-rtp' && r.kind === 'audio') out[id] = Math.max(out[id] ?? 0, r.audioLevel ?? 0);
       });
+    }
+    return out;
+  }
+
+  /**
+   * Segurança de cada conexão da chamada: estado, se passa pelo TURN, a cifra em uso e um CÓDIGO DE
+   * SEGURANÇA calculado das impressões digitais dos certificados DTLS dos dois lados. As duas pessoas
+   * veem o mesmo código; se alguém estivesse no meio interceptando (até o próprio servidor), os
+   * códigos seriam diferentes. É a mesma ideia do "número de segurança" de apps como o Signal.
+   */
+  async securityInfo(): Promise<Record<string, CallSecurity>> {
+    const out: Record<string, CallSecurity> = {};
+    for (const [id, p] of this.peers) {
+      const info: CallSecurity = { state: p.pc.connectionState, relayed: !!useVoice.getState().remotes[id]?.relayed, code: null, cipher: null, dtls: null };
+      try {
+        const report = await p.pc.getStats();
+        const byId = new Map<string, any>(); // eslint-disable-line @typescript-eslint/no-explicit-any
+        report.forEach((r: any) => byId.set(r.id, r)); // eslint-disable-line @typescript-eslint/no-explicit-any
+        const transport = [...byId.values()].find((r) => r.type === 'transport' && r.localCertificateId && r.remoteCertificateId);
+        if (transport) {
+          info.dtls = transport.dtlsState ?? null;
+          const version = ({ FEFF: 'DTLS 1.0', FEFD: 'DTLS 1.2', FEFC: 'DTLS 1.3' } as Record<string, string>)[String(transport.tlsVersion).toUpperCase()] ?? transport.tlsVersion;
+          info.cipher = [version, transport.srtpCipher].filter(Boolean).join(' · ') || null;
+          const local = byId.get(transport.localCertificateId)?.fingerprint as string | undefined;
+          const remote = byId.get(transport.remoteCertificateId)?.fingerprint as string | undefined;
+          if (local && remote) info.code = await safetyCode(local, remote);
+          const pair = byId.get(transport.selectedCandidatePairId);
+          if (pair) {
+            const lc = byId.get(pair.localCandidateId);
+            const rc = byId.get(pair.remoteCandidateId);
+            info.relayed = lc?.candidateType === 'relay' || rc?.candidateType === 'relay';
+          }
+        }
+      } catch {
+        /* sem estatísticas ainda */
+      }
+      out[id] = info;
     }
     return out;
   }

@@ -222,6 +222,19 @@ try {
   await pl.getByRole('heading', { name: 'Termos de uso' }).waitFor();
   step('páginas públicas /privacidade e /termos (com o contato configurado)');
 
+  // ---------- página de segurança e security.txt ----------
+  await pl.getByRole('link', { name: 'Segurança', exact: true }).click();
+  await pl.getByRole('heading', { name: 'Segurança no Resenha' }).waitFor();
+  await pl.getByRole('heading', { name: '6. O que ainda não fazemos (sendo honestos)' }).waitFor();
+  await pl.getByRole('heading', { name: '7. Encontrou uma falha de segurança?' }).scrollIntoViewIfNeeded();
+  await pl.screenshot({ path: `${shots}/33-seguranca.png` });
+  const sectxt = await fetch(`${BASE}/.well-known/security.txt`);
+  const body = await sectxt.text();
+  if (!/text\/plain/.test(sectxt.headers.get('content-type')) || !body.includes('Contact: mailto:privacidade@exemplo.com') || !/Expires: \d{4}-/.test(body) || !body.includes('/seguranca#reportar')) {
+    throw new Error(`security.txt incompleto: ${body}`);
+  }
+  step('página pública /seguranca (com o que ainda não fazemos) e /.well-known/security.txt para reportar falhas');
+
   // ---------- conexão em tempo real vinda de outro site ----------
   const evil = io(BASE, { auth: { token: caio.token }, transports: ['websocket'], extraHeaders: { Origin: 'https://site-malicioso.com' }, reconnection: false });
   const evilResult = await new Promise((r) => {

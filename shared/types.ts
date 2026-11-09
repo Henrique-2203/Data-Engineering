@@ -205,3 +205,48 @@ export type RtcSignal =
   | { type: 'candidate'; candidate: unknown }
   | { type: 'meta'; streams: Record<string, 'mic' | 'camera' | 'screen'> }
   | { type: 'watch'; on: boolean };
+
+/** Ações que entram no registro de auditoria do servidor. */
+export type AuditAction =
+  | 'guild_update'
+  | 'guild_icon'
+  | 'guild_banner'
+  | 'guild_everyone_perms'
+  | 'guild_invite_reset'
+  | 'role_create'
+  | 'role_update'
+  | 'role_delete'
+  | 'role_move'
+  | 'member_join'
+  | 'member_leave'
+  | 'member_kick'
+  | 'member_ban'
+  | 'member_unban'
+  | 'member_timeout'
+  | 'member_timeout_clear'
+  | 'member_roles'
+  | 'member_nick'
+  | 'member_avatar_remove'
+  | 'category_create'
+  | 'category_update'
+  | 'category_delete'
+  | 'channel_create'
+  | 'channel_update'
+  | 'channel_delete'
+  | 'channel_layout'
+  | 'message_delete'
+  | 'expression_create'
+  | 'expression_update'
+  | 'expression_delete';
+
+export interface AuditEntry {
+  id: string;
+  action: AuditAction;
+  actor: PublicUser | null;
+  targetType: string | null;
+  targetId: string | null;
+  /** nome do alvo na época (a pessoa pode ter saído ou mudado de nome) */
+  targetLabel: string | null;
+  details: Record<string, unknown>;
+  createdAt: string;
+}

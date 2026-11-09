@@ -510,6 +510,10 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
             Termos
           </a>
           <span>·</span>
+          <a href="/seguranca" target="_blank" rel="noopener">
+            Segurança
+          </a>
+          <span>·</span>
           <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer">
             Código público
           </a>

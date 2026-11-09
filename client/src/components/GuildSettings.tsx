@@ -9,8 +9,9 @@ import { formatBytes, uploadGuildImage } from '../lib/upload';
 import { closeModal, toast, useApp } from '../store/app';
 import { Avatar } from './Avatar';
 import { ExpressionSettings } from './ExpressionSettings';
+import { AuditLog } from './AuditLog';
 
-type Tab = 'overview' | 'roles' | 'members' | 'bans' | 'expressions';
+type Tab = 'overview' | 'roles' | 'members' | 'bans' | 'expressions' | 'audit';
 
 const ROLE_COLORS = ['#ed4245', '#f97316', '#faa61a', '#3ba55d', '#14b8a6', '#5865f2', '#9b59b6', '#eb459e', '#99aab5'];
 
@@ -33,6 +34,7 @@ export function GuildSettings({ guildId, initialTab }: { guildId: string; initia
     { id: 'expressions', label: 'Emojis e sons', show: has(perms, Perm.MANAGE_EXPRESSIONS) },
     { id: 'members', label: 'Membros', show: [Perm.MANAGE_ROLES, Perm.KICK, Perm.BAN, Perm.TIMEOUT, Perm.MANAGE_NICKNAMES].some((p) => has(perms, p)) },
     { id: 'bans', label: 'Banimentos', show: has(perms, Perm.BAN) },
+    { id: 'audit', label: 'Registro', show: has(perms, Perm.VIEW_AUDIT_LOG) },
   ];
   const visible = tabs.filter((t) => t.show);
   const [tab, setTab] = useState<Tab>(initialTab && visible.some((t) => t.id === initialTab) ? initialTab : (visible[0]?.id ?? 'overview'));
@@ -63,6 +65,7 @@ export function GuildSettings({ guildId, initialTab }: { guildId: string; initia
         {tab === 'members' && <Members guild={guild} />}
         {tab === 'bans' && <Bans guild={guild} />}
         {tab === 'expressions' && <ExpressionSettings guild={guild} />}
+        {tab === 'audit' && <AuditLog guild={guild} />}
       </section>
     </div>
   );

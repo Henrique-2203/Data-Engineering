@@ -38,6 +38,7 @@ import { HttpError, parse, wrap } from './http.ts';
 import { dmMemberIds, registerSocialRoutes } from './social.ts';
 import { maxFileBytes, registerAttachmentRoutes, withFileLinks } from './attachments.ts';
 import { registerSystemRoutes } from './backup.ts';
+import { audit, registerAuditRoutes, userLabel } from './audit.ts';
 import { loadGuilds, registerGuildRoutes } from './guilds.ts';
 import { type MemberAccess, canSee, channelAudience, guildUsage, loadChannel, memberAccess, requireNotTimedOut } from './access.ts';
 import { Perm, has } from '../../shared/permissions.ts';
@@ -419,6 +420,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerExpressionRoutes(r, db, rt, auth);
   registerSecurityRoutes(r, db, rt, auth);
   registerAccountRoutes(r, db, rt, auth);
+  registerAuditRoutes(r, db, auth);
   registerReportRoutes(r, db, rt, auth);
   registerWaitlistRoutes(r, db, rt, auth);
   registerStatsRoutes(r, db, auth);
@@ -541,6 +543,12 @@ export function createRoutes(db: Db, rt: Realtime) {
       const m = await messageForEdit(String(req.params.id), req.user!.id);
       if (m.authorId !== req.user!.id && !m.canModerate) throw new HttpError(403, 'Sem permissão.');
       await db.query('delete from messages where id = $1', [m.id]);
+      // moderação: apagar mensagem de OUTRA pessoa entra no registro (sem guardar o conteúdo)
+      if (m.authorId !== req.user!.id && m.channel.guildId) {
+        await audit(db, m.channel.guildId, req.user!.id, 'message_delete', { type: 'user', id: m.authorId, label: await userLabel(db, m.authorId) }, {
+          channel: m.channel.name,
+        });
+      }
       await emitToChannel(m.channel, 'message:delete', { channelId: m.channelId, id: m.id });
     }),
   );

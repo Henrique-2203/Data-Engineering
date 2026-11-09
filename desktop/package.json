@@ -1,7 +1,7 @@
 {
   "name": "resenha-desktop",
   "productName": "Resenha",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "description": "App de desktop do Resenha: chat, voz e transmissão de tela com push-to-talk global.",
   "author": "Resenha",
@@ -33,6 +33,11 @@
       "package.json"
     ],
     "npmRebuild": false,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false
+    },
     "win": {
       "target": [
         {

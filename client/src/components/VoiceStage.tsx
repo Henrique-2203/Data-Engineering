@@ -18,12 +18,15 @@ import {
   Video,
   VideoOff,
   Volume2,
+  Lock,
+  ShieldCheck,
+  X,
 } from 'lucide-react';
 import type { VoiceState } from '../../../shared/types';
 import { findChannel, findMember, openModal, useApp } from '../store/app';
 import { SoundBurstBadge, SoundboardButton } from './Soundboard';
 import { setUserVolume, updateSettings, useVoice } from '../store/voice';
-import { voice } from '../voice/engine';
+import { voice, type CallSecurity } from '../voice/engine';
 import { CODECS, canShareScreen, keyLabel, presetById } from '../voice/settings';
 import { Perm, has, myPermissions } from '../lib/perms';
 import type { SendStats } from '../voice/engine';
@@ -531,6 +534,91 @@ function PttHint() {
   );
 }
 
+/** 🔒 Segurança da chamada: criptografia, tipo de conexão e código de segurança de cada pessoa. */
+function CallSecurityButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button className="call-lock" title="Chamada criptografada: toque para ver os detalhes" aria-label="Segurança da chamada" onClick={() => setOpen(true)}>
+        <Lock size={15} /> <span>Criptografada</span>
+      </button>
+      {open && <CallSecurityPanel onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function CallSecurityPanel({ onClose }: { onClose(): void }) {
+  const [info, setInfo] = useState<Record<string, CallSecurity> | null>(null);
+  const voiceStates = useApp((s) => s.voiceStates);
+  useEffect(() => {
+    let alive = true;
+    const tick = () => void voice.securityInfo().then((i) => alive && setInfo(i));
+    tick();
+    const t = setInterval(tick, 3000);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => {
+      alive = false;
+      clearInterval(t);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+  const people = Object.entries(info ?? {});
+  return (
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal call-security" role="dialog" aria-modal="true" aria-label="Segurança da chamada">
+        <div className="modal-head">
+          <h2>
+            <ShieldCheck size={20} /> Segurança da chamada
+          </h2>
+          <button className="icon-btn" aria-label="Fechar" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+        <div className="modal-body">
+          <p>
+            Voz, câmera e tela vão <strong>criptografados de ponta a ponta</strong> (DTLS-SRTP) direto entre vocês. Nada é gravado. Quando a
+            conexão direta não é possível (ex.: 4G), tudo passa por um servidor de retransmissão <strong>ainda criptografado</strong>: ele não
+            consegue ouvir nem ver.
+          </p>
+          {info === null && <p className="muted">Lendo as conexões…</p>}
+          {info && people.length === 0 && <p className="muted">Ninguém mais na chamada ainda.</p>}
+          <ul className="call-security-list">
+            {people.map(([sid, sec]) => {
+              const st = voiceStates[sid];
+              const member = st ? findMember(st.guildId, st.userId) : undefined;
+              return (
+                <li key={sid}>
+                  <Avatar user={member} size={32} />
+                  <span className="cs-info">
+                    <strong>{member?.displayName ?? 'Alguém'}</strong>
+                    <span className="muted small">
+                      {sec.state !== 'connected'
+                        ? 'Conectando…'
+                        : sec.relayed
+                          ? '🛰️ Via servidor de retransmissão (continua criptografada)'
+                          : '⚡ Conexão direta'}
+                      {sec.cipher ? ` · ${sec.cipher}` : ''}
+                    </span>
+                  </span>
+                  <span className="cs-code" title="Código de segurança: compare com essa pessoa">
+                    {sec.code ?? '··· ··· ··· ···'}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="muted small">
+            <strong>Quer ter certeza?</strong> Peça para a pessoa abrir esta janela e ler o código que aparece ao lado do <em>seu</em> nome. Se for
+            igual ao que você vê ao lado do nome dela, ninguém está interceptando a chamada, nem o próprio Resenha. O código muda a cada
+            chamada.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VoiceControls() {
   const muted = useVoice((s) => s.muted);
   const deafened = useVoice((s) => s.deafened);
@@ -543,6 +631,7 @@ function VoiceControls() {
   });
   return (
     <div className="voice-controls">
+      <CallSecurityButton />
       <button className={`round-btn${muted ? ' off' : ''}`} aria-label={muted ? 'Ativar microfone' : 'Silenciar'} title={muted ? 'Ativar microfone' : 'Silenciar'} onClick={() => voice.setMuted(!muted)}>
         {muted ? <MicOff /> : <Mic />}
       </button>

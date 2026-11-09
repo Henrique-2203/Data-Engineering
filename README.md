@@ -186,6 +186,17 @@ Confirmação de e-mail, código para criar uma senha nova e alertas (aparelho n
 
 Sem e-mail configurado, tudo continua funcionando e a recuperação é feita com os códigos de recuperação.
 
+### Segurança visível
+
+- **Página pública** `/seguranca` explicando tudo em linguagem simples (inclusive o que ainda não fazemos) e
+  `/.well-known/security.txt` para quem quiser reportar uma falha (usa o `PRIVACY_CONTACT`).
+- **Registro de auditoria** em Configurações do servidor → Registro: banir, expulsar, castigar, cargos, canais,
+  emojis, mensagens apagadas por moderadores (sem o conteúdo). 90 dias. Permissão "Ver o registro de auditoria".
+- **Cadeado da chamada** ("🔒 Criptografada"): mostra se a conexão é direta ou via TURN, a cifra e um **código de
+  segurança** por pessoa (igual nos dois lados se ninguém estiver interceptando).
+- **GitHub:** Dependabot (bibliotecas vulneráveis), CodeQL (análise de segurança do código) e o workflow
+  "Verificações" (tipos, build, testes de unidade e `npm audit`) a cada envio.
+
 ### Conta segura
 
 - **Cadastro com e-mail confirmado** (quando o e-mail está configurado): a pessoa preenche e-mail, usuário, nome e senha,

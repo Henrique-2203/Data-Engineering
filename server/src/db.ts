@@ -338,6 +338,19 @@ create table if not exists pending_signups (
   expires_at timestamptz not null,
   created_at timestamptz not null default now()
 );
+-- v14: registro de auditoria dos servidores
+create table if not exists audit_log (
+  id text primary key,
+  guild_id text not null references guilds(id) on delete cascade,
+  actor_id text references users(id) on delete set null,
+  action text not null,
+  target_type text,
+  target_id text,
+  target_label text,
+  details jsonb not null default '{}',
+  created_at timestamptz not null default now()
+);
+create index if not exists audit_log_guild_idx on audit_log(guild_id, created_at desc);
 create table if not exists backups (
   id text primary key,
   started_at timestamptz not null default now(),

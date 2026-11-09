@@ -239,7 +239,7 @@ export function Landing() {
             ))}
           </div>
           <p className="lp-small center">
-            <Lock size={14} /> Leia a <a href="/privacidade">Política de Privacidade</a> e os <a href="/termos">Termos de uso</a>.
+            <Lock size={14} /> Veja <a href="/seguranca">como protegemos você</a>, a <a href="/privacidade">Política de Privacidade</a> e os <a href="/termos">Termos de uso</a>.
           </p>
         </section>
 
@@ -286,6 +286,7 @@ export function Landing() {
         <nav>
           <a href="/privacidade">Privacidade</a>
           <a href="/termos">Termos</a>
+          <a href="/seguranca">Segurança</a>
           <a href="mailto:resenha.brasilgames@gmail.com">resenha.brasilgames@gmail.com</a>
           <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer">
             Código público

@@ -5179,3 +5179,112 @@ input.switch:disabled {
     overflow-y: hidden;
   }
 }
+
+/* ---------- registro de auditoria ---------- */
+.audit-filter {
+  display: inline-grid;
+  gap: 4px;
+  margin: 10px 0 12px;
+  min-width: 260px;
+}
+.audit-list {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.audit-list li {
+  display: grid;
+  grid-template-columns: 22px 28px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+.audit-icon {
+  text-align: center;
+}
+.audit-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .audit-list li {
+    grid-template-columns: 22px 28px 1fr;
+  }
+  .audit-list time {
+    grid-column: 3;
+  }
+}
+
+/* ---------- segurança da chamada ---------- */
+.call-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: center;
+  padding: 6px 12px;
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  margin-right: 6px;
+}
+.call-lock:hover {
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-2));
+}
+.call-security {
+  max-width: 560px;
+}
+.call-security .modal-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.call-security-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+.call-security-list li {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+.cs-info {
+  display: grid;
+  min-width: 0;
+}
+.cs-code {
+  font-family: ui-monospace, 'DejaVu Sans Mono', monospace;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+@media (max-width: 900px) {
+  .call-lock span {
+    display: none;
+  }
+  .call-security-list li {
+    grid-template-columns: 32px 1fr;
+  }
+  .cs-code {
+    grid-column: 2;
+  }
+}

@@ -5,11 +5,11 @@ import { api } from '../lib/api';
 export const SOURCE_URL = 'https://github.com/Henrique-2203/Data-Engineering';
 const UPDATED = '9 de novembro de 2026';
 
-/** Páginas públicas /privacidade e /termos (abrem logado ou não). */
-export function LegalPage({ kind }: { kind: 'privacidade' | 'termos' }) {
+/** Páginas públicas /privacidade, /termos e /seguranca (abrem logado ou não). */
+export function LegalPage({ kind }: { kind: 'privacidade' | 'termos' | 'seguranca' }) {
   const [contact, setContact] = useState<string | null>(null);
   useEffect(() => {
-    document.title = kind === 'privacidade' ? 'Privacidade · Resenha' : 'Termos de uso · Resenha';
+    document.title = kind === 'privacidade' ? 'Privacidade · Resenha' : kind === 'seguranca' ? 'Segurança · Resenha' : 'Termos de uso · Resenha';
     api<{ privacyContact: string | null }>('/config').then((c) => setContact(c.privacyContact), () => {});
   }, [kind]);
   const contactLine = contact ? (
@@ -33,9 +33,14 @@ export function LegalPage({ kind }: { kind: 'privacidade' | 'termos' }) {
           <a href="/termos" aria-current={kind === 'termos' ? 'page' : undefined}>
             Termos de uso
           </a>
+          <a href="/seguranca" aria-current={kind === 'seguranca' ? 'page' : undefined}>
+            Segurança
+          </a>
         </nav>
       </header>
-      <article className="legal-body">{kind === 'privacidade' ? <Privacy contact={contactLine} /> : <Terms contact={contactLine} />}</article>
+      <article className="legal-body">
+        {kind === 'privacidade' ? <Privacy contact={contactLine} /> : kind === 'seguranca' ? <Security contact={contactLine} /> : <Terms contact={contactLine} />}
+      </article>
     </div>
   );
 }
@@ -335,6 +340,135 @@ function Terms({ contact }: { contact: ReactNode }) {
       <p>
         Dúvidas, denúncias ou pedidos: fale conosco {contact}. Estes termos seguem as leis do Brasil, incluindo o Código de Defesa do
         Consumidor quando aplicável.
+      </p>
+    </>
+  );
+}
+
+/** /seguranca: como o Resenha protege contas, conversas e chamadas, em linguagem simples. */
+function Security({ contact }: { contact: ReactNode }) {
+  return (
+    <>
+      <h1>
+        <Lock size={30} /> Segurança no Resenha
+      </h1>
+      <p className="muted">Atualizada em {UPDATED}</p>
+      <p>
+        Esta página explica, sem enrolação, o que fazemos para proteger você. O código do Resenha é público, então qualquer pessoa pode conferir
+        que é isso mesmo que acontece: <a href={SOURCE_URL}>{SOURCE_URL.replace('https://', '')}</a>.
+      </p>
+
+      <h2>Resumo</h2>
+      <Summary
+        items={[
+          ['🔐', 'Senha guardada embaralhada (scrypt), recusamos senhas que já vazaram e você pode ativar a verificação em duas etapas.'],
+          ['📞', 'Chamadas de voz, câmera e tela criptografadas de ponta a ponta, com código de segurança para conferir. Nada é gravado.'],
+          ['🛡️', 'Login guardado num cookie que nenhum script da página consegue ler, e proteção contra ações vindas de outros sites.'],
+          ['📍', 'Fotos e vídeos perdem a localização (GPS) e outros dados escondidos antes de serem guardados.'],
+          ['🔗', 'Arquivos só abrem por links que expiram, entregues a quem está na conversa. Programas (.exe, .apk...) são bloqueados.'],
+          ['💾', 'Backup diário do banco, criptografado e testado depois de feito.'],
+        ]}
+      />
+
+      <h2>1. Sua conta</h2>
+      <ul>
+        <li>
+          <strong>Senha:</strong> guardada só como um "hash" scrypt com sal aleatório. Nem a equipe consegue ver qual é. Senhas fracas, comuns
+          ou que já apareceram em vazamentos de outros sites (consultamos o Have I Been Pwned sem enviar a sua senha) são recusadas.
+        </li>
+        <li>
+          <strong>Verificação em duas etapas</strong> com app autenticador (Google Authenticator, Authy...) e códigos de recuperação. Quem tem
+          o 2FA ligado precisa dele até para trocar a senha pelo e-mail.
+        </li>
+        <li>
+          <strong>Alertas por e-mail</strong> quando alguém entra de um aparelho novo, a senha é trocada ou o 2FA é desligado. Nossos e-mails
+          nunca pedem sua senha nem têm link para entrar.
+        </li>
+        <li>
+          <strong>Contra robôs e tentativas em massa:</strong> limites por conta e por endereço, captcha invisível depois de erros e bloqueio
+          temporário após várias senhas erradas.
+        </li>
+        <li>
+          <strong>Você no controle:</strong> em Configurações → Segurança há o checkup, a lista de aparelhos conectados (com "sair de todos"),
+          o histórico de segurança dos últimos 180 dias, a cópia dos seus dados e a exclusão da conta.
+        </li>
+      </ul>
+
+      <h2>2. Conversas e arquivos</h2>
+      <ul>
+        <li>Tudo viaja criptografado (HTTPS/TLS) e fica guardado em servidores criptografados em disco pelos provedores.</li>
+        <li>
+          Fotos e vídeos perdem a <strong>localização (GPS)</strong>, o modelo do celular e outros metadados no nosso servidor, antes de
+          serem guardados.
+        </li>
+        <li>
+          Cada arquivo só abre por um <strong>link assinado que expira</strong> (12 a 24 horas), entregue só a quem está na conversa. Um link
+          repassado para fora para de funcionar.
+        </li>
+        <li>
+          O tipo do arquivo é conferido pelo conteúdo: <strong>programas e scripts são recusados</strong> mesmo renomeados, e páginas da web
+          enviadas nunca rodam como parte do site.
+        </li>
+      </ul>
+
+      <h2>3. Chamadas</h2>
+      <ul>
+        <li>
+          Voz, câmera e transmissão de tela usam a criptografia de ponta a ponta do WebRTC (DTLS-SRTP) e vão direto entre os participantes.
+          Não gravamos nada.
+        </li>
+        <li>
+          Quando a conexão direta não é possível (ex.: 4G), o áudio e o vídeo passam por um servidor de retransmissão (TURN) <em>ainda
+          criptografados</em>: ele só repassa, sem conseguir ouvir ou ver.
+        </li>
+        <li>
+          <strong>Código de segurança:</strong> na chamada, toque em "🔒 Criptografada". Cada pessoa tem um código que é igual nos dois lados
+          se ninguém estiver no meio. Se quiser ter certeza, compare em voz alta.
+        </li>
+      </ul>
+
+      <h2>4. Servidores e moderação</h2>
+      <ul>
+        <li>Cargos e permissões são conferidos pelo servidor em cada ação, não só escondidos na tela.</li>
+        <li>
+          <strong>Registro de auditoria:</strong> quem administra vê quem baniu, expulsou, castigou ou mudou cargos e canais nos últimos 90 dias.
+        </li>
+        <li>Qualquer pessoa pode denunciar mensagens, perfis e servidores; a equipe analisa e quem foi denunciado não sabe quem denunciou.</li>
+      </ul>
+
+      <h2>5. Bastidores</h2>
+      <ul>
+        <li>Backup diário do banco de dados, criptografado com AES-256, guardado fora do servidor e aberto de volta para conferir.</li>
+        <li>
+          A cada mudança, verificações automáticas procuram bibliotecas com falhas conhecidas e erros de segurança no código (Dependabot e
+          CodeQL do GitHub), além de testes automáticos do app inteiro.
+        </li>
+        <li>Sem anúncios, sem rastreadores e sem venda de dados. Veja a <a href="/privacidade">Política de Privacidade</a>.</li>
+      </ul>
+
+      <h2>6. O que ainda não fazemos (sendo honestos)</h2>
+      <ul>
+        <li>
+          <strong>Mensagens de texto e arquivos não têm criptografia de ponta a ponta.</strong> Eles ficam guardados criptografados no
+          servidor para você ver o histórico em qualquer aparelho. Não lemos suas conversas; só acessaríamos um conteúdo específico por ordem
+          judicial ou para analisar uma denúncia.
+        </li>
+        <li>
+          O instalador do app para Windows ainda não tem assinatura digital paga, então o Windows pode mostrar um aviso na primeira instalação.
+          Baixe sempre pelo nosso site ou pela página oficial no GitHub.
+        </li>
+      </ul>
+
+      <h2 id="reportar">7. Encontrou uma falha de segurança?</h2>
+      <p>Obrigado por ajudar! Escreva {contact} com:</p>
+      <ul>
+        <li>o que você encontrou e como reproduzir;</li>
+        <li>o impacto que imagina (o que alguém mal-intencionado conseguiria fazer).</li>
+      </ul>
+      <p>
+        Respondemos em até 5 dias úteis e corrigimos o quanto antes. Pedimos que você não acesse, altere ou apague dados de outras pessoas,
+        não atrapalhe o serviço e nos dê um tempo para corrigir antes de divulgar. Quem segue estas regras de boa-fé não será tratado como
+        atacante. Também publicamos estas informações em <a href="/.well-known/security.txt">/.well-known/security.txt</a>.
       </p>
     </>
   );

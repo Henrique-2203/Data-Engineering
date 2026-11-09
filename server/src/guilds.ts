@@ -8,6 +8,7 @@ import { HttpError, parse, wrap } from './http.ts';
 import { sniffImage } from './sanitize.ts';
 import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
 import { deleteFiles, guildFileIds, loadExpressions } from './expressions.ts';
+import { audit, userLabel } from './audit.ts';
 import {
   CHANNEL_COLUMNS,
   type ChannelRow,
@@ -164,11 +165,25 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         }
         requireGrantable(a, body.everyonePermissions, a.ctx.everyonePermissions);
       }
+      const [before] = await db.query<{ name: string; description: string; perms: number }>(
+        'select name, description, everyone_permissions as perms from guilds where id = $1',
+        [id],
+      );
       await db.query(
         `update guilds set name = coalesce($2, name), description = coalesce($3, description),
            everyone_permissions = coalesce($4, everyone_permissions) where id = $1`,
         [id, body.name ?? null, body.description ?? null, body.everyonePermissions ?? null],
       );
+      const me = req.user!.id;
+      if ((body.name !== undefined && body.name !== before?.name) || (body.description !== undefined && body.description !== before?.description)) {
+        await audit(db, id, me, 'guild_update', null, {
+          ...(body.name !== undefined && body.name !== before?.name ? { name: [before?.name, body.name] } : {}),
+          ...(body.description !== undefined && body.description !== before?.description ? { description: true } : {}),
+        });
+      }
+      if (body.everyonePermissions !== undefined && body.everyonePermissions !== before?.perms) {
+        await audit(db, id, me, 'guild_everyone_perms', null, { before: before?.perms ?? 0, after: body.everyonePermissions });
+      }
       await changed(id, body.everyonePermissions !== undefined);
     }),
   );
@@ -200,6 +215,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       await requirePerm(db, id, req.user!.id, Perm.MANAGE_GUILD);
       const code = inviteCode();
       await db.query('update guilds set invite_code = $2 where id = $1', [id, code]);
+      await audit(db, id, req.user!.id, 'guild_invite_reset');
       await changed(id);
       return { inviteCode: code };
     }),
@@ -219,6 +235,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         [g.id, me.id],
       );
       if (inserted.length) {
+        await audit(db, g.id, me.id, 'member_join', { type: 'user', id: me.id, label: await userLabel(db, me.id) });
         rt.userJoinedGuild(me.id, g.id);
         await changed(g.id);
       }
@@ -258,6 +275,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         const [old] = await db.query<{ old: string | null }>(`select ${column} as old from guilds where id = $1`, [id]);
         await db.query(`update guilds set ${column} = $2 where id = $1`, [id, imageId]);
         if (old?.old) await db.query('delete from images where id = $1', [old.old]);
+        await audit(db, id, req.user!.id, kind === 'icon' ? 'guild_icon' : 'guild_banner', null, { removed: false });
         await changed(id);
         return { imageId };
       }),
@@ -271,6 +289,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         const [old] = await db.query<{ old: string | null }>(`select ${column} as old from guilds where id = $1`, [id]);
         await db.query(`update guilds set ${column} = null where id = $1`, [id]);
         if (old?.old) await db.query('delete from images where id = $1', [old.old]);
+        await audit(db, id, req.user!.id, kind === 'icon' ? 'guild_icon' : 'guild_banner', null, { removed: true });
         await changed(id);
       }),
     );
@@ -334,6 +353,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         body.color,
         body.permissions,
       ]);
+      await audit(db, id, req.user!.id, 'role_create', { type: 'role', id: roleId, label: body.name }, { permissions: body.permissions, color: body.color });
       await changed(id);
       return { roleId };
     }),
@@ -357,6 +377,11 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         'update roles set name = coalesce($2, name), color = coalesce($3, color), permissions = coalesce($4, permissions) where id = $1',
         [role.id, body.name ?? null, body.color ?? null, body.permissions ?? null],
       );
+      const diff: Record<string, unknown> = {};
+      if (body.name !== undefined && body.name !== role.name) diff.name = [role.name, body.name];
+      if (body.color !== undefined && body.color !== role.color) diff.color = [role.color, body.color];
+      if (body.permissions !== undefined && body.permissions !== role.permissions) diff.permissions = [role.permissions, body.permissions];
+      if (Object.keys(diff).length) await audit(db, role.guildId, req.user!.id, 'role_update', { type: 'role', id: role.id, label: body.name ?? role.name }, diff);
       await changed(role.guildId, body.permissions !== undefined);
     }),
   );
@@ -367,6 +392,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     wrap(async (req) => {
       const { role } = await roleForManage(String(req.params.roleId), req.user!.id);
       await db.query('delete from roles where id = $1', [role.id]);
+      await audit(db, role.guildId, req.user!.id, 'role_delete', { type: 'role', id: role.id, label: role.name });
       // canais que só esse cargo via voltam a ser só de administradores (lista vazia continua privada)
       await db.query('update channels set allowed_role_ids = array_remove(allowed_role_ids, $2) where guild_id = $1', [
         role.guildId,
@@ -392,6 +418,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       }
       await db.query('update roles set position = $2 where id = $1', [role.id, other.position]);
       await db.query('update roles set position = $2 where id = $1', [other.id, role.position]);
+      await audit(db, role.guildId, req.user!.id, 'role_move', { type: 'role', id: role.id, label: role.name }, { direction });
       await changed(role.guildId);
     }),
   );
@@ -425,6 +452,13 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
           rid,
         ]);
       }
+      if (changedIds.length) {
+        const name = (rid: string) => a.ctx.roles.find((x) => x.id === rid)?.name ?? '?';
+        await audit(db, id, a.userId, 'member_roles', { type: 'user', id: target, label: await userLabel(db, target) }, {
+          added: roleIds.filter((r) => !current.includes(r)).map(name),
+          removed: current.filter((r) => !roleIds.includes(r)).map(name),
+        });
+      }
       await changed(id, true);
     }),
   );
@@ -444,6 +478,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         [id, target, minutes],
       );
       if (!updated.length) throw new HttpError(404, 'Membro não encontrado.');
+      await audit(db, id, a.userId, minutes ? 'member_timeout' : 'member_timeout_clear', { type: 'user', id: target, label: await userLabel(db, target) }, minutes ? { minutes } : {});
       await changed(id, true);
     }),
   );
@@ -466,6 +501,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       const id = String(req.params.id);
       const me = req.user!.id;
       const target = req.params.userId === '@me' ? me : String(req.params.userId);
+      const label = await userLabel(db, target);
       if (target === me) {
         const a = await requireMember(db, id, me);
         if (a.isOwner) throw new HttpError(400, 'O dono não pode sair. Exclua o servidor.');
@@ -474,6 +510,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         await requireOutranks(db, id, a, target);
       }
       await removeMember(id, target);
+      await audit(db, id, me, target === me ? 'member_leave' : 'member_kick', { type: 'user', id: target, label });
     }),
   );
 
@@ -505,6 +542,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         'insert into bans (guild_id, user_id, reason, banned_by) values ($1, $2, $3, $4) on conflict (guild_id, user_id) do update set reason = $3',
         [id, body.userId, body.reason, a.userId],
       );
+      await audit(db, id, a.userId, 'member_ban', { type: 'user', id: body.userId, label: await userLabel(db, body.userId) }, body.reason ? { reason: body.reason } : {});
       await removeMember(id, body.userId);
     }),
   );
@@ -515,7 +553,11 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     wrap(async (req) => {
       const id = String(req.params.id);
       await requirePerm(db, id, req.user!.id, Perm.BAN);
-      await db.query('delete from bans where guild_id = $1 and user_id = $2', [id, String(req.params.userId)]);
+      const unbanned = await db.query('delete from bans where guild_id = $1 and user_id = $2 returning 1', [id, String(req.params.userId)]);
+      if (unbanned.length) {
+        const target = String(req.params.userId);
+        await audit(db, id, req.user!.id, 'member_unban', { type: 'user', id: target, label: await userLabel(db, target) });
+      }
     }),
   );
 
@@ -536,6 +578,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         name,
         (max ?? 0) + 1,
       ]);
+      await audit(db, id, req.user!.id, 'category_create', { type: 'category', id: categoryId, label: name });
       await changed(id);
       return { categoryId };
     }),
@@ -554,7 +597,11 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     wrap(async (req) => {
       const cat = await categoryForManage(String(req.params.categoryId), req.user!.id);
       const { name } = parse(z.object({ name: z.string().trim().min(1).max(40) }), req.body);
+      const [oldCat] = await db.query<{ name: string }>('select name from categories where id = $1', [String(req.params.categoryId)]);
       await db.query('update categories set name = $2 where id = $1', [String(req.params.categoryId), name]);
+      if (oldCat?.name !== name) {
+        await audit(db, cat.guildId, req.user!.id, 'category_update', { type: 'category', id: String(req.params.categoryId), label: name }, { name: [oldCat?.name, name] });
+      }
       await changed(cat.guildId);
     }),
   );
@@ -565,7 +612,8 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     wrap(async (req) => {
       const cat = await categoryForManage(String(req.params.categoryId), req.user!.id);
       // os canais da categoria continuam, só ficam sem categoria
-      await db.query('delete from categories where id = $1', [String(req.params.categoryId)]);
+      const [gone] = await db.query<{ name: string }>('delete from categories where id = $1 returning name', [String(req.params.categoryId)]);
+      if (gone) await audit(db, cat.guildId, req.user!.id, 'category_delete', { type: 'category', id: String(req.params.categoryId), label: gone.name });
       await changed(cat.guildId);
     }),
   );
@@ -616,8 +664,13 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
           body.userLimit ?? 0,
         ],
       );
+      const created = (await loadChannel(db, channelId))!;
+      await audit(db, guildId, req.user!.id, 'channel_create', { type: 'channel', id: channelId, label: created.name }, {
+        type: body.type,
+        private: !!body.allowedRoleIds,
+      });
       await changed(guildId);
-      return { channel: toChannel((await loadChannel(db, channelId))!) };
+      return { channel: toChannel(created) };
     }),
   );
 
@@ -655,6 +708,16 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
           body.userLimit ?? null,
         ],
       );
+      const after = (await loadChannel(db, c.id))!;
+      const diff: Record<string, unknown> = {};
+      if (after.name !== c.name) diff.name = [c.name, after.name];
+      if (body.allowedRoleIds !== undefined && JSON.stringify(after.allowedRoleIds) !== JSON.stringify(c.allowedRoleIds)) {
+        diff.privacy = after.allowedRoleIds ? 'privado' : 'público';
+      }
+      if (body.bitrate !== undefined && after.bitrate !== c.bitrate) diff.bitrate = [c.bitrate, after.bitrate];
+      if (body.userLimit !== undefined && after.userLimit !== c.userLimit) diff.userLimit = [c.userLimit, after.userLimit];
+      if (body.categoryId !== undefined && after.categoryId !== c.categoryId) diff.category = true;
+      if (Object.keys(diff).length) await audit(db, c.guildId, req.user!.id, 'channel_update', { type: 'channel', id: c.id, label: after.name }, diff);
       await changed(c.guildId, body.allowedRoleIds !== undefined);
     }),
   );
@@ -666,6 +729,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       const c = await channelForManage(String(req.params.id), req.user!.id);
       rt.channelDeleted(c.id);
       await db.query('delete from channels where id = $1', [c.id]);
+      await audit(db, c.guildId, req.user!.id, 'channel_delete', { type: 'channel', id: c.id, label: c.name }, { type: c.type });
       await changed(c.guildId);
     }),
   );

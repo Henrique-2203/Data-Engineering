@@ -17,6 +17,7 @@ export const Perm = {
   USE_SOUNDBOARD: 1 << 12,
   CHANGE_NICKNAME: 1 << 13,
   MANAGE_NICKNAMES: 1 << 14,
+  VIEW_AUDIT_LOG: 1 << 15,
 } as const;
 
 export type PermKey = keyof typeof Perm;
@@ -43,6 +44,7 @@ export const PERMISSION_INFO: { key: PermKey; label: string; description: string
   { key: 'USE_SOUNDBOARD', label: 'Usar o soundboard', description: 'Tocar sons para todos na chamada de voz.' },
   { key: 'CHANGE_NICKNAME', label: 'Mudar o próprio apelido', description: 'Usar um apelido e uma foto só neste servidor.' },
   { key: 'MANAGE_NICKNAMES', label: 'Gerenciar apelidos', description: 'Mudar o apelido ou tirar a foto de servidor de quem está abaixo.' },
+  { key: 'VIEW_AUDIT_LOG', label: 'Ver o registro de auditoria', description: 'Ver quem baniu, expulsou, castigou ou mudou cargos, canais e configurações.' },
 ];
 
 export interface Role {

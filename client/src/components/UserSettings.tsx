@@ -130,6 +130,15 @@ export function UserSettings({
           </header>
           {section === 'account' && <AccountOverview go={setSection} onLogout={() => void logout()} />}
           {section === 'profile' && <ProfileEditor />}
+          {section === 'security' && (
+            <p className="muted small">
+              Quer saber tudo o que fazemos para proteger você? Veja a página{' '}
+              <a href="/seguranca" target="_blank" rel="noopener">
+                Segurança no Resenha
+              </a>
+              .
+            </p>
+          )}
           {section === 'security' && <SecuritySettings part="security" initialPanel={securityPanel} onLogout={() => void logout()} />}
           {section === 'privacy' && (
             <>

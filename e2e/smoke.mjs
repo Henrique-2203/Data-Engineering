@@ -102,6 +102,21 @@ try {
   await phone.waitForFunction(() => !document.querySelector('.tile-badge'), null, { timeout: 15000 });
   step('os dois entraram na chamada de voz (WebRTC conectado)');
 
+  // ---- segurança da chamada: os dois lados veem o MESMO código (ninguém no meio) ----
+  const readCode = async (page) => {
+    await page.getByRole('button', { name: 'Segurança da chamada' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Segurança da chamada' });
+    await dialog.locator('.cs-code', { hasText: /^\d{3} \d{3} \d{3} \d{3}$/ }).first().waitFor({ timeout: 15000 });
+    const code = (await dialog.locator('.cs-code').first().textContent()).trim();
+    const how = await dialog.locator('.cs-info .small').first().textContent();
+    await page.keyboard.press('Escape');
+    return { code, how };
+  };
+  const pcSec = await readCode(pc);
+  const phoneSec = await readCode(phone);
+  if (pcSec.code !== phoneSec.code) throw new Error(`códigos de segurança diferentes: ${pcSec.code} x ${phoneSec.code}`);
+  step(`segurança da chamada: os dois veem o mesmo código (${pcSec.code}) · ${pcSec.how.trim()}`);
+
   // --- Transmissão de tela no PC ---
   await pc.getByRole('button', { name: 'Transmitir tela' }).click();
   await pc.locator('.modal select').first().selectOption('1080p60');

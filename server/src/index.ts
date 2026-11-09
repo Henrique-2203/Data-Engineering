@@ -22,6 +22,21 @@ app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(securityHeaders);
 app.use(express.json({ limit: '100kb' }));
+// canal oficial para reportar falhas de segurança (RFC 9116)
+app.get('/.well-known/security.txt', (req, res) => {
+  const origin = `${req.protocol}://${req.headers.host}`;
+  const expires = new Date(Date.now() + 300 * 86400_000).toISOString().replace(/\.\d{3}Z$/, '.000Z');
+  res.type('text/plain').send(
+    [
+      `Contact: mailto:${config.privacyContact}`,
+      `Expires: ${expires}`,
+      'Preferred-Languages: pt, en',
+      `Policy: ${origin}/seguranca#reportar`,
+      `Canonical: ${origin}/.well-known/security.txt`,
+      '',
+    ].join('\n'),
+  );
+});
 app.use('/api', sameOriginOnly);
 app.use('/api', createRoutes(db, rt));
 app.use('/api', (_req, res) => {

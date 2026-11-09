@@ -56,7 +56,7 @@ export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
 
   const isOwner = guild?.ownerId === me.id;
   const canManage = has(perms, Perm.MANAGE_CHANNELS);
-  const canSettings = [Perm.MANAGE_GUILD, Perm.MANAGE_ROLES, Perm.KICK, Perm.BAN, Perm.TIMEOUT, Perm.MANAGE_EXPRESSIONS, Perm.MANAGE_NICKNAMES].some((p) => has(perms, p));
+  const canSettings = [Perm.MANAGE_GUILD, Perm.MANAGE_ROLES, Perm.KICK, Perm.BAN, Perm.TIMEOUT, Perm.MANAGE_EXPRESSIONS, Perm.MANAGE_NICKNAMES, Perm.VIEW_AUDIT_LOG].some((p) => has(perms, p));
   const canInvite = has(perms, Perm.CREATE_INVITE);
 
   const sorted = [...(guild?.channels ?? [])].sort((a, b) => a.position - b.position);

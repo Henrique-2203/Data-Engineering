@@ -9,6 +9,7 @@ import { sniffImage } from './sanitize.ts';
 import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
 import { requireMember, requireOutranks, requirePerm } from './access.ts';
 import { Perm, has } from '../../shared/permissions.ts';
+import { audit, userLabel } from './audit.ts';
 import type { Expression, ExpressionKind } from '../../shared/types.ts';
 
 /**
@@ -138,6 +139,7 @@ export function registerExpressionRoutes(r: Router, db: Db, rt: Realtime, auth: 
         emoji,
         me,
       ]);
+      await audit(db, guildId, me, 'expression_create', { type: 'expression', id, label: name }, { kind });
       rt.guildChanged(guildId);
       const expression: Expression = { id, guildId, kind, name, fileId, emoji };
       return { expression };
@@ -167,6 +169,9 @@ export function registerExpressionRoutes(r: Router, db: Db, rt: Realtime, auth: 
         body.emoji ?? null,
         e.kind === 'sound' && body.emoji !== undefined,
       ]);
+      if (body.name && body.name !== e.name) {
+        await audit(db, e.guildId, req.user!.id, 'expression_update', { type: 'expression', id: e.id, label: body.name }, { kind: e.kind, name: [e.name, body.name] });
+      }
       rt.guildChanged(e.guildId);
     }),
   );
@@ -178,6 +183,7 @@ export function registerExpressionRoutes(r: Router, db: Db, rt: Realtime, auth: 
       const e = await expressionForManage(String(req.params.id), req.user!.id);
       await db.query('delete from expressions where id = $1', [e.id]);
       await deleteFiles(db, [e.fileId]);
+      await audit(db, e.guildId, req.user!.id, 'expression_delete', { type: 'expression', id: e.id, label: e.name }, { kind: e.kind });
       rt.guildChanged(e.guildId);
     }),
   );
@@ -203,6 +209,8 @@ export function registerExpressionRoutes(r: Router, db: Db, rt: Realtime, auth: 
       const { nick } = parse(z.object({ nick: z.string().trim().max(32, 'Apelido muito longo (máx. 32).').nullable() }), req.body);
       const updated = await db.query('update members set nick = $3 where guild_id = $1 and user_id = $2 returning 1', [guildId, target, nick || null]);
       if (!updated.length) throw new HttpError(404, 'Membro não encontrado.');
+      // só entra no registro quando alguém muda o apelido de OUTRA pessoa
+      if (target !== me) await audit(db, guildId, me, 'member_nick', { type: 'user', id: target, label: await userLabel(db, target) }, { nick: nick || null });
       rt.guildChanged(guildId);
     }),
   );
@@ -249,6 +257,7 @@ export function registerExpressionRoutes(r: Router, db: Db, rt: Realtime, auth: 
       if (!old) throw new HttpError(404, 'Membro não encontrado.');
       await db.query('update members set avatar_id = null where guild_id = $1 and user_id = $2', [guildId, target]);
       await deleteFiles(db, [old.avatar_id]);
+      if (target !== me) await audit(db, guildId, me, 'member_avatar_remove', { type: 'user', id: target, label: await userLabel(db, target) });
       rt.guildChanged(guildId);
     }),
   );

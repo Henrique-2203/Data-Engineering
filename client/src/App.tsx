@@ -11,7 +11,7 @@ import { Landing } from './components/Landing';
 import { isDesktop } from './lib/desktop';
 
 /** /privacidade e /termos são páginas públicas (abrem sem login). */
-const legalPage = /^\/(privacidade|termos)\/?$/.exec(location.pathname)?.[1] as 'privacidade' | 'termos' | undefined;
+const legalPage = /^\/(privacidade|termos|seguranca)\/?$/.exec(location.pathname)?.[1] as 'privacidade' | 'termos' | 'seguranca' | undefined;
 
 /** Lê /invite/:code da URL (link de convite) e limpa a barra de endereço. */
 function takeInviteFromUrl(): string | null {
