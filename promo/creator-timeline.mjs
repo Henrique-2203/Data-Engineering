@@ -1,7 +1,8 @@
 // Vídeo "Criei meu próprio Discord" (avatar do criador). Tempos de cada trecho falado medidos no áudio
 // (pausas + núcleos de sílaba casados com o roteiro). Legendas, cenas, efeitos e trilha saem daqui.
 export const FPS = 30;
-export const DURATION = 44;
+/** termina logo depois da última palavra ("Chama a resenha!" acaba em 41,65 s) */
+export const DURATION = 42.5;
 
 /** [início, fim, texto] de cada trecho falado */
 export const SEGMENTS = [

@@ -176,6 +176,8 @@ try {
   await box.fill(':fest');
   await pb.getByRole('listbox', { name: 'Emojis' }).getByText(':festa_junina:').waitFor();
   await pb.keyboard.press('Enter');
+  const typed = await box.inputValue();
+  if (typed.trim() !== ':festa_junina:') throw new Error(`o campo mostrou "${typed}" em vez de :festa_junina:`);
   await pb.keyboard.press('Enter');
   await pa.locator('.message .emoji-only img.custom-emoji[alt=":festa_junina:"]').waitFor({ timeout: 5000 });
   step('Bia digitou :fest, escolheu o emoji e a Ana vê o emoji grande (mensagem só com emoji)');

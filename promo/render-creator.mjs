@@ -42,8 +42,13 @@ const ref = sorted[Math.floor(sorted.length * 0.95)] || 1;
 // raiz quadrada: falas baixas (começo inseguro) também abrem a boca de forma visível
 const envJson = rms.map((v) => Math.round(Math.sqrt(Math.min(1, Math.max(0, (v / ref - 0.04) * 1.05))) * 100) / 100);
 await writeFile(path.resolve('promo/out/creator-env.json'), JSON.stringify(envJson));
+// quantos quadros tem cada trecho gravado do app (capture-v2.mjs)
+const { readdirSync, existsSync } = await import('node:fs');
+const clipsDir = path.resolve('promo/out/clips');
+const counts = existsSync(clipsDir) ? Object.fromEntries(readdirSync(clipsDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => [d.name, readdirSync(path.join(clipsDir, d.name)).length])) : {};
+await writeFile(path.join(clipsDir, 'counts.json'), JSON.stringify(counts));
 
-const types = { '.html': 'text/html', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
+const types = { '.html': 'text/html', '.mjs': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' };
 const server = createServer(async (req, res) => {
   try {
     const file = path.join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname));

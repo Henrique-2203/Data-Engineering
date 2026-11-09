@@ -63,8 +63,23 @@ export function EmojiView({ emoji, big }: { emoji: string; big?: boolean }) {
   return <>{emoji}</>;
 }
 
-/** Nome legível para textos simples (notificações, dicas): <:festa:id> -> :festa: */
+/** Nome legível para textos simples (notificações, dicas, campo de texto): <:festa:id> -> :festa: */
 export const plainEmojis = (text: string) => text.replace(CUSTOM_EMOJI_RE, ':$1:');
+
+/**
+ * Antes de enviar: :festa: vira o emoji personalizado <:festa:id> (o do servidor atual primeiro,
+ * depois os dos outros servidores). Nomes que não existem ficam como texto.
+ */
+export function encodeEmojis(text: string, guildId?: string | null): string {
+  const s = useApp.getState();
+  const groups = expressionGroups(s.guilds, s.guildOrder, 'emoji', guildId);
+  const byName = new Map<string, Expression>();
+  for (const g of groups) for (const e of g.items) if (!byName.has(e.name)) byName.set(e.name, e);
+  return text.replace(/(^|[^\w<]):([a-z0-9_]{2,32}):/g, (m, pre: string, name: string) => {
+    const e = byName.get(name);
+    return e ? `${pre}${emojiToken(e)}` : m;
+  });
+}
 
 /** Divide o texto em pedaços: texto comum (passa por `renderText`) e emojis personalizados. */
 export function renderCustomEmojis(text: string, keyPrefix: string, renderText: (t: string, key: string) => ReactNode[], big = false): ReactNode[] {

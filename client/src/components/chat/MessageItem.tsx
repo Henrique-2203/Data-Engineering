@@ -1,7 +1,7 @@
 import { Fragment, memo, useState } from 'react';
 import { CornerUpLeft, Flag, Image as ImageIcon, Pencil, Reply, SmilePlus, Trash2 } from 'lucide-react';
 import type { Channel, Message, StickerRef } from '../../../../shared/types';
-import { EmojiView, fileUrl, plainEmojis, renderCustomEmojis } from '../../lib/expressions';
+import { EmojiView, encodeEmojis, fileUrl, plainEmojis, renderCustomEmojis } from '../../lib/expressions';
 import { api } from '../../lib/api';
 import { mentionsUser } from '../../lib/mentions';
 import { attachmentUrl } from '../../lib/upload';
@@ -34,7 +34,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
   // usa dados atualizados do membro (nome/cor podem ter mudado)
   const author = useApp(() => findMember(channel.guildId, message.author.id)) ?? message.author;
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(message.content);
+  const [draft, setDraft] = useState(plainEmojis(message.content));
   const [picker, setPicker] = useState(false);
   const mine = message.author.id === me.id;
   const nameColor = useApp((s) => memberColor(s.guilds[channel.guildId], message.author.id, author.avatarColor));
@@ -42,7 +42,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
   const mentioned = !mine && mentionsUser(message.content, me.username, message.mentionEveryone);
 
   async function saveEdit() {
-    const content = draft.trim();
+    const content = encodeEmojis(draft.trim(), channel.guildId);
     setEditing(false);
     if (content === message.content || (!content && message.attachments.length === 0)) return;
     try {
@@ -168,7 +168,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
               aria-label="Editar"
               title="Editar"
               onClick={() => {
-                setDraft(message.content);
+                setDraft(plainEmojis(message.content));
                 setEditing(true);
               }}
             >

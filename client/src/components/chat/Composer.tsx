@@ -10,7 +10,7 @@ import { Perm, has, myPermissions, timeoutUntil } from '../../lib/perms';
 import { Avatar } from '../Avatar';
 import { EmojiPicker } from '../EmojiPicker';
 import { StickerPicker } from '../StickerPicker';
-import { emojiToken, expressionGroups, fileUrl } from '../../lib/expressions';
+import { encodeEmojis, expressionGroups, fileUrl, plainEmojis } from '../../lib/expressions';
 
 /** Texto antes do cursor termina com ":algo" (2+ letras)? Retorna o que foi digitado depois dos dois-pontos. */
 const emojiQuery = (before: string) => /(^|\s):([a-z0-9_]{2,32})$/i.exec(before)?.[2].toLowerCase() ?? null;
@@ -142,7 +142,7 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
     setSending(true);
     try {
       await api(`/channels/${channel.id}/messages`, {
-        body: { content: text.trim(), replyToId: replyTo?.id, attachmentIds: ready.map((p) => p.attachment!.id) },
+        body: { content: encodeEmojis(text.trim(), channel.guildId), replyToId: replyTo?.id, attachmentIds: ready.map((p) => p.attachment!.id) },
       });
       setText('');
       pending.forEach((p) => URL.revokeObjectURL(p.preview));
@@ -168,7 +168,8 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
   }
 
   /** Coloca o emoji onde está o cursor. */
-  function insertAtCaret(insert: string) {
+  function insertAtCaret(raw: string) {
+    const insert = plainEmojis(raw);
     const before = text.slice(0, caret);
     const pad = before && !/\s$/.test(before) ? ' ' : '';
     const nextBefore = `${before}${pad}${insert} `;
@@ -202,7 +203,8 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
   const showEmojis = emojiMatches.length > 0;
 
   function pickEmoji(e: Expression) {
-    const before = text.slice(0, caret).replace(/:[a-z0-9_]*$/i, `${emojiToken(e)} `);
+    // no campo aparece :nome: (legível); vira o emoji de verdade só ao enviar
+    const before = text.slice(0, caret).replace(/:[a-z0-9_]*$/i, `:${e.name}: `);
     pendingCaret.current = before.length;
     setText(before + text.slice(caret));
     setCaret(before.length);
