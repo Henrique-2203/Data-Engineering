@@ -5,11 +5,13 @@ import { api } from '../lib/api';
 export const SOURCE_URL = 'https://github.com/Henrique-2203/Data-Engineering';
 const UPDATED = '9 de novembro de 2026';
 
-/** Páginas públicas /privacidade, /termos e /seguranca (abrem logado ou não). */
-export function LegalPage({ kind }: { kind: 'privacidade' | 'termos' | 'seguranca' }) {
+export type LegalKind = 'privacidade' | 'termos' | 'seguranca' | 'suporte';
+
+/** Páginas públicas /privacidade, /termos, /seguranca e /suporte (abrem logado ou não). */
+export function LegalPage({ kind }: { kind: LegalKind }) {
   const [contact, setContact] = useState<string | null>(null);
   useEffect(() => {
-    document.title = kind === 'privacidade' ? 'Privacidade · Resenha' : kind === 'seguranca' ? 'Segurança · Resenha' : 'Termos de uso · Resenha';
+    document.title = { privacidade: 'Privacidade', seguranca: 'Segurança', termos: 'Termos de uso', suporte: 'Suporte' }[kind] + ' · Resenha';
     api<{ privacyContact: string | null }>('/config').then((c) => setContact(c.privacyContact), () => {});
   }, [kind]);
   const contactLine = contact ? (
@@ -36,10 +38,21 @@ export function LegalPage({ kind }: { kind: 'privacidade' | 'termos' | 'seguranc
           <a href="/seguranca" aria-current={kind === 'seguranca' ? 'page' : undefined}>
             Segurança
           </a>
+          <a href="/suporte" aria-current={kind === 'suporte' ? 'page' : undefined}>
+            Suporte
+          </a>
         </nav>
       </header>
       <article className="legal-body">
-        {kind === 'privacidade' ? <Privacy contact={contactLine} /> : kind === 'seguranca' ? <Security contact={contactLine} /> : <Terms contact={contactLine} />}
+        {kind === 'privacidade' ? (
+          <Privacy contact={contactLine} />
+        ) : kind === 'seguranca' ? (
+          <Security contact={contactLine} />
+        ) : kind === 'suporte' ? (
+          <SupportPage contact={contactLine} />
+        ) : (
+          <Terms contact={contactLine} />
+        )}
       </article>
     </div>
   );
@@ -470,6 +483,69 @@ function Security({ contact }: { contact: ReactNode }) {
         não atrapalhe o serviço e nos dê um tempo para corrigir antes de divulgar. Quem segue estas regras de boa-fé não será tratado como
         atacante. Também publicamos estas informações em <a href="/.well-known/security.txt">/.well-known/security.txt</a>.
       </p>
+    </>
+  );
+}
+
+/** /suporte: dúvidas comuns e como falar com a equipe. */
+function SupportPage({ contact }: { contact: ReactNode }) {
+  const faq: [string, ReactNode][] = [
+    [
+      'A transmissão está tirando FPS do meu jogo',
+      <>
+        Use o app de Windows e deixe ligado o <strong>Modo desempenho</strong> (na janela de transmitir): ele usa a placa de vídeo para
+        codificar e deixa a transmissão mais leve sozinho se o PC sofrer. Em Configurações → Atalhos e app, deixe marcado{' '}
+        <strong>Dar prioridade ao jogo</strong>. Lembre que cada amigo assistindo é uma codificação a mais no seu PC.
+      </>,
+    ],
+    [
+      'Meus amigos ouvem meu teclado',
+      <>
+        Configurações → Voz e vídeo → <strong>Supressão de ruído: Forte (IA)</strong>. Ela tira teclado, cliques e ventilador sem cortar a
+        voz, e roda no seu próprio aparelho.
+      </>,
+    ],
+    [
+      'O jogo não aparece na lista de janelas para transmitir',
+      <>
+        Jogos em tela cheia são minimizados pelo Windows quando você sai deles. No jogo, escolha o modo de vídeo{' '}
+        <strong>Janela sem bordas</strong> (ou "Tela cheia em janela"), ou transmita a Tela inteira.
+      </>,
+    ],
+    [
+      'Não recebo notificações no celular',
+      <>
+        Configurações → Notificações e sons → Notificações no celular. No iPhone, primeiro adicione o Resenha à Tela de Início (Compartilhar →
+        Adicionar à Tela de Início) e abra pelo ícone.
+      </>,
+    ],
+    [
+      'Esqueci minha senha',
+      <>
+        Na tela de entrada, toque em <strong>Esqueci minha senha</strong> e use o e-mail da conta. Sem e-mail cadastrado, use um dos códigos de
+        recuperação que você salvou ao ligar a verificação em duas etapas.
+      </>,
+    ],
+  ];
+  return (
+    <>
+      <h1>Suporte</h1>
+      <p className="lead">Algo não funcionou ou ficou com dúvida? A gente responde por aqui mesmo.</p>
+      <div className="support-cta">
+        <a className="btn primary" href="/app?suporte=1">
+          Abrir um chamado no Resenha
+        </a>
+        <span className="muted small">Você entra com a sua conta e acompanha a resposta no app (e no e-mail, se tiver cadastrado).</span>
+      </div>
+      <h2>Dúvidas comuns</h2>
+      {faq.map(([q, a]) => (
+        <details key={q} className="faq">
+          <summary>{q}</summary>
+          <p>{a}</p>
+        </details>
+      ))}
+      <h2>Sem conseguir entrar na conta?</h2>
+      <p>Fale com a gente {contact}. Nunca pedimos a sua senha nem códigos de verificação.</p>
     </>
   );
 }

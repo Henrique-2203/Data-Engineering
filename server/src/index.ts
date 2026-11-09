@@ -81,6 +81,10 @@ http.listen(config.port, () => {
 });
 
 const shutdown = async () => {
+  // atualização (o Render troca o servidor): avisa os apps, que mantêm a voz e reconectam sozinhos
+  rt.shuttingDown = true;
+  rt.io.emit('server:restarting');
+  await new Promise((r) => setTimeout(r, 300));
   rt.io.close();
   http.close();
   await db.close().catch(() => {});

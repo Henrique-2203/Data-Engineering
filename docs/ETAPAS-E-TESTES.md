@@ -233,6 +233,46 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 
 ---
 
+## Pedidos dos amigos (jogatina)
+
+### Transmissão mais leve (FPS do jogo) 🖥️ app 0.3.4
+- [ ] Janela de transmitir: **🎮 Modo desempenho** já vem ligado (H.264 pela placa de vídeo, no máximo 1080p).
+- [ ] Transmitir jogando e comparar o FPS com e sem transmissão (antes perdia quase metade).
+- [ ] Se o PC sofrer (ou codificar pelo processador), aparece "Sua transmissão ficou em 720p · 30 FPS…" e quem
+      assiste recebe a versão leve. Na janela de transmitir dá para "Voltar para 1080p".
+- [ ] Configurações → Atalhos e app: **Dar prioridade ao jogo** marcado (com jogo aberto, o Resenha fica atrás dele no
+      processador).
+- [ ] A prévia da sua própria tela pausa quando você está no jogo (economiza a placa de vídeo).
+- [ ] Overlay com "Mostrar só quem está falando": sem ninguém falando, ele some de verdade (mais leve para o jogo).
+- [ ] Lembrete: cada amigo assistindo é uma codificação a mais no seu PC.
+
+### Supressão de ruído (teclado)
+- [ ] Configurações → Voz e vídeo → **Supressão de ruído: Forte (IA)** (já vem ligada). Durante a call aparece
+      "Na chamada agora: Forte (IA)".
+- [ ] Digitar no teclado perto do microfone: os amigos não ouvem e a bolinha verde de "falando" não acende.
+- [ ] Falar normalmente: a voz não corta.
+- [ ] Opções: Leve (IA, menos processador), Básica (do navegador), Desligada.
+
+### Atualizações sem derrubar a call
+- [ ] Numa call, quando o Resenha atualizar: aparece "O Resenha está se atualizando. A call continua…" e a voz não corta.
+- [ ] Depois que a call acaba, aparece o pop-up **O Resenha foi atualizado** com o resumo; só fecha no **Entendi**;
+      não aparece de novo (nem nos outros aparelhos da mesma conta).
+- [ ] App de Windows: o aviso "Atualização pronta" só aparece fora do jogo e fora da call.
+- [ ] Banner "Nova versão" durante a call: pede para atualizar só quando sair da call.
+
+### Suporte
+- [ ] Botão de **boia** no pé da coluna de servidores (à esquerda) → abrir um chamado (assunto, título, mensagem).
+- [ ] Painel da equipe → aba **Suporte**: responder. A pessoa recebe aviso no app, no celular (se ligou) e no e-mail.
+- [ ] A boia mostra o número de respostas novas; some ao ler.
+- [ ] Página pública **/suporte** com dúvidas comuns e "Abrir um chamado no Resenha".
+
+### Site separado do app
+- [ ] `/` abre o site de apresentação mesmo logado (botão **Abrir o Resenha**); o app fica em **/app**.
+- [ ] Links antigos (`/entrar`) e convites continuam funcionando; o app de Windows e o app instalado no celular abrem
+      direto no app.
+
+---
+
 ## Se algo der errado
 
 Anote **o que fez**, **o que esperava** e **o que aconteceu** (um print ajuda muito) e me mande.

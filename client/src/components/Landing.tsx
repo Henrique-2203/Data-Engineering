@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Check, ChevronDown, Download, Globe, Lock, Monitor, Smartphone, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, hasSession } from '../lib/api';
 import { SOURCE_URL } from './LegalPage';
 
 /** Animação de entrada quando a seção aparece na tela. */
@@ -56,8 +56,11 @@ export function Landing() {
           <button onClick={() => scrollTo('recursos')}>Recursos</button>
           <button onClick={() => scrollTo('baixar')}>Baixar</button>
           <button onClick={() => scrollTo('privacidade')}>Privacidade</button>
-          <a className="lp-btn ghost small" href="/entrar">
-            Entrar
+          <a href="/suporte" className="lp-link">
+            Suporte
+          </a>
+          <a className={`lp-btn small ${hasSession() ? 'primary' : 'ghost'}`} href="/app">
+            {hasSession() ? 'Abrir o Resenha' : 'Entrar'}
           </a>
         </nav>
       </header>
@@ -84,7 +87,7 @@ export function Landing() {
               </a>
             </div>
             <p className="lp-small">
-              Já tem convite? <a href="/entrar">Use no navegador</a>, sem instalar nada.
+              Já tem convite? <a href="/app">Use no navegador</a>, sem instalar nada.
             </p>
           </div>
           <div className="lp-hero-video lp-reveal">
@@ -178,7 +181,7 @@ export function Landing() {
               badge="Disponível"
               text="Chrome, Edge ou Firefox, no PC ou no celular. Não precisa instalar nada."
               action={
-                <a className="lp-btn" href="/entrar">
+                <a className="lp-btn" href="/app">
                   Abrir no navegador
                 </a>
               }
@@ -287,6 +290,7 @@ export function Landing() {
           <a href="/privacidade">Privacidade</a>
           <a href="/termos">Termos</a>
           <a href="/seguranca">Segurança</a>
+          <a href="/suporte">Suporte</a>
           <a href="mailto:resenha.brasilgames@gmail.com">resenha.brasilgames@gmail.com</a>
           <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer">
             Código público

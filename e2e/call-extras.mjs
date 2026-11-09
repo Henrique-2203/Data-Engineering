@@ -71,7 +71,7 @@ try {
     }
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.error('[pageerror]', e));
-    await page.goto(BASE);
+    await page.goto(`${BASE}/app`);
     await page.getByRole('button', { name: 'Galera' }).first().click().catch(() => {});
     await page.getByRole('button', { name: 'Sala de voz' }).first().click();
     return page;
@@ -148,6 +148,22 @@ try {
   await pb.locator('.tile.screen').hover();
   await pb.screenshot({ path: path.join(shots, 'volume-da-transmissao.png') });
   step('volume da transmissão separado da voz (30%, silenciar e voltar), só para quem assiste');
+
+  // ---------- modo desempenho: codificando no processador, a transmissão fica leve sozinha ----------
+  // (o navegador de teste não tem placa de vídeo, então codifica no processador)
+  await pa.getByText(/Sua transmissão ficou em 720p · 30 FPS/).waitFor({ timeout: 30000 });
+  let sent = null;
+  for (let i = 0; i < 20; i++) {
+    sent = await pb.evaluate(() => {
+      const v = document.querySelector('.tile.screen video');
+      return v ? { h: v.videoHeight } : null;
+    });
+    if (sent && sent.h > 0 && sent.h <= 720) break;
+    await sleep(500);
+  }
+  assert(sent && sent.h > 0 && sent.h <= 720, `quem assiste recebe a versão leve (${JSON.stringify(sent)})`);
+  await pa.getByRole('button', { name: 'Tela' }).first().click().catch(() => {});
+  step('modo desempenho: sem placa de vídeo, a transmissão vai sozinha para 720p · 30 FPS e avisa (o jogo vem primeiro)');
 
   console.log('\nTUDO CERTO (pedidos da call)');
 } catch (err) {

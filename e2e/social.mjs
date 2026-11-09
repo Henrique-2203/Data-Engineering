@@ -50,7 +50,7 @@ try {
     await ctx.addInitScript((t) => localStorage.setItem('resenha.token', t), token);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.error('[pageerror]', e));
-    await page.goto(BASE);
+    await page.goto(`${BASE}/app`);
     return page;
   };
   const pa = await open(ana.token);

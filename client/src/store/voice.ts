@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { loadSettings, saveSettings, type VoiceSettings } from '../voice/settings';
+import { loadSettings, saveSettings, type NoiseMode, type VoiceSettings } from '../voice/settings';
 import type { SoundBurst } from '../lib/soundboard';
 
 export type MediaKind = 'mic' | 'camera' | 'screen';
@@ -26,6 +26,10 @@ export interface VoiceStore {
   screen: boolean;
   /** desliguei o áudio da minha transmissão (a imagem continua) */
   screenAudioOff: boolean;
+  /** modo desempenho deixou minha transmissão mais leve (720p · 30 FPS) */
+  screenLight: boolean;
+  /** filtro de ruído que está de fato ligado no microfone agora (null = fora da chamada) */
+  noiseActive: NoiseMode | null;
   noMic: boolean;
   localCamera: MediaStream | null;
   localScreen: MediaStream | null;
@@ -56,6 +60,8 @@ export const useVoice = create<VoiceStore>(() => ({
   camera: false,
   screen: false,
   screenAudioOff: false,
+  screenLight: false,
+  noiseActive: null,
   noMic: false,
   localCamera: null,
   localScreen: null,

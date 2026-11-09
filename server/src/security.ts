@@ -33,7 +33,8 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      `script-src 'self'${TURNSTILE}`,
+      // 'wasm-unsafe-eval': só WebAssembly (filtro de ruído do microfone); continua proibido eval de JavaScript
+      `script-src 'self' 'wasm-unsafe-eval'${TURNSTILE}`,
       `frame-src ${TURNSTILE ? TURNSTILE.trim() : "'none'"}`,
       "style-src 'self' 'unsafe-inline'",
       `img-src 'self' data: blob: https:${R2_ORIGIN ? ` ${R2_ORIGIN}` : ''}`,
@@ -471,6 +472,13 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
         `select split_part(endpoint, '/', 3) as service, created_at as "createdAt", last_used_at as "lastUsedAt" from push_subscriptions where user_id = $1`,
         [id],
       );
+      const support = await db.query(
+        `select t.subject, t.status, t.created_at as "openedAt",
+           (select json_agg(json_build_object('from', case when m.from_team then 'equipe' else 'você' end, 'text', m.body, 'at', m.created_at) order by m.created_at)
+            from support_messages m where m.ticket_id = t.id) as messages
+         from support_tickets t where t.user_id = $1 order by t.created_at`,
+        [id],
+      );
       const data = {
         about: 'Todos os dados que o Resenha guarda sobre você (LGPD, art. 18). Sua senha não aparece porque só guardamos uma versão embaralhada (hash) dela.',
         exportedAt: new Date().toISOString(),
@@ -483,6 +491,7 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
         pollVotes,
         events,
         pushDevices,
+        support,
       };
       await logEvent(db, id, 'data_export', req);
       (data as Record<string, unknown>).securityHistory = (

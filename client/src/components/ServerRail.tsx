@@ -1,4 +1,4 @@
-import { Link2, Plus } from 'lucide-react';
+import { LifeBuoy, Link2, Plus } from 'lucide-react';
 import { goHome, openModal, selectGuild, useApp } from '../store/app';
 import { useVoice } from '../store/voice';
 
@@ -72,6 +72,25 @@ export function ServerRail() {
           <Link2 size={20} />
         </span>
       </button>
+      <SupportButton />
     </div>
+  );
+}
+
+/** Suporte: fala com a equipe (com aviso quando a equipe responde). Fica no pé da coluna de servidores. */
+function SupportButton() {
+  const unread = useApp((s) => s.supportUnread);
+  return (
+    <button
+      className="rail-item action rail-support"
+      title="Suporte"
+      aria-label={`Suporte${unread ? ` (${unread} resposta${unread > 1 ? 's' : ''} nova${unread > 1 ? 's' : ''})` : ''}`}
+      onClick={() => openModal({ kind: 'support' })}
+    >
+      <span className="rail-icon">
+        <LifeBuoy size={20} />
+      </span>
+      {unread > 0 && <span className="rail-count">{unread}</span>}
+    </button>
   );
 }

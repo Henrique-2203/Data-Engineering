@@ -7,7 +7,8 @@ import { findChannel, findMember, toast, useApp } from '../store/app';
 import { useVoice, type MediaKind, type RemoteMedia } from '../store/voice';
 import { Peer, type SenderSlot } from './peer';
 import { preferCodec } from './sdp';
-import { CODECS, effectiveBitrate, presetById } from './settings';
+import { CODECS, type NoiseMode, effectiveBitrate, screenCodecFor, screenPresetFor } from './settings';
+import { type AiNoiseMode, type Denoiser, aiNoiseSupported, createDenoiser } from './denoise';
 
 const CAMERA_BITRATE = 1_200_000;
 
@@ -93,10 +94,12 @@ class VoiceEngine {
     onSocketReady((socket) => {
       this.dbg(`ready socket=${socket.id} status=${getV().status} channel=${getV().channelId} joining=${this.joining}`);
       this.bind(socket);
-      // reconexão: o servidor esqueceu nosso estado de voz, então entramos de novo
+      // reconexão (ex.: o servidor reiniciou numa atualização): o servidor esqueceu nosso estado de
+      // voz, então entramos de novo. As conexões de voz antigas são diretas entre os aparelhos e
+      // continuam tocando até as novas ficarem prontas: a call não corta no meio do jogo.
       const { channelId, status } = getV();
       if (channelId && status !== 'idle' && !this.joining) {
-        this.resetPeers();
+        this.keepOldPeers();
         void this.join(channelId, true);
       }
     });
@@ -236,8 +239,13 @@ class VoiceEngine {
     this.micTrack?.stop();
     this.micMonitor?.stop();
     this.micMonitor = null;
+    this.denoiser?.stop();
+    this.denoiser = null;
     this.pttDown = this.vadOpen = false;
+    setV({ noiseActive: null });
     this.camTrack?.stop();
+    this.stopPerfGuard();
+    this.light = false;
     this.screenStream?.getTracks().forEach((t) => t.stop());
     this.micTrack = this.camTrack = this.screenStream = null;
     this.screenWatchers.clear();
@@ -268,21 +276,78 @@ class VoiceEngine {
     this.dbg(`resetPeers (${this.peers.size})`);
     for (const p of this.peers.values()) p.close();
     this.peers.clear();
+    this.oldPeers.clear();
+    if (this.oldPeersTimer) clearTimeout(this.oldPeersTimer);
     setV({ remotes: {} });
   }
 
+  // ---------------- reconexão sem cortar a voz ----------------
+
+  /** conexões de antes da reconexão que ainda tocam (socketId antigo -> userId) */
+  private oldPeers = new Map<string, string>();
+  private oldPeersTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Guarda as conexões que estão funcionando; as quebradas fecham na hora. */
+  private keepOldPeers() {
+    for (const [sid, p] of this.peers) {
+      if (p.pc.connectionState === 'connected' && !this.oldPeers.has(sid)) this.oldPeers.set(sid, p.userId);
+      else if (!this.oldPeers.has(sid)) this.closePeer(sid);
+    }
+    this.dbg(`keepOldPeers (${this.oldPeers.size})`);
+    // quem não voltou em 25 s (saiu da call enquanto isso): fecha
+    if (this.oldPeersTimer) clearTimeout(this.oldPeersTimer);
+    this.oldPeersTimer = setTimeout(() => {
+      for (const sid of this.oldPeers.keys()) this.closePeer(sid);
+      this.oldPeers.clear();
+    }, 25_000);
+  }
+
+  /** A conexão nova com esta pessoa ficou pronta: fecha a antiga (e continua assistindo a tela dela). */
+  private replaceOldPeer(socketId: string, userId: string) {
+    for (const [oldSid, uid] of this.oldPeers) {
+      if (uid !== userId || oldSid === socketId) continue;
+      this.oldPeers.delete(oldSid);
+      const wasWatching = !!getV().watching[oldSid];
+      this.closePeer(oldSid);
+      if (wasWatching) this.watch(socketId, true);
+      this.dbg(`old peer ${oldSid} -> ${socketId}`);
+    }
+  }
+
+  /** filtro de ruído por IA ligado no microfone (null = sem filtro de IA) */
+  private denoiser: Denoiser | null = null;
+  private denoiseWarned = false;
+
   private async acquireMic() {
     const { settings } = getV();
+    const ai = (settings.noiseMode === 'rnnoise' || settings.noiseMode === 'gtcrn') && aiNoiseSupported();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: settings.micDeviceId ? { ideal: settings.micDeviceId } : undefined,
           echoCancellation: true,
-          noiseSuppression: settings.noiseSuppression,
+          // com a IA, o filtro do navegador fica desligado (os dois juntos "comem" a voz)
+          noiseSuppression: settings.noiseMode === 'browser' || (settings.noiseMode !== 'off' && !ai),
           autoGainControl: true,
         },
       });
-      this.micTrack = stream.getAudioTracks()[0];
+      const raw = stream.getAudioTracks()[0];
+      this.micTrack = raw;
+      let active: NoiseMode = settings.noiseMode === 'off' ? 'off' : 'browser';
+      if (ai) {
+        try {
+          this.denoiser = await createDenoiser(raw, settings.noiseMode as AiNoiseMode);
+          this.micTrack = this.denoiser.track;
+          active = settings.noiseMode;
+        } catch (err) {
+          // aparelho sem suporte: segue com o filtro do navegador
+          console.warn('supressão de ruído por IA indisponível', err);
+          await raw.applyConstraints({ noiseSuppression: true } as MediaTrackConstraints).catch(() => {});
+          if (!this.denoiseWarned) toast('A supressão de ruído por IA não funcionou neste aparelho. Usando a do navegador.');
+          this.denoiseWarned = true;
+        }
+      }
+      setV({ noiseActive: active });
       this.micMonitor = this.micTrack.clone();
       this.micMonitor.enabled = true;
       this.monitor('me', new MediaStream([this.micMonitor]));
@@ -300,6 +365,8 @@ class VoiceEngine {
     if (getV().status === 'idle') return;
     this.micTrack?.stop();
     this.micMonitor?.stop();
+    this.denoiser?.stop();
+    this.denoiser = null;
     this.micTrack = this.micMonitor = null;
     setV({ noMic: false });
     await this.acquireMic();
@@ -318,7 +385,10 @@ class VoiceEngine {
       signal: (data) => getSocket()?.emit('rtc:signal', { to: socketId, data }),
       onStream: (kind, stream) => this.onRemoteStream(socketId, kind, stream),
       onStreamChanged: () => this.patchRemote(socketId, (r) => ({ v: r.v + 1 })),
-      onConnectionState: (connection) => this.patchRemote(socketId, () => ({ connection })),
+      onConnectionState: (connection) => {
+        this.patchRemote(socketId, () => ({ connection }));
+        if (connection === 'connected' && this.oldPeers.size) this.replaceOldPeer(socketId, userId);
+      },
       onWatch: (on) => this.onWatchRequest(socketId, on),
       onStable: () => this.applyEncodings(peer),
       log: (msg) => this.dbg(`[${socketId.slice(0, 6)}] ${msg}`),
@@ -465,7 +535,7 @@ class VoiceEngine {
   async startScreen() {
     if (getV().focus === 'me:screen') setV({ focus: null });
     const { settings } = getV();
-    const preset = presetById(settings.screenPreset);
+    const preset = screenPresetFor(settings);
     const video: MediaTrackConstraints = {
       frameRate: { ideal: preset.fps, max: preset.fps },
       ...(preset.width ? { width: { ideal: preset.width, max: preset.width } } : {}),
@@ -500,13 +570,58 @@ class VoiceEngine {
       const p = this.peers.get(id);
       if (p) await this.addScreen(p);
     }
-    setV({ screen: true, localScreen: stream });
+    setV({ screen: true, localScreen: stream, screenLight: false });
     getSocket()?.emit('voice:update', { screen: true });
+    this.startPerfGuard();
     return true;
+  }
+
+  // ---------------- modo desempenho ----------------
+
+  /** transmissão ficou mais leve (720p · 30 FPS) para não roubar FPS do jogo */
+  private light = false;
+  private perfTimer: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Modo desempenho: a cada poucos segundos confere como a transmissão está sendo codificada. Se for
+   * pelo processador (sem placa de vídeo) ou o processador estiver no limite, deixa a transmissão mais
+   * leve sozinha e avisa uma vez. O jogo vem primeiro.
+   */
+  private startPerfGuard() {
+    this.stopPerfGuard();
+    this.light = false;
+    let strikes = 0;
+    this.perfTimer = setInterval(async () => {
+      if (!getV().settings.performanceMode || this.light || !this.screenStream) return;
+      const st = await this.screenSendStats();
+      if (!st || !st.fps) return;
+      strikes = st.hardware === false || st.limitedBy === 'cpu' ? strikes + 1 : 0;
+      if (strikes < 2) return;
+      this.setScreenLight(true);
+      toast(
+        st.hardware === false
+          ? 'Sua transmissão ficou em 720p · 30 FPS: o vídeo estava sendo codificado pelo processador e isso tira FPS do jogo.'
+          : 'Sua transmissão ficou em 720p · 30 FPS para não pesar no jogo (processador no limite).',
+      );
+    }, 4000);
+  }
+
+  private stopPerfGuard() {
+    if (this.perfTimer) clearInterval(this.perfTimer);
+    this.perfTimer = null;
+  }
+
+  /** Liga/desliga a versão leve da transmissão (sem parar). */
+  setScreenLight(on: boolean) {
+    this.light = on;
+    setV({ screenLight: on });
+    this.refreshEncodings();
   }
 
   stopScreen() {
     if (!this.screenStream) return;
+    this.stopPerfGuard();
+    this.light = false;
     this.stopScreenTracks();
     for (const id of this.screenWatchers) {
       const p = this.peers.get(id);
@@ -515,7 +630,7 @@ class VoiceEngine {
         void p.setTrack('screenAudio', null, this.msid.screen);
       }
     }
-    setV((s) => ({ screen: false, localScreen: null, screenAudioOff: false, focus: s.focus === 'me:screen' ? null : s.focus }));
+    setV((s) => ({ screen: false, localScreen: null, screenAudioOff: false, screenLight: false, focus: s.focus === 'me:screen' ? null : s.focus }));
     getSocket()?.emit('voice:update', { screen: false, screenAudioOff: false });
   }
 
@@ -548,7 +663,7 @@ class VoiceEngine {
     const audio = this.screenStream.getAudioTracks()[0] ?? null;
     const transceiver = await peer.setTrack('screenVideo', video, this.msid.screen);
     if (transceiver) {
-      const codec = CODECS.find((c) => c.id === settings.codec);
+      const codec = CODECS.find((c) => c.id === screenCodecFor(settings));
       if (codec) preferCodec(transceiver, codec.mime);
     }
     if (audio) await peer.setTrack('screenAudio', audio, this.msid.screen);
@@ -558,7 +673,7 @@ class VoiceEngine {
   /** Aplica bitrate/FPS nos envios (repetido a cada renegociação). */
   private applyEncodings(peer: Peer) {
     const { settings } = getV();
-    const preset = presetById(settings.screenPreset);
+    const preset = screenPresetFor(settings);
     // Via TURN cada byte conta na cota: envia uma versão mais leve só para essa pessoa.
     const save = peer.relayed && settings.turnSaver;
     if (peer.isSending('screenVideo')) {
@@ -570,12 +685,21 @@ class VoiceEngine {
             scaleDown: height > TURN_LIMITS.screen.maxHeight ? height / TURN_LIMITS.screen.maxHeight : 1,
             degradation: 'balanced',
           }
-        : {
-            maxBitrate: effectiveBitrate(settings),
-            maxFramerate: preset.fps,
-            degradation: settings.contentType === 'motion' ? 'maintain-framerate' : 'maintain-resolution',
-            codecMime: CODECS.find((c) => c.id === settings.codec)?.mime,
-          });
+        : this.light
+          ? {
+              // versão leve (modo desempenho): menos pixels e quadros para codificar
+              maxBitrate: Math.min(effectiveBitrate(settings), 2_500_000),
+              maxFramerate: Math.min(30, preset.fps),
+              scaleDown: height > 720 ? height / 720 : 1,
+              degradation: 'balanced',
+              codecMime: CODECS.find((c) => c.id === screenCodecFor(settings))?.mime,
+            }
+          : {
+              maxBitrate: effectiveBitrate(settings),
+              maxFramerate: preset.fps,
+              degradation: settings.contentType === 'motion' ? 'maintain-framerate' : 'maintain-resolution',
+              codecMime: CODECS.find((c) => c.id === screenCodecFor(settings))?.mime,
+            });
     }
     if (peer.isSending('screenAudio')) void peer.setEncoding('screenAudio', { maxBitrate: save ? 64_000 : 128_000 });
     // microfone na qualidade escolhida para o canal (via TURN, no máximo 64 kbps para poupar a cota)

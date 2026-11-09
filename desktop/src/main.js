@@ -10,6 +10,7 @@
  *  - ícone na bandeja e atualização automática da própria casca.
  */
 const path = require('node:path');
+const os = require('node:os');
 const { app, BrowserWindow, Menu, Tray, desktopCapturer, globalShortcut, ipcMain, nativeImage, Notification, session, shell } = require('electron');
 const settings = require('./settings');
 const { buildKeymap, MOUSE } = require('./keymap');
@@ -32,8 +33,13 @@ app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 // notebooks com duas placas: usa a dedicada (a mesma do jogo) para capturar e codificar
 app.commandLine.appendSwitch('force_high_performance_gpu');
-// captura moderna do Windows (Windows Graphics Capture) para tela e janelas de jogos
-app.commandLine.appendSwitch('enable-features', 'WebRtcAllowWgcScreenCapturer,WebRtcAllowWgcWindowCapturer');
+// captura moderna do Windows (Windows Graphics Capture) para tela e janelas de jogos e
+// H.264 codificado pela placa de vídeo também no perfil que o WebRTC usa (sem isso, o H.264 pode
+// cair no processador e roubar FPS do jogo)
+app.commandLine.appendSwitch(
+  'enable-features',
+  'WebRtcAllowWgcScreenCapturer,WebRtcAllowWgcWindowCapturer,MediaFoundationH264CbpEncoding,MediaFoundationVideoEncodeAccelerator',
+);
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -354,6 +360,7 @@ const publicSettings = () => {
     closeToTray: s.closeToTray,
     openAtLogin: s.openAtLogin,
     overlay: { showWhen: 'game', ...settings.load().overlay },
+    gamePriority: s.gamePriority !== false,
     version: app.getVersion(),
     platform: process.platform,
     update: updateState,
@@ -381,11 +388,7 @@ function setupUpdater() {
   autoUpdater.on('download-progress', (p) => setUpdate({ ...updateState, state: 'downloading', percent: Math.round(p.percent) }));
   autoUpdater.on('update-downloaded', (i) => {
     setUpdate({ state: 'ready', version: i.version });
-    if (Notification.isSupported()) {
-      const n = new Notification({ title: 'Atualização do Resenha pronta', body: `Versão ${i.version}. Reinicie quando quiser (ou ela entra na próxima vez que abrir).`, icon: ICON });
-      n.on('click', showWindow);
-      n.show();
-    }
+    notifyUpdateWhenFree(i.version);
   });
   autoUpdater.on('error', (err) => setUpdate({ state: 'error', message: String(err?.message ?? err).slice(0, 200) }));
   setTimeout(() => void checkForUpdates(false), 10_000);
@@ -402,6 +405,26 @@ async function checkForUpdates(manual) {
   }
   if (manual) showWindow();
   return updateState;
+}
+
+/**
+ * Aviso de atualização pronta: nunca no meio do jogo ou da call (a notificação do Windows aparece
+ * por cima do jogo). Espera os dois acabarem; a atualização entra quando você fechar o app.
+ */
+function notifyUpdateWhenFree(version) {
+  const busy = () => !!gameWatcher?.current() || trayState.inCall;
+  const show = () => {
+    if (!Notification.isSupported()) return;
+    const n = new Notification({ title: 'Atualização do Resenha pronta', body: `Versão ${version}. Reinicie quando quiser (ou ela entra na próxima vez que abrir).`, icon: ICON });
+    n.on('click', showWindow);
+    n.show();
+  };
+  if (!busy()) return show();
+  const t = setInterval(() => {
+    if (busy()) return;
+    clearInterval(t);
+    show();
+  }, 30_000);
 }
 
 function installUpdate() {
@@ -429,6 +452,10 @@ ipcMain.handle('resenha:set-settings', (_e, patch) => {
   const clean = {};
   if (typeof patch?.closeToTray === 'boolean') clean.closeToTray = patch.closeToTray;
   if (typeof patch?.openAtLogin === 'boolean') clean.openAtLogin = patch.openAtLogin;
+  if (typeof patch?.gamePriority === 'boolean') {
+    clean.gamePriority = patch.gamePriority;
+    setTimeout(applyPriority, 0);
+  }
   if (patch?.overlay && typeof patch.overlay === 'object') {
     const o = patch.overlay;
     const next = { ...settings.load().overlay };
@@ -491,13 +518,36 @@ function setupGameWatcher() {
   gameWatcher = watchGames((game) => {
     send('resenha:activity', { name: game });
     overlay.setGameOpen(!!game);
+    applyPriority();
   }, intervalMs);
   overlay.setGameOpen(!!gameWatcher.current());
+  applyPriority();
+  // processos novos (a página recarregou, o da placa de vídeo reiniciou) também ficam atrás do jogo
+  win?.webContents.on('did-finish-load', applyPriority);
+  setInterval(applyPriority, 10_000).unref();
   // a página recarregou (ou abriu agora): manda o jogo atual de novo
   win?.webContents.on('did-finish-load', () => send('resenha:activity', { name: gameWatcher?.current() ?? null }));
   app.on('will-quit', () => gameWatcher?.stop());
 }
 ipcMain.handle('resenha:get-activity', () => ({ name: gameWatcher?.current() ?? null }));
+
+// ---------- o jogo primeiro ----------
+// Com um jogo aberto, os processos do Resenha (inclusive o que codifica a transmissão) ficam com
+// prioridade "abaixo do normal": o Windows dá o processador primeiro ao jogo e o Resenha usa o que sobra.
+let lowered = false;
+function applyPriority() {
+  const low = settings.load().gamePriority !== false && !!gameWatcher?.current();
+  if (!low && !lowered) return;
+  const level = low ? os.constants.priority.PRIORITY_BELOW_NORMAL : os.constants.priority.PRIORITY_NORMAL;
+  for (const m of app.getAppMetrics()) {
+    try {
+      os.setPriority(m.pid, level);
+    } catch {
+      /* processo já fechou */
+    }
+  }
+  lowered = low;
+}
 
 app.whenReady().then(() => {
   setupSession();

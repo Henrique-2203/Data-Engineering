@@ -493,10 +493,10 @@ function UserPanel({ onLogout: _onLogout }: { onLogout(): void }) {
   );
 }
 
-/** Só para a equipe do Resenha: abre a fila de denúncias (com contador). */
+/** Só para a equipe do Resenha: abre a fila de denúncias e os chamados de suporte (com contador). */
 function AdminButton() {
   const admin = useApp((s) => s.isPlatformAdmin);
-  const open = useApp((s) => s.openReports);
+  const open = useApp((s) => s.openReports + s.openSupport);
   if (!admin) return null;
   return (
     <button className="icon-btn admin-btn" title="Denúncias" aria-label={`Denúncias${open ? ` (${open} abertas)` : ''}`} onClick={() => openModal({ kind: 'adminReports' })}>

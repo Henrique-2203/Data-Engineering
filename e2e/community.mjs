@@ -177,7 +177,7 @@ try {
     await ctx.addInitScript((t) => localStorage.setItem('resenha.token', t), token);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.error('[pageerror]', e));
-    await page.goto(BASE);
+    await page.goto(`${BASE}/app`);
     await page.getByRole('button', { name: 'Galera' }).first().click().catch(() => {});
     await page.getByRole('button', { name: 'geral' }).first().click();
     return page;
@@ -249,7 +249,7 @@ try {
   await phoneCtx.addInitScript((t) => localStorage.setItem('resenha.token', t), caio.token);
   const ph = await phoneCtx.newPage();
   ph.on('pageerror', (e) => console.error('[pageerror]', e));
-  await ph.goto(BASE);
+  await ph.goto(`${BASE}/app`);
   await ph.getByRole('button', { name: 'geral' }).first().click();
   await ph.getByRole('button', { name: 'Buscar', exact: true }).click();
   await ph.getByRole('searchbox', { name: 'O que procurar' }).fill('campeonato');

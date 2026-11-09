@@ -26,6 +26,8 @@ export interface DesktopSettings {
   openAtLogin: boolean;
   /** só existe a partir do app 0.3.0 */
   overlay?: OverlaySettings;
+  /** só existe a partir do app 0.3.4: com um jogo aberto, o Resenha fica atrás do jogo no processador */
+  gamePriority?: boolean;
   version: string;
   platform: string;
   update: DesktopUpdate;
@@ -40,7 +42,7 @@ interface DesktopBridge {
   setTrayState(state: { muted: boolean; deafened: boolean; inCall: boolean }): void;
   onTrayAction(cb: (action: 'toggle-mute' | 'toggle-deafen' | 'leave-call') => void): () => void;
   getSettings(): Promise<DesktopSettings>;
-  setSettings(patch: Partial<Pick<DesktopSettings, 'closeToTray' | 'openAtLogin'>> & { overlay?: Partial<OverlaySettings> }): Promise<DesktopSettings>;
+  setSettings(patch: Partial<Pick<DesktopSettings, 'closeToTray' | 'openAtLogin' | 'gamePriority'>> & { overlay?: Partial<OverlaySettings> }): Promise<DesktopSettings>;
   checkForUpdates(): Promise<DesktopUpdate>;
   installUpdate(): void;
   onUpdate(cb: (u: DesktopUpdate) => void): () => void;

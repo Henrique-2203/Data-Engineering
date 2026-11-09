@@ -6,6 +6,8 @@ const { app } = require('electron');
 const DEFAULTS = {
   closeToTray: true,
   openAtLogin: false,
+  /** com um jogo aberto, o Resenha fica com prioridade abaixo do jogo no processador */
+  gamePriority: true,
   bounds: null,
   /** overlay no jogo (quem está na chamada, quem fala, sons do soundboard) */
   // showWhen: 'game' = só com um jogo aberto | 'always' = sempre que estiver em call (fora do Resenha)

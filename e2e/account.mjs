@@ -307,7 +307,7 @@ try {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => console.error('[pageerror]', e));
   page.on('dialog', (d) => void d.accept());
-  await page.goto(BASE);
+  await page.goto(`${BASE}/app`);
   await page.getByRole('button', { name: 'Configurações' }).first().waitFor({ timeout: 15000 });
   const stored = await page.evaluate(() => ({ token: localStorage.getItem('resenha.token'), cookie: document.cookie }));
   assert(!stored.token, 'token antigo apagado do localStorage');

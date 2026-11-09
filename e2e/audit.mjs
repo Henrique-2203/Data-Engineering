@@ -105,7 +105,7 @@ try {
   await ctx.addInitScript((t) => localStorage.setItem('resenha.token', t), ana.token);
   const page = await ctx.newPage();
   page.on('pageerror', (e) => console.error('[pageerror]', e));
-  await page.goto(BASE);
+  await page.goto(`${BASE}/app`);
   await page.getByRole('button', { name: 'Galera do Rift' }).first().click().catch(() => {});
   await page.locator('.guild-name').click();
   await page.getByRole('button', { name: 'Configurações do servidor' }).click();

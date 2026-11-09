@@ -51,7 +51,7 @@ try {
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.error('[pageerror]', e));
     page.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && console.error('[console]', m.text()));
-    await page.goto(BASE);
+    await page.goto(`${BASE}/app`);
     return page;
   };
   const pa = await open(ana.token);

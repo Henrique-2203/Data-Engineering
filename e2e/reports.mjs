@@ -55,7 +55,7 @@ try {
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.error('[pageerror]', e));
     page.on('dialog', (d) => void d.accept(d.type() === 'prompt' ? 'Ameaças a outro membro' : undefined));
-    await page.goto(BASE);
+    await page.goto(`${BASE}/app`);
     return page;
   };
   const pe = await open(equipe.token);

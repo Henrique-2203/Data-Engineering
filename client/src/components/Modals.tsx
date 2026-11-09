@@ -17,7 +17,7 @@ import {
 } from '../store/app';
 import { updateSettings, useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
-import { CODECS, SCREEN_PRESETS, effectiveBitrate, keyLabel, presetById } from '../voice/settings';
+import { CODECS, SCREEN_PRESETS, effectiveBitrate, keyLabel, presetById, screenPresetFor } from '../voice/settings';
 import { notificationsSupported, requestNotificationPermission } from '../lib/notify';
 import { playSound } from '../lib/sounds';
 import { mouseCode } from './Hotkeys';
@@ -31,6 +31,8 @@ import { Avatar } from './Avatar';
 import { UserSettings } from './UserSettings';
 import { AdminReports, ReportModal } from './Reports';
 import { CreatePollModal, EventsModal, PushSettings } from './Community';
+import { SupportModal } from './Support';
+import { ChangelogModal } from './Changelog';
 import { slowLabel } from './AuditLog';
 
 const SLOWMODE_OPTIONS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600];
@@ -39,7 +41,8 @@ export function Modals({ onLogout }: { onLogout(): void }) {
   const modal = useApp((s) => s.modal);
   useEffect(() => {
     if (!modal) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeModal();
+    // as novidades só fecham com "Entendi"
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && modal.kind !== 'changelog' && closeModal();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [modal]);
@@ -88,6 +91,10 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       return <AdminReports />;
     case 'createPoll':
       return <CreatePollModal channelId={modal.channelId} />;
+    case 'support':
+      return <SupportModal />;
+    case 'changelog':
+      return <ChangelogModal />;
     case 'events':
       return <EventsModal guildId={modal.guildId} create={modal.create} />;
   }
@@ -708,7 +715,7 @@ export function DesktopSettingsSection() {
             : u.state === 'dev'
               ? 'Modo de desenvolvimento (sem atualização automática).'
               : 'Você está na versão mais recente.';
-  const set = async (patch: Partial<Pick<DesktopSettings, 'closeToTray' | 'openAtLogin'>>) => setDs(await desktop!.setSettings(patch));
+  const set = async (patch: Partial<Pick<DesktopSettings, 'closeToTray' | 'openAtLogin' | 'gamePriority'>>) => setDs(await desktop!.setSettings(patch));
   const setOverlay = async (patch: Partial<NonNullable<DesktopSettings['overlay']>>) => setDs(await desktop!.setSettings({ overlay: patch }));
   return (
     <>
@@ -726,6 +733,12 @@ export function DesktopSettingsSection() {
           <input type="checkbox" checked={shareActivity} onChange={(e) => updateSettings({ shareActivity: e.target.checked })} />
           Mostrar no meu perfil o jogo que estou jogando ("Jogando agora")
         </label>
+        {ds.gamePriority !== undefined && (
+          <label className="check">
+            <input type="checkbox" checked={ds.gamePriority} onChange={(e) => void set({ gamePriority: e.target.checked })} />
+            Dar prioridade ao jogo: com um jogo aberto, o Resenha (voz e transmissão) usa o processador só depois do jogo
+          </label>
+        )}
       </div>
 
       <h3 className="subhead">Overlay no jogo</h3>
@@ -752,7 +765,7 @@ export function DesktopSettingsSection() {
           </label>
           <label className="check">
             <input type="checkbox" checked={ds.overlay.onlySpeaking} onChange={(e) => void setOverlay({ onlySpeaking: e.target.checked })} />
-            Mostrar só quem está falando (mais discreto)
+            Mostrar só quem está falando (mais discreto e mais leve: sem ninguém falando, o overlay some e o jogo roda sem nada por cima)
           </label>
           <label>
             Canto da tela
@@ -867,7 +880,9 @@ function ScreenShare() {
   const sharing = useVoice((s) => s.screen);
   const channelId = useVoice((s) => s.channelId);
   const viewers = useApp((s) => Object.values(s.voiceStates).filter((v) => v.channelId === channelId).length - 1);
-  const preset = presetById(settings.screenPreset);
+  const preset = screenPresetFor(settings);
+  const capped = settings.performanceMode && presetById(settings.screenPreset).id !== preset.id;
+  const light = useVoice((s) => s.screenLight);
   const bitrate = effectiveBitrate(settings);
   const mbps = bitrate / 1e6;
   const [starting, setStarting] = useState(false);
@@ -888,6 +903,29 @@ function ScreenShare() {
   return (
     <Modal title="Transmitir tela" wide>
       <div className="form">
+        <label className={`perf-card${settings.performanceMode ? ' on' : ''}`}>
+          <input
+            type="checkbox"
+            checked={settings.performanceMode}
+            disabled={sharing}
+            onChange={(e) => update({ performanceMode: e.target.checked })}
+          />
+          <span>
+            <strong>🎮 Modo desempenho (recomendado para quem está jogando)</strong>
+            <span className="muted small">
+              Usa a placa de vídeo para codificar (H.264), no máximo 1080p, e se o seu PC começar a sofrer a transmissão fica mais
+              leve sozinha (720p · 30 FPS) para não tirar FPS do jogo. Cada amigo assistindo é uma codificação a mais no seu PC.
+            </span>
+          </span>
+        </label>
+        {light && (
+          <div className="warn-box small">
+            Sua transmissão está na versão leve (720p · 30 FPS) para proteger o FPS do jogo.{' '}
+            <button className="link-btn" onClick={() => voice.setScreenLight(false)}>
+              Voltar para {preset.label}
+            </button>
+          </div>
+        )}
         <label>
           Qualidade
           <select
@@ -902,6 +940,7 @@ function ScreenShare() {
               </option>
             ))}
           </select>
+          {capped && <span className="muted small">No modo desempenho, vai em {preset.label}. Desligue o modo para usar mais que 1080p.</span>}
         </label>
 
         <label>
@@ -938,7 +977,12 @@ function ScreenShare() {
 
         <label>
           Codec
-          <select value={settings.codec} onChange={(e) => update({ codec: e.target.value as typeof settings.codec })} disabled={sharing}>
+          <select
+            value={settings.performanceMode ? 'h264' : settings.codec}
+            onChange={(e) => update({ codec: e.target.value as typeof settings.codec })}
+            disabled={sharing || settings.performanceMode}
+            title={settings.performanceMode ? 'No modo desempenho a transmissão usa H.264 (placa de vídeo)' : undefined}
+          >
             {CODECS.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}

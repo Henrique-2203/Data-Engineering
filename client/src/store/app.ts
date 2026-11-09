@@ -34,6 +34,8 @@ export interface AppState {
   /** você ligou numa DM e está esperando a pessoa atender (canal) */
   outgoingRing: string | null;
   connected: boolean;
+  /** o servidor avisou que está se atualizando (reconecta sozinho) */
+  updating: boolean;
   socketId: string | null;
   maxVoicePeers: number;
 
@@ -50,6 +52,12 @@ export interface AppState {
   toast: string | null;
   /** faz parte da equipe do Resenha (trata denúncias) */
   isPlatformAdmin: boolean;
+  /** respostas do suporte que ainda não li */
+  supportUnread: number;
+  /** equipe: chamados de suporte esperando resposta */
+  openSupport: number;
+  /** novidades do Resenha que esta conta ainda não confirmou ("Entendi") */
+  pendingChangelog: { id: string; title: string; items: [string, string][] }[];
   /** denúncias abertas (só para a equipe) */
   openReports: number;
 }
@@ -59,6 +67,8 @@ export type SidePanel =
   | { kind: 'pins'; channelId: string };
 
 export type ModalState =
+  | { kind: 'support' }
+  | { kind: 'changelog' }
   | { kind: 'createPoll'; channelId: string }
   | { kind: 'events'; guildId: string; create?: boolean }
   | { kind: 'createGuild' }
@@ -101,6 +111,7 @@ export const useApp = create<AppState>(() => ({
   incomingCall: null,
   outgoingRing: null,
   connected: false,
+  updating: false,
   socketId: null,
   maxVoicePeers: 10,
   selectedGuildId: null,
@@ -114,6 +125,9 @@ export const useApp = create<AppState>(() => ({
   toast: null,
   isPlatformAdmin: false,
   openReports: 0,
+  supportUnread: 0,
+  openSupport: 0,
+  pendingChangelog: [],
 }));
 
 const set = useApp.setState;

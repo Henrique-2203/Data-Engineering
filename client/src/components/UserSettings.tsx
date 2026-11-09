@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { closeModal, openModal, useApp } from '../store/app';
 import { updateSettings, useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
-import { keyLabel } from '../voice/settings';
+import { NOISE_MODES, type NoiseMode, keyLabel } from '../voice/settings';
 import { isDesktop } from '../lib/desktop';
 import { Avatar } from './Avatar';
 import { ProfileEditor } from './ProfileEditor';
@@ -265,9 +265,20 @@ function VoiceSection() {
           </select>
         </label>
       )}
-      <label className="check">
-        <input type="checkbox" checked={settings.noiseSuppression} onChange={(e) => setMic({ noiseSuppression: e.target.checked })} />
+      <label>
         Supressão de ruído
+        <select value={settings.noiseMode} onChange={(e) => setMic({ noiseMode: e.target.value as NoiseMode })}>
+          {NOISE_MODES.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+        <span className="muted small">
+          {NOISE_MODES.find((m) => m.id === settings.noiseMode)?.hint} As opções de IA rodam no seu aparelho: o som não vai para
+          nenhum servidor. Com o filtro, a ativação por voz também ignora o teclado.
+        </span>
+        <NoiseStatus />
       </label>
       <InputModeSettings />
       <p className="muted small">
@@ -277,6 +288,18 @@ function VoiceSection() {
         </button>
       </p>
     </div>
+  );
+}
+
+/** Na chamada: qual filtro está de fato ligado agora. */
+function NoiseStatus() {
+  const active = useVoice((s) => s.noiseActive);
+  if (!active) return null;
+  const label = { gtcrn: 'Forte (IA)', rnnoise: 'Leve (IA)', browser: 'Básica (do navegador)', off: 'Desligada' }[active];
+  return (
+    <span className="small noise-status" role="status">
+      Na chamada agora: <strong>{label}</strong>
+    </span>
   );
 }
 

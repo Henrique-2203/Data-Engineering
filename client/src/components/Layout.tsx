@@ -14,6 +14,7 @@ import { CallOverlay } from './CallOverlay';
 import { DesktopBridge } from './DesktopBridge';
 import { UpdateNotice } from './UpdateNotice';
 import { SidePanel } from './Community';
+import { ChangelogWatcher } from './Changelog';
 
 export function Layout({ onLogout }: { onLogout(): void }) {
   const mobilePanel = useApp((s) => s.mobilePanel);
@@ -21,6 +22,7 @@ export function Layout({ onLogout }: { onLogout(): void }) {
   const selectedGuildId = useApp((s) => s.selectedGuildId);
   const selectedChannelId = useApp((s) => s.selectedChannelId);
   const connected = useApp((s) => s.connected);
+  const updating = useApp((s) => s.updating);
   const toastMsg = useApp((s) => s.toast);
   // reavalia quando os canais mudam
   const channel = useApp(() => findChannel(selectedChannelId));
@@ -72,8 +74,13 @@ export function Layout({ onLogout }: { onLogout(): void }) {
       <CallOverlay />
       <DesktopBridge />
       <UpdateNotice />
+      <ChangelogWatcher />
       <Modals onLogout={onLogout} />
-      {!connected && <div className="offline-bar">Reconectando ao servidor…</div>}
+      {!connected && (
+        <div className="offline-bar">
+          {updating ? 'O Resenha está se atualizando. A call continua; o resto volta em alguns segundos…' : 'Reconectando ao servidor…'}
+        </div>
+      )}
       {toastMsg && (
         <div className="toast" role="status">
           {toastMsg}

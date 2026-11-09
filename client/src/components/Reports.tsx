@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AdminSupport } from './Support';
 import { Flag, ShieldAlert, X } from 'lucide-react';
 import { api, authHeaders } from '../lib/api';
 import { StatsPanel } from './StatsPanel';
@@ -150,7 +151,10 @@ interface AdminReport {
 const reasonLabel = (id: string) => REASONS.find((r) => r.id === id)?.label ?? id;
 
 export function AdminReports() {
-  const [tab, setTab] = useState<'stats' | 'open' | 'closed' | 'waitlist' | 'system'>(useApp.getState().openReports > 0 ? 'open' : 'stats');
+  const [tab, setTab] = useState<'stats' | 'open' | 'closed' | 'support' | 'waitlist' | 'system'>(
+    useApp.getState().openReports > 0 ? 'open' : useApp.getState().openSupport > 0 ? 'support' : 'stats',
+  );
+  const supportCount = useApp((s) => s.openSupport);
   const [reports, setReports] = useState<AdminReport[] | null>(null);
   const openCount = useApp((s) => s.openReports);
   const load = () => {
@@ -193,6 +197,9 @@ export function AdminReports() {
             <button role="tab" aria-selected={tab === 'closed'} onClick={() => setTab('closed')}>
               Encerradas
             </button>
+            <button role="tab" aria-selected={tab === 'support'} onClick={() => setTab('support')}>
+              Suporte {supportCount > 0 && `(${supportCount})`}
+            </button>
             <button role="tab" aria-selected={tab === 'waitlist'} onClick={() => setTab('waitlist')}>
               Lista de espera
             </button>
@@ -201,6 +208,7 @@ export function AdminReports() {
             </button>
           </div>
           {tab === 'waitlist' && <WaitlistAdmin />}
+          {tab === 'support' && <AdminSupport />}
           {tab === 'stats' && <StatsPanel />}
           {tab === 'system' && <SystemPanel />}
           {(tab === 'open' || tab === 'closed') && reports === null && <p className="muted">Carregando…</p>}

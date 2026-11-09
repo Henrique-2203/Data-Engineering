@@ -47,7 +47,8 @@ export function connectSocket() {
   onVisibility = () => s.emit('client:active', visible());
   document.addEventListener('visibilitychange', onVisibility);
 
-  s.on('connect', () => set({ connected: true }));
+  s.on('connect', () => set({ connected: true, updating: false }));
+  s.on('server:restarting', () => set({ updating: true }));
   s.on('disconnect', () => set({ connected: false, socketId: null }));
 
   s.on('ready', (p: { socketId: string; online: string[]; voiceStates: VoiceState[]; maxVoicePeers: number; activities?: Record<string, Activity> }) => {
@@ -184,6 +185,13 @@ export function connectSocket() {
   });
 
   s.on('reports:count', ({ open }: { open: number }) => set({ openReports: open }));
+  s.on('support:count', ({ open }: { open: number }) => set({ openSupport: open }));
+  s.on('support:update', () => {
+    set((st) => ({ supportUnread: st.supportUnread + 1 }));
+    window.dispatchEvent(new Event('resenha:support-update'));
+    if (useApp.getState().modal?.kind !== 'support') toast('💬 O suporte do Resenha respondeu seu chamado. Toque na boia (no pé da coluna de servidores) para ler.');
+    playSound('mention');
+  });
 
   // a sessão foi encerrada em outro aparelho (ou a senha foi trocada)
   s.on('session:ended', () => {

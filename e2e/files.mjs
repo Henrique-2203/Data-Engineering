@@ -276,7 +276,7 @@ try {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => console.error('[pageerror]', e));
   page.on('dialog', (d) => void d.accept());
-  await page.goto(BASE);
+  await page.goto(`${BASE}/app`);
   await page.getByRole('button', { name: 'Galera' }).first().click().catch(() => {});
   await page.locator('.message-content', { hasText: 'olha as fotos' }).waitFor({ timeout: 15000 });
   const img = page.locator('.attachments img').first();
@@ -312,7 +312,7 @@ try {
   const ctxAna = await browser.newContext({ viewport: { width: 1366, height: 860 } });
   await ctxAna.addInitScript((t) => localStorage.setItem('resenha.token', t), ana.token);
   const pa = await ctxAna.newPage();
-  await pa.goto(BASE);
+  await pa.goto(`${BASE}/app`);
   await pa.getByRole('button', { name: 'Galera' }).first().click().catch(() => {});
   await pa.getByRole('button', { name: /Configurações do servidor|Galera/ }).first().click().catch(() => {});
   const guildSettings = pa.getByRole('menuitem', { name: /Configurações do servidor/ }).or(pa.getByRole('button', { name: /Configurações do servidor/ }));

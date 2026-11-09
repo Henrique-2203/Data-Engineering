@@ -71,15 +71,30 @@ function create() {
   overlay.webContents.on('did-finish-load', () => {
     overlay?.webContents.send('overlay:config', config);
     if (lastState) overlay?.webContents.send('overlay:state', lastState);
+    // o som que fez o overlay aparecer chegou antes da janela carregar
+    if (pendingEvent && Date.now() - pendingEvent.at < 5000) overlay?.webContents.send('overlay:event', pendingEvent.e);
+    pendingEvent = null;
   });
   void overlay.loadFile(path.join(__dirname, 'overlay.html'));
   place();
 }
 
+/** até quando o overlay fica na tela depois de alguém falar ou tocar um som (modo "só quem fala") */
+let activeUntil = 0;
+let pendingEvent = null;
+let idleTimer = null;
+
 function refresh() {
   const shouldShow =
     config.enabled && !hiddenByHotkey && !!lastState?.inCall && !appFocused && (config.showWhen === 'always' || gameOpen);
-  if (!shouldShow) {
+  // "só quem fala": sem ninguém falando, a janela SOME de verdade (não fica uma janela transparente
+  // por cima do jogo, que faz o Windows compor a tela e pode custar FPS)
+  const speaking = !!lastState?.people?.some?.((p) => p.speaking);
+  if (speaking) activeUntil = Date.now() + 2500;
+  const idle = config.onlySpeaking && Date.now() > activeUntil;
+  clearTimeout(idleTimer);
+  if (shouldShow && config.onlySpeaking && !idle) idleTimer = setTimeout(refresh, activeUntil - Date.now() + 50);
+  if (!shouldShow || idle) {
     if (overlay && !overlay.isDestroyed() && overlay.isVisible()) overlay.hide();
     return;
   }
@@ -96,7 +111,11 @@ module.exports = {
   },
   /** soundboard: { name, sound, emoji } */
   event(e) {
-    if (overlay && !overlay.isDestroyed() && overlay.isVisible()) overlay.webContents.send('overlay:event', e);
+    activeUntil = Math.max(activeUntil, Date.now() + 5000);
+    const loading = !overlay || overlay.isDestroyed() || overlay.webContents.isLoading();
+    refresh();
+    if (loading) pendingEvent = { e, at: Date.now() };
+    else overlay.webContents.send('overlay:event', e);
   },
   configure(next) {
     config = { ...config, ...next };

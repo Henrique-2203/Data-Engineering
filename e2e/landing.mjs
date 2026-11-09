@@ -106,7 +106,7 @@ try {
   if (notAdmin.status !== 404) throw new Error('lista de espera visível para quem não é da equipe');
   const pa = await (await browser.newContext({ viewport: { width: 1366, height: 860 } })).newPage();
   await pa.addInitScript((t) => localStorage.setItem('resenha.token', t), equipe.token);
-  await pa.goto(BASE);
+  await pa.goto(`${BASE}/app`);
   await pa.getByRole('button', { name: 'Denúncias' }).click();
   await pa.getByRole('tab', { name: 'Lista de espera' }).click();
   await pa.getByText('2 inscritos · 2 esperando convite').waitFor();
@@ -118,15 +118,20 @@ try {
   if (!csv.includes('marcos.gamer@email.com') || !csv.includes('bia@x.com') || !csv.includes('11912345678')) throw new Error('CSV incompleto');
   step('equipe vê a lista no painel, marca "convite enviado" e exporta a planilha (.csv)');
 
-  // logado, "/" abre o app (não a página inicial); "/entrar" abre o login
+  // logado, "/app" abre o app; "/" continua sendo o site de apresentação, com "Abrir o Resenha"
   await pa.getByRole('heading', { name: /Sua call/ }).waitFor({ state: 'detached', timeout: 2000 });
+  await pa.goto(BASE);
+  await pa.getByRole('heading', { name: /Sua call/ }).waitFor();
+  await pa.getByRole('link', { name: 'Abrir o Resenha' }).click();
+  await pa.waitForURL(`${BASE}/app`);
+  await pa.getByRole('button', { name: 'Denúncias' }).waitFor();
   const pe = await (await browser.newContext()).newPage();
   await pe.goto(`${BASE}/entrar`);
   await pe.getByRole('tab', { name: 'Criar conta' }).waitFor();
   await pe.goto(`${BASE}/invite/abc123`);
   await pe.getByRole('tab', { name: 'Criar conta' }).waitFor();
   await pe.getByText('Você recebeu um convite!').waitFor();
-  step('quem já tem conta cai direto no app; "/entrar" abre o login; link de convite abre o cadastro');
+  step('site de apresentação aberto também para quem está logado ("Abrir o Resenha" leva ao app em /app); "/entrar" abre o login; link de convite abre o cadastro');
 
   // ---------- celular ----------
   const phone = await (await browser.newContext({ ...devices['Pixel 7'] })).newPage();

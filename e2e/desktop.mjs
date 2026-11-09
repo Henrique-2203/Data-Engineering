@@ -24,6 +24,9 @@ const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'
 server.stderr.on('data', (d) => process.stderr.write(`[server] ${d}`));
 
 const step = (msg) => console.log(`✓ ${msg}`);
+const assert = (c, m) => {
+  if (!c) throw new Error(`FALHOU: ${m}`);
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function api(p, body, token) {
   const res = await fetch(`${BASE}/api${p}`, {
@@ -96,9 +99,35 @@ try {
   // ---- "Jogando agora" detectado pelo app ----
   await win.locator('.user-panel').getByText('🎮 Jogando Jogo de Teste').waitFor({ timeout: 15000 });
   await win.locator('.members').getByText('🎮 Jogando Jogo de Teste').waitFor();
+  // o jogo primeiro: com jogo aberto, todos os processos do Resenha ficam com prioridade abaixo do normal
+  const priorities = () =>
+    app.evaluate(({ app: a }) => {
+      const os = process.mainModule.require('node:os');
+      return a.getAppMetrics().map((m) => {
+        try {
+          return { type: m.type, p: os.getPriority(m.pid) };
+        } catch {
+          return { type: m.type, p: null };
+        }
+      });
+    });
+  // o processo principal e o da página (que codifica a transmissão e a voz); no Linux alguns processos
+  // auxiliares do Chromium têm prioridade própria, no Windows a troca vale para todos
+  const keyProcs = (list) => list.filter((x) => (x.type === 'Browser' || x.type === 'Tab') && x.p !== null).map((x) => x.p);
+  let below = [];
+  for (let i = 0; i < 10; i++) {
+    below = keyProcs(await priorities());
+    if (below.length >= 2 && below.every((p) => p > 0)) break;
+    await sleep(500);
+  }
+  assert(below.length >= 2 && below.every((p) => p > 0), `processos do Resenha atrás do jogo (${JSON.stringify(await priorities())})`);
+  assert((await win.evaluate(() => window.resenhaDesktop.getSettings())).gamePriority === true, '"Dar prioridade ao jogo" ligado por padrão');
   fakeGame.kill();
   await win.locator('.user-panel').getByText('🎮 Jogando Jogo de Teste').waitFor({ state: 'detached', timeout: 15000 });
+  const normal = keyProcs(await priorities());
+  assert(normal.every((p) => p === 0), `prioridade volta ao normal quando o jogo fecha (${normal.join(',')})`);
   step('"Jogando agora": o app detecta o jogo aberto, mostra no perfil e tira quando fecha');
+  step('o jogo primeiro: com jogo aberto, o Resenha fica com prioridade abaixo do normal (e volta quando o jogo fecha)');
 
   await win.getByRole('button', { name: 'Sala de voz' }).click();
   await win.getByText('Voz conectada').waitFor({ timeout: 15000 });

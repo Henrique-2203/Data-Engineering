@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { onSocketReady } from '../lib/socket';
+import { useVoice } from '../store/voice';
 
 /**
  * Avisa quando há versão nova do site publicada (o app de desktop e abas abertas há muito tempo
@@ -19,6 +20,7 @@ async function fetchVersion(): Promise<string | null> {
 export function UpdateNotice() {
   const [loaded, setLoaded] = useState<string | null>(null);
   const [latest, setLatest] = useState<string | null>(null);
+  const inCall = useVoice((s) => s.status !== 'idle');
 
   useEffect(() => {
     let mine: string | null = null;
@@ -44,10 +46,12 @@ export function UpdateNotice() {
   return (
     <div className="update-banner site-update" role="status">
       <RefreshCw size={16} />
-      <span>Nova versão do Resenha disponível.</span>
-      <button className="btn small primary" onClick={() => location.reload()}>
-        Atualizar
-      </button>
+      <span>{inCall ? 'Nova versão do Resenha: atualize quando sair da call (nada muda até lá).' : 'Nova versão do Resenha disponível.'}</span>
+      {!inCall && (
+        <button className="btn small primary" onClick={() => location.reload()}>
+          Atualizar
+        </button>
+      )}
     </div>
   );
 }

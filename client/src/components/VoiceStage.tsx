@@ -31,7 +31,7 @@ const channelMessagesLoaded = (id: string) => channelMessages(id).loaded;
 import { SoundBurstBadge, SoundboardButton } from './Soundboard';
 import { setStreamVolume, setUserVolume, updateSettings, useVoice } from '../store/voice';
 import { voice, type CallSecurity } from '../voice/engine';
-import { CODECS, canShareScreen, keyLabel, presetById } from '../voice/settings';
+import { CODECS, canShareScreen, keyLabel, screenCodecFor, screenPresetFor } from '../voice/settings';
 import { Perm, has, myPermissions } from '../lib/perms';
 import type { SendStats } from '../voice/engine';
 import { Avatar } from './Avatar';
@@ -315,7 +315,7 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
       <div ref={ref} className={`tile screen${big ? ' big' : ''}${sizeClass}`} onDoubleClick={tile.isMe ? undefined : () => fullscreen(ref.current)}>
         {tile.isMe || watching ? (
           stream && stream.getVideoTracks().length > 0 ? (
-            <VideoEl stream={stream} version={remote?.v} contain />
+            <VideoEl stream={stream} version={remote?.v} contain pauseWhenAway={tile.isMe} />
           ) : (
             <div className="tile-center muted">Carregando transmissão…</div>
           )
@@ -437,14 +437,45 @@ function ConnectingBadge({ failed }: { failed: boolean }) {
   );
 }
 
-function VideoEl({ stream, version, mirror, contain }: { stream: MediaStream; version?: number; mirror?: boolean; contain?: boolean }) {
+function VideoEl({
+  stream,
+  version,
+  mirror,
+  contain,
+  pauseWhenAway,
+}: {
+  stream: MediaStream;
+  version?: number;
+  mirror?: boolean;
+  contain?: boolean;
+  /** prévia da minha própria tela: pausa enquanto você está no jogo (desenhar a prévia também gasta a placa de vídeo) */
+  pauseWhenAway?: boolean;
+}) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const v = ref.current;
     if (!v) return;
     if (v.srcObject !== stream) v.srcObject = stream;
-    v.play().catch(() => {});
-  }, [stream, version]);
+    if (!pauseWhenAway || (document.visibilityState === 'visible' && document.hasFocus())) v.play().catch(() => {});
+  }, [stream, version, pauseWhenAway]);
+  useEffect(() => {
+    if (!pauseWhenAway) return;
+    const sync = () => {
+      const v = ref.current;
+      if (!v) return;
+      if (document.visibilityState === 'visible' && document.hasFocus()) v.play().catch(() => {});
+      else v.pause();
+    };
+    sync();
+    window.addEventListener('focus', sync);
+    window.addEventListener('blur', sync);
+    document.addEventListener('visibilitychange', sync);
+    return () => {
+      window.removeEventListener('focus', sync);
+      window.removeEventListener('blur', sync);
+      document.removeEventListener('visibilitychange', sync);
+    };
+  }, [pauseWhenAway]);
   return (
     <video
       ref={ref}
@@ -555,8 +586,9 @@ function MyStreamAudioToggle() {
  * e o que limita a qualidade), com dicas quando algo está atrapalhando.
  */
 function SendStatsView() {
-  const chosen = useVoice((s) => s.settings.codec);
-  const targetFps = useVoice((s) => presetById(s.settings.screenPreset).fps);
+  const chosen = useVoice((s) => screenCodecFor(s.settings));
+  const light = useVoice((s) => s.screenLight);
+  const targetFps = useVoice((s) => (s.screenLight ? 30 : screenPresetFor(s.settings).fps));
   const [st, setSt] = useState<SendStats | null>(null);
   const [mbps, setMbps] = useState<number | null>(null);
   useEffect(() => {
@@ -576,6 +608,7 @@ function SendStatsView() {
   const wanted = CODECS.find((c) => c.id === chosen)?.mime.replace('video/', '') ?? '';
   const fallback = st.codec && wanted && st.codec.toUpperCase() !== wanted.toUpperCase();
   const tips: string[] = [];
+  if (light) tips.push('Modo desempenho: a transmissão está mais leve (720p · 30 FPS) para não tirar FPS do jogo.');
   if (fallback) {
     tips.push(
       `O ${wanted} não está disponível (no seu navegador ou no de quem assiste), então está indo em ${st.codec}. Use Chrome ou Edge atualizados dos dois lados — Opera/Opera GX e Brave podem vir sem H.264.`,

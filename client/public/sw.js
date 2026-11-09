@@ -40,7 +40,7 @@ self.addEventListener('notificationclick', (event) => {
         if (channelId) win.postMessage({ type: 'resenha:open-channel', channelId });
         return;
       }
-      await self.clients.openWindow(channelId ? `/?canal=${encodeURIComponent(channelId)}` : '/');
+      await self.clients.openWindow(channelId ? `/app?canal=${encodeURIComponent(channelId)}` : '/app');
     })(),
   );
 });

@@ -405,6 +405,28 @@ create index if not exists push_subscriptions_user_idx on push_subscriptions(use
 with first_time as (insert into schema_flags (name) values ('v15_everyone_events') on conflict do nothing returning 1)
 update guilds set everyone_permissions = everyone_permissions | ${Perm.CREATE_EVENTS}
 where exists (select 1 from first_time);
+-- v16: suporte (chamados) e novidades já vistas por conta
+create table if not exists support_tickets (
+  id text primary key,
+  user_id text not null references users(id) on delete cascade,
+  category text not null,
+  subject text not null,
+  status text not null default 'open' check (status in ('open', 'answered', 'closed')),
+  user_unread boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists support_tickets_user_idx on support_tickets(user_id, updated_at desc);
+create index if not exists support_tickets_status_idx on support_tickets(status, updated_at);
+create table if not exists support_messages (
+  id text primary key,
+  ticket_id text not null references support_tickets(id) on delete cascade,
+  from_team boolean not null default false,
+  body text not null,
+  created_at timestamptz not null default clock_timestamp()
+);
+create index if not exists support_messages_ticket_idx on support_messages(ticket_id, created_at);
+alter table users add column if not exists changelog_seen text;
 create table if not exists backups (
   id text primary key,
   started_at timestamptz not null default now(),

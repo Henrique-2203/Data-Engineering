@@ -70,7 +70,7 @@ try {
     }, token);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.error('[pageerror]', e));
-    await page.goto(BASE);
+    await page.goto(`${BASE}/app`);
     return page;
   };
   const streamer = await open(a.token);

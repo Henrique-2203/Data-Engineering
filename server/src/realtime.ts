@@ -18,6 +18,8 @@ type Ack = (res: any) => void;
  */
 export class Realtime {
   readonly io: Server;
+  /** desligando para atualizar (ver index.ts) */
+  shuttingDown = false;
   /** userId -> número de conexões abertas */
   private online = new Map<string, number>();
   /** conexões com o Resenha visível na tela (userId -> socketIds): quem não tem nenhuma recebe notificação no celular */
@@ -304,6 +306,9 @@ export class Realtime {
 
     // 'disconnecting' (e não 'disconnect') porque aqui socket.rooms ainda está preenchido.
     socket.on('disconnecting', () => {
+      // servidor desligando para atualizar: NÃO avisa que todo mundo saiu da call (os apps mantêm a
+      // voz, que é direta entre os aparelhos, e voltam sozinhos para o servidor novo)
+      if (this.shuttingDown) return;
       this.leaveVoice(socket.id);
       this.setActive(user.id, socket.id, false);
       const left = (this.online.get(user.id) ?? 1) - 1;

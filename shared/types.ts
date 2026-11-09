@@ -136,6 +136,22 @@ export interface GuildEvent {
   interestedIds: string[];
 }
 
+export type SupportCategory = 'bug' | 'call' | 'account' | 'question' | 'idea' | 'other';
+
+/** Chamado de suporte (quem abriu e a equipe do Resenha conversam nele). */
+export interface SupportTicket {
+  id: string;
+  category: SupportCategory;
+  subject: string;
+  status: 'open' | 'answered' | 'closed';
+  /** a equipe respondeu e a pessoa ainda não leu */
+  unread: boolean;
+  createdAt: string;
+  updatedAt: string;
+  user: PublicUser;
+  messages: { id: string; fromTeam: boolean; body: string; createdAt: string }[];
+}
+
 /** Enquete dentro de uma mensagem. */
 export interface Poll {
   question: string;

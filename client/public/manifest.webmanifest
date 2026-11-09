@@ -2,7 +2,7 @@
   "name": "Resenha",
   "short_name": "Resenha",
   "description": "Chat, voz e transmissão de tela em alta qualidade para você e seus amigos.",
-  "start_url": "/",
+  "start_url": "/app",
   "display": "standalone",
   "background_color": "#111318",
   "theme_color": "#111318",

@@ -4,21 +4,22 @@ import { api, hasSession, markSession, migrateLegacySession, setUnauthorizedHand
 import { connectSocket, disconnectSocket } from './lib/socket';
 import { findChannel, goHome, openModal, selectChannel, selectGuild, setDms, setFriends, setGuilds, useApp } from './store/app';
 import { disablePush, initPush, pushActive } from './lib/push';
+import { pendingChangelog } from './components/Changelog';
 import { voice } from './voice/engine';
 import { AuthScreen } from './components/AuthScreen';
 import { Layout } from './components/Layout';
-import { LegalPage } from './components/LegalPage';
+import { LegalPage, type LegalKind } from './components/LegalPage';
 import { Landing } from './components/Landing';
 import { isDesktop } from './lib/desktop';
 
 /** /privacidade e /termos são páginas públicas (abrem sem login). */
-const legalPage = /^\/(privacidade|termos|seguranca)\/?$/.exec(location.pathname)?.[1] as 'privacidade' | 'termos' | 'seguranca' | undefined;
+const legalPage = /^\/(privacidade|termos|seguranca|suporte)\/?$/.exec(location.pathname)?.[1] as LegalKind | undefined;
 
 /** Lê /invite/:code da URL (link de convite) e limpa a barra de endereço. */
 function takeInviteFromUrl(): string | null {
   const m = /^\/invite\/([\w-]+)/.exec(location.pathname);
   if (!m) return null;
-  history.replaceState(null, '', '/');
+  history.replaceState(null, '', '/app');
   return m[1];
 }
 
@@ -31,6 +32,8 @@ function takeChannelFromUrl(): string | null {
   return id;
 }
 const pendingChannel = { id: takeChannelFromUrl() };
+const pendingSupport = { open: new URLSearchParams(location.search).has('suporte') };
+if (pendingSupport.open) history.replaceState(null, '', location.pathname);
 
 /** Abre o canal da notificação (se ainda tenho acesso). */
 function openChannelFromNotification(id: string) {
@@ -38,16 +41,16 @@ function openChannelFromNotification(id: string) {
 }
 
 /**
- * Página inicial (apresentação, download e lista de espera) para quem chega sem estar logado.
- * O app de desktop e o app instalado na tela inicial vão direto para o login.
+ * O site de apresentação (o que é o Resenha, download, lista de espera, suporte) fica em "/" para todo
+ * mundo, logado ou não. O app (chat, calls, servidores) fica em "/app". O app de desktop e o app
+ * instalado na tela inicial do celular vão direto para o app.
  */
-const showLanding =
-  !pendingInvite.code &&
-  location.pathname === '/' &&
-  !hasSession() &&
-  !isDesktop &&
-  !window.matchMedia?.('(display-mode: standalone)').matches;
-if (location.pathname === '/entrar') history.replaceState(null, '', '/');
+const standalone = !!window.matchMedia?.('(display-mode: standalone)').matches;
+const showLanding = !pendingInvite.code && location.pathname === '/' && !isDesktop && !standalone;
+// "/entrar" (links antigos) e "/" no app de desktop viram "/app"
+if (location.pathname === '/entrar' || (location.pathname === '/' && !showLanding)) {
+  history.replaceState(null, '', `/app${location.search}`);
+}
 
 export function App() {
   if (legalPage) return <LegalPage kind={legalPage} />;
@@ -84,14 +87,27 @@ function MainApp() {
 
   const start = useCallback(async () => {
     const [data, dms, friends] = await Promise.all([
-      api<{ user: PublicUser; guilds: Guild[]; isPlatformAdmin?: boolean; account?: { emailVerified: boolean; emailEnabled: boolean } }>('/bootstrap'),
+      api<{
+        user: PublicUser;
+        guilds: Guild[];
+        isPlatformAdmin?: boolean;
+        account?: { emailVerified: boolean; emailEnabled: boolean };
+        changelog?: { seen: string | null; accountCreatedAt: string | null };
+        supportUnread?: number;
+      }>('/bootstrap'),
       api<{ dms: DmChannel[] }>('/dms'),
       api<{ friends: Friend[] }>('/friends'),
     ]);
     setGuilds(data.guilds);
     setDms(dms.dms);
     setFriends(friends.friends);
-    useApp.setState({ me: data.user, mobilePanel: 'nav', isPlatformAdmin: !!data.isPlatformAdmin });
+    useApp.setState({
+      me: data.user,
+      mobilePanel: 'nav',
+      isPlatformAdmin: !!data.isPlatformAdmin,
+      supportUnread: data.supportUnread ?? 0,
+      pendingChangelog: data.changelog ? pendingChangelog(data.changelog.seen, data.changelog.accountCreatedAt) : [],
+    });
     if (data.isPlatformAdmin) {
       // as visitas da própria equipe não entram no painel de números
       try {
@@ -101,6 +117,7 @@ function MainApp() {
       }
     }
     if (data.isPlatformAdmin) void api<{ open: number }>('/admin/reports/count').then((r) => useApp.setState({ openReports: r.open }), () => {});
+    if (data.isPlatformAdmin) void api<{ open: number }>('/admin/support/count').then((r) => useApp.setState({ openSupport: r.open }), () => {});
     if (data.guilds[0]) selectGuild(data.guilds[0].id);
     else goHome();
     if (pendingChannel.id) {
@@ -112,6 +129,12 @@ function MainApp() {
     if (pendingInvite.code) {
       openModal({ kind: 'joinGuild', code: pendingInvite.code });
       pendingInvite.code = null;
+    } else if (pendingSupport.open) {
+      // veio do "Abrir um chamado" da página /suporte
+      pendingSupport.open = false;
+      openModal({ kind: 'support' });
+    } else if (useApp.getState().pendingChangelog.length) {
+      // novidades primeiro (o convite de e-mail fica para a próxima vez)
     }
     // conta antiga sem e-mail: convida para adicionar (no máximo uma vez por dia)
     else if (data.account?.emailEnabled && !data.account.emailVerified) {

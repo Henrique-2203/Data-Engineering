@@ -20,6 +20,14 @@ export const SCREEN_PRESETS: ScreenPreset[] = [
 export type ContentType = 'motion' | 'detail';
 export type InputMode = 'voice' | 'ptt';
 export type CodecChoice = 'h264' | 'vp9' | 'av1' | 'vp8';
+export type NoiseMode = 'off' | 'browser' | 'rnnoise' | 'gtcrn';
+
+export const NOISE_MODES: { id: NoiseMode; label: string; hint: string }[] = [
+  { id: 'gtcrn', label: 'Forte (IA) · recomendada', hint: 'Tira teclado, cliques do mouse, ventilador e chiado sem cortar a voz.' },
+  { id: 'rnnoise', label: 'Leve (IA)', hint: 'Tira ventilador e chiado usando menos processador; o teclado passa em parte.' },
+  { id: 'browser', label: 'Básica (do navegador)', hint: 'A supressão padrão do Chrome/Edge. Deixa passar teclado.' },
+  { id: 'off', label: 'Desligada', hint: 'Som do microfone sem filtro (para quem tem microfone de estúdio ou interface de áudio).' },
+];
 
 export const CODECS: { id: CodecChoice; label: string; mime: string }[] = [
   { id: 'h264', label: 'H.264 (recomendado: usa a placa de vídeo)', mime: 'video/H264' },
@@ -29,6 +37,8 @@ export const CODECS: { id: CodecChoice; label: string; mime: string }[] = [
 ];
 
 export interface VoiceSettings {
+  /** modo desempenho: H.264 pela placa de vídeo, no máximo 1080p e fica mais leve sozinho se o PC sofrer */
+  performanceMode: boolean;
   screenPreset: string;
   contentType: ContentType;
   codec: CodecChoice;
@@ -36,7 +46,13 @@ export interface VoiceSettings {
   /** Bitrate escolhido manualmente (Mbps). null = padrão do preset. */
   bitrateMbps: number | null;
   micDeviceId: string | null;
-  noiseSuppression: boolean;
+  /**
+   * Supressão de ruído do microfone: 'off' | 'browser' (a do navegador) | 'gtcrn' (IA forte, recomendada:
+   * tira teclado) | 'rnnoise' (IA leve). As de IA rodam no próprio aparelho.
+   */
+  noiseMode: NoiseMode;
+  /** (antigo) liga/desliga da supressão do navegador; lido só para migrar */
+  noiseSuppression?: boolean;
   volumes: Record<string, number>; // userId -> 0..1
   /** volume da transmissão de cada pessoa (som do jogo/vídeo), separado da voz: userId -> 0..1 */
   streamVolumes: Record<string, number>;
@@ -65,13 +81,14 @@ export interface VoiceSettings {
 const KEY = 'resenha.voiceSettings';
 
 export const DEFAULT_SETTINGS: VoiceSettings = {
+  performanceMode: true,
   screenPreset: '1080p60',
   contentType: 'motion',
   codec: 'h264',
   screenAudio: true,
   bitrateMbps: null,
   micDeviceId: null,
-  noiseSuppression: true,
+  noiseMode: 'gtcrn',
   volumes: {},
   streamVolumes: {},
   turnSaver: true,
@@ -114,7 +131,12 @@ export function keyLabel(code: string): string {
 export function loadSettings(): VoiceSettings {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    if (raw) {
+      const saved = JSON.parse(raw) as Partial<VoiceSettings>;
+      // quem tinha desligado a supressão antiga continua sem filtro
+      if (!saved.noiseMode && saved.noiseSuppression === false) saved.noiseMode = 'off';
+      return { ...DEFAULT_SETTINGS, ...saved };
+    }
   } catch {
     /* ignora */
   }
@@ -133,8 +155,18 @@ export function presetById(id: string): ScreenPreset {
   return SCREEN_PRESETS.find((p) => p.id === id) ?? SCREEN_PRESETS[3];
 }
 
+/** Preset de fato usado: no modo desempenho, no máximo 1080p · 60 FPS. */
+export function screenPresetFor(s: VoiceSettings): ScreenPreset {
+  const p = presetById(s.screenPreset);
+  if (s.performanceMode && (!p.height || p.height > 1080)) return presetById('1080p60');
+  return p;
+}
+
+/** Codec de fato usado: no modo desempenho, sempre H.264 (a placa de vídeo codifica; AV1/VP9 quase sempre vão no processador). */
+export const screenCodecFor = (s: VoiceSettings): CodecChoice => (s.performanceMode ? 'h264' : s.codec);
+
 export function effectiveBitrate(s: VoiceSettings): number {
-  return s.bitrateMbps ? s.bitrateMbps * 1_000_000 : presetById(s.screenPreset).bitrate;
+  return s.bitrateMbps ? s.bitrateMbps * 1_000_000 : screenPresetFor(s).bitrate;
 }
 
 export const canShareScreen = () =>

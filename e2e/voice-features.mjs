@@ -118,7 +118,7 @@ try {
     );
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.error('[pageerror]', e));
-    await page.goto(BASE);
+    await page.goto(`${BASE}/app`);
     return page;
   };
   // falante em push-to-talk com a tecla T; ouvinte em ativação por voz sensível

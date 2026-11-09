@@ -51,6 +51,7 @@ import { bump, registerStatsRoutes } from './stats.ts';
 import { checkSecondFactor, clearLimit, hits, limit, limited, registerSecurityRoutes } from './security.ts';
 import { POLL_SELECT, checkAutomod, checkSlowmode, pollSchema, registerCommunityRoutes } from './community.ts';
 import { registerPushRoutes, sendPush } from './push.ts';
+import { registerSupportRoutes } from './support.ts';
 import { mentionedUsernames } from './mentions.ts';
 
 export { HttpError };
@@ -450,14 +451,32 @@ export function createRoutes(db: Db, rt: Realtime) {
     '/bootstrap',
     auth,
     wrap(async (req) => {
-      const [acc] = await db.query<{ emailVerified: boolean }>('select email_verified_at is not null as "emailVerified" from users where id = $1', [req.user!.id]);
+      const [acc] = await db.query<{ emailVerified: boolean; changelogSeen: string | null; createdAt: string; supportUnread: number }>(
+        `select email_verified_at is not null as "emailVerified", changelog_seen as "changelogSeen", created_at as "createdAt",
+           (select count(*)::int from support_tickets t where t.user_id = users.id and t.user_unread) as "supportUnread"
+         from users where id = $1`,
+        [req.user!.id],
+      );
       return {
         user: req.user,
         guilds: await loadGuilds(db, req.user!.id),
         isPlatformAdmin: isPlatformAdmin(req.user!.username),
         // contas antigas sem e-mail recebem o convite para adicionar um (recuperação e alertas)
         account: { emailVerified: !!acc?.emailVerified, emailEnabled: emailEnabled() },
+        // novidades: a última que a pessoa confirmou que leu (vale para todos os aparelhos dela)
+        changelog: { seen: acc?.changelogSeen ?? null, accountCreatedAt: acc?.createdAt ?? null },
+        supportUnread: acc?.supportUnread ?? 0,
       };
+    }),
+  );
+
+  /** "Entendi": a pessoa leu as novidades até esta versão. */
+  r.post(
+    '/me/changelog-seen',
+    auth,
+    wrap(async (req) => {
+      const { id } = parse(z.object({ id: z.string().regex(/^\d{4}-\d{2}-\d{2}[a-z0-9-]*$/).max(40) }), req.body);
+      await db.query('update users set changelog_seen = $2 where id = $1 and (changelog_seen is null or changelog_seen < $2)', [req.user!.id, id]);
     }),
   );
 
@@ -678,6 +697,7 @@ export function createRoutes(db: Db, rt: Realtime) {
 
   registerCommunityRoutes(r, db, rt, auth, { channelForMember, emitToChannel, messageSelect: MESSAGE_SELECT });
   registerPushRoutes(r, db, auth);
+  registerSupportRoutes(r, db, rt, auth);
 
   registerAttachmentRoutes(r, db, auth, {
     channelGuild: async (channelId, userId) => (await channelForMember(channelId, userId)).guildId,
