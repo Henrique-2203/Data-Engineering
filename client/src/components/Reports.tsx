@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Flag, ShieldAlert, X } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, getToken } from '../lib/api';
 import { closeModal, toast, useApp } from '../store/app';
 import { fileUrl } from '../lib/expressions';
 
@@ -148,10 +148,12 @@ interface AdminReport {
 const reasonLabel = (id: string) => REASONS.find((r) => r.id === id)?.label ?? id;
 
 export function AdminReports() {
-  const [tab, setTab] = useState<'open' | 'closed'>('open');
+  const [tab, setTab] = useState<'open' | 'closed' | 'waitlist'>('open');
   const [reports, setReports] = useState<AdminReport[] | null>(null);
   const openCount = useApp((s) => s.openReports);
-  const load = () => void api<{ reports: AdminReport[] }>(`/admin/reports?status=${tab}`).then((r) => setReports(r.reports), (e) => toast(e.message));
+  const load = () => {
+    if (tab !== 'waitlist') void api<{ reports: AdminReport[] }>(`/admin/reports?status=${tab}`).then((r) => setReports(r.reports), (e) => toast(e.message));
+  };
   useEffect(load, [tab, openCount]);
 
   async function act(r: AdminReport, action: string, confirmText?: string) {
@@ -186,10 +188,14 @@ export function AdminReports() {
             <button role="tab" aria-selected={tab === 'closed'} onClick={() => setTab('closed')}>
               Encerradas
             </button>
+            <button role="tab" aria-selected={tab === 'waitlist'} onClick={() => setTab('waitlist')}>
+              Lista de espera
+            </button>
           </div>
-          {reports === null && <p className="muted">Carregando…</p>}
-          {reports?.length === 0 && <p className="muted center">{tab === 'open' ? '🎉 Nenhuma denúncia aberta.' : 'Nada por aqui ainda.'}</p>}
-          <ul className="report-list">
+          {tab === 'waitlist' && <WaitlistAdmin />}
+          {tab !== 'waitlist' && reports === null && <p className="muted">Carregando…</p>}
+          {tab !== 'waitlist' && reports?.length === 0 && <p className="muted center">{tab === 'open' ? '🎉 Nenhuma denúncia aberta.' : 'Nada por aqui ainda.'}</p>}
+          <ul className="report-list" hidden={tab === 'waitlist'}>
             {reports?.map((r) => (
               <li key={r.id} className={`report-item${r.reason === 'minors' || r.reason === 'selfharm' ? ' urgent' : ''}`}>
                 <div className="report-head">
@@ -305,6 +311,97 @@ function Evidence({ r }: { r: AdminReport }) {
     <div className="evidence">
       <strong>{s.name}</strong> <span className="muted small">dono: @{s.owner}</span>
       {s.description && <p className="evidence-text">{s.description}</p>}
+    </div>
+  );
+}
+
+interface WaitEntry {
+  id: string;
+  name: string;
+  email: string;
+  whatsapp: string | null;
+  platforms: string[];
+  source: string | null;
+  createdAt: string;
+  invitedAt: string | null;
+}
+
+/** Lista de espera da página inicial: quem pediu convite, com exportação para planilha. */
+function WaitlistAdmin() {
+  const [entries, setEntries] = useState<WaitEntry[] | null>(null);
+  const load = () => void api<{ entries: WaitEntry[] }>('/admin/waitlist').then((r) => setEntries(r.entries), (e) => toast(e.message));
+  useEffect(load, []);
+
+  async function exportCsv() {
+    const res = await fetch('/api/admin/waitlist?format=csv', { headers: { Authorization: `Bearer ${getToken()}` } });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(await res.blob());
+    a.download = 'resenha-lista-de-espera.csv';
+    a.click();
+  }
+
+  const pending = entries?.filter((e) => !e.invitedAt).length ?? 0;
+  return (
+    <div className="waitlist-admin">
+      <div className="row spread">
+        <p className="muted small">
+          {entries ? `${entries.length} inscritos · ${pending} esperando convite` : 'Carregando…'}
+        </p>
+        <button className="btn small" onClick={() => void exportCsv()}>
+          Exportar planilha (.csv)
+        </button>
+      </div>
+      <ul className="report-list">
+        {entries?.map((e, i) => (
+          <li key={e.id} className={`report-item wait-item${e.invitedAt ? ' invited' : ''}`}>
+            <div className="report-head">
+              <span className="report-reason">
+                nº {i + 1} · {e.name}
+              </span>
+              <span className="muted small">
+                {new Date(e.createdAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                {e.source && ` · veio por ${e.source}`}
+              </span>
+            </div>
+            <p className="small">
+              <a href={`mailto:${e.email}`}>{e.email}</a>
+              {e.whatsapp && (
+                <>
+                  {' · '}
+                  <a href={`https://wa.me/${e.whatsapp.replace(/^\+/, '').replace(/^(?!55)/, '55')}`} target="_blank" rel="noopener noreferrer">
+                    WhatsApp {e.whatsapp}
+                  </a>
+                </>
+              )}
+              {' · '}
+              {e.platforms.join(', ')}
+            </p>
+            <div className="report-actions">
+              <label className="check small">
+                <input
+                  type="checkbox"
+                  checked={!!e.invitedAt}
+                  onChange={async (ev) => {
+                    await api(`/admin/waitlist/${e.id}/invited`, { body: { invited: ev.target.checked } }).catch((err) => toast(err.message));
+                    load();
+                  }}
+                />
+                Convite enviado
+              </label>
+              <button
+                className="btn small ghost"
+                onClick={async () => {
+                  if (!confirm(`Remover ${e.name} da lista?`)) return;
+                  await api(`/admin/waitlist/${e.id}`, { method: 'DELETE' }).catch((err) => toast(err.message));
+                  load();
+                }}
+              >
+                Remover
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

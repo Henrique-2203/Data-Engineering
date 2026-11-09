@@ -29,7 +29,8 @@
     "test:e2e:profile": "node e2e/profile.mjs",
     "test:e2e:expressions": "node e2e/expressions.mjs",
     "test:e2e:security": "node e2e/security.mjs",
-    "test:e2e:reports": "node e2e/reports.mjs"
+    "test:e2e:reports": "node e2e/reports.mjs",
+    "test:e2e:landing": "node e2e/landing.mjs"
   },
   "devDependencies": {
     "concurrently": "^10.0.7"

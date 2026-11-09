@@ -33,6 +33,9 @@ Funciona no navegador do PC e do celular, e é 100% gratuito para hospedar.
 - **Denúncias**: botão 🚩 em mensagens, perfis e servidores, anônimo para o denunciado e com cópia da
   prova (mesmo se apagarem). A equipe (`PLATFORM_ADMINS`) tem uma fila com contador em tempo real e pode
   apagar a mensagem, suspender a conta no Resenha inteiro ou excluir o servidor
+- **Página inicial** (`/`, para quem não está logado): vídeo do app, recursos com prints reais, aviso de
+  beta, download do Windows (sempre a versão mais recente), uso no navegador e **lista de espera** com
+  consentimento (a equipe vê no painel e exporta para planilha). O login fica em `/entrar`
 - **Aviso de nova versão**: quando sai uma versão nova do site, aparece "Atualizar" em quem está com ele aberto
 - Chat em tempo real: editar/excluir mensagens, "fulano está digitando…", links e prévia de imagens, mensagens não lidas
 - **Responder** mensagens (com citação clicável), **reações** com emoji e **@menções** com

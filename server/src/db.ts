@@ -228,6 +228,19 @@ create index if not exists reports_status_idx on reports(status, created_at desc
 alter table users add column if not exists suspended_at timestamptz;
 alter table users add column if not exists suspended_reason text;
 
+-- v9: lista de espera (página inicial)
+create table if not exists waitlist (
+  id text primary key,
+  name text not null,
+  email text not null unique,
+  whatsapp text,
+  platforms text[] not null default '{}',
+  source text,
+  consent_at timestamptz not null,
+  invited_at timestamptz,
+  created_at timestamptz not null default clock_timestamp()
+);
+
 -- imagens (ícone/banner do servidor, foto/banner de perfil): pequenas e substituídas, nunca acumuladas
 create table if not exists images (
   id text primary key,

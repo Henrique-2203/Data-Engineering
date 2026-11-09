@@ -7,6 +7,8 @@ import { voice } from './voice/engine';
 import { AuthScreen } from './components/AuthScreen';
 import { Layout } from './components/Layout';
 import { LegalPage } from './components/LegalPage';
+import { Landing } from './components/Landing';
+import { isDesktop } from './lib/desktop';
 
 /** /privacidade e /termos são páginas públicas (abrem sem login). */
 const legalPage = /^\/(privacidade|termos)\/?$/.exec(location.pathname)?.[1] as 'privacidade' | 'termos' | undefined;
@@ -21,8 +23,21 @@ function takeInviteFromUrl(): string | null {
 
 const pendingInvite = { code: takeInviteFromUrl() };
 
+/**
+ * Página inicial (apresentação, download e lista de espera) para quem chega sem estar logado.
+ * O app de desktop e o app instalado na tela inicial vão direto para o login.
+ */
+const showLanding =
+  !pendingInvite.code &&
+  location.pathname === '/' &&
+  !getToken() &&
+  !isDesktop &&
+  !window.matchMedia?.('(display-mode: standalone)').matches;
+if (location.pathname === '/entrar') history.replaceState(null, '', '/');
+
 export function App() {
   if (legalPage) return <LegalPage kind={legalPage} />;
+  if (showLanding) return <Landing />;
   return <MainApp />;
 }
 

@@ -108,6 +108,10 @@ function Privacy({ contact }: { contact: ReactNode }) {
             <td>Mostrar onde sua conta está aberta e deixar você encerrar sessões</td>
           </tr>
           <tr>
+            <td>Lista de espera (só se você se inscrever na página inicial): nome, e-mail, WhatsApp opcional, plataformas e como conheceu</td>
+            <td>Mandar o seu convite e avisar das novidades do Resenha (com o seu consentimento)</td>
+          </tr>
+          <tr>
             <td>Denúncias que você envia ou recebe: motivo, detalhes e uma cópia do conteúdo denunciado</td>
             <td>Analisar abusos e cumprir a lei. Quem é denunciado não sabe quem denunciou</td>
           </tr>
@@ -119,8 +123,8 @@ function Privacy({ contact }: { contact: ReactNode }) {
       </table>
       <p>
         <strong>O que não guardamos:</strong> o conteúdo das chamadas (não gravamos voz, vídeo nem tela), sua lista de programas
-        (o app de desktop só manda o nome do jogo reconhecido), sua localização, seus contatos do celular. Não pedimos CPF, telefone ou
-        e-mail.
+        (o app de desktop só manda o nome do jogo reconhecido), sua localização, seus contatos do celular. Para criar a conta não pedimos CPF,
+        telefone nem e-mail (só a lista de espera pede um contato, se você quiser entrar nela).
       </p>
       <p>
         <strong>Endereço IP:</strong> usamos o IP só por alguns minutos, na memória, para bloquear ataques (como alguém tentando adivinhar
@@ -174,6 +178,7 @@ function Privacy({ contact }: { contact: ReactNode }) {
         </li>
         <li>Sessões sem uso por 60 dias são apagadas.</li>
         <li>Denúncias são apagadas 6 meses depois de analisadas (salvo se a lei exigir guardar por mais tempo).</li>
+        <li>Contatos da lista de espera ficam até você pedir para sair ou até 12 meses depois do convite. Para sair, escreva para o nosso e-mail.</li>
       </ul>
 
       <h2>6. Seus direitos (LGPD, art. 18)</h2>

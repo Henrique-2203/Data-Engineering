@@ -53,7 +53,7 @@ try {
   }
 
   // --- PC: cria conta e servidor ---
-  await pc.goto(BASE);
+  await pc.goto(`${BASE}/entrar`);
   await pc.getByRole('tab', { name: 'Criar conta' }).click();
   await pc.getByLabel('Usuário').fill('ana');
   await pc.getByLabel('Nome de exibição').fill('Ana');

@@ -26,6 +26,7 @@ import { siteVersion } from './version.ts';
 import { registerProfileRoutes } from './profile.ts';
 import { registerExpressionRoutes, usableExpression } from './expressions.ts';
 import { isPlatformAdmin, registerReportRoutes } from './reports.ts';
+import { registerWaitlistRoutes } from './waitlist.ts';
 import { checkSecondFactor, clearLimit, limit, limited, registerSecurityRoutes, requireStrongPassword } from './security.ts';
 
 export { HttpError };
@@ -234,6 +235,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerExpressionRoutes(r, db, rt, auth);
   registerSecurityRoutes(r, db, rt, auth);
   registerReportRoutes(r, db, rt, auth);
+  registerWaitlistRoutes(r, db, rt, auth);
 
   r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers(), hasTurn: hasTurn() })));
 

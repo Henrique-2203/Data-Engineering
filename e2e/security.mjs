@@ -80,7 +80,7 @@ try {
     const page = await c.newPage();
     page.on('pageerror', (e) => console.error('[pageerror]', e));
     page.on('console', (m) => m.type() === 'error' && /Content Security Policy|Refused/.test(m.text()) && console.error('[csp]', m.text()));
-    await page.goto(BASE);
+    await page.goto(`${BASE}/entrar`);
     return page;
   };
 
