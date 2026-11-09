@@ -64,3 +64,51 @@ export function avatarSvg({ mouth = 0, blink = 0, look = 0, glow = 0.6, tilt = 0
   </g>
 </svg>`;
 }
+
+/** O AMIGO: boné roxo virado, fone, camiseta laranja e rosto de "tela" com olhos e boca laranja. */
+export function friendSvg({ mouth = 0, blink = 0, look = 0, glow = 0.6, tilt = 0, bob = 0 } = {}) {
+  const eyeH = 30 * (1 - blink) + 3;
+  const ex = look * 10;
+  const mw = 64 + mouth * 40;
+  const mh = 6 + mouth * 36;
+  const C = '#ff8a3d';
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 700" width="600" height="700">
+  <defs>
+    <radialGradient id="fface" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#14101c"/><stop offset="1" stop-color="#07050b"/></radialGradient>
+    <linearGradient id="fshirt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8a3d"/><stop offset="1" stop-color="#c2410c"/></linearGradient>
+    <linearGradient id="fcap" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#5b21b6"/></linearGradient>
+    <filter id="fglow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${8 + glow * 10}" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <g transform="translate(0 ${bob}) rotate(${tilt} 300 420)">
+    <!-- camiseta -->
+    <path d="M70 700 C80 570 175 515 300 515 C425 515 520 570 530 700 Z" fill="url(#fshirt)"/>
+    <path d="M245 520 C255 560 345 560 355 520" fill="none" stroke="#7c2d12" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="300" cy="620" r="34" fill="#111318"/>
+    <path d="M286 610a12 12 0 0 1 12-12h4a12 12 0 0 1 12 12v8a12 12 0 0 1-12 12h-6l-8 7v-7a12 12 0 0 1-2-1z" fill="#3ddc97"/>
+    <!-- pescoço e cabeça -->
+    <rect x="262" y="470" width="76" height="60" rx="20" fill="#1a1622"/>
+    <ellipse cx="300" cy="330" rx="150" ry="165" fill="#1a1622"/>
+    <ellipse cx="300" cy="340" rx="122" ry="132" fill="url(#fface)" stroke="#000" stroke-width="6" opacity=".95"/>
+    <!-- olhos e boca (laranja) -->
+    <g filter="url(#fglow)">
+      <ellipse cx="${252 + ex}" cy="320" rx="20" ry="${eyeH / 2}" fill="${C}"/>
+      <ellipse cx="${348 + ex}" cy="320" rx="20" ry="${eyeH / 2}" fill="${C}"/>
+    </g>
+    <g filter="url(#fglow)" opacity="${0.55 + mouth * 0.45}">
+      <rect x="${300 - mw / 2}" y="${408 - mh / 2}" width="${mw}" height="${mh}" rx="${Math.min(mh, mw) / 2}" fill="${C}"/>
+    </g>
+    <!-- boné virado para trás -->
+    <path d="M150 300 C150 160 450 160 450 300 C410 255 190 255 150 300 Z" fill="url(#fcap)"/>
+    <path d="M150 300 C190 255 410 255 450 300" fill="none" stroke="#4c1d95" stroke-width="8"/>
+    <path d="M405 250 C470 240 520 262 540 290 C500 296 455 290 425 280 Z" fill="#6d28d9"/>
+    <circle cx="300" cy="182" r="10" fill="#4c1d95"/>
+    <rect x="270" y="208" width="60" height="22" rx="8" fill="${C}" opacity=".9"/>
+    <!-- fone de ouvido -->
+    <rect x="128" y="300" width="52" height="96" rx="22" fill="#1b1e26" stroke="#3a404d" stroke-width="4"/>
+    <rect x="420" y="300" width="52" height="96" rx="22" fill="#1b1e26" stroke="#3a404d" stroke-width="4"/>
+    <rect x="140" y="325" width="9" height="44" rx="4.5" fill="${C}" opacity="${0.5 + glow * 0.5}"/>
+    <rect x="451" y="325" width="9" height="44" rx="4.5" fill="${C}" opacity="${0.5 + glow * 0.5}"/>
+  </g>
+</svg>`;
+}
