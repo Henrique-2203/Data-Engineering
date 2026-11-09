@@ -12,7 +12,9 @@ const FILTERS: { id: string; label: string }[] = [
   { id: 'role_', label: 'Cargos' },
   { id: 'channel_', label: 'Canais' },
   { id: 'category_', label: 'Categorias' },
-  { id: 'message_', label: 'Mensagens apagadas' },
+  { id: 'message_', label: 'Mensagens (apagadas, fixadas)' },
+  { id: 'automod_', label: 'Moderação automática' },
+  { id: 'event_', label: 'Eventos' },
   { id: 'expression_', label: 'Emojis, figurinhas e sons' },
   { id: 'guild_', label: 'Servidor' },
 ];
@@ -24,6 +26,12 @@ function permDiff(before: number, after: number) {
   const added = permNames(after & ~before);
   const removed = permNames(before & ~after);
   return [added.length ? `deu: ${added.join(', ')}` : '', removed.length ? `tirou: ${removed.join(', ')}` : ''].filter(Boolean).join(' · ');
+}
+
+export function slowLabel(s: number) {
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${s / 60} min`;
+  return `${s / 3600} h`;
 }
 
 const KIND: Record<string, string> = { emoji: 'o emoji', sticker: 'a figurinha', sound: 'o som' };
@@ -98,6 +106,7 @@ function describe(e: AuditEntry): { icon: string; text: string; extra?: string }
         d.bitrate ? `qualidade de voz: ${d.bitrate[1]} kbps` : '',
         d.userLimit ? `limite: ${d.userLimit[1] || 'sem limite'}` : '',
         d.category ? 'mudou de categoria' : '',
+        d.slowmode ? `modo lento: ${d.slowmode[1] ? slowLabel(d.slowmode[1]) : 'desligado'}` : '',
       ].filter(Boolean);
       return { icon: '🛠️', text: `editou o canal ${t}`, extra: parts.join(' · ') };
     }
@@ -107,6 +116,36 @@ function describe(e: AuditEntry): { icon: string; text: string; extra?: string }
       return { icon: '↕️', text: 'reorganizou os canais' };
     case 'message_delete':
       return { icon: '🗑️', text: `apagou uma mensagem de ${t}`, extra: d.channel ? `em #${d.channel}` : undefined };
+    case 'message_pin':
+      return { icon: '📌', text: `fixou uma mensagem de ${t}`, extra: d.channel ? `em #${d.channel}` : undefined };
+    case 'message_unpin':
+      return { icon: '📌', text: `desafixou uma mensagem de ${t}`, extra: d.channel ? `em #${d.channel}` : undefined };
+    case 'automod_update': {
+      const on = (v: boolean) => (v ? 'ligou' : 'desligou');
+      const parts = [
+        d.words !== undefined ? `${d.words} palavra${d.words === 1 ? '' : 's'} proibida${d.words === 1 ? '' : 's'}` : '',
+        d.blockLinks !== undefined ? `${on(d.blockLinks)} o bloqueio de links` : '',
+        d.blockInvites !== undefined ? `${on(d.blockInvites)} o bloqueio de convites` : '',
+        d.antiSpam !== undefined ? `${on(d.antiSpam)} o anti-spam` : '',
+        d.exempt !== undefined ? `${d.exempt} cargo${d.exempt === 1 ? '' : 's'} isento${d.exempt === 1 ? '' : 's'}` : '',
+      ].filter(Boolean);
+      return { icon: '🛡️', text: 'mudou a moderação automática', extra: parts.join(' · ') };
+    }
+    case 'automod_block': {
+      const why: Record<string, string> = {
+        words: `palavra proibida${d.word ? ` ("${d.word}")` : ''}`,
+        links: 'link',
+        invites: 'convite de outro servidor',
+        spam: 'spam',
+      };
+      return { icon: '🛡️', text: 'teve uma mensagem bloqueada pela moderação automática', extra: [why[d.rule] ?? d.rule, d.channel ? `em #${d.channel}` : ''].filter(Boolean).join(' · ') };
+    }
+    case 'event_create':
+      return { icon: '📅', text: `marcou o evento "${t}"`, extra: d.startsAt ? when(d.startsAt) : undefined };
+    case 'event_update':
+      return { icon: '📅', text: `editou o evento "${t}"`, extra: d.startsAt ? `nova data: ${when(d.startsAt)}` : undefined };
+    case 'event_delete':
+      return { icon: '📅', text: `cancelou o evento "${t}"` };
     case 'expression_create':
       return { icon: '😀', text: `adicionou ${KIND[d.kind] ?? ''} ${t}` };
     case 'expression_update':

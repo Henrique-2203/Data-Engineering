@@ -4,6 +4,7 @@ import { useVoice } from '../store/voice';
 import { playSound } from './sounds';
 import { mentionsUser } from './mentions';
 import { plainEmojis } from './expressions';
+import { pushActive } from './push';
 
 export const notificationsSupported = () => typeof window !== 'undefined' && 'Notification' in window;
 
@@ -28,6 +29,8 @@ export function onIncomingMessage(message: Message) {
 
   const { notifications } = useVoice.getState().settings;
   if (!hidden || !notifications || !notificationsSupported() || Notification.permission !== 'granted') return;
+  // DMs e menções chegam pelo celular/service worker quando ele está ligado: evita aviso dobrado
+  if (pushActive() && (channel?.type === 'dm' || mentioned)) return;
   const guild = channel ? app.guilds[channel.guildId] : undefined;
   const title =
     channel?.type === 'dm'

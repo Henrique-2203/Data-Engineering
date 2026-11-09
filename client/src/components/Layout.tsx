@@ -13,6 +13,7 @@ import { FriendsView } from './FriendsView';
 import { CallOverlay } from './CallOverlay';
 import { DesktopBridge } from './DesktopBridge';
 import { UpdateNotice } from './UpdateNotice';
+import { SidePanel } from './Community';
 
 export function Layout({ onLogout }: { onLogout(): void }) {
   const mobilePanel = useApp((s) => s.mobilePanel);
@@ -50,16 +51,19 @@ export function Layout({ onLogout }: { onLogout(): void }) {
     );
   }
 
-  const membersVisible = showMembers && channel?.type === 'text';
+  const sidePanel = useApp((s) => s.sidePanel);
+  const panelVisible = !!sidePanel && !!channel && channel.type !== 'voice';
+  const membersVisible = !panelVisible && showMembers && channel?.type === 'text';
 
   return (
-    <div className={`layout panel-${mobilePanel}${membersVisible ? ' with-members' : ''}`}>
+    <div className={`layout panel-${mobilePanel}${membersVisible ? ' with-members' : ''}${panelVisible ? ' with-panel' : ''}`}>
       <nav className="nav-drawer" aria-label="Servidores e canais">
         <ServerRail />
         <ChannelSidebar onLogout={onLogout} />
       </nav>
       <main className="main">{main}</main>
       {membersVisible && selectedGuildId && <MemberList guildId={selectedGuildId} />}
+      {panelVisible && <SidePanel />}
       {mobilePanel === 'members' && (
         <div className="backdrop" onClick={() => useApp.setState({ mobilePanel: 'main' })} />
       )}

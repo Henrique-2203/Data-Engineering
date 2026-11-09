@@ -6,6 +6,7 @@ import { config } from './config.ts';
 import { createDb } from './db.ts';
 import { Realtime } from './realtime.ts';
 import { HttpError, createRoutes } from './routes.ts';
+import { startEventReminders } from './community.ts';
 import { securityHeaders } from './security.ts';
 import { sameOriginOnly } from './auth.ts';
 import { startStorageJobs } from './storage.ts';
@@ -15,6 +16,7 @@ const db = await createDb();
 const app = express();
 const http = createServer(app);
 const rt = new Realtime(http, db);
+startEventReminders(db, rt);
 startStorageJobs(db);
 startBackups(db);
 

@@ -20,6 +20,8 @@ export class Realtime {
   readonly io: Server;
   /** userId -> número de conexões abertas */
   private online = new Map<string, number>();
+  /** conexões com o Resenha visível na tela (userId -> socketIds): quem não tem nenhuma recebe notificação no celular */
+  private activeSockets = new Map<string, Set<string>>();
   /** socketId -> estado de voz */
   private voice = new Map<string, VoiceState>();
   /** "Jogando agora": userId -> jogo (só em memória, some quando a pessoa sai) */
@@ -201,6 +203,10 @@ export class Realtime {
       if (ring.callee === user.id) socket.emit('call:ring', { channelId, from: ring.caller });
     }
 
+    // a página avisa quando fica visível/escondida (para decidir se manda notificação no celular)
+    this.setActive(user.id, socket.id, socket.handshake.auth?.visible !== false);
+    socket.on('client:active', (payload: unknown) => this.setActive(user.id, socket.id, payload === true));
+
     socket.on('call:decline', (payload: unknown) => {
       const channelId = typeof (payload as { channelId?: unknown })?.channelId === 'string' ? (payload as { channelId: string }).channelId : null;
       const ring = channelId ? this.rings.get(channelId) : undefined;
@@ -299,6 +305,7 @@ export class Realtime {
     // 'disconnecting' (e não 'disconnect') porque aqui socket.rooms ainda está preenchido.
     socket.on('disconnecting', () => {
       this.leaveVoice(socket.id);
+      this.setActive(user.id, socket.id, false);
       const left = (this.online.get(user.id) ?? 1) - 1;
       if (left <= 0) {
         this.online.delete(user.id);
@@ -310,6 +317,19 @@ export class Realtime {
     });
   }
 
+
+  private setActive(userId: string, socketId: string, active: boolean) {
+    const set = this.activeSockets.get(userId) ?? new Set<string>();
+    if (active) set.add(socketId);
+    else set.delete(socketId);
+    if (set.size) this.activeSockets.set(userId, set);
+    else this.activeSockets.delete(userId);
+  }
+
+  /** A pessoa está com o Resenha aberto e visível em algum aparelho agora. */
+  isActive(userId: string) {
+    return this.activeSockets.has(userId);
+  }
 
   // ---------- Voz ----------
 

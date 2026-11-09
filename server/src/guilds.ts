@@ -9,6 +9,7 @@ import { sniffImage } from './sanitize.ts';
 import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
 import { deleteFiles, guildFileIds, loadExpressions } from './expressions.ts';
 import { audit, userLabel } from './audit.ts';
+import { SLOWMODE_VALUES, loadEvents } from './community.ts';
 import {
   CHANNEL_COLUMNS,
   type ChannelRow,
@@ -42,6 +43,7 @@ const toChannel = (c: ChannelRow): Channel => ({
   allowedRoleIds: c.allowedRoleIds ?? null, // [] = privado só para dono e administradores
   bitrate: c.bitrate,
   userLimit: c.userLimit,
+  slowmode: c.slowmode,
 });
 
 /** Servidor do jeito que ESTA pessoa vê: só canais permitidos, convite só se puder convidar. */
@@ -93,6 +95,7 @@ export async function loadGuild(db: Db, userId: string, guildId: string): Promis
       roleIds: m.roleIds ?? [],
     })),
     expressions: await loadExpressions(db, guildId),
+    events: (await loadEvents(db, guildId)).filter((e) => !e.channelId || channels.some((c) => c.id === e.channelId && canSee(access, c))),
   };
 }
 
@@ -624,6 +627,11 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     allowedRoleIds: z.array(z.string()).max(50).nullable().optional(),
     bitrate: z.number().int().refine((b) => BITRATES.includes(b), 'Qualidade inválida.').optional(),
     userLimit: z.number().int().min(0).max(99).optional(),
+    slowmode: z
+      .number()
+      .int()
+      .refine((s) => SLOWMODE_VALUES.includes(s), 'Tempo do modo lento inválido.')
+      .optional(),
   });
 
   async function validateChannelRefs(guildId: string, body: z.infer<typeof channelSettings>) {
@@ -695,7 +703,8 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
            category_id = case when $3::boolean then $4 else category_id end,
            allowed_role_ids = case when $5::boolean then $6::text[] else allowed_role_ids end,
            bitrate = coalesce($7, bitrate),
-           user_limit = coalesce($8, user_limit)
+           user_limit = coalesce($8, user_limit),
+           slowmode = coalesce($9, slowmode)
          where id = $1`,
         [
           c.id,
@@ -706,6 +715,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
           body.allowedRoleIds ?? null,
           body.bitrate ?? null,
           body.userLimit ?? null,
+          body.slowmode ?? null,
         ],
       );
       const after = (await loadChannel(db, c.id))!;
@@ -717,6 +727,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       if (body.bitrate !== undefined && after.bitrate !== c.bitrate) diff.bitrate = [c.bitrate, after.bitrate];
       if (body.userLimit !== undefined && after.userLimit !== c.userLimit) diff.userLimit = [c.userLimit, after.userLimit];
       if (body.categoryId !== undefined && after.categoryId !== c.categoryId) diff.category = true;
+      if (body.slowmode !== undefined && after.slowmode !== c.slowmode) diff.slowmode = [c.slowmode, after.slowmode];
       if (Object.keys(diff).length) await audit(db, c.guildId, req.user!.id, 'channel_update', { type: 'channel', id: c.id, label: after.name }, diff);
       await changed(c.guildId, body.allowedRoleIds !== undefined);
     }),

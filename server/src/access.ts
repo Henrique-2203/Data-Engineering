@@ -36,10 +36,11 @@ export interface ChannelRow {
   allowedRoleIds: string[] | null;
   bitrate: number;
   userLimit: number;
+  slowmode: number;
 }
 
 export const CHANNEL_COLUMNS = `c.id, c.guild_id as "guildId", c.name, c.type, c.position, c.category_id as "categoryId",
-  c.allowed_role_ids as "allowedRoleIds", c.bitrate, c.user_limit as "userLimit"`;
+  c.allowed_role_ids as "allowedRoleIds", c.bitrate, c.user_limit as "userLimit", c.slowmode`;
 
 export async function guildContext(db: Db, guildId: string): Promise<PermissionContext | null> {
   const [g] = await db.query<{ ownerId: string; everyonePermissions: number }>(
@@ -97,6 +98,7 @@ const PERM_NAMES: Record<number, string> = {
   [Perm.TIMEOUT]: 'castigar membros',
   [Perm.MANAGE_MESSAGES]: 'gerenciar mensagens',
   [Perm.CREATE_INVITE]: 'convidar pessoas',
+  [Perm.CREATE_EVENTS]: 'criar eventos',
 };
 
 export async function requirePerm(db: Db, guildId: string, userId: string, bit: number): Promise<MemberAccess> {

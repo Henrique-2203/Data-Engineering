@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { EventsButton } from './Community';
 import {
   UserPen,
   Flag,
@@ -208,6 +209,7 @@ export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
         {guild && (
           <>
             {guild.description && <p className="guild-description muted small">{guild.description}</p>}
+            <EventsButton guild={guild} />
             {(uncatText.length > 0 || canManage) && (
               <div {...groupDrop('__text', null)} className={`channel-group${groupDrop('__text', null).className}`}>
                 <Section title="Canais de texto" onAdd={canManage ? () => openModal({ kind: 'createChannel', guildId: guild.id, type: 'text' }) : undefined} />

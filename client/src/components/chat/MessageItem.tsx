@@ -1,5 +1,6 @@
 import { Fragment, memo, useState } from 'react';
-import { CornerUpLeft, Flag, Image as ImageIcon, Pencil, Reply, SmilePlus, Trash2 } from 'lucide-react';
+import { CornerUpLeft, Flag, Image as ImageIcon, Pencil, Pin, PinOff, Reply, SmilePlus, Trash2 } from 'lucide-react';
+import { PollView, togglePin, useCanPin } from '../Community';
 import type { Channel, Message, StickerRef } from '../../../../shared/types';
 import { EmojiView, encodeEmojis, fileUrl, plainEmojis, renderCustomEmojis } from '../../lib/expressions';
 import { api } from '../../lib/api';
@@ -40,6 +41,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
   const nameColor = useApp((s) => memberColor(s.guilds[channel.guildId], message.author.id, author.avatarColor));
   const inGuild = channel.type === 'text';
   const mentioned = !mine && mentionsUser(message.content, me.username, message.mentionEveryone);
+  const canPin = useCanPin(channel);
 
   async function saveEdit() {
     const content = encodeEmojis(draft.trim(), channel.guildId);
@@ -62,7 +64,11 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
   }
 
   return (
-    <div id={`msg-${message.id}`} className={`message${grouped ? ' grouped' : ''}${mentioned ? ' mentioned' : ''}`} tabIndex={-1}>
+    <div
+      id={`msg-${message.id}`}
+      className={`message${grouped ? ' grouped' : ''}${mentioned ? ' mentioned' : ''}${message.pinnedAt ? ' pinned' : ''}`}
+      tabIndex={-1}
+    >
       {message.replyTo && <ReplyLine reply={message.replyTo} channel={channel} onJump={onJump} />}
       {grouped ? (
         <span className="message-time-gutter">{formatTime(message.createdAt)}</span>
@@ -78,6 +84,11 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
               {author.displayName}
             </button>
             <span className="muted small">{formatDateTime(message.createdAt)}</span>
+            {message.pinnedAt && (
+              <span className="pinned-tag" title="Mensagem fixada">
+                <Pin size={12} /> fixada
+              </span>
+            )}
           </div>
         )}
         {editing ? (
@@ -107,6 +118,8 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
             </div>
           )
         )}
+
+        {message.poll && <PollView message={message} channel={channel} />}
 
         {message.sticker && <StickerView sticker={message.sticker} />}
 
@@ -145,6 +158,16 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
           <button className="icon-btn small" aria-label="Responder" title="Responder" onClick={() => onReply(message)}>
             <Reply size={15} />
           </button>
+          {canPin && (
+            <button
+              className="icon-btn small"
+              aria-label={message.pinnedAt ? 'Desafixar' : 'Fixar'}
+              title={message.pinnedAt ? 'Desafixar mensagem' : 'Fixar mensagem'}
+              onClick={() => void togglePin(message)}
+            >
+              {message.pinnedAt ? <PinOff size={15} /> : <Pin size={15} />}
+            </button>
+          )}
           {mine && (
             <button
               className="icon-btn small"

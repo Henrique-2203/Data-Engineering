@@ -456,6 +456,21 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
         `select device, created_at as "createdAt", last_seen_at as "lastSeenAt" from sessions where user_id = $1`,
         [id],
       );
+      const pollVotes = await db.query(
+        `select p.question, p.options ->> v.option as "choice", v.created_at as "votedAt"
+         from poll_votes v join polls p on p.message_id = v.message_id where v.user_id = $1 order by v.created_at`,
+        [id],
+      );
+      const events = await db.query(
+        `select e.title, e.starts_at as "startsAt", g.name as server, e.creator_id = $1 as "createdByYou"
+         from guild_events e join guilds g on g.id = e.guild_id
+         where e.creator_id = $1 or exists (select 1 from guild_event_interest i where i.event_id = e.id and i.user_id = $1)`,
+        [id],
+      );
+      const pushDevices = await db.query(
+        `select split_part(endpoint, '/', 3) as service, created_at as "createdAt", last_used_at as "lastUsedAt" from push_subscriptions where user_id = $1`,
+        [id],
+      );
       const data = {
         about: 'Todos os dados que o Resenha guarda sobre você (LGPD, art. 18). Sua senha não aparece porque só guardamos uma versão embaralhada (hash) dela.',
         exportedAt: new Date().toISOString(),
@@ -465,6 +480,9 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
         messages,
         files,
         sessions,
+        pollVotes,
+        events,
+        pushDevices,
       };
       await logEvent(db, id, 'data_export', req);
       (data as Record<string, unknown>).securityHistory = (

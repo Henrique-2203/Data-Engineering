@@ -351,6 +351,60 @@ create table if not exists audit_log (
   created_at timestamptz not null default now()
 );
 create index if not exists audit_log_guild_idx on audit_log(guild_id, created_at desc);
+-- v15: Etapa 4 (fixar, enquetes, modo lento, moderação automática, eventos e notificações no celular)
+alter table messages add column if not exists pinned_at timestamptz;
+alter table messages add column if not exists pinned_by text;
+create index if not exists messages_pinned_idx on messages(channel_id, pinned_at) where pinned_at is not null;
+create index if not exists messages_author_idx on messages(author_id, channel_id, created_at desc);
+create table if not exists polls (
+  message_id text primary key references messages(id) on delete cascade,
+  question text not null,
+  options jsonb not null,
+  multi boolean not null default false,
+  ends_at timestamptz not null
+);
+create table if not exists poll_votes (
+  message_id text not null references polls(message_id) on delete cascade,
+  user_id text not null references users(id) on delete cascade,
+  option integer not null,
+  created_at timestamptz not null default clock_timestamp(),
+  primary key (message_id, user_id, option)
+);
+alter table channels add column if not exists slowmode integer not null default 0;
+alter table guilds add column if not exists automod jsonb not null default '{}';
+create table if not exists guild_events (
+  id text primary key,
+  guild_id text not null references guilds(id) on delete cascade,
+  channel_id text references channels(id) on delete set null,
+  creator_id text references users(id) on delete set null,
+  title text not null,
+  description text not null default '',
+  starts_at timestamptz not null,
+  ends_at timestamptz,
+  notified boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists guild_events_guild_idx on guild_events(guild_id, starts_at);
+create table if not exists guild_event_interest (
+  event_id text not null references guild_events(id) on delete cascade,
+  user_id text not null references users(id) on delete cascade,
+  created_at timestamptz not null default clock_timestamp(),
+  primary key (event_id, user_id)
+);
+create table if not exists push_subscriptions (
+  id text primary key,
+  user_id text not null references users(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  failures integer not null default 0,
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz not null default now()
+);
+create index if not exists push_subscriptions_user_idx on push_subscriptions(user_id);
+with first_time as (insert into schema_flags (name) values ('v15_everyone_events') on conflict do nothing returning 1)
+update guilds set everyone_permissions = everyone_permissions | ${Perm.CREATE_EVENTS}
+where exists (select 1 from first_time);
 create table if not exists backups (
   id text primary key,
   started_at timestamptz not null default now(),

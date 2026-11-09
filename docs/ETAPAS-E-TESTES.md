@@ -1,6 +1,6 @@
 # Resenha: o que foi feito e como testar
 
-Documento para conferir com calma tudo o que entrou nas Etapas 1, 2 e 3 (e nos ajustes pedidos no caminho).
+Documento para conferir com calma tudo o que entrou nas Etapas 1 a 4 (e nos ajustes pedidos no caminho).
 Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testando.
 
 > Dica: teste com duas contas (a sua e a de um amigo, ou uma segunda conta numa janela anônima).
@@ -18,6 +18,7 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 | `EMAIL_PROVIDER=brevo`, `EMAIL_API_KEY`, `EMAIL_FROM` | E-mails de segurança | ✅ configurado (IP liberado na Brevo) |
 | `PLATFORM_ADMINS` | Seu usuário: vê o Painel da equipe | ✅ |
 | `REGISTRATION_CODE` | Código para criar conta. **Apague para abrir o cadastro para todos** | decidir |
+| (nenhuma) | Notificações no celular: as chaves são criadas sozinhas e guardadas no banco | ✅ automático |
 
 ---
 
@@ -145,6 +146,90 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 
 ### App de Windows 0.3.2 🖥️
 - [ ] Configurações → Atalhos e app mostra a versão 0.3.2 (atualiza sozinho; "Reiniciar e atualizar").
+
+---
+
+## Pedidos da call
+
+### Chat da call
+- [ ] Entrar num canal de voz → botão 💬 no topo (à direita) abre o **Chat da call** ao lado da chamada.
+- [ ] Mandar um link/print: quem está na call vê; com o painel fechado aparece o contador "N nova(s)".
+- [ ] Sair da call e voltar depois: as mensagens continuam lá.
+- [ ] No celular, o chat abre em tela cheia e o X fecha.
+
+### Volume da transmissão que estou assistindo
+- [ ] Assistindo a tela de alguém: passar o mouse na transmissão → controle de volume no canto (só muda para você).
+- [ ] Baixar o volume da transmissão **não** muda o volume da voz da pessoa.
+- [ ] Botão de alto-falante silencia/volta ao volume de antes.
+
+### Ligar/desligar o som da minha transmissão
+- [ ] Transmitir com "compartilhar áudio" marcado → no seu quadro aparece **Áudio da transmissão ligado**.
+- [ ] Clicar → vira "desligado": a imagem continua, os amigos param de ouvir o som e veem "🔇 sem áudio".
+- [ ] Clicar de novo → volta o som.
+
+### Valorant (e outros jogos) na lista de janelas 🖥️ (app 0.3.3)
+- [ ] Configurações → Atalhos e app mostra a versão **0.3.3**.
+- [ ] Com o Valorant aberto em **tela cheia**, aba "Janela": aparece o aviso explicando que o Windows minimiza o jogo.
+- [ ] No Valorant: Configurações → Vídeo → Modo de exibição → **Janela sem bordas**. Em até 4 s (ou no ↻ Atualizar) o
+      Valorant aparece na lista e dá para transmitir só ele.
+
+---
+
+## Etapa 4: comunidade
+
+### Busca de mensagens
+- [ ] Campo **Buscar** no topo do canal (no celular, a lupa). Enter abre os resultados à direita.
+- [ ] Busca sem acento acha com acento ("amanha" acha "Amanhã").
+- [ ] Filtros: **De** (pessoa), **Em** (canal), **Tipo** (arquivo, imagem, link, fixadas, enquetes).
+- [ ] Clicar num resultado leva até a mensagem (piscando), mesmo se ela for antiga.
+- [ ] Canal privado: quem não vê o canal **não** acha as mensagens dele na busca.
+- [ ] Em conversa direta, a busca procura só naquela conversa.
+
+### Mensagens fixadas
+- [ ] Passar o mouse numa mensagem → 📌 **Fixar** (só quem tem "Gerenciar mensagens"; na DM, os dois).
+- [ ] A mensagem ganha a marca "fixada"; o botão 📌 no topo do canal lista as fixadas (clicar leva até ela).
+- [ ] Desafixar pela própria mensagem ou pela lista. Limite: 50 por canal.
+- [ ] Aparece no Registro: "fixou uma mensagem de …".
+
+### Enquetes
+- [ ] Botão de gráfico 📊 no campo de mensagem → pergunta, 2 a 10 opções, duração (1 h a 1 semana), "mais de uma opção".
+- [ ] Votar: os resultados (barras e %) aparecem depois do seu voto; os outros veem na hora.
+- [ ] Clicar de novo tira o voto; trocar de opção troca o voto.
+- [ ] Passar o mouse numa opção mostra quem votou nela.
+- [ ] Depois do prazo: "Encerrada", ninguém vota mais, a mais votada fica em destaque.
+
+### Moderação automática
+- [ ] Configurações do servidor → **Moderação automática** (só quem gerencia o servidor).
+- [ ] Palavras proibidas: testar com a conta de um amigo, inclusive disfarçada (b0b4o, buuurro) e com * no fim
+      (idiot* pega "idiotice"). Aparece "Mensagem bloqueada pela moderação automática…".
+- [ ] Bloquear convites: link de convite de outro servidor (Resenha ou Discord) é bloqueado; o do próprio servidor passa.
+- [ ] Bloquear links: qualquer link é bloqueado.
+- [ ] Anti-spam: a mesma mensagem 3 vezes em 1 minuto, ou mais de 5 menções, é bloqueada.
+- [ ] Editar uma mensagem também passa pelo filtro.
+- [ ] Dono, administradores, quem gerencia mensagens e os **cargos isentos** não são filtrados.
+- [ ] Registro → filtro "Moderação automática": cada bloqueio aparece (sem guardar o texto da mensagem).
+
+### Modo lento
+- [ ] Lápis ao lado do canal → **Modo lento** (5 s até 6 h).
+- [ ] Quem não gerencia mensagens vê "🐢 Modo lento" no campo e espera a contagem para mandar de novo.
+- [ ] Quem gerencia mensagens/canais não espera.
+
+### Eventos agendados
+- [ ] Botão **Eventos** no topo da lista de canais → **Marcar evento**: nome, data/hora, duração, canal de voz, descrição.
+- [ ] Todo membro pode marcar (permissão nova "Criar eventos", ligada para todos; dá para tirar de um cargo).
+- [ ] **Tenho interesse**: na hora do evento, quem marcou recebe o aviso "📅 Começou: …" (e no celular, se ligou as notificações).
+- [ ] Durante o evento o botão fica verde "Agora: …" e o evento ganha **Entrar na call**.
+- [ ] Só quem criou (ou quem gerencia o servidor) edita ou cancela. Fica no Registro.
+
+### Notificações no celular
+- [ ] No Android (Chrome): Configurações → Notificações e sons → **Notificações no celular** → permitir.
+- [ ] No iPhone: Safari → Compartilhar → **Adicionar à Tela de Início**, abrir pelo ícone e ligar na mesma tela.
+- [ ] "Enviar notificação de teste" chega no aparelho.
+- [ ] Com o Resenha **fechado** (ou em segundo plano): mensagem direta e menção (@você ou @todos) chegam como notificação.
+- [ ] Mensagem comum (sem menção) **não** notifica no celular.
+- [ ] Tocar na notificação abre o Resenha direto na conversa/canal.
+- [ ] Com o Resenha aberto e na tela em outro aparelho, o celular não toca (sem aviso repetido).
+- [ ] Sair da conta no aparelho para de receber as notificações dessa conta nele.
 
 ---
 

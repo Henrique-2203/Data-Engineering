@@ -49,6 +49,9 @@ import { isPlatformAdmin, registerReportRoutes } from './reports.ts';
 import { registerWaitlistRoutes } from './waitlist.ts';
 import { bump, registerStatsRoutes } from './stats.ts';
 import { checkSecondFactor, clearLimit, hits, limit, limited, registerSecurityRoutes } from './security.ts';
+import { POLL_SELECT, checkAutomod, checkSlowmode, pollSchema, registerCommunityRoutes } from './community.ts';
+import { registerPushRoutes, sendPush } from './push.ts';
+import { mentionedUsernames } from './mentions.ts';
 
 export { HttpError };
 
@@ -93,6 +96,48 @@ export function createRoutes(db: Db, rt: Realtime) {
     return { ...c, access };
   }
 
+  async function guildInviteCode(guildId: string) {
+    const [g] = await db.query<{ invite_code: string }>('select invite_code from guilds where id = $1', [guildId]);
+    return g?.invite_code ?? '';
+  }
+
+  /**
+   * Notificação no celular de quem não está com o Resenha aberto: mensagem direta, menção
+   * (@usuario) ou @todos. Só para quem consegue ver o canal.
+   */
+  async function notifyByPush(c: Awaited<ReturnType<typeof channelForMember>>, message: Message) {
+    const author = message.author;
+    const preview =
+      (message.content ? message.content.replace(/<:([a-z0-9_]+):[0-9a-f-]{36}>/g, ':$1:') : '') ||
+      (message.poll ? `📊 ${message.poll.question}` : message.attachments.length ? '📎 Arquivo' : message.sticker ? 'Figurinha' : '');
+    if (!c.guildId) {
+      const others = (await dmMemberIds(db, c.id)).filter((id) => id !== author.id);
+      await sendPush(db, others, { title: author.displayName, body: preview, channelId: c.id, tag: c.id }, { onlyAway: rt });
+      return;
+    }
+    const audience = await channelAudience(db, c);
+    let targets: string[];
+    if (message.mentionEveryone) {
+      targets = audience ?? (await db.query<{ user_id: string }>('select user_id from members where guild_id = $1', [c.guildId])).map((x) => x.user_id);
+      targets = targets.slice(0, 500);
+    } else {
+      const names = mentionedUsernames(message.content);
+      if (!names.length) return;
+      const rows = await db.query<{ id: string }>(
+        'select u.id from users u join members m on m.user_id = u.id and m.guild_id = $1 where u.username = any($2)',
+        [c.guildId, names],
+      );
+      targets = rows.map((x) => x.id).filter((id) => !audience || audience.includes(id));
+    }
+    targets = targets.filter((id) => id !== author.id);
+    await sendPush(
+      db,
+      targets,
+      { title: `${author.displayName} em #${c.name}`, body: preview, channelId: c.id, guildId: c.guildId, tag: c.id },
+      { onlyAway: rt },
+    );
+  }
+
   /** Entrega um evento de mensagem só a quem vê o canal: servidor todo, só os cargos do canal privado, ou os dois da DM. */
   async function emitToChannel(c: { id: string; guildId: string | null; allowedRoleIds: string[] | null }, event: string, payload: object) {
     if (c.guildId) {
@@ -108,6 +153,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   /** Mensagem completa: autor, trecho respondido, reações agrupadas por emoji e imagens. */
   const MESSAGE_SELECT = `select msg.id, msg.channel_id as "channelId", msg.content,
       msg.created_at as "createdAt", msg.edited_at as "editedAt", msg.mention_everyone as "mentionEveryone",
+      msg.pinned_at as "pinnedAt", ${POLL_SELECT} as poll,
       ${userJson('u')} as author,
       case
         when msg.reply_to_id is null then null
@@ -135,7 +181,8 @@ export function createRoutes(db: Db, rt: Realtime) {
     join users u on u.id = msg.author_id
     left join messages rm on rm.id = msg.reply_to_id
     left join users ru on ru.id = rm.author_id
-    left join expressions st on st.id = msg.sticker_id`;
+    left join expressions st on st.id = msg.sticker_id
+    left join polls p on p.message_id = msg.id`;
 
   // ---------- públicas ----------
 
@@ -459,10 +506,22 @@ export function createRoutes(db: Db, rt: Realtime) {
           replyToId: z.string().optional(),
           attachmentIds: z.array(z.string()).max(10, 'No máximo 10 arquivos por mensagem.').default([]),
           stickerId: z.string().optional(),
+          poll: pollSchema.optional(),
         }),
         req.body,
       );
-      if (!body.content && body.attachmentIds.length === 0 && !body.stickerId) throw new HttpError(400, 'Mensagem vazia.');
+      if (!body.content && body.attachmentIds.length === 0 && !body.stickerId && !body.poll) throw new HttpError(400, 'Mensagem vazia.');
+      if (c.access) {
+        await checkSlowmode(db, c, c.access, req.user!.id);
+        await checkAutomod(db, {
+          guildId: c.guildId!,
+          channelName: c.name,
+          access: c.access,
+          userId: req.user!.id,
+          inviteCode: await guildInviteCode(c.guildId!),
+          texts: [body.content, body.poll?.question ?? '', ...(body.poll?.options ?? [])],
+        });
+      }
       // figurinhas de qualquer servidor do qual você participa (o Discord cobra por isso)
       if (body.stickerId && !(await usableExpression(db, body.stickerId, req.user!.id, 'sticker'))) {
         throw new HttpError(400, 'Figurinha não encontrada.');
@@ -496,9 +555,16 @@ export function createRoutes(db: Db, rt: Realtime) {
       if (body.attachmentIds.length) {
         await db.query('update attachments set message_id = $1, guild_id = $3 where id = any($2)', [id, body.attachmentIds, c.guildId]);
       }
+      if (body.poll) {
+        await db.query(
+          `insert into polls (message_id, question, options, multi, ends_at) values ($1, $2, $3, $4, now() + make_interval(hours => $5))`,
+          [id, body.poll.question, JSON.stringify(body.poll.options), body.poll.multi, body.poll.hours],
+        );
+      }
       const [message] = await withFileLinks(db, await db.query<Message>(`${MESSAGE_SELECT} where msg.id = $1`, [id]));
       bump('messages');
       await emitToChannel(c, 'message:new', { message });
+      void notifyByPush(c, message).catch((err) => console.warn('[push]', err));
       return { message };
     }),
   );
@@ -521,6 +587,16 @@ export function createRoutes(db: Db, rt: Realtime) {
       const m = await messageForEdit(String(req.params.id), req.user!.id);
       if (m.authorId !== req.user!.id) throw new HttpError(403, 'Você só pode editar suas mensagens.');
       const body = parse(z.object({ content: z.string().trim().max(4000) }), req.body);
+      if (m.channel.access) {
+        await checkAutomod(db, {
+          guildId: m.channel.guildId!,
+          channelName: m.channel.name,
+          access: m.channel.access,
+          userId: req.user!.id,
+          inviteCode: await guildInviteCode(m.channel.guildId!),
+          texts: [body.content],
+        });
+      }
       if (!body.content) {
         const [att] = await db.query(
           'select 1 from attachments where message_id = $1 union all select 1 from messages where id = $1 and sticker_id is not null limit 1',
@@ -599,6 +675,9 @@ export function createRoutes(db: Db, rt: Realtime) {
       return { reactions };
     }),
   );
+
+  registerCommunityRoutes(r, db, rt, auth, { channelForMember, emitToChannel, messageSelect: MESSAGE_SELECT });
+  registerPushRoutes(r, db, auth);
 
   registerAttachmentRoutes(r, db, auth, {
     channelGuild: async (channelId, userId) => (await channelForMember(channelId, userId)).guildId,

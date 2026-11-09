@@ -88,6 +88,12 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
       }
       return !v;
     });
+  // a busca/fixadas levam a uma mensagem do chat da call: abre o painel
+  useEffect(() => {
+    const open = () => setChatOpen(true);
+    window.addEventListener('resenha:open-call-chat', open);
+    return () => window.removeEventListener('resenha:open-call-chat', open);
+  }, []);
   const stageRef = useRef<HTMLDivElement>(null);
 
   const stage = (

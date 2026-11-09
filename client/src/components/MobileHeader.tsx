@@ -35,8 +35,8 @@ export function MobileHeader({ title, icon, showMembersButton, actions }: Props)
             title="Membros"
             onClick={() => {
               const s = useApp.getState();
-              if (window.matchMedia('(max-width: 900px)').matches) useApp.setState({ mobilePanel: 'members', showMembers: true });
-              else useApp.setState({ showMembers: !s.showMembers });
+              if (window.matchMedia('(max-width: 900px)').matches) useApp.setState({ mobilePanel: 'members', showMembers: true, sidePanel: null });
+              else useApp.setState({ showMembers: s.sidePanel ? true : !s.showMembers, sidePanel: null });
             }}
           >
             <Users size={20} />

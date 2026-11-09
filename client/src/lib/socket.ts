@@ -1,6 +1,6 @@
 import { onSoundboardEvent, type SoundboardEvent } from './soundboard';
 import { io, type Socket } from 'socket.io-client';
-import type { Activity, Channel, Guild, Member, Message, PublicUser, VoiceState } from '../../../shared/types';
+import type { Activity, Channel, Guild, GuildEvent, Member, Message, PublicUser, VoiceState } from '../../../shared/types';
 import { api } from './api';
 import type { DmChannel, Friend } from '../../../shared/types';
 import {
@@ -24,6 +24,7 @@ import { onIncomingMessage } from './notify';
 import { playSound } from './sounds';
 
 let socket: Socket | null = null;
+let onVisibility: (() => void) | null = null;
 const listeners = new Set<(s: Socket) => void>();
 
 export const getSocket = () => socket;
@@ -39,8 +40,12 @@ const set = useApp.setState;
 /** Conecta o tempo real (a sessão vai no cookie protegido, junto com a conexão). */
 export function connectSocket() {
   disconnectSocket();
-  const s = io({ transports: ['websocket', 'polling'] });
+  // diz ao servidor se o Resenha está visível (quem não está com ele aberto recebe notificação no celular)
+  const visible = () => document.visibilityState === 'visible';
+  const s = io({ transports: ['websocket', 'polling'], auth: (cb) => cb({ visible: visible() }) });
   socket = s;
+  onVisibility = () => s.emit('client:active', visible());
+  document.addEventListener('visibilitychange', onVisibility);
 
   s.on('connect', () => set({ connected: true }));
   s.on('disconnect', () => set({ connected: false, socketId: null }));
@@ -155,6 +160,29 @@ export function connectSocket() {
     })),
   );
 
+  // eventos agendados
+  s.on('event:update', ({ guildId, event }: { guildId: string; event: GuildEvent }) => {
+    const g = useApp.getState().guilds[guildId];
+    if (!g) return;
+    const others = (g.events ?? []).filter((e) => e.id !== event.id);
+    patchGuild(guildId, { events: [...others, event].sort((a, b) => a.startsAt.localeCompare(b.startsAt)) });
+  });
+  s.on('event:delete', ({ guildId, id }: { guildId: string; id: string }) => {
+    const g = useApp.getState().guilds[guildId];
+    if (g) patchGuild(guildId, { events: (g.events ?? []).filter((e) => e.id !== id) });
+  });
+  s.on('event:start', ({ guildId, id, title }: { guildId: string; id: string; title: string }) => {
+    const st = useApp.getState();
+    const g = st.guilds[guildId];
+    const ev = g?.events?.find((e) => e.id === id);
+    // avisa quem marcou interesse
+    if (g && ev && st.me && ev.interestedIds.includes(st.me.id)) {
+      playSound('mention');
+      toast(`📅 Começou: ${title} (${g.name})`);
+    }
+    if (g) patchGuild(guildId, { events: [...(g.events ?? [])] });
+  });
+
   s.on('reports:count', ({ open }: { open: number }) => set({ openReports: open }));
 
   // a sessão foi encerrada em outro aparelho (ou a senha foi trocada)
@@ -221,6 +249,8 @@ export async function refreshFriends() {
 }
 
 export function disconnectSocket() {
+  if (onVisibility) document.removeEventListener('visibilitychange', onVisibility);
+  onVisibility = null;
   socket?.removeAllListeners();
   socket?.disconnect();
   socket = null;

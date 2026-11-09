@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { DmChannel, Friend, Guild, PublicUser } from '../../shared/types';
 import { api, hasSession, markSession, migrateLegacySession, setUnauthorizedHandler } from './lib/api';
 import { connectSocket, disconnectSocket } from './lib/socket';
-import { goHome, openModal, selectGuild, setDms, setFriends, setGuilds, useApp } from './store/app';
+import { findChannel, goHome, openModal, selectChannel, selectGuild, setDms, setFriends, setGuilds, useApp } from './store/app';
+import { disablePush, initPush, pushActive } from './lib/push';
 import { voice } from './voice/engine';
 import { AuthScreen } from './components/AuthScreen';
 import { Layout } from './components/Layout';
@@ -22,6 +23,19 @@ function takeInviteFromUrl(): string | null {
 }
 
 const pendingInvite = { code: takeInviteFromUrl() };
+
+/** /?canal=ID: veio de um toque numa notificação do celular */
+function takeChannelFromUrl(): string | null {
+  const id = new URLSearchParams(location.search).get('canal');
+  if (id) history.replaceState(null, '', location.pathname);
+  return id;
+}
+const pendingChannel = { id: takeChannelFromUrl() };
+
+/** Abre o canal da notificação (se ainda tenho acesso). */
+function openChannelFromNotification(id: string) {
+  if (findChannel(id)) selectChannel(id);
+}
 
 /**
  * Página inicial (apresentação, download e lista de espera) para quem chega sem estar logado.
@@ -47,6 +61,8 @@ function MainApp() {
   const [bootError, setBootError] = useState<string | null>(null);
 
   const logout = useCallback(() => {
+    // aparelho compartilhado: quem sai para de receber as notificações desta conta aqui
+    if (pushActive()) void disablePush();
     voice.leave();
     disconnectSocket();
     markSession(false);
@@ -87,7 +103,12 @@ function MainApp() {
     if (data.isPlatformAdmin) void api<{ open: number }>('/admin/reports/count').then((r) => useApp.setState({ openReports: r.open }), () => {});
     if (data.guilds[0]) selectGuild(data.guilds[0].id);
     else goHome();
+    if (pendingChannel.id) {
+      openChannelFromNotification(pendingChannel.id);
+      pendingChannel.id = null;
+    }
     connectSocket();
+    initPush(openChannelFromNotification);
     if (pendingInvite.code) {
       openModal({ kind: 'joinGuild', code: pendingInvite.code });
       pendingInvite.code = null;

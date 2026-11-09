@@ -1,12 +1,13 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent, type Ref } from 'react';
-import { Loader2, Paperclip, SendHorizontal, Smile, Sticker, X } from 'lucide-react';
+import { BarChart3, Loader2, Paperclip, SendHorizontal, Smile, Sticker, X } from 'lucide-react';
 import { FileIcon } from './Attachments';
 import type { Attachment, Channel, Expression, Message, PublicUser } from '../../../../shared/types';
 import { api } from '../../lib/api';
 import { mentionQuery } from '../../lib/mentions';
 import { getSocket } from '../../lib/socket';
 import { formatBytes, isImageFile, uploadAttachment } from '../../lib/upload';
-import { findMember, toast, useApp } from '../../store/app';
+import { findMember, openModal, toast, useApp } from '../../store/app';
+import { slowLabel } from '../AuditLog';
 import { Perm, has, myPermissions, timeoutUntil } from '../../lib/perms';
 import { Avatar } from '../Avatar';
 import { EmojiPicker } from '../EmojiPicker';
@@ -17,6 +18,8 @@ import { encodeEmojis, expressionGroups, fileUrl, plainEmojis } from '../../lib/
 const emojiQuery = (before: string) => /(^|\s):([a-z0-9_]{2,32})$/i.exec(before)?.[2].toLowerCase() ?? null;
 
 const MAX_ATTACHMENTS = 10;
+/** modo lento: quando mandei a última mensagem em cada canal */
+const lastSent = new Map<string, number>();
 const isTouch = () => window.matchMedia('(pointer: coarse)').matches;
 
 export interface ComposerHandle {
@@ -84,6 +87,20 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
   // (seletor devolve número: um Date novo a cada leitura faria o React renderizar em laço)
   const punishedMs = useApp((s) => (channel.type === 'dm' ? null : (timeoutUntil(s.guilds[channel.guildId], s.me?.id)?.getTime() ?? null)));
   const punishedUntil = punishedMs ? new Date(punishedMs) : null;
+  // modo lento (quem gerencia mensagens ou canais não espera)
+  const slowBypass = useApp((s) => {
+    if (channel.type === 'dm') return true;
+    const p = myPermissions(s.guilds[channel.guildId], s.me?.id);
+    return has(p, Perm.MANAGE_MESSAGES) || has(p, Perm.MANAGE_CHANNELS);
+  });
+  const slowmode = slowBypass ? 0 : (channel.slowmode ?? 0);
+  const [now, setNow] = useState(Date.now());
+  const waitLeft = slowmode ? Math.max(0, Math.ceil(((lastSent.get(channel.id) ?? 0) + slowmode * 1000 - now) / 1000)) : 0;
+  useEffect(() => {
+    if (!waitLeft) return;
+    const t = setTimeout(() => setNow(Date.now()), 1000);
+    return () => clearTimeout(t);
+  }, [waitLeft, now]);
 
   useEffect(() => {
     setText('');
@@ -139,7 +156,7 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
 
   const uploading = pending.some((p) => p.status === 'uploading');
   const ready = pending.filter((p) => p.status === 'done');
-  const canSend = !sending && !uploading && (!!text.trim() || ready.length > 0);
+  const canSend = !sending && !uploading && !waitLeft && (!!text.trim() || ready.length > 0);
 
   async function send() {
     if (!canSend) return;
@@ -149,6 +166,8 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
         body: { content: encodeEmojis(text.trim(), channel.guildId), replyToId: replyTo?.id, attachmentIds: ready.map((p) => p.attachment!.id) },
       });
       setText('');
+      lastSent.set(channel.id, Date.now());
+      setNow(Date.now());
       pending.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
       setPending([]);
       onCancelReply();
@@ -389,6 +408,13 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
         </div>
       )}
 
+      {slowmode > 0 && (
+        <div className="slowmode-bar muted small" role="status">
+          🐢 Modo lento: uma mensagem a cada {slowLabel(slowmode)}
+          {waitLeft > 0 && <strong> · espere {waitLeft}s</strong>}
+        </div>
+      )}
+
       <div className={`composer${replyTo || pending.length ? ' attached' : ''}`}>
         <button
           className="icon-btn attach-btn"
@@ -434,6 +460,9 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
           enterKeyHint="send"
           aria-autocomplete="list"
         />
+        <button className="icon-btn composer-tool" aria-label="Criar enquete" title="Criar enquete" onClick={() => openModal({ kind: 'createPoll', channelId: channel.id })}>
+          <BarChart3 size={20} />
+        </button>
         <button className="icon-btn composer-tool" data-picker-toggle aria-label="Figurinhas" title="Figurinhas" onClick={() => setPicker((p) => (p === 'sticker' ? null : 'sticker'))}>
           <Sticker size={20} />
         </button>

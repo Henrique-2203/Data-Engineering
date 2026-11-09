@@ -42,6 +42,10 @@ export interface AppState {
   lastChannelByGuild: Record<string, string>;
   mobilePanel: MobilePanel;
   showMembers: boolean;
+  /** painel da direita no lugar dos membros: busca ou mensagens fixadas */
+  sidePanel: SidePanel | null;
+  /** pular até esta mensagem (busca, fixadas, respostas) */
+  jumpTo: { channelId: string; messageId: string } | null;
   modal: ModalState | null;
   toast: string | null;
   /** faz parte da equipe do Resenha (trata denúncias) */
@@ -50,12 +54,18 @@ export interface AppState {
   openReports: number;
 }
 
+export type SidePanel =
+  | { kind: 'search'; text: string; scope: { guildId: string } | { channelId: string } }
+  | { kind: 'pins'; channelId: string };
+
 export type ModalState =
+  | { kind: 'createPoll'; channelId: string }
+  | { kind: 'events'; guildId: string; create?: boolean }
   | { kind: 'createGuild' }
   | { kind: 'joinGuild'; code?: string }
   | { kind: 'invite'; guildId: string }
   | { kind: 'createChannel'; guildId: string; type: 'text' | 'voice'; categoryId?: string | null }
-  | { kind: 'guildSettings'; guildId: string; tab?: 'overview' | 'roles' | 'members' | 'bans' | 'expressions' }
+  | { kind: 'guildSettings'; guildId: string; tab?: 'overview' | 'roles' | 'members' | 'bans' | 'expressions' | 'automod' }
   | { kind: 'channelSettings'; channelId: string }
   | { kind: 'createCategory'; guildId: string }
   | { kind: 'categorySettings'; guildId: string; categoryId: string }
@@ -98,6 +108,8 @@ export const useApp = create<AppState>(() => ({
   lastChannelByGuild: {},
   mobilePanel: 'nav',
   showMembers: true,
+  sidePanel: null,
+  jumpTo: null,
   modal: null,
   toast: null,
   isPlatformAdmin: false,
@@ -185,8 +197,34 @@ export function selectChannel(channelId: string) {
     selectedChannelId: c.id,
     lastChannelByGuild: c.type === 'text' ? { ...s.lastChannelByGuild, [c.guildId]: c.id } : s.lastChannelByGuild,
     mobilePanel: 'main',
+    // painel da direita acompanha o canal: fixadas do canal novo; a busca continua se for o mesmo servidor
+    sidePanel:
+      s.sidePanel?.kind === 'pins'
+        ? c.type === 'voice'
+          ? null
+          : { kind: 'pins', channelId: c.id }
+        : s.sidePanel?.kind === 'search' && 'guildId' in s.sidePanel.scope && c.type !== 'dm' && s.sidePanel.scope.guildId === c.guildId
+          ? s.sidePanel
+          : null,
   }));
   markRead(c.id);
+}
+
+/** Abre o canal e rola até a mensagem (carregando as mais antigas se precisar). */
+export function jumpToMessage(channelId: string, messageId: string) {
+  const c = findChannel(channelId);
+  if (!c) return toast('Você não tem mais acesso a esse canal.');
+  // canal de voz: a mensagem fica no chat da call
+  if (c.type === 'voice') {
+    try {
+      localStorage.setItem('resenha.callChat', '1');
+    } catch {
+      /* sem armazenamento */
+    }
+    window.dispatchEvent(new Event('resenha:open-call-chat'));
+  }
+  if (get().selectedChannelId !== channelId) selectChannel(channelId);
+  set({ jumpTo: { channelId, messageId }, mobilePanel: 'main' });
 }
 
 export function markRead(channelId: string) {

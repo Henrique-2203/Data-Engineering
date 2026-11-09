@@ -5,7 +5,8 @@ import { voice } from '../voice/engine';
 import { VoiceStage } from './VoiceStage';
 import type { Channel, DmChannel, Message } from '../../../shared/types';
 import { api } from '../lib/api';
-import { channelMessages, findMember, openModal, patchMessages, toast, useApp } from '../store/app';
+import { channelMessages, findMember, jumpToMessage, openModal, patchMessages, toast, useApp } from '../store/app';
+import { ChatHeaderTools } from './Community';
 import { Avatar } from './Avatar';
 import { MobileHeader } from './MobileHeader';
 import { MessageItem } from './chat/MessageItem';
@@ -96,17 +97,39 @@ export function ChatView({ channel, callPanel, onClose }: { channel: Channel; ca
   }
 
   const onReply = useCallback((m: Message) => setReplyTo(m), []);
-  const onJump = useCallback((id: string) => {
-    const el = document.getElementById(`msg-${id}`);
-    if (!el) {
-      toast('Essa mensagem é mais antiga: role para cima para carregá-la.');
-      return;
-    }
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.classList.remove('flash');
-    void el.offsetWidth; // reinicia a animação
-    el.classList.add('flash');
-  }, []);
+  const onJump = useCallback((id: string) => jumpToMessage(channel.id, id), [channel.id]);
+
+  // pular até uma mensagem (busca, fixadas, respostas): carrega as mais antigas até achar
+  const jumpTo = useApp((s) => (s.jumpTo?.channelId === channel.id ? s.jumpTo : null));
+  useEffect(() => {
+    if (!jumpTo) return;
+    let cancelled = false;
+    void (async () => {
+      stickToBottom.current = false;
+      for (let i = 0; i < 40 && !cancelled; i++) {
+        const cm = channelMessages(channel.id);
+        if (cm.items.some((m) => m.id === jumpTo.messageId)) break;
+        if (cm.loaded && !cm.hasMore) break;
+        if (cm.loading) await new Promise((r) => setTimeout(r, 100));
+        else await loadMessages(channel.id, cm.loaded);
+      }
+      if (cancelled) return;
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`msg-${jumpTo.messageId}`);
+        if (!el) toast('Não achei essa mensagem (ela pode ter sido apagada).');
+        else {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.remove('flash');
+          void el.offsetWidth; // reinicia a animação
+          el.classList.add('flash');
+        }
+        useApp.setState({ jumpTo: null });
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [jumpTo, channel.id]);
 
   const items = cm?.items ?? [];
   const hasFiles = (e: React.DragEvent) => [...e.dataTransfer.types].includes('Files');
@@ -141,7 +164,9 @@ export function ChatView({ channel, callPanel, onClose }: { channel: Channel; ca
             </button>
           }
           actions={
-            !inThisCall && (
+            <>
+              <ChatHeaderTools channel={channel} />
+              {!inThisCall && (
               <button
                 className="icon-btn"
                 aria-label={callActive ? 'Entrar na chamada' : `Ligar para ${dm.recipient.displayName}`}
@@ -150,7 +175,8 @@ export function ChatView({ channel, callPanel, onClose }: { channel: Channel; ca
               >
                 <Phone size={20} />
               </button>
-            )
+              )}
+            </>
           }
         />
       ) : callPanel ? (
@@ -162,7 +188,7 @@ export function ChatView({ channel, callPanel, onClose }: { channel: Channel; ca
           </button>
         </div>
       ) : (
-        <MobileHeader title={channel.name} icon={<Hash size={20} className="muted" />} showMembersButton />
+        <MobileHeader title={channel.name} icon={<Hash size={20} className="muted" />} showMembersButton actions={<ChatHeaderTools channel={channel} />} />
       )}
       {dm && (callActive || inThisCall) && <VoiceStage channelId={dm.id} embedded />}
       <div className="messages" ref={listRef} onScroll={onScroll}>

@@ -30,6 +30,10 @@ import { DESKTOP_DOWNLOAD_URL, desktop, isDesktop, type DesktopSettings } from '
 import { Avatar } from './Avatar';
 import { UserSettings } from './UserSettings';
 import { AdminReports, ReportModal } from './Reports';
+import { CreatePollModal, EventsModal, PushSettings } from './Community';
+import { slowLabel } from './AuditLog';
+
+const SLOWMODE_OPTIONS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600];
 
 export function Modals({ onLogout }: { onLogout(): void }) {
   const modal = useApp((s) => s.modal);
@@ -82,6 +86,10 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       return <ReportModal target={modal.target} />;
     case 'adminReports':
       return <AdminReports />;
+    case 'createPoll':
+      return <CreatePollModal channelId={modal.channelId} />;
+    case 'events':
+      return <EventsModal guildId={modal.guildId} create={modal.create} />;
   }
 }
 
@@ -136,7 +144,7 @@ function Lightbox({ src, name }: { src: string; name: string }) {
   );
 }
 
-function Modal({ title, children, wide }: { title: string; children: ReactNode; wide?: boolean }) {
+export function Modal({ title, children, wide }: { title: string; children: ReactNode; wide?: boolean }) {
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeModal()}>
       <div className={`modal${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
@@ -152,7 +160,7 @@ function Modal({ title, children, wide }: { title: string; children: ReactNode; 
   );
 }
 
-function useSubmit<T>(fn: () => Promise<T>) {
+export function useSubmit<T>(fn: () => Promise<T>) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submit = async (e?: FormEvent) => {
@@ -329,7 +337,7 @@ function ChannelFields({
 }: {
   guildId: string;
   type: 'text' | 'voice';
-  value: { categoryId: string | null; allowedRoleIds: string[] | null; bitrate: number; userLimit: number };
+  value: { categoryId: string | null; allowedRoleIds: string[] | null; bitrate: number; userLimit: number; slowmode?: number };
   onChange(v: Partial<typeof value>): void;
 }) {
   const guild = useApp((s) => s.guilds[guildId]);
@@ -402,6 +410,19 @@ function ChannelFields({
           </label>
         </>
       )}
+      {value.slowmode !== undefined && (
+        <label>
+          Modo lento
+          <select value={value.slowmode} onChange={(e) => onChange({ slowmode: Number(e.target.value) })}>
+            {SLOWMODE_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s === 0 ? 'Desligado' : `Uma mensagem a cada ${slowLabel(s)}`}
+              </option>
+            ))}
+          </select>
+          <span className="muted small">Cada pessoa espera esse tempo entre uma mensagem e outra. Quem gerencia mensagens não espera.</span>
+        </label>
+      )}
     </>
   );
 }
@@ -456,6 +477,7 @@ function ChannelSettings({ channelId }: { channelId: string }) {
     allowedRoleIds: channel?.allowedRoleIds ?? null,
     bitrate: channel?.bitrate ?? 128,
     userLimit: channel?.userLimit ?? 0,
+    slowmode: channel?.slowmode ?? 0,
   });
   const { busy, error, submit } = useSubmit(async () => {
     await api(`/channels/${channelId}`, {
@@ -832,6 +854,8 @@ export function SoundSettings() {
           <p className="muted small">As notificações estão bloqueadas no navegador. Libere nas permissões do site (ícone ao lado do endereço).</p>
         )}
       </div>
+      <h3 className="subhead">Notificações no celular</h3>
+      <PushSettings />
     </>
   );
 }
