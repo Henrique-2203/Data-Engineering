@@ -95,7 +95,8 @@ function MainApp() {
   }, []);
 
   useEffect(() => {
-    setUnauthorizedHandler(logout);
+    // sessão expirou no meio do uso: volta para o login (durante a abertura, quem decide é o attempt abaixo)
+    setUnauthorizedHandler(() => useApp.getState().me && logout());
     const onUnauthorized = () => logout();
     window.addEventListener('resenha:unauthorized', onUnauthorized);
     const had = hasSession();
