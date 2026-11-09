@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { FPS, DURATION, VOICE_START, toSrt } from './timeline.mjs';
 import { makeSfx } from './sfx.mjs';
+import { makeMusic } from './music.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -29,6 +30,7 @@ const port = server.address().port;
 const voiceArg = process.argv.indexOf('--voice');
 const voice = voiceArg > 0 ? path.resolve(process.argv[voiceArg + 1]) : null;
 const previewArg = process.argv.indexOf('--preview');
+const audioOnly = process.argv.includes('--audio-only');
 const preview = previewArg > 0 ? process.argv[previewArg + 1].split(',').map(Number) : null;
 
 const browser = await chromium.launch();
@@ -46,15 +48,19 @@ if (preview) {
   console.log('prévias em promo/out/preview-*.png');
 } else {
   const frames = path.join(OUT, 'frames');
-  await rm(frames, { recursive: true, force: true });
-  await mkdir(frames, { recursive: true });
   const total = Math.round(DURATION * FPS);
-  for (let i = 0; i < total; i++) {
+  // --audio-only: reaproveita os quadros já renderizados (só refaz o som)
+  if (!audioOnly) {
+    await rm(frames, { recursive: true, force: true });
+    await mkdir(frames, { recursive: true });
+  }
+  for (let i = 0; i < (audioOnly ? 0 : total); i++) {
     await page.evaluate((t) => window.seek(t), i / FPS);
     await page.screenshot({ path: path.join(frames, `${String(i).padStart(5, '0')}.jpg`), type: 'jpeg', quality: 92 });
     if (i % 150 === 0) console.log(`quadro ${i}/${total}`);
   }
   await writeFile(path.join(OUT, 'efeitos.wav'), makeSfx());
+  await writeFile(path.join(OUT, 'trilha.wav'), makeMusic());
   await writeFile(path.join(OUT, 'resenha-roteiro.srt'), toSrt());
   const enc = ['-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart'];
   const run = (args) => {
@@ -68,6 +74,13 @@ if (preview) {
     const mix =
       `[1:a]highpass=f=80,acompressor=threshold=-20dB:ratio=3:attack=5:release=80,loudnorm=I=-14:TP=-1.5:LRA=7,adelay=${Math.round(VOICE_START * 1000)}:all=1[v];` +
       `[2:a]volume=0.35[s];[v][s]amix=inputs=2:normalize=0:duration=longest,alimiter=limit=0.89[a]`;
+    // com a trilha: a música abaixa sozinha enquanto a voz fala (sidechain) e sobe nas pausas
+    const mixMusic =
+      `[1:a]highpass=f=80,acompressor=threshold=-20dB:ratio=3:attack=5:release=80,loudnorm=I=-14:TP=-1.5:LRA=7,adelay=${Math.round(VOICE_START * 1000)}:all=1,asplit=2[v][vk];` +
+      `[3:a]loudnorm=I=-18:TP=-2,aformat=channel_layouts=stereo[m0];[m0][vk]sidechaincompress=threshold=0.1:ratio=2.5:attack=20:release=300:makeup=1[m];` +
+      `[2:a]volume=0.3[s];[v][m][s]amix=inputs=3:normalize=0:duration=longest,alimiter=limit=0.89[a]`;
+    run(['-framerate', String(FPS), '-i', path.join(frames, '%05d.jpg'), '-i', voice, '-i', path.join(OUT, 'efeitos.wav'), '-i', path.join(OUT, 'trilha.wav'), '-filter_complex', mixMusic, '-map', '0:v', '-map', '[a]', ...enc, '-c:a', 'aac', '-b:a', '192k', '-t', String(DURATION), path.join(OUT, 'resenha-video-final.mp4')]);
+    console.log('vídeo com trilha em promo/out/resenha-video-final.mp4');
     run(['-framerate', String(FPS), '-i', path.join(frames, '%05d.jpg'), '-i', voice, '-i', path.join(OUT, 'efeitos.wav'), '-filter_complex', mix, '-map', '0:v', '-map', '[a]', ...enc, '-c:a', 'aac', '-b:a', '192k', '-t', String(DURATION), path.join(OUT, 'resenha-video-narrado.mp4')]);
     console.log('vídeo narrado em promo/out/resenha-video-narrado.mp4');
   }
