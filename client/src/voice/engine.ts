@@ -515,8 +515,22 @@ class VoiceEngine {
         void p.setTrack('screenAudio', null, this.msid.screen);
       }
     }
-    setV((s) => ({ screen: false, localScreen: null, focus: s.focus === 'me:screen' ? null : s.focus }));
-    getSocket()?.emit('voice:update', { screen: false });
+    setV((s) => ({ screen: false, localScreen: null, screenAudioOff: false, focus: s.focus === 'me:screen' ? null : s.focus }));
+    getSocket()?.emit('voice:update', { screen: false, screenAudioOff: false });
+  }
+
+  /** Liga/desliga o áudio da minha transmissão sem parar a imagem (os outros passam a receber silêncio). */
+  setScreenAudioOff(off: boolean) {
+    const track = this.screenStream?.getAudioTracks()[0];
+    if (!track) return;
+    track.enabled = !off;
+    setV({ screenAudioOff: off });
+    getSocket()?.emit('voice:update', { screenAudioOff: off });
+  }
+
+  /** A transmissão atual tem áudio (só quando a pessoa escolheu compartilhar o som). */
+  get screenHasAudio() {
+    return !!this.screenStream?.getAudioTracks().length;
   }
 
   private stopScreenTracks() {

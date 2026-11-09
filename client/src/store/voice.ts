@@ -24,6 +24,8 @@ export interface VoiceStore {
   deafened: boolean;
   camera: boolean;
   screen: boolean;
+  /** desliguei o áudio da minha transmissão (a imagem continua) */
+  screenAudioOff: boolean;
   noMic: boolean;
   localCamera: MediaStream | null;
   localScreen: MediaStream | null;
@@ -53,6 +55,7 @@ export const useVoice = create<VoiceStore>(() => ({
   deafened: false,
   camera: false,
   screen: false,
+  screenAudioOff: false,
   noMic: false,
   localCamera: null,
   localScreen: null,
@@ -73,6 +76,12 @@ export function updateSettings(patch: Partial<VoiceSettings>) {
   const settings = { ...useVoice.getState().settings, ...patch };
   saveSettings(settings);
   useVoice.setState({ settings });
+}
+
+/** Volume da transmissão de alguém (só na sua tela). */
+export function setStreamVolume(userId: string, volume: number) {
+  const streamVolumes = { ...useVoice.getState().settings.streamVolumes, [userId]: volume };
+  updateSettings({ streamVolumes });
 }
 
 export function setUserVolume(userId: string, volume: number) {

@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Hash, ImagePlus, Phone } from 'lucide-react';
+import { Hash, ImagePlus, MessageSquare, Phone, Volume2, X } from 'lucide-react';
 import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { VoiceStage } from './VoiceStage';
@@ -14,7 +14,7 @@ import { formatDay } from './chat/format';
 
 const GROUP_WINDOW_MS = 5 * 60_000;
 
-async function loadMessages(channelId: string, older = false) {
+export async function loadMessages(channelId: string, older = false) {
   const cm = channelMessages(channelId);
   if (cm.loading || (older && !cm.hasMore)) return;
   patchMessages(channelId, { loading: true });
@@ -35,7 +35,8 @@ async function loadMessages(channelId: string, older = false) {
   }
 }
 
-export function ChatView({ channel }: { channel: Channel }) {
+/** `callPanel`: chat da call (painel ao lado da chamada, num canal de voz). */
+export function ChatView({ channel, callPanel, onClose }: { channel: Channel; callPanel?: boolean; onClose?(): void }) {
   const cm = useApp((s) => s.messages[channel.id]);
   const dm = channel.type === 'dm' ? (channel as DmChannel) : null;
   const recipientOnline = useApp((s) => (dm ? !!s.online[dm.recipient.id] : false));
@@ -112,7 +113,7 @@ export function ChatView({ channel }: { channel: Channel }) {
 
   return (
     <div
-      className="chat"
+      className={`chat${callPanel ? ' call-chat' : ''}`}
       onDragEnter={(e) => {
         if (!hasFiles(e)) return;
         dragDepth.current++;
@@ -152,6 +153,14 @@ export function ChatView({ channel }: { channel: Channel }) {
             )
           }
         />
+      ) : callPanel ? (
+        <div className="call-chat-head">
+          <MessageSquare size={18} />
+          <strong className="ellipsis">Chat da call</strong>
+          <button className="icon-btn" aria-label="Fechar o chat da call" title="Fechar" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
       ) : (
         <MobileHeader title={channel.name} icon={<Hash size={20} className="muted" />} showMembersButton />
       )}
@@ -169,11 +178,13 @@ export function ChatView({ channel }: { channel: Channel }) {
               </>
             ) : (
               <>
-                <div className="channel-start-icon">
-                  <Hash size={36} />
-                </div>
-                <h3>Bem-vindo a #{channel.name}!</h3>
-                <p className="muted">Este é o começo do canal.</p>
+                <div className="channel-start-icon">{channel.type === 'voice' ? <Volume2 size={36} /> : <Hash size={36} />}</div>
+                <h3>{channel.type === 'voice' ? `Chat de ${channel.name}` : `Bem-vindo a #${channel.name}!`}</h3>
+                <p className="muted">
+                  {channel.type === 'voice'
+                    ? 'Mande links, prints e recados para quem está na call. As mensagens continuam aqui depois que a call acabar.'
+                    : 'Este é o começo do canal.'}
+                </p>
               </>
             )}
           </div>

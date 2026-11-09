@@ -2,6 +2,8 @@
 let sources = [];
 let type = 'screen';
 let selected = null;
+let game = null;
+let gameMissing = false;
 
 const list = document.getElementById('list');
 const go = document.getElementById('go');
@@ -9,6 +11,20 @@ const go = document.getElementById('go');
 function render() {
   const items = sources.filter((s) => s.type === type);
   list.replaceChildren();
+  // o jogo está aberto mas não aparece como janela: explica o porquê e o que fazer
+  const hint = document.getElementById('game-hint');
+  hint.hidden = !(gameMissing && type === 'window');
+  if (!hint.hidden) {
+    hint.replaceChildren();
+    const strong = document.createElement('strong');
+    strong.textContent = `O ${game} está aberto, mas não aparece aqui.`;
+    const p1 = document.createElement('p');
+    p1.textContent =
+      'Em tela cheia, o jogo é minimizado pelo Windows quando você sai dele, e janelas minimizadas não podem ser transmitidas.';
+    const p2 = document.createElement('p');
+    p2.textContent = `Para transmitir só o jogo: no ${game}, abra as configurações de vídeo e escolha o modo "Janela sem bordas" (ou "Tela cheia em janela"). Ele vai aparecer nesta lista sozinho. Ou transmita a Tela inteira.`;
+    hint.append(strong, p1, p2);
+  }
   if (!items.length) {
     const p = document.createElement('p');
     p.className = 'empty';
@@ -58,10 +74,19 @@ go.addEventListener('click', () => selected && window.picker.choose(selected, do
 document.getElementById('cancel').addEventListener('click', () => window.picker.cancel());
 window.addEventListener('keydown', (e) => e.key === 'Escape' && window.picker.cancel());
 
-window.picker.sources().then((s) => {
-  sources = s;
-  // pré-seleciona a tela principal
-  selected = sources.find((x) => x.type === 'screen')?.id ?? null;
+async function refresh(first = false) {
+  const r = await window.picker.sources();
+  // versões antigas devolviam só a lista
+  sources = Array.isArray(r) ? r : r.sources;
+  game = Array.isArray(r) ? null : r.game;
+  gameMissing = Array.isArray(r) ? false : r.gameMissing;
+  if (first) selected = sources.find((x) => x.type === 'screen')?.id ?? null; // pré-seleciona a tela principal
+  else if (selected && !sources.some((x) => x.id === selected)) selected = null;
   go.disabled = !selected;
   render();
-});
+}
+
+document.getElementById('refresh').addEventListener('click', () => void refresh());
+void refresh(true);
+// a lista se atualiza sozinha (ex.: você trocou o jogo para "janela sem bordas")
+setInterval(() => void refresh(), 4000);

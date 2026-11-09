@@ -38,6 +38,8 @@ export interface VoiceSettings {
   micDeviceId: string | null;
   noiseSuppression: boolean;
   volumes: Record<string, number>; // userId -> 0..1
+  /** volume da transmissão de cada pessoa (som do jogo/vídeo), separado da voz: userId -> 0..1 */
+  streamVolumes: Record<string, number>;
   /** Reduz a qualidade enviada para quem está conectado via TURN (economiza a cota grátis). */
   turnSaver: boolean;
   /** 'voice' = ativação por voz (com sensibilidade); 'ptt' = aperte para falar */
@@ -71,6 +73,7 @@ export const DEFAULT_SETTINGS: VoiceSettings = {
   micDeviceId: null,
   noiseSuppression: true,
   volumes: {},
+  streamVolumes: {},
   turnSaver: true,
   inputMode: 'voice',
   pttKey: 'Backquote',

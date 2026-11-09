@@ -413,7 +413,13 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
           ref={inputRef}
           rows={1}
           value={text}
-          placeholder={channel.type === 'dm' ? `Conversar com ${channel.name}` : `Conversar em #${channel.name}`}
+          placeholder={
+            channel.type === 'dm'
+              ? `Conversar com ${channel.name}`
+              : channel.type === 'voice'
+                ? 'Mandar no chat da call'
+                : `Conversar em #${channel.name}`
+          }
           onChange={(e) => onChange(e.target.value, e.target.selectionStart)}
           onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}

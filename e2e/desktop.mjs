@@ -232,6 +232,17 @@ try {
   const picker2Promise = app.waitForEvent('window', { predicate: (p) => !p.isClosed() && p.url().includes('picker') });
   await win.getByRole('button', { name: 'Escolher tela e transmitir' }).click();
   const picker2 = await picker2Promise;
+  // jogo aberto sem janela visível (como o Valorant em tela cheia minimizado): o seletor explica o que fazer
+  const hiddenGame = spawn('sleep', ['300'], { stdio: 'ignore' });
+  process.on('exit', () => hiddenGame.kill());
+  await sleep(2500); // detecção de jogos roda a cada 1 s no teste
+  await picker2.getByRole('button', { name: '↻ Atualizar' }).click();
+  await picker2.getByRole('tab', { name: 'Janela (jogo, programa)' }).click();
+  await picker2.getByText('O Jogo de Teste está aberto, mas não aparece aqui.').waitFor({ timeout: 8000 });
+  await picker2.getByText(/Janela sem bordas/).waitFor();
+  await picker2.screenshot({ path: `${shots}/17b-seletor-jogo-tela-cheia.png` });
+  hiddenGame.kill();
+  step('seletor: jogo aberto que não aparece como janela (tela cheia) ganha aviso com o que fazer; botão Atualizar');
   const winList = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((w) => `${w.id}:${w.getTitle()}:${w.isVisible()}`));
   console.log('janelas após abrir o 2º seletor:', JSON.stringify(await winList()), 'url:', picker2.url());
   await picker2.getByRole('button', { name: 'Cancelar' }).click();

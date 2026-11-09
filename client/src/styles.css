@@ -5288,3 +5288,130 @@ input.switch:disabled {
     grid-column: 2;
   }
 }
+
+/* ---------- chat da call ---------- */
+.voice-layout.with-chat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  min-height: 0;
+  height: 100%;
+}
+.voice-layout.with-chat > .voice-stage {
+  min-width: 0;
+  height: 100%;
+}
+.call-chat-aside {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  background: var(--bg-1);
+}
+.call-chat-aside .chat {
+  flex: 1;
+  min-height: 0;
+}
+.call-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 12px 16px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+}
+.call-chat-head strong {
+  flex: 1;
+}
+.call-chat-btn {
+  position: relative;
+}
+.call-chat-btn.active {
+  color: var(--accent);
+}
+.badge-count {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+@media (max-width: 900px) {
+  .voice-layout.with-chat {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .call-chat-aside {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    border-left: 0;
+    padding-top: var(--safe-top);
+  }
+}
+
+/* ---------- áudio das transmissões ---------- */
+.stream-volume {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 2px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 3;
+}
+.tile:hover .stream-volume,
+.stream-volume:focus-within {
+  opacity: 1;
+}
+@media (hover: none) {
+  .stream-volume {
+    opacity: 1;
+  }
+}
+.stream-volume input {
+  width: 110px;
+}
+.muted-stream {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(240, 77, 94, 0.85);
+  color: #fff;
+}
+.stream-audio-toggle {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.stream-audio-toggle.off {
+  background: rgba(240, 77, 94, 0.9);
+}

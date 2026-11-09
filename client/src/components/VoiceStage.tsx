@@ -18,20 +18,25 @@ import {
   Video,
   VideoOff,
   Volume2,
+  VolumeX,
+  MessageSquare,
   Lock,
   ShieldCheck,
   X,
 } from 'lucide-react';
 import type { VoiceState } from '../../../shared/types';
-import { findChannel, findMember, openModal, useApp } from '../store/app';
+import { channelMessages, findChannel, findMember, openModal, useApp } from '../store/app';
+
+const channelMessagesLoaded = (id: string) => channelMessages(id).loaded;
 import { SoundBurstBadge, SoundboardButton } from './Soundboard';
-import { setUserVolume, updateSettings, useVoice } from '../store/voice';
+import { setStreamVolume, setUserVolume, updateSettings, useVoice } from '../store/voice';
 import { voice, type CallSecurity } from '../voice/engine';
 import { CODECS, canShareScreen, keyLabel, presetById } from '../voice/settings';
 import { Perm, has, myPermissions } from '../lib/perms';
 import type { SendStats } from '../voice/engine';
 import { Avatar } from './Avatar';
 import { MobileHeader } from './MobileHeader';
+import { ChatView, loadMessages } from './ChatView';
 
 interface Tile {
   id: string; // `${socketId|me}:${user|screen}`
@@ -67,11 +72,33 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
   const focused = joined ? tiles.find((t) => t.id === focus) : undefined;
   const side = useVoice((s) => s.settings.stageLayout === 'side');
   const mainPct = useVoice((s) => (s.settings.stageLayout === 'side' ? s.settings.stageSidePct : s.settings.stageMainPct));
+  const [chatOpen, setChatOpen] = useState(() => {
+    try {
+      return localStorage.getItem('resenha.callChat') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleChat = () =>
+    setChatOpen((v) => {
+      try {
+        localStorage.setItem('resenha.callChat', v ? '0' : '1');
+      } catch {
+        /* sem armazenamento local */
+      }
+      return !v;
+    });
   const stageRef = useRef<HTMLDivElement>(null);
 
-  return (
+  const stage = (
     <div className={`voice-stage${embedded ? ' embedded' : ''}`}>
-      {!embedded && <MobileHeader title={channel?.name ?? 'Voz'} icon={<Volume2 size={20} className="muted" />} />}
+      {!embedded && (
+        <MobileHeader
+          title={channel?.name ?? 'Voz'}
+          icon={<Volume2 size={20} className="muted" />}
+          actions={channel && channel.type === 'voice' ? <CallChatToggle channelId={channelId} open={chatOpen} onToggle={toggleChat} /> : undefined}
+        />
+      )}
 
       {!joined && embedded ? (
         <div className="call-bar">
@@ -140,6 +167,40 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
         </>
       )}
     </div>
+  );
+  if (embedded || !chatOpen || !channel || channel.type !== 'voice') return stage;
+  return (
+    <div className="voice-layout with-chat">
+      {stage}
+      <aside className="call-chat-aside" aria-label="Chat da call">
+        <ChatView channel={channel} callPanel onClose={toggleChat} />
+      </aside>
+    </div>
+  );
+}
+
+/** Botão do chat da call, com quantas mensagens chegaram enquanto ele estava fechado. */
+function CallChatToggle({ channelId, open, onToggle }: { channelId: string; open: boolean; onToggle(): void }) {
+  const count = useApp((s) => s.messages[channelId]?.items.length ?? 0);
+  const [seen, setSeen] = useState(count);
+  useEffect(() => {
+    if (!channelMessagesLoaded(channelId)) void loadMessages(channelId);
+  }, [channelId]);
+  useEffect(() => {
+    if (open) setSeen(count);
+  }, [open, count]);
+  const fresh = open ? 0 : Math.max(0, count - seen);
+  return (
+    <button
+      className={`icon-btn call-chat-btn${open ? ' active' : ''}`}
+      aria-label={open ? 'Fechar o chat da call' : `Abrir o chat da call${fresh ? ` (${fresh} nova${fresh > 1 ? 's' : ''})` : ''}`}
+      aria-pressed={open}
+      title="Chat da call"
+      onClick={onToggle}
+    >
+      <MessageSquare size={20} />
+      {fresh > 0 && <span className="badge-count">{fresh > 9 ? '9+' : fresh}</span>}
+    </button>
   );
 }
 
@@ -264,7 +325,14 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
         <div className="tile-label">
           <span className="live-badge">AO VIVO</span>
           <span className="ellipsis">{tile.isMe ? 'Sua tela' : `Tela de ${name}`}</span>
+          {tile.state.screenAudioOff && (
+            <span className="muted-stream" title={tile.isMe ? 'Você desligou o áudio da transmissão' : `${name} desligou o áudio da transmissão`}>
+              <VolumeX size={14} /> sem áudio
+            </span>
+          )}
         </div>
+        {!tile.isMe && watching && <StreamVolume userId={tile.state.userId} name={name} />}
+        {tile.isMe && <MyStreamAudioToggle />}
         <div className="tile-actions">
           {canWatch && watching && (
             <button className="icon-btn overlay" title="Parar de assistir" aria-label="Parar de assistir" onClick={() => voice.watch(sid, false)}>
@@ -417,6 +485,62 @@ function VolumeSlider({ userId }: { userId: string }) {
         />
       )}
     </div>
+  );
+}
+
+/** Volume da transmissão que estou assistindo (som do jogo/vídeo), só para mim. */
+function StreamVolume({ userId, name }: { userId: string; name: string }) {
+  const volume = useVoice((s) => s.settings.streamVolumes?.[userId] ?? 1);
+  const [last, setLast] = useState(1);
+  return (
+    <div className="stream-volume" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      <button
+        className="icon-btn overlay"
+        aria-label={volume === 0 ? `Ativar o som da transmissão de ${name}` : `Silenciar a transmissão de ${name}`}
+        title={volume === 0 ? 'Ativar o som da transmissão' : 'Silenciar a transmissão'}
+        onClick={() => {
+          if (volume > 0) setLast(volume);
+          setStreamVolume(userId, volume > 0 ? 0 : last || 1);
+        }}
+      >
+        {volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+      </button>
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.05}
+        value={volume}
+        aria-label={`Volume da transmissão de ${name}`}
+        title={`Volume da transmissão: ${Math.round(volume * 100)}%`}
+        onChange={(e) => setStreamVolume(userId, Number(e.target.value))}
+      />
+    </div>
+  );
+}
+
+/** Para quem transmite: liga/desliga o som da transmissão sem parar a imagem. */
+function MyStreamAudioToggle() {
+  const off = useVoice((s) => s.screenAudioOff);
+  const [hasAudio, setHasAudio] = useState(voice.screenHasAudio);
+  useEffect(() => {
+    const t = setInterval(() => setHasAudio(voice.screenHasAudio), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!hasAudio) return null;
+  return (
+    <button
+      className={`stream-audio-toggle${off ? ' off' : ''}`}
+      aria-pressed={off}
+      aria-label={off ? 'Ligar o áudio da transmissão' : 'Desligar o áudio da transmissão'}
+      title={off ? 'As pessoas não estão ouvindo o som da sua transmissão' : 'As pessoas estão ouvindo o som da sua transmissão'}
+      onClick={(e) => {
+        e.stopPropagation();
+        voice.setScreenAudioOff(!off);
+      }}
+    >
+      {off ? <VolumeX size={15} /> : <Volume2 size={15} />} {off ? 'Áudio da transmissão desligado' : 'Áudio da transmissão ligado'}
+    </button>
   );
 }
 

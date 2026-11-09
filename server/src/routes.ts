@@ -451,7 +451,6 @@ export function createRoutes(db: Db, rt: Realtime) {
     auth,
     wrap(async (req) => {
       const c = await channelForMember(String(req.params.id), req.user!.id);
-      if (c.type === 'voice') throw new HttpError(400, 'Este canal não aceita mensagens.');
       limit(`msg:${req.user!.id}`, 12, 10_000, 'Calma! Muitas mensagens seguidas. Espere alguns segundos.');
       if (c.access) requireNotTimedOut(c.access);
       const body = parse(

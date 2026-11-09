@@ -28,16 +28,26 @@
       .btn.primary { background: #3ddc97; color: #06281a; }
       .btn:disabled { opacity: 0.5; cursor: not-allowed; }
       .empty { color: #a7adbb; grid-column: 1 / -1; }
+      .head-row { display: flex; align-items: center; gap: 8px; }
+      .head-row .tabs { flex: 1; }
+      .refresh { padding: 7px 12px; border-radius: 8px; border: 1px solid #2a2f3a; background: transparent; color: #a7adbb; font: inherit; cursor: pointer; }
+      .refresh:hover { color: #e6e8ee; border-color: #3a4150; }
+      #game-hint { margin: 8px 20px 0; padding: 10px 14px; border-radius: 10px; background: #2a1f0f; border: 1px solid #f5b942; color: #f5d48a; font-size: 13px; }
+      #game-hint p { margin: 4px 0 0; }
     </style>
   </head>
   <body>
     <header>
       <h1>Escolha o que transmitir</h1>
-      <div class="tabs" role="tablist">
-        <button role="tab" data-type="screen" aria-selected="true">Tela inteira</button>
-        <button role="tab" data-type="window" aria-selected="false">Janela (jogo, programa)</button>
+      <div class="head-row">
+        <div class="tabs" role="tablist">
+          <button role="tab" data-type="screen" aria-selected="true">Tela inteira</button>
+          <button role="tab" data-type="window" aria-selected="false">Janela (jogo, programa)</button>
+        </div>
+        <button class="refresh" id="refresh" title="Atualizar a lista">↻ Atualizar</button>
       </div>
     </header>
+    <div id="game-hint" role="status" hidden></div>
     <main id="list"><p class="empty">Carregando…</p></main>
     <footer>
       <label>

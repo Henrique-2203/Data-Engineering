@@ -222,8 +222,8 @@ function openPicker() {
         thumbnailSize: { width: 400, height: 225 },
         fetchWindowIcons: true,
       });
-      return sources
-        .filter((s) => s.name !== 'Resenha' && s.name !== 'Escolha o que transmitir')
+      const list = sources
+        .filter((s) => s.name !== 'Resenha' && s.name !== 'Escolha o que transmitir' && s.name !== 'Resenha overlay')
         .map((s) => ({
           id: s.id,
           name: s.id.startsWith('screen') ? (s.name === 'Entire screen' || s.name === 'Entire Screen' ? 'Tela inteira' : s.name) : s.name,
@@ -231,6 +231,12 @@ function openPicker() {
           thumbnail: s.thumbnail.toDataURL(),
           icon: s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : null,
         }));
+      // jogo aberto (mesma detecção do "Jogando agora") que NÃO aparece entre as janelas:
+      // quase sempre é tela cheia exclusiva, que o Windows minimiza quando você sai do jogo
+      const game = gameWatcher?.current() ?? null;
+      const norm = (t) => t.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const gameMissing = !!game && !list.some((s) => s.type === 'window' && norm(s.name).includes(norm(game)));
+      return { sources: list, game, gameMissing };
     });
     ipcMain.once('picker:choose', (_e, choice) => finish(choice));
     ipcMain.once('picker:cancel', () => finish(null));

@@ -13,17 +13,18 @@ export function VoiceAudio() {
       {Object.entries(remotes).map(([sid, r]) => (
         <span key={sid}>
           {r.mic && <RemoteAudio stream={r.mic} userId={r.userId} version={r.v} />}
-          {r.screen && watching[sid] && <RemoteAudio stream={r.screen} userId={r.userId} version={r.v} />}
+          {r.screen && watching[sid] && <RemoteAudio stream={r.screen} userId={r.userId} version={r.v} kind="screen" />}
         </span>
       ))}
     </div>
   );
 }
 
-function RemoteAudio({ stream, userId, version }: { stream: MediaStream; userId: string; version: number }) {
+function RemoteAudio({ stream, userId, version, kind = 'mic' }: { stream: MediaStream; userId: string; version: number; kind?: 'mic' | 'screen' }) {
   const ref = useRef<HTMLAudioElement>(null);
   const deafened = useVoice((s) => s.deafened);
-  const volume = useVoice((s) => s.settings.volumes[userId] ?? 1);
+  // a transmissão tem o próprio volume (som do jogo/vídeo), independente da voz da pessoa
+  const volume = useVoice((s) => (kind === 'screen' ? (s.settings.streamVolumes?.[userId] ?? 1) : (s.settings.volumes[userId] ?? 1)));
 
   useEffect(() => {
     const el = ref.current;

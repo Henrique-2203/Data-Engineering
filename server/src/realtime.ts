@@ -269,6 +269,7 @@ export class Realtime {
           deafened: z.boolean().optional(),
           camera: z.boolean().optional(),
           screen: z.boolean().optional(),
+          screenAudioOff: z.boolean().optional(),
         })
         .safeParse(payload);
       if (!state || !p.success) return;

@@ -59,6 +59,8 @@ export interface Channel {
   bitrate?: number;
   /** voz: máximo de pessoas (0 = sem limite) */
   userLimit?: number;
+  /** modo lento: segundos entre mensagens de cada pessoa (0 = desligado) */
+  slowmode?: number;
 }
 
 export interface Category {
@@ -115,6 +117,43 @@ export interface Guild {
   members: Member[];
   /** emojis, figurinhas e sons do servidor */
   expressions: Expression[];
+  /** eventos agendados que ainda não acabaram */
+  events?: GuildEvent[];
+}
+
+/** Evento agendado do servidor (jogatina, call marcada...). */
+export interface GuildEvent {
+  id: string;
+  guildId: string;
+  /** canal de voz onde vai acontecer (opcional) */
+  channelId: string | null;
+  title: string;
+  description: string;
+  startsAt: string;
+  endsAt: string | null;
+  creator: PublicUser | null;
+  /** quem marcou "Tenho interesse" */
+  interestedIds: string[];
+}
+
+/** Enquete dentro de uma mensagem. */
+export interface Poll {
+  question: string;
+  options: { text: string; userIds: string[] }[];
+  /** pode escolher mais de uma opção */
+  multi: boolean;
+  endsAt: string;
+}
+
+/** Moderação automática de um servidor (só quem gerencia o servidor vê). */
+export interface AutomodSettings {
+  /** palavras proibidas (termine com * para pegar o começo da palavra: "idiot*") */
+  words: string[];
+  blockLinks: boolean;
+  blockInvites: boolean;
+  antiSpam: boolean;
+  /** cargos que a moderação automática ignora */
+  exemptRoleIds: string[];
 }
 
 export type ExpressionKind = 'emoji' | 'sticker' | 'sound';
@@ -177,6 +216,9 @@ export interface Message {
   reactions: Reaction[];
   attachments: Attachment[];
   sticker: StickerRef | null;
+  /** fixada no canal (quando), ou null */
+  pinnedAt?: string | null;
+  poll?: Poll | null;
 }
 
 export interface VoiceState {
@@ -188,9 +230,11 @@ export interface VoiceState {
   deafened: boolean;
   camera: boolean;
   screen: boolean;
+  /** quem transmite desligou o áudio da transmissão (a imagem continua) */
+  screenAudioOff?: boolean;
 }
 
-export type VoiceStatePatch = Partial<Pick<VoiceState, 'muted' | 'deafened' | 'camera' | 'screen'>>;
+export type VoiceStatePatch = Partial<Pick<VoiceState, 'muted' | 'deafened' | 'camera' | 'screen' | 'screenAudioOff'>>;
 
 export interface InvitePreview {
   code: string;
@@ -235,6 +279,13 @@ export type AuditAction =
   | 'channel_delete'
   | 'channel_layout'
   | 'message_delete'
+  | 'message_pin'
+  | 'message_unpin'
+  | 'automod_update'
+  | 'automod_block'
+  | 'event_create'
+  | 'event_update'
+  | 'event_delete'
   | 'expression_create'
   | 'expression_update'
   | 'expression_delete';
