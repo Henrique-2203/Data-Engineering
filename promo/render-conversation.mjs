@@ -89,11 +89,11 @@ if (!audioOnly) {
 }
 if (!preview) {
   await writeFile(path.join(OUT, 'trilha.wav'), makeConversationMusic());
-  const mix =
-    `[1:a]highpass=f=80,acompressor=threshold=-20dB:ratio=3:attack=5:release=80,loudnorm=I=-14:TP=-1.5:LRA=7,asplit=2[v][vk];` +
-    `[2:a]loudnorm=I=-19.5:TP=-2,aformat=channel_layouts=stereo[m0];[m0][vk]sidechaincompress=threshold=0.1:ratio=2.5:attack=20:release=300:makeup=1,volume=-10dB[m];` +
-    `[v][m]amix=inputs=2:normalize=0:duration=longest,alimiter=limit=0.89[a]`;
-  run(['-framerate', String(FPS), '-i', path.join(frames, '%05d.jpg'), '-i', path.join(OUT, 'conversa.wav'), '-i', path.join(OUT, 'trilha.wav'), '-filter_complex', mix, '-map', '0:v', '-map', '[a]',
+  // em passos separados: com loudnorm + asplit no mesmo grafo, os últimos ~3 s da voz se perdiam na mixagem
+  const vproc = path.join(OUT, 'voz-final.wav'), mproc = path.join(OUT, 'trilha-final.wav');
+  run(['-i', path.join(OUT, 'conversa.wav'), '-af', 'highpass=f=80,acompressor=threshold=-20dB:ratio=3:attack=5:release=80,loudnorm=I=-14:TP=-1.5:LRA=7,aresample=48000', '-ac', '2', vproc]);
+  run(['-i', path.join(OUT, 'trilha.wav'), '-i', vproc, '-filter_complex', '[0:a]loudnorm=I=-19.5:TP=-2,aresample=48000,aformat=channel_layouts=stereo[m0];[m0][1:a]sidechaincompress=threshold=0.1:ratio=2.5:attack=20:release=300:makeup=1,volume=-10dB[m]', '-map', '[m]', mproc]);
+  run(['-framerate', String(FPS), '-i', path.join(frames, '%05d.jpg'), '-i', vproc, '-i', mproc, '-filter_complex', '[1:a][2:a]amix=inputs=2:normalize=0:duration=longest,alimiter=limit=0.89[a]', '-map', '0:v', '-map', '[a]',
     '-c:v', 'libx264', '-preset', 'slow', '-crf', '19', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', '-t', String(DURATION), path.join(OUT, 'resenha-como-eu-fiz.mp4')]);
   console.log('vídeo em promo/out/conversa/resenha-como-eu-fiz.mp4');
 }
