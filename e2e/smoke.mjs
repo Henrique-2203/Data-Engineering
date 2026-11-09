@@ -57,7 +57,7 @@ try {
   await pc.getByRole('tab', { name: 'Criar conta' }).click();
   await pc.getByLabel('Usuário').fill('ana');
   await pc.getByLabel('Nome de exibição').fill('Ana');
-  await pc.getByLabel('Senha').fill('segredo123');
+  await pc.getByLabel('Senha', { exact: true }).fill('segredo123');
   await pc.getByLabel(/li e aceito os Termos/).check();
   await pc.getByRole('button', { name: 'Criar conta' }).click();
   await pc.getByRole('button', { name: 'Criar servidor' }).first().click();
@@ -71,7 +71,7 @@ try {
   // --- Celular: abre o convite, cria conta e entra ---
   await phone.goto(link);
   await phone.getByLabel('Usuário').fill('bia');
-  await phone.getByLabel('Senha').fill('segredo123');
+  await phone.getByLabel('Senha', { exact: true }).fill('segredo123');
   await phone.getByLabel(/li e aceito os Termos/).check();
   await phone.getByRole('button', { name: 'Criar conta' }).click();
   await phone.getByText('Galera').waitFor();

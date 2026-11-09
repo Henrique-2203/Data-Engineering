@@ -99,6 +99,7 @@ try {
 
   // ---- editar perfil ----
   await pa.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await pa.getByRole('navigation', { name: 'Categorias' }).getByRole('button', { name: 'Perfil', exact: true }).click();
   const inputs = pa.locator('.profile-editor-preview input[type=file]');
   await inputs.nth(0).setInputFiles(avatarFile);
   await pa.getByText(/Foto atualizado \(\d+ KB\)/).waitFor({ timeout: 10000 });
@@ -120,6 +121,7 @@ try {
 
   // GIF animado mantém a animação (vai como está)
   await pa.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await pa.getByRole('navigation', { name: 'Categorias' }).getByRole('button', { name: 'Perfil', exact: true }).click();
   await pa.locator('.profile-editor-preview input[type=file]').nth(0).setInputFiles(gifFile);
   await pa.getByText(/Foto atualizado/).waitFor({ timeout: 10000 });
   const gifType = await pb.waitForFunction(async () => {

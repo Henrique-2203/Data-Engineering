@@ -66,8 +66,8 @@ function CodesBox({ codes, onDone }: { codes: string[]; onDone(): void }) {
   return (
     <div className="codes-box" role="region" aria-label="Códigos de recuperação">
       <p>
-        <strong>Guarde estes códigos agora.</strong> Eles não serão mostrados de novo. Se você esquecer a senha ou perder o celular do
-        autenticador, cada código permite entrar uma vez.
+        <strong>Guarde estes códigos agora.</strong> Eles não serão mostrados de novo. Se você esquecer a senha ou perder o celular do autenticador,
+        cada código permite entrar uma vez.
       </p>
       <ul className="codes">
         {codes.map((c) => (
@@ -91,18 +91,36 @@ function CodesBox({ codes, onDone }: { codes: string[]; onDone(): void }) {
   );
 }
 
-export function SecuritySettings({ onLogout }: { onLogout(): void }) {
+/**
+ * part="security": checkup, senha, e-mail, 2FA, códigos, aparelhos e histórico.
+ * part="data": baixar os dados e excluir a conta.
+ */
+export function SecuritySettings({
+  onLogout,
+  part = 'security',
+  initialPanel,
+}: {
+  onLogout(): void;
+  part?: 'security' | 'data';
+  initialPanel?: 'email';
+}) {
   const [info, setInfo] = useState<SecurityInfo | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [codes, setCodes] = useState<string[] | null>(null);
-  const [panel, setPanel] = useState<'password' | '2fa' | 'disable2fa' | 'codes' | 'delete' | 'email' | 'removeEmail' | null>(null);
+  const [panel, setPanel] = useState<'password' | '2fa' | 'disable2fa' | 'codes' | 'delete' | 'email' | 'removeEmail' | null>(initialPanel ?? null);
   const [events, setEvents] = useState<SecurityEvent[] | null>(null);
   const [showEvents, setShowEvents] = useState(false);
 
   const load = () => {
     void api<SecurityInfo>('/me/security').then(setInfo, () => {});
-    void api<{ sessions: Session[] }>('/me/sessions').then((r) => setSessions(r.sessions), () => {});
-    void api<{ events: SecurityEvent[] }>('/me/security/events').then((r) => setEvents(r.events), () => {});
+    void api<{ sessions: Session[] }>('/me/sessions').then(
+      (r) => setSessions(r.sessions),
+      () => {},
+    );
+    void api<{ events: SecurityEvent[] }>('/me/security/events').then(
+      (r) => setEvents(r.events),
+      () => {},
+    );
   };
   useEffect(load, []);
 
@@ -144,217 +162,240 @@ export function SecuritySettings({ onLogout }: { onLogout(): void }) {
   const others = sessions.filter((s) => !s.current).length;
   return (
     <div className="security">
-      <h3 className="subhead">
-        <ShieldCheck size={18} /> Segurança e privacidade
-      </h3>
-
-      {info && <Checkup info={info} onFix={(k) => setPanel(k === 'password' ? 'password' : k === '2fa' ? '2fa' : k === 'email' ? 'email' : k === 'recovery' ? 'codes' : null)} />}
-
-      {codes && (
-        <CodesBox
-          codes={codes}
-          onDone={() => {
-            setCodes(null);
-            load();
-          }}
-        />
-      )}
-
-      <div className="sec-row">
-        <div>
-          <strong>Senha</strong>
-          <p className="muted small">{info?.passwordChangedAt ? `Trocada em ${new Date(info.passwordChangedAt).toLocaleDateString('pt-BR')}` : 'Guardada criptografada (ninguém consegue ver).'}</p>
-        </div>
-        <button className="btn small" onClick={() => setPanel(panel === 'password' ? null : 'password')}>
-          <KeyRound size={15} /> Trocar senha
-        </button>
-      </div>
-      {panel === 'password' && <ChangePassword onDone={() => (setPanel(null), load())} />}
-
-      {info?.emailEnabled && (
+      {part === 'security' && (
         <>
-          <div className="sec-row">
-            <div>
-              <strong>E-mail</strong>
-              <p className="muted small">
-                {info.email && info.emailVerified
-                  ? `✅ ${info.email} · recebe alertas de segurança e códigos para recuperar a conta.`
-                  : 'Adicione um e-mail para receber alertas de acessos novos e recuperar a conta se esquecer a senha.'}
-              </p>
-            </div>
-            <div className="row gap-s">
-              {info.email && info.emailVerified && (
-                <button className="btn small ghost" onClick={() => setPanel(panel === 'removeEmail' ? null : 'removeEmail')}>
-                  Remover e-mail
-                </button>
-              )}
-              <button className={`btn small${info.email && info.emailVerified ? '' : ' primary'}`} onClick={() => setPanel(panel === 'email' ? null : 'email')}>
-                {info.email && info.emailVerified ? 'Trocar e-mail' : 'Adicionar e-mail'}
-              </button>
-            </div>
-          </div>
-          {panel === 'email' && <EmailSetup onDone={() => (setPanel(null), load())} />}
-          {panel === 'removeEmail' && (
-            <PasswordConfirm
-              label="Remover o e-mail (você para de receber alertas)"
-              onConfirm={async (password) => {
-                await api('/me/email/remove', { body: { password } });
-                toast('E-mail removido.');
-                setPanel(null);
+          {info && (
+            <Checkup
+              info={info}
+              onFix={(k) =>
+                setPanel(k === 'password' ? 'password' : k === '2fa' ? '2fa' : k === 'email' ? 'email' : k === 'recovery' ? 'codes' : null)
+              }
+            />
+          )}
+
+          {codes && (
+            <CodesBox
+              codes={codes}
+              onDone={() => {
+                setCodes(null);
                 load();
               }}
             />
           )}
+
+          <div className="sec-row">
+            <div>
+              <strong>Senha</strong>
+              <p className="muted small">
+                {info?.passwordChangedAt
+                  ? `Trocada em ${new Date(info.passwordChangedAt).toLocaleDateString('pt-BR')}`
+                  : 'Guardada criptografada (ninguém consegue ver).'}
+              </p>
+            </div>
+            <button className="btn small" onClick={() => setPanel(panel === 'password' ? null : 'password')}>
+              <KeyRound size={15} /> Trocar senha
+            </button>
+          </div>
+          {panel === 'password' && <ChangePassword onDone={() => (setPanel(null), load())} />}
+
+          {info?.emailEnabled && (
+            <>
+              <div className="sec-row">
+                <div>
+                  <strong>E-mail</strong>
+                  <p className="muted small">
+                    {info.email && info.emailVerified
+                      ? `✅ ${info.email} · recebe alertas de segurança e códigos para recuperar a conta.`
+                      : 'Adicione um e-mail para receber alertas de acessos novos e recuperar a conta se esquecer a senha.'}
+                  </p>
+                </div>
+                <div className="row gap-s">
+                  {info.email && info.emailVerified && (
+                    <button className="btn small ghost" onClick={() => setPanel(panel === 'removeEmail' ? null : 'removeEmail')}>
+                      Remover e-mail
+                    </button>
+                  )}
+                  <button
+                    className={`btn small${info.email && info.emailVerified ? '' : ' primary'}`}
+                    onClick={() => setPanel(panel === 'email' ? null : 'email')}
+                  >
+                    {info.email && info.emailVerified ? 'Trocar e-mail' : 'Adicionar e-mail'}
+                  </button>
+                </div>
+              </div>
+              {panel === 'email' && <EmailSetup onDone={() => (setPanel(null), load())} />}
+              {panel === 'removeEmail' && (
+                <PasswordConfirm
+                  label="Remover o e-mail (você para de receber alertas)"
+                  onConfirm={async (password) => {
+                    await api('/me/email/remove', { body: { password } });
+                    toast('E-mail removido.');
+                    setPanel(null);
+                    load();
+                  }}
+                />
+              )}
+            </>
+          )}
+
+          <div className="sec-row">
+            <div>
+              <strong>Verificação em duas etapas</strong>
+              <p className="muted small">
+                {info?.totpEnabled
+                  ? '✅ Ativada: além da senha, pedimos o código do app autenticador.'
+                  : 'Proteja a conta mesmo se alguém descobrir sua senha (Google Authenticator, Authy, Microsoft Authenticator…).'}
+              </p>
+            </div>
+            {info?.totpEnabled ? (
+              <button className="btn small ghost danger" onClick={() => setPanel(panel === 'disable2fa' ? null : 'disable2fa')}>
+                Desativar
+              </button>
+            ) : (
+              <button className="btn small primary" onClick={() => setPanel(panel === '2fa' ? null : '2fa')}>
+                Ativar
+              </button>
+            )}
+          </div>
+          {panel === '2fa' && (
+            <TwoFactorSetup
+              onDone={(c) => {
+                setPanel(null);
+                setCodes(c);
+                load();
+              }}
+            />
+          )}
+          {panel === 'disable2fa' && <DisableTwoFactor onDone={() => (setPanel(null), load())} />}
+
+          <div className="sec-row">
+            <div>
+              <strong>Códigos de recuperação</strong>
+              <p className="muted small">
+                {info && info.codesLeft > 0
+                  ? `${info.codesLeft} códigos disponíveis. Servem para entrar se você esquecer a senha.`
+                  : '⚠️ Você ainda não tem códigos. Sem eles, não dá para recuperar a conta se esquecer a senha.'}
+              </p>
+            </div>
+            <button className="btn small" onClick={() => setPanel(panel === 'codes' ? null : 'codes')}>
+              {info && info.codesLeft > 0 ? 'Gerar novos' : 'Gerar códigos'}
+            </button>
+          </div>
+          {panel === 'codes' && (
+            <PasswordConfirm
+              label="Gerar códigos (os antigos deixam de valer)"
+              onConfirm={async (password) => {
+                const r = await api<{ codes: string[] }>('/me/recovery-codes', { body: { password } });
+                setPanel(null);
+                setCodes(r.codes);
+              }}
+            />
+          )}
+
+          <div className="sec-row column">
+            <div className="row spread">
+              <strong>
+                <MonitorSmartphone size={16} /> Aparelhos conectados
+              </strong>
+              {others > 0 && (
+                <button className="btn small ghost" onClick={() => void endOthers()}>
+                  <LogOut size={15} /> Sair de todos os outros
+                </button>
+              )}
+            </div>
+            <ul className="sessions">
+              {sessions.map((s) => (
+                <li key={s.id}>
+                  <span>
+                    <strong>{s.device}</strong>
+                    {s.current && <span className="badge-current">este aparelho</span>}
+                    <span className="muted small">
+                      {' '}
+                      · último acesso {when(s.lastSeenAt)} · desde {new Date(s.createdAt).toLocaleDateString('pt-BR')}
+                    </span>
+                  </span>
+                  {s.current ? (
+                    <button className="btn small ghost" onClick={onLogout}>
+                      Sair
+                    </button>
+                  ) : (
+                    <button className="btn small ghost" aria-label={`Desconectar ${s.device}`} onClick={() => void endSession(s.id)}>
+                      Desconectar
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <p className="muted small">Não reconhece algum aparelho? Desconecte e troque sua senha.</p>
+          </div>
+
+          <div className="sec-row column">
+            <div className="row spread">
+              <strong>Histórico de segurança</strong>
+              <button className="btn small ghost" onClick={() => setShowEvents((v) => !v)}>
+                {showEvents ? 'Esconder' : 'Ver histórico'}
+              </button>
+            </div>
+            {showEvents && (
+              <ul className="sec-events">
+                {(events ?? []).map((e) => {
+                  const [icon, label] = EVENT_LABEL[e.type] ?? ['•', e.type];
+                  return (
+                    <li key={e.id} className={icon === '⚠️' ? 'warn' : ''}>
+                      <span className="sec-ev-icon" aria-hidden>
+                        {icon}
+                      </span>
+                      <span>
+                        <strong>{label}</strong>
+                        {e.detail && e.type !== 'logout_others' && <span className="muted"> · {e.detail}</span>}
+                        {e.type === 'logout_others' && <span className="muted"> · {e.detail} aparelho(s)</span>}
+                        <span className="muted small">
+                          {' '}
+                          · {new Date(e.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          {e.device && ` · ${e.device}`}
+                        </span>
+                      </span>
+                    </li>
+                  );
+                })}
+                {events?.length === 0 && <li className="muted small">Nada registrado ainda.</li>}
+              </ul>
+            )}
+            <p className="muted small">Só você vê este histórico. Fica guardado por 180 dias.</p>
+          </div>
         </>
       )}
 
-      <div className="sec-row">
-        <div>
-          <strong>Verificação em duas etapas</strong>
-          <p className="muted small">
-            {info?.totpEnabled ? '✅ Ativada: além da senha, pedimos o código do app autenticador.' : 'Proteja a conta mesmo se alguém descobrir sua senha (Google Authenticator, Authy, Microsoft Authenticator…).'}
-          </p>
-        </div>
-        {info?.totpEnabled ? (
-          <button className="btn small ghost danger" onClick={() => setPanel(panel === 'disable2fa' ? null : 'disable2fa')}>
-            Desativar
-          </button>
-        ) : (
-          <button className="btn small primary" onClick={() => setPanel(panel === '2fa' ? null : '2fa')}>
-            Ativar
-          </button>
-        )}
-      </div>
-      {panel === '2fa' && (
-        <TwoFactorSetup
-          onDone={(c) => {
-            setPanel(null);
-            setCodes(c);
-            load();
-          }}
-        />
-      )}
-      {panel === 'disable2fa' && <DisableTwoFactor onDone={() => (setPanel(null), load())} />}
-
-      <div className="sec-row">
-        <div>
-          <strong>Códigos de recuperação</strong>
-          <p className="muted small">
-            {info && info.codesLeft > 0
-              ? `${info.codesLeft} códigos disponíveis. Servem para entrar se você esquecer a senha.`
-              : '⚠️ Você ainda não tem códigos. Sem eles, não dá para recuperar a conta se esquecer a senha.'}
-          </p>
-        </div>
-        <button className="btn small" onClick={() => setPanel(panel === 'codes' ? null : 'codes')}>
-          {info && info.codesLeft > 0 ? 'Gerar novos' : 'Gerar códigos'}
-        </button>
-      </div>
-      {panel === 'codes' && (
-        <PasswordConfirm
-          label="Gerar códigos (os antigos deixam de valer)"
-          onConfirm={async (password) => {
-            const r = await api<{ codes: string[] }>('/me/recovery-codes', { body: { password } });
-            setPanel(null);
-            setCodes(r.codes);
-          }}
-        />
-      )}
-
-      <div className="sec-row column">
-        <div className="row spread">
-          <strong>
-            <MonitorSmartphone size={16} /> Aparelhos conectados
-          </strong>
-          {others > 0 && (
-            <button className="btn small ghost" onClick={() => void endOthers()}>
-              <LogOut size={15} /> Sair de todos os outros
+      {part === 'data' && (
+        <>
+          <div className="sec-row">
+            <div>
+              <strong>Seus dados</strong>
+              <p className="muted small">
+                Baixe uma cópia de tudo que o Resenha guarda sobre você. Veja a{' '}
+                <a href="/privacidade" target="_blank" rel="noopener">
+                  Política de Privacidade
+                </a>
+                .
+              </p>
+            </div>
+            <button className="btn small" onClick={() => void exportData()}>
+              <Download size={15} /> Baixar meus dados
             </button>
-          )}
-        </div>
-        <ul className="sessions">
-          {sessions.map((s) => (
-            <li key={s.id}>
-              <span>
-                <strong>{s.device}</strong>
-                {s.current && <span className="badge-current">este aparelho</span>}
-                <span className="muted small"> · último acesso {when(s.lastSeenAt)} · desde {new Date(s.createdAt).toLocaleDateString('pt-BR')}</span>
-              </span>
-              {s.current ? (
-                <button className="btn small ghost" onClick={onLogout}>
-                  Sair
-                </button>
-              ) : (
-                <button className="btn small ghost" aria-label={`Desconectar ${s.device}`} onClick={() => void endSession(s.id)}>
-                  Desconectar
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-        <p className="muted small">Não reconhece algum aparelho? Desconecte e troque sua senha.</p>
-      </div>
+          </div>
 
-      <div className="sec-row column">
-        <div className="row spread">
-          <strong>Histórico de segurança</strong>
-          <button className="btn small ghost" onClick={() => setShowEvents((v) => !v)}>
-            {showEvents ? 'Esconder' : 'Ver histórico'}
-          </button>
-        </div>
-        {showEvents && (
-          <ul className="sec-events">
-            {(events ?? []).map((e) => {
-              const [icon, label] = EVENT_LABEL[e.type] ?? ['•', e.type];
-              return (
-                <li key={e.id} className={icon === '⚠️' ? 'warn' : ''}>
-                  <span className="sec-ev-icon" aria-hidden>
-                    {icon}
-                  </span>
-                  <span>
-                    <strong>{label}</strong>
-                    {e.detail && e.type !== 'logout_others' && <span className="muted"> · {e.detail}</span>}
-                    {e.type === 'logout_others' && <span className="muted"> · {e.detail} aparelho(s)</span>}
-                    <span className="muted small">
-                      {' '}
-                      · {new Date(e.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      {e.device && ` · ${e.device}`}
-                    </span>
-                  </span>
-                </li>
-              );
-            })}
-            {events?.length === 0 && <li className="muted small">Nada registrado ainda.</li>}
-          </ul>
-        )}
-        <p className="muted small">Só você vê este histórico. Fica guardado por 180 dias.</p>
-      </div>
-
-      <div className="sec-row">
-        <div>
-          <strong>Seus dados</strong>
-          <p className="muted small">
-            Baixe uma cópia de tudo que o Resenha guarda sobre você. Veja a{' '}
-            <a href="/privacidade" target="_blank" rel="noopener">
-              Política de Privacidade
-            </a>
-            .
-          </p>
-        </div>
-        <button className="btn small" onClick={() => void exportData()}>
-          <Download size={15} /> Baixar meus dados
-        </button>
-      </div>
-
-      <div className="sec-row danger-zone">
-        <div>
-          <strong>Excluir minha conta</strong>
-          <p className="muted small">Apaga para sempre seu perfil, mensagens, imagens, amizades e os servidores de que você é dono.</p>
-        </div>
-        <button className="btn small danger" onClick={() => setPanel(panel === 'delete' ? null : 'delete')}>
-          <Trash2 size={15} /> Excluir conta
-        </button>
-      </div>
-      {panel === 'delete' && <DeleteAccount needs2fa={!!info?.totpEnabled} onDeleted={onLogout} />}
+          <div className="sec-row danger-zone">
+            <div>
+              <strong>Excluir minha conta</strong>
+              <p className="muted small">Apaga para sempre seu perfil, mensagens, imagens, amizades e os servidores de que você é dono.</p>
+            </div>
+            <button className="btn small danger" onClick={() => setPanel(panel === 'delete' ? null : 'delete')}>
+              <Trash2 size={15} /> Excluir conta
+            </button>
+          </div>
+          {panel === 'delete' && <DeleteAccount needs2fa={!!info?.totpEnabled} onDeleted={onLogout} />}
+        </>
+      )}
     </div>
   );
 }
@@ -525,8 +566,8 @@ function DeleteAccount({ needs2fa, onDeleted }: { needs2fa: boolean; onDeleted()
       }}
     >
       <p>
-        <strong>Isso não pode ser desfeito.</strong> Dica: baixe seus dados antes. Os servidores de que você é dono serão excluídos para
-        todos os membros.
+        <strong>Isso não pode ser desfeito.</strong> Dica: baixe seus dados antes. Os servidores de que você é dono serão excluídos para todos os
+        membros.
       </p>
       <label>
         Senha
@@ -618,7 +659,16 @@ function EmailSetup({ onDone }: { onDone(): void }) {
         </p>
         <label>
           Código
-          <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={12} required autoFocus placeholder="6 dígitos" />
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={12}
+            required
+            autoFocus
+            placeholder="6 dígitos"
+          />
         </label>
         <div className="row gap-s">
           <button className="btn small primary" disabled={busy}>

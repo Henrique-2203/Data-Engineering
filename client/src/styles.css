@@ -4733,3 +4733,290 @@ input.switch:disabled {
   justify-content: center;
   margin: 4px 0;
 }
+
+/* ---------- cadastro e login ---------- */
+.input-with-action {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.input-with-action input {
+  flex: 1;
+  min-width: 0;
+  padding-right: 44px;
+}
+.input-with-action .icon-btn {
+  position: absolute;
+  right: 4px;
+  color: var(--text-3);
+}
+.input-prefix {
+  position: absolute;
+  left: 12px;
+  color: var(--text-3);
+  font-weight: 700;
+  pointer-events: none;
+}
+.input-prefix + input {
+  padding-left: 28px;
+}
+.name-check {
+  position: absolute;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: var(--text-3);
+}
+.name-check.ok {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+}
+.name-check.bad {
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  color: var(--danger);
+}
+.auth-verify {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+  color: var(--accent);
+}
+.auth-verify h2 {
+  color: var(--text);
+  font-size: 20px;
+  margin: 0;
+}
+.auth-verify p {
+  margin: 0;
+}
+.code-input {
+  text-align: center;
+  font-size: 28px !important;
+  letter-spacing: 10px;
+  font-family: ui-monospace, 'DejaVu Sans Mono', monospace;
+  padding: 10px !important;
+}
+.auth-links {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.auth-links .link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.auth-links .link-btn:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+
+/* ---------- configurações da conta (tela cheia) ---------- */
+.user-settings .settings-nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.user-settings .settings-nav button svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.user-settings .settings-nav button.active svg {
+  color: var(--accent);
+  opacity: 1;
+}
+.settings-nav-sep {
+  height: 1px;
+  background: var(--line);
+  margin: 8px 0;
+}
+.settings-head {
+  margin-bottom: 18px;
+}
+.settings-head h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+.settings-head p {
+  margin: 0;
+}
+.user-settings .settings-section {
+  display: grid;
+  gap: 14px;
+  padding-bottom: 40px;
+}
+.settings-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  text-align: left;
+  color: inherit;
+}
+.settings-card > .subhead:first-child,
+.settings-card > div > .subhead:first-child {
+  margin-top: 0;
+}
+.user-settings .security {
+  display: grid;
+  gap: 10px;
+}
+.user-settings .sec-row {
+  border: 1px solid var(--line);
+  padding: 14px 16px;
+}
+.user-settings .checkup {
+  margin: 0;
+}
+
+/* Minha conta */
+.account-card {
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+.account-card-banner {
+  height: 96px;
+}
+.account-card-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 0 18px 14px;
+}
+.account-card-head .avatar {
+  border: 6px solid var(--bg-2);
+  box-sizing: content-box;
+  margin-top: -42px;
+  flex-shrink: 0;
+}
+.account-card-head > div {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 4px;
+}
+.account-card-name {
+  font-size: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-rows {
+  display: grid;
+  margin: 0 12px 12px;
+  border-radius: 12px;
+  background: var(--bg-1);
+  overflow: hidden;
+}
+.account-row {
+  display: grid;
+  grid-template-columns: 150px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  text-align: left;
+  color: inherit;
+  border-bottom: 1px solid var(--line);
+}
+.account-row:last-child {
+  border-bottom: 0;
+}
+.account-row:hover {
+  background: var(--bg-3);
+}
+.account-row-label {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.account-row-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-row-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.pill {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.pill.ok {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+.pill.warn {
+  margin-left: 0;
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  color: var(--warn);
+}
+.checkup-mini {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  cursor: pointer;
+  border-color: var(--warn);
+}
+.checkup-mini > svg:first-child {
+  color: var(--warn);
+}
+.checkup-mini.all-good {
+  border-color: var(--accent);
+}
+.checkup-mini.all-good > svg:first-child {
+  color: var(--accent);
+}
+.checkup-mini > span {
+  display: grid;
+  gap: 2px;
+}
+.checkup-mini:hover {
+  background: var(--bg-3);
+}
+.add-email-prompt p {
+  margin-top: 0;
+}
+.add-email-prompt ul {
+  padding-left: 18px;
+}
+
+@media (max-width: 900px) {
+  .user-settings .settings-nav button span {
+    white-space: nowrap;
+  }
+  /* as abas rolam por baixo, mas param antes do botão de fechar */
+  .user-settings .settings-nav {
+    margin-right: 52px;
+    padding-right: 12px;
+  }
+  .settings-nav-sep {
+    display: none;
+  }
+  .account-row {
+    grid-template-columns: 1fr auto;
+  }
+  .account-row-label {
+    grid-column: 1 / -1;
+  }
+  .account-card-head {
+    flex-wrap: wrap;
+  }
+}

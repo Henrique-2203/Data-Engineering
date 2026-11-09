@@ -107,26 +107,54 @@ try {
   const cfg = await call('/config');
   assert(cfg.turnstileSiteKey && cfg.emailEnabled, 'site sabe do captcha e do e-mail');
 
-  // ---------- cadastro: captcha e senha vazada ----------
-  const noCaptcha = await call('/auth/register', { body: { username: 'ana', password: 'Azul-Forte-Lua-91', acceptTerms: true } });
-  assert(noCaptcha.status === 400 && /robô/.test(noCaptcha.error), `cadastro sem captcha recusado (${noCaptcha.status})`);
-  const robot = await call('/auth/register', { body: { username: 'ana', password: 'Azul-Forte-Lua-91', acceptTerms: true, captcha: 'sou-robo' } });
-  assert(robot.status === 400, 'captcha falso recusado');
-  const pwned = await call('/auth/register', { body: { username: 'ana', password: 'SenhaVazada#2024', acceptTerms: true, captcha: 'humano-ok' } });
-  assert(pwned.status === 400 && /vazamentos/.test(pwned.error), `senha vazada recusada: ${pwned.error}`);
-  step(`cadastro exige captcha; senha vazada recusada ("${pwned.error.slice(0, 70)}…")`);
+  // cadastro em 2 passos: dados → código no e-mail → conta criada
+  async function signup(username, email, password, headers = {}) {
+    const start = await call('/auth/register/start', { body: { email, username, password, acceptTerms: true, captcha: 'humano-ok' }, headers });
+    assert(start.pendingId, `cadastro iniciado (${username}): ${JSON.stringify(start).slice(0, 200)}`);
+    const code = lastMail(email.toLowerCase(), 'criar a conta').code;
+    return call('/auth/register/confirm', { body: { pendingId: start.pendingId, code }, headers });
+  }
 
+  // ---------- cadastro: captcha, e-mail confirmado e senha vazada ----------
+  const direct = await call('/auth/register', { body: { username: 'ana', password: 'Azul-Forte-Lua-91', acceptTerms: true, captcha: 'humano-ok' } });
+  assert(direct.status === 400, 'com e-mail ligado, não dá para criar conta sem confirmar o e-mail');
+  const base = { email: 'ana.antiga@exemplo.com', username: 'ana', password: 'Azul-Forte-Lua-91', acceptTerms: true };
+  const noCaptcha = await call('/auth/register/start', { body: base });
+  assert(noCaptcha.status === 400 && /robô/.test(noCaptcha.error), `cadastro sem captcha recusado (${noCaptcha.status})`);
+  assert((await call('/auth/register/start', { body: { ...base, captcha: 'sou-robo' } })).status === 400, 'captcha falso recusado');
+  const pwned = await call('/auth/register/start', { body: { ...base, password: 'SenhaVazada#2024', captcha: 'humano-ok' } });
+  assert(pwned.status === 400 && /vazamentos/.test(pwned.error), `senha vazada recusada: ${pwned.error}`);
+  const noTerms = await call('/auth/register/start', { body: { ...base, acceptTerms: false, captcha: 'humano-ok' } });
+  assert(noTerms.status === 400, 'precisa aceitar os termos');
+  assert((await call('/auth/username-available?u=ana')).available === true, 'usuário livre');
+  assert((await call('/auth/username-available?u=A%20na')).available === false, 'usuário inválido');
+  step(`cadastro exige captcha, termos e e-mail; senha vazada recusada ("${pwned.error.slice(0, 60)}…")`);
+
+  const started = await call('/auth/register/start', { body: { ...base, captcha: 'humano-ok' } });
+  assert(started.pendingId && /^an\*+@exemplo\.com$|^an\*+\.antiga@exemplo\.com$|\*/.test(started.sentTo), `código enviado para ${started.sentTo}`);
+  assert((await call('/bootstrap', {})).status === 401, 'a conta ainda não existe antes do código');
+  const signupMail = lastMail('ana.antiga@exemplo.com', 'criar a conta');
+  assert(/^\d{6}$/.test(signupMail.code) && !/https?:\/\//.test(signupMail.text), 'código de 6 dígitos, sem links');
+  const tooSoon = await call('/auth/register/resend', { body: { pendingId: started.pendingId } });
+  assert(tooSoon.status === 429, 'reenviar só depois de alguns segundos');
+  assert((await call('/auth/register/confirm', { body: { pendingId: started.pendingId, code: '000000' } })).status === 400, 'código errado');
   // pelo navegador (com Origin), o token NÃO vem no corpo: só no cookie protegido
-  const browserReg = await call('/auth/register', {
-    body: { username: 'ana', password: 'Azul-Forte-Lua-91', acceptTerms: true, captcha: 'humano-ok' },
+  const browserReg = await call('/auth/register/confirm', {
+    body: { pendingId: started.pendingId, code: signupMail.code },
     headers: { origin: BASE, 'user-agent': 'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 Safari/537.36' },
   });
   assert(browserReg.status === 200 && !browserReg.token, `site não recebe o token no corpo: ${JSON.stringify(browserReg).slice(0, 300)}`);
+  assert((await call('/auth/register/confirm', { body: { pendingId: started.pendingId, code: signupMail.code } })).status === 410, 'código não vale duas vezes');
+  assert((await call('/auth/username-available?u=ana')).available === false, 'agora o usuário está em uso');
+  const dupe = await call('/auth/register/start', { body: { ...base, username: 'ana2', captcha: 'humano-ok' } });
+  assert(dupe.status === 409 && /já tem uma conta/.test(dupe.error), 'um e-mail, uma conta');
+  step('cadastro em 2 passos: a conta só nasce com o código do e-mail (que vale uma vez); um e-mail por conta');
+
   const sc = browserReg.setCookie.join('; ');
   assert(/resenha_sid=/.test(sc) && /HttpOnly/i.test(sc) && /SameSite=Lax/i.test(sc), `cookie protegido: ${sc}`);
   const cookie = browserReg.setCookie[0].split(';')[0];
   const boot = await call('/bootstrap', { cookie });
-  assert(boot.status === 200 && boot.user.username === 'ana', 'cookie sozinho autentica');
+  assert(boot.status === 200 && boot.user.username === 'ana' && boot.account.emailVerified, 'cookie sozinho autentica; e-mail já confirmado');
   step('sessão em cookie HttpOnly + SameSite=Lax; o token nunca chega ao JavaScript do site');
 
   // ---------- CSRF ----------
@@ -156,7 +184,12 @@ try {
   assert(ana.status === 200 && ana.token, 'com captcha entra');
   step('login: depois de 3 senhas erradas, pede o captcha invisível');
 
-  // ---------- e-mail confirmado ----------
+  // login com o e-mail
+  const byEmail = await call('/auth/login', { body: { username: 'Ana.Antiga@Exemplo.com', password: 'Azul-Forte-Lua-91', captcha: 'humano-ok' }, headers: { 'user-agent': UA1 } });
+  assert(byEmail.status === 200 && byEmail.user.username === 'ana', 'entra com o e-mail no lugar do usuário');
+  step('login com usuário OU e-mail');
+
+  // ---------- trocar o e-mail ----------
   const wrongPw = await call('/me/email', { body: { email: 'ana@exemplo.com', password: 'errada' }, token: ana.token });
   assert(wrongPw.status === 403, 'adicionar e-mail pede a senha');
   const sent = await call('/me/email', { body: { email: 'Ana@Exemplo.com', password: 'Azul-Forte-Lua-91' }, token: ana.token });
@@ -169,7 +202,8 @@ try {
   assert(ok.email === 'ana@exemplo.com', 'e-mail confirmado');
   const sec = await call('/me/security', { token: ana.token });
   assert(sec.emailVerified && sec.checkup.find((c) => c.key === 'email').ok, 'checkup marca o e-mail');
-  step('e-mail confirmado com código de 6 dígitos (pede a senha; e-mail sem links)');
+  assert(lastMail('ana.antiga@exemplo.com', 'foi trocado'), 'o e-mail antigo é avisado da troca');
+  step('trocar o e-mail: código de 6 dígitos, pede a senha, avisa o e-mail antigo');
 
   // ---------- alertas de novo aparelho ----------
   const before = mails().length;
@@ -181,7 +215,7 @@ try {
   step(`alerta por e-mail de acesso em aparelho novo ("${alert.subject}": Safari no iPhone)`);
 
   // ---------- senha que vazou depois ----------
-  const bia = await call('/auth/register', { body: { username: 'bia', password: 'Roxo-Forte-Sol-77', acceptTerms: true, captcha: 'humano-ok' } });
+  const bia = await signup('bia', 'bia.cadastro@exemplo.com', 'Roxo-Forte-Sol-77');
   leaked.add('Roxo-Forte-Sol-77');
   // (o mesmo IP errou 3 vezes antes: o captcha continua sendo pedido para quem entra dali)
   const biaLogin = await call('/auth/login', { body: { username: 'bia', password: 'Roxo-Forte-Sol-77', captcha: 'humano-ok' } });
@@ -222,9 +256,7 @@ try {
   step('esqueci a senha por e-mail: captcha, não revela quem tem conta, pede o 2FA, derruba os outros aparelhos e avisa');
 
   // tentativas no código: 5 erros e o código morre
-  const caio = await call('/auth/register', { body: { username: 'caio', password: 'Preto-Forte-Lago-31', acceptTerms: true, captcha: 'humano-ok' } });
-  await call('/me/email', { body: { email: 'caio@exemplo.com', password: 'Preto-Forte-Lago-31' }, token: caio.token });
-  await call('/me/email/verify', { body: { code: lastMail('caio@exemplo.com', 'Confirme').code }, token: caio.token });
+  await signup('caio', 'caio@exemplo.com', 'Preto-Forte-Lago-31');
   await call('/auth/forgot', { body: { login: 'caio', captcha: 'humano-ok' } });
   const fresh = lastMail('caio@exemplo.com', 'senha nova');
   for (let i = 0; i < 5; i++) {
@@ -240,8 +272,11 @@ try {
   const types = events.events.map((e) => e.type);
   for (const t of ['register', 'login', 'login_new_device', 'email_verified', '2fa_enabled', 'password_reset']) assert(types.includes(t), `histórico tem ${t}`);
   const other = await call('/me/security/events', { token: biaLogin.token });
-  assert(!other.events.some((e) => e.type === 'email_verified'), 'cada um vê só o próprio histórico');
+  assert(!other.events.some((e) => e.type === '2fa_enabled'), 'cada um vê só o próprio histórico');
   step(`histórico de segurança: ${events.events.length} eventos (${[...new Set(types)].join(', ')})`);
+
+  // a Bia vira uma "conta antiga" sem e-mail (para o convite de adicionar e-mail aparecer)
+  await call('/me/email/remove', { body: { password: 'Laranja-Nova-Mar-55' }, token: biaLogin.token });
 
   // ---------- no navegador ----------
   browser = await chromium.launch();
@@ -272,11 +307,9 @@ try {
   await page.getByRole('button', { name: 'Configurações' }).first().waitFor({ timeout: 15000 });
   step('quem estava logado na versão antiga migra sozinho para o cookie protegido (e continua logado)');
 
-  // checkup + adicionar e-mail pela tela
-  await page.getByRole('button', { name: 'Configurações' }).first().click();
-  await page.getByText('Checkup de segurança').waitFor();
-  await page.getByText('Checkup de segurança').scrollIntoViewIfNeeded();
-  await page.screenshot({ path: path.join(shots, 'checkup-seguranca.png') });
+  // conta antiga sem e-mail: o convite aparece e leva direto para adicionar
+  await page.getByRole('dialog', { name: 'Proteja sua conta com um e-mail' }).or(page.getByText('Proteja sua conta com um e-mail')).first().waitFor({ timeout: 10000 });
+  await page.screenshot({ path: path.join(shots, 'convite-adicionar-email.png') });
   await page.getByRole('button', { name: 'Adicionar e-mail' }).click();
   await page.getByLabel('E-mail', { exact: true }).fill('bia@exemplo.com');
   await page.getByLabel('Sua senha do Resenha').fill('Laranja-Nova-Mar-55');
@@ -286,11 +319,34 @@ try {
   await page.getByLabel('Código', { exact: true }).fill(lastMail('bia@exemplo.com', 'Confirme').code);
   await page.getByRole('button', { name: 'Confirmar e-mail' }).click();
   await page.getByText(/✅ bia@exemplo.com/).waitFor();
-  await page.getByRole('button', { name: 'Ver histórico' }).click();
-  await page.getByText('E-mail confirmado', { exact: true }).waitFor();
-  await page.getByText('Histórico de segurança').scrollIntoViewIfNeeded();
+  step('conta antiga sem e-mail: convite → Configurações → Segurança já com o formulário de e-mail aberto');
+
+  // configurações novas: categorias
+  const settings = page.getByRole('dialog', { name: 'Configurações' });
+  const nav = (name) => settings.getByRole('navigation', { name: 'Categorias' }).getByRole('button', { name, exact: true });
+  await nav('Minha conta').click();
+  await settings.getByText('bia@exemplo.com').waitFor();
+  await settings.getByText(/Checkup de segurança: \d de \d/).waitFor();
+  await page.screenshot({ path: path.join(shots, 'config-minha-conta.png') });
+  await nav('Segurança').click();
+  await settings.getByText('Checkup de segurança', { exact: true }).waitFor();
+  await page.screenshot({ path: path.join(shots, 'checkup-seguranca.png') });
+  await settings.getByRole('button', { name: 'Ver histórico' }).click();
+  await settings.getByText('E-mail confirmado', { exact: true }).first().waitFor();
+  await settings.getByText('Histórico de segurança').scrollIntoViewIfNeeded();
   await page.screenshot({ path: path.join(shots, 'historico-seguranca.png') });
-  step('tela: checkup de segurança, e-mail confirmado pelo site e histórico visível');
+  await nav('Privacidade e dados').click();
+  await settings.getByText('Meus arquivos').waitFor();
+  await settings.getByRole('button', { name: /Baixar meus dados/ }).waitFor();
+  for (const name of ['Perfil', 'Voz e vídeo', 'Notificações e sons', 'Atalhos e app']) {
+    await nav(name).click();
+    await settings.getByRole('heading', { level: 2 }).waitFor();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await nav('Minha conta').click();
+  await page.screenshot({ path: path.join(shots, 'config-celular.png') });
+  await page.setViewportSize({ width: 1366, height: 900 });
+  step('configurações em tela cheia com 7 categorias (Minha conta, Perfil, Segurança, Privacidade e dados, Voz, Notificações, Atalhos) também no celular');
 
   // sair e "esqueci minha senha" pela tela
   await page.keyboard.press('Escape');
@@ -311,10 +367,39 @@ try {
   await page.getByRole('button', { name: 'Configurações' }).first().waitFor({ timeout: 15000 });
   step('tela: "Esqueci minha senha" por e-mail → código → senha nova → entra');
 
+  // cadastro novo pela tela (espera o limite anti-abuso de 10 cadastros por minuto por IP, gasto pelos testes acima)
+  await sleep(61_000);
+  await page.evaluate(() => fetch('/api/auth/logout', { method: 'POST' }));
+  await page.evaluate(() => localStorage.removeItem('resenha.session'));
+  await page.goto(`${BASE}/entrar`);
+  await page.getByRole('tab', { name: 'Criar conta' }).click();
+  await page.getByLabel('E-mail').fill('dani@exemplo.com');
+  await page.getByLabel('Nome de usuário').fill('bia');
+  await page.getByText('Esse nome de usuário já está em uso.').waitFor();
+  await page.getByLabel('Nome de usuário').fill('dani');
+  await page.getByText('@dani está disponível.').waitFor();
+  await page.getByLabel('Nome de exibição').fill('Dani');
+  await page.getByLabel('Senha', { exact: true }).fill('Amarelo-Forte-Dani-6');
+  await page.getByRole('checkbox').check();
+  await page.screenshot({ path: path.join(shots, 'cadastro-novo.png') });
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  const nameErr = await page.getByText('A senha não pode conter o seu nome de usuário.').waitFor({ timeout: 8000 }).then(() => true, () => false);
+  assert(nameErr, `regras da senha valem no cadastro (na tela: ${await page.locator('.auth-card .error').textContent().catch(() => '')})`);
+  await page.getByLabel('Senha', { exact: true }).fill('Amarelo-Forte-Rua-6');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await page.getByRole('heading', { name: 'Confirme seu e-mail' }).waitFor();
+  await page.screenshot({ path: path.join(shots, 'cadastro-codigo.png') });
+  await page.getByLabel('Código').fill(lastMail('dani@exemplo.com', 'criar a conta').code);
+  await page.getByRole('button', { name: 'Confirmar e criar conta' }).click();
+  await page.getByRole('button', { name: 'Configurações' }).first().waitFor({ timeout: 15000 });
+  assert(!(await page.getByText('Proteja sua conta com um e-mail').isVisible().catch(() => false)), 'conta nova já tem e-mail: sem convite');
+  step('tela: cadastro novo (usuário disponível ao vivo) → código do e-mail → conta criada já com e-mail confirmado');
+
   console.log('\nTUDO CERTO (conta segura)');
 } catch (err) {
   console.error(err);
   process.exitCode = 1;
+  for (const c of browser?.contexts() ?? []) for (const p of c.pages()) await p.screenshot({ path: path.join(shots, 'conta-falha.png') }).catch(() => {});
 } finally {
   await browser?.close();
   server.kill();

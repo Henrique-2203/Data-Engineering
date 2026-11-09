@@ -17,8 +17,22 @@ import {
   tokenFromHeaders,
   verifyPassword,
 } from './auth.ts';
-import { alertUser, finishLogin, logEvent, recordLogin, registerAccountRoutes, requireHuman, requireSafePassword, turnstileEnabled, verifyHuman } from './account.ts';
-import { emailEnabled } from './email.ts';
+import {
+  alertUser,
+  emailSchema,
+  finishLogin,
+  logEvent,
+  recordLogin,
+  registerAccountRoutes,
+  requireHuman,
+  requireSafePassword,
+  sendSignupCode,
+  signupCodeHash,
+  sixDigits,
+  turnstileEnabled,
+  verifyHuman,
+} from './account.ts';
+import { emailEnabled, maskEmail } from './email.ts';
 import type { Channel, Guild, Member, Message, PublicUser } from '../../shared/types.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { dmMemberIds, registerSocialRoutes } from './social.ts';
@@ -160,6 +174,8 @@ export function createRoutes(db: Db, rt: Realtime) {
         }),
         req.body,
       );
+      // com e-mail configurado, o cadastro é em 2 passos (e-mail confirmado): /auth/register/start
+      if (emailEnabled()) throw new HttpError(400, 'Atualize a página: o cadastro agora confirma o seu e-mail.');
       await requireHuman(req, body.captcha);
       const checked = await requireSafePassword(body.password, body.username);
       if (config.registrationCode && body.registrationCode?.trim() !== config.registrationCode) {
@@ -185,12 +201,123 @@ export function createRoutes(db: Db, rt: Realtime) {
     }),
   );
 
+  // ---------- cadastro com e-mail confirmado (2 passos) ----------
+
+  r.get(
+    '/auth/username-available',
+    wrap(async (req) => {
+      limit(`uname:${req.ip}`, 60, 60_000);
+      const parsed = usernameSchema.safeParse(String(req.query.u ?? ''));
+      if (!parsed.success) return { available: false, reason: parsed.error.issues[0]?.message };
+      const [taken] = await db.query('select 1 from users where username = $1', [parsed.data]);
+      return taken ? { available: false, reason: 'Esse nome de usuário já está em uso.' } : { available: true };
+    }),
+  );
+
+  r.post(
+    '/auth/register/start',
+    wrap(async (req) => {
+      rateLimit(`reg:${req.ip}`, 10);
+      if (!emailEnabled()) throw new HttpError(400, 'Cadastro por e-mail indisponível.');
+      const body = parse(
+        z.object({
+          email: emailSchema,
+          username: usernameSchema,
+          password: z.string().max(200),
+          displayName: displayNameSchema.optional(),
+          registrationCode: z.string().optional(),
+          acceptTerms: z.literal(true, { message: 'Aceite os Termos de uso e a Política de Privacidade para continuar.' }),
+          captcha: z.string().optional(),
+        }),
+        req.body,
+      );
+      await requireHuman(req, body.captcha);
+      if (config.registrationCode && body.registrationCode?.trim() !== config.registrationCode) {
+        throw new HttpError(403, 'Código de convite para cadastro inválido.');
+      }
+      if ((await db.query('select 1 from users where username = $1', [body.username])).length) throw new HttpError(409, 'Esse nome de usuário já está em uso.');
+      if ((await db.query('select 1 from users where lower(email) = $1', [body.email])).length) {
+        throw new HttpError(409, 'Este e-mail já tem uma conta no Resenha. Entre com ele ou use "Esqueci minha senha".');
+      }
+      limit(`reg-mail:${body.email}`, 5, 60 * 60_000, 'Muitos códigos para este e-mail. Tente de novo em uma hora.');
+      const checked = await requireSafePassword(body.password, body.username);
+      const id = randomUUID();
+      const code = sixDigits();
+      await db.query('delete from pending_signups where email = $1', [body.email]);
+      await db.query(
+        `insert into pending_signups (id, email, username, display_name, password_hash, password_checked, terms, code_hash, expires_at)
+         values ($1, $2, $3, $4, $5, $6, true, $7, now() + interval '15 minutes')`,
+        [id, body.email, body.username, body.displayName || body.username, await hashPassword(body.password), checked, signupCodeHash(id, code)],
+      );
+      if (!(await sendSignupCode(body.email, body.username, code))) {
+        await db.query('delete from pending_signups where id = $1', [id]);
+        throw new HttpError(502, 'Não conseguimos enviar o e-mail agora. Confira o endereço e tente de novo em alguns minutos.');
+      }
+      return { pendingId: id, sentTo: maskEmail(body.email) };
+    }),
+  );
+
+  r.post(
+    '/auth/register/resend',
+    wrap(async (req) => {
+      rateLimit(`reg:${req.ip}`, 10);
+      const { pendingId } = parse(z.object({ pendingId: z.string().max(64) }), req.body);
+      const [p] = await db.query<{ email: string; username: string; sends: number; wait: number }>(
+        `select email, username, sends, greatest(0, 45 - extract(epoch from now() - last_sent_at))::int as wait
+         from pending_signups where id = $1 and expires_at > now()`,
+        [pendingId],
+      );
+      if (!p) throw new HttpError(410, 'Esse cadastro expirou. Preencha de novo.');
+      if (p.wait > 0) throw new HttpError(429, `Espere ${p.wait} segundos para pedir outro código.`);
+      if (p.sends >= 5) throw new HttpError(429, 'Muitos códigos pedidos. Confira o e-mail digitado e comece de novo.');
+      const code = sixDigits();
+      await db.query(
+        `update pending_signups set code_hash = $2, attempts = 0, sends = sends + 1, last_sent_at = now(), expires_at = now() + interval '15 minutes' where id = $1`,
+        [pendingId, signupCodeHash(pendingId, code)],
+      );
+      await sendSignupCode(p.email, p.username, code);
+      return { sentTo: maskEmail(p.email) };
+    }),
+  );
+
+  r.post(
+    '/auth/register/confirm',
+    wrap(async (req, res) => {
+      limit(`reg-confirm:${req.ip}`, 30, 15 * 60_000);
+      const body = parse(z.object({ pendingId: z.string().max(64), code: z.string().trim().max(12) }), req.body);
+      const [p] = await db.query<{ email: string; username: string; display_name: string; password_hash: string; password_checked: boolean; attempts: number; code_hash: string }>(
+        `select email, username, display_name, password_hash, password_checked, attempts, code_hash from pending_signups where id = $1 and expires_at > now()`,
+        [body.pendingId],
+      );
+      if (!p) throw new HttpError(410, 'Esse código expirou. Peça um novo ou preencha de novo.');
+      if (p.attempts >= 5) throw new HttpError(429, 'Muitos códigos errados. Peça um novo código.');
+      if (p.code_hash !== signupCodeHash(body.pendingId, body.code)) {
+        await db.query('update pending_signups set attempts = attempts + 1 where id = $1', [body.pendingId]);
+        throw new HttpError(400, 'Código incorreto. Confira o e-mail (e a pasta de spam).');
+      }
+      if ((await db.query('select 1 from users where username = $1', [p.username])).length) throw new HttpError(409, 'Esse nome de usuário foi pego enquanto isso. Escolha outro.');
+      if ((await db.query('select 1 from users where lower(email) = $1', [p.email])).length) throw new HttpError(409, 'Este e-mail já tem uma conta no Resenha.');
+      const user: PublicUser = { id: randomUUID(), username: p.username, displayName: p.display_name, avatarColor: randomColor() };
+      await db.query(
+        `insert into users (id, username, display_name, password_hash, avatar_color, terms_accepted_at, password_checked_at, email, email_verified_at)
+         values ($1, $2, $3, $4, $5, now(), case when $6 then now() else null end, $7, now())`,
+        [user.id, user.username, user.displayName, p.password_hash, user.avatarColor, p.password_checked, p.email],
+      );
+      await db.query('delete from pending_signups where id = $1', [body.pendingId]);
+      bump('signup');
+      const session = await issueSession(db, req, res, user.id);
+      await recordLogin(db, req, user.id, 'register');
+      await logEvent(db, user.id, 'email_verified', req, maskEmail(p.email));
+      return { ...session, user };
+    }),
+  );
+
   r.post(
     '/auth/login',
     wrap(async (req, res) => {
       rateLimit(`login:${req.ip}`);
       const body = parse(
-        z.object({ username: z.string().trim().toLowerCase().max(64), password: z.string().max(200), code: z.string().max(20).optional(), captcha: z.string().optional() }),
+        z.object({ username: z.string().trim().toLowerCase().max(254), password: z.string().max(200), code: z.string().max(20).optional(), captcha: z.string().optional() }),
         req.body,
       );
       // força bruta numa conta específica (de vários IPs): trava a conta por 15 min após 8 erros
@@ -214,8 +341,11 @@ export function createRoutes(db: Db, rt: Realtime) {
         return res.status(401).json({ error: message, needCaptcha: suspicious(), ...extra });
       };
       const [row] = await db.query<PublicUser & { password_hash: string; suspended_at: string | null; suspended_reason: string | null }>(
-        `select ${USER_COLUMNS}, u.password_hash, u.suspended_at, u.suspended_reason from users u where u.username = $1`,
-        [body.username],
+        // entra com o usuário OU com o e-mail confirmado
+        `select ${USER_COLUMNS}, u.password_hash, u.suspended_at, u.suspended_reason from users u
+         where u.username = $1 or (lower(u.email) = $1 and u.email_verified_at is not null)
+         order by (u.username = $1) desc limit 1`,
+        [body.username.replace(/^@/, '')],
       );
       if (!row || !(await verifyPassword(body.password, row.password_hash))) return failed(row?.id ?? null, 'Usuário ou senha incorretos.');
       if (row.suspended_at) {
@@ -271,7 +401,16 @@ export function createRoutes(db: Db, rt: Realtime) {
   r.get(
     '/bootstrap',
     auth,
-    wrap(async (req) => ({ user: req.user, guilds: await loadGuilds(db, req.user!.id), isPlatformAdmin: isPlatformAdmin(req.user!.username) })),
+    wrap(async (req) => {
+      const [acc] = await db.query<{ emailVerified: boolean }>('select email_verified_at is not null as "emailVerified" from users where id = $1', [req.user!.id]);
+      return {
+        user: req.user,
+        guilds: await loadGuilds(db, req.user!.id),
+        isPlatformAdmin: isPlatformAdmin(req.user!.username),
+        // contas antigas sem e-mail recebem o convite para adicionar um (recuperação e alertas)
+        account: { emailVerified: !!acc?.emailVerified, emailEnabled: emailEnabled() },
+      };
+    }),
   );
 
   registerSocialRoutes(r, db, rt, auth);

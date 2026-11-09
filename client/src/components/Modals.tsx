@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import {
   closeModal,
   findChannel,
+  openModal,
   patchGuild,
   selectChannel,
   selectGuild,
@@ -27,8 +28,7 @@ import { Perm, useCan } from '../lib/perms';
 import { refreshGuild } from '../lib/socket';
 import { DESKTOP_DOWNLOAD_URL, desktop, isDesktop, type DesktopSettings } from '../lib/desktop';
 import { Avatar } from './Avatar';
-import { SecuritySettings } from './SecuritySettings';
-import { MyFiles } from './MyFiles';
+import { UserSettings } from './UserSettings';
 import { AdminReports, ReportModal } from './Reports';
 
 export function Modals({ onLogout }: { onLogout(): void }) {
@@ -59,7 +59,9 @@ export function Modals({ onLogout }: { onLogout(): void }) {
     case 'channelSettings':
       return <ChannelSettings channelId={modal.channelId} />;
     case 'userSettings':
-      return <UserSettings onLogout={onLogout} />;
+      return <UserSettings onLogout={onLogout} initialSection={modal.section} securityPanel={modal.panel} />;
+    case 'addEmail':
+      return <AddEmailPrompt />;
     case 'screenShare':
       return <ScreenShare />;
     case 'image':
@@ -81,6 +83,40 @@ export function Modals({ onLogout }: { onLogout(): void }) {
     case 'adminReports':
       return <AdminReports />;
   }
+}
+
+/** Contas antigas sem e-mail: convite (no máximo 1 vez por dia) para adicionar um. */
+function AddEmailPrompt() {
+  const later = () => {
+    try {
+      localStorage.setItem('resenha.addEmailAsked', String(Date.now()));
+    } catch {
+      /* sem armazenamento local */
+    }
+    closeModal();
+  };
+  return (
+    <Modal title="Proteja sua conta com um e-mail">
+      <div className="add-email-prompt">
+        <p>
+          Agora o Resenha usa e-mail para <strong>recuperar a conta</strong> se você esquecer a senha e para <strong>avisar</strong> quando
+          alguém entrar de um aparelho novo.
+        </p>
+        <ul className="muted small">
+          <li>Leva 1 minuto: você recebe um código de 6 dígitos.</li>
+          <li>Ninguém vê o seu e-mail, e nunca mandamos propaganda.</li>
+        </ul>
+        <div className="modal-actions">
+          <button className="btn ghost" onClick={later}>
+            Depois
+          </button>
+          <button className="btn primary" onClick={() => openModal({ kind: 'userSettings', section: 'security', panel: 'email' })}>
+            Adicionar e-mail
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
 }
 
 function Lightbox({ src, name }: { src: string; name: string }) {
@@ -511,94 +547,7 @@ function CategoryModal({ guildId, categoryId }: { guildId: string; categoryId?: 
 
 const COLORS = ['#f97316', '#ef4444', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
 
-function UserSettings({ onLogout }: { onLogout(): void }) {
-  const me = useApp((s) => s.me)!;
-  const settings = useVoice((s) => s.settings);
-  const inCall = useVoice((s) => s.status !== 'idle');
-  const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
-
-  useEffect(() => {
-    navigator.mediaDevices
-      ?.enumerateDevices()
-      .then((d) => setMics(d.filter((x) => x.kind === 'audioinput' && x.deviceId)))
-      .catch(() => {});
-  }, []);
-
-  function setMicSetting(patch: Partial<typeof settings>) {
-    updateSettings(patch);
-    if (inCall) void voice.restartMic();
-  }
-
-  return (
-    <Modal title="Configurações">
-      <ProfileEditor />
-
-      <h3 className="subhead">Voz</h3>
-      <div className="form">
-        {mics.length > 0 && (
-          <label>
-            Microfone
-            <select value={settings.micDeviceId ?? ''} onChange={(e) => setMicSetting({ micDeviceId: e.target.value || null })}>
-              <option value="">Padrão do sistema</option>
-              {mics.map((m, i) => (
-                <option key={m.deviceId} value={m.deviceId}>
-                  {m.label || `Microfone ${i + 1}`}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <label className="check">
-          <input type="checkbox" checked={settings.noiseSuppression} onChange={(e) => setMicSetting({ noiseSuppression: e.target.checked })} />
-          Supressão de ruído
-        </label>
-        <InputModeSettings />
-      </div>
-
-      <SoundSettings />
-
-      <h3 className="subhead">Atalhos</h3>
-      <ul className="shortcut-list">
-        <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>M</kbd> <span>Silenciar / ativar microfone</span></li>
-        <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> <span>Desativar / ativar áudio</span></li>
-        {settings.inputMode === 'ptt' && (
-          <li><kbd>{keyLabel(settings.pttKey)}</kbd> <span>Segure para falar</span></li>
-        )}
-      </ul>
-      <p className="muted small">
-        {isDesktop
-          ? '✅ No app, os atalhos e o push-to-talk funcionam mesmo com o jogo em primeiro plano.'
-          : 'No site, os atalhos funcionam com a janela do Resenha em foco. Para usar com o jogo em primeiro plano, use a ativação por voz ou o app de desktop.'}
-      </p>
-
-      <DesktopSettingsSection />
-
-      <MyFiles />
-
-      <SecuritySettings
-        onLogout={async () => {
-          await api('/auth/logout', { method: 'POST' }).catch(() => {});
-          closeModal();
-          onLogout();
-        }}
-      />
-
-      <h3 className="subhead">Conta</h3>
-      <button
-        className="btn danger ghost"
-        onClick={async () => {
-          await api('/auth/logout', { method: 'POST' }).catch(() => {});
-          closeModal();
-          onLogout();
-        }}
-      >
-        Sair da conta
-      </button>
-    </Modal>
-  );
-}
-
-function InputModeSettings() {
+export function InputModeSettings() {
   const settings = useVoice((s) => s.settings);
   const inCall = useVoice((s) => s.status !== 'idle');
   const level = useVoice((s) => s.micLevelDb);
@@ -700,7 +649,7 @@ function InputModeSettings() {
 }
 
 /** App de desktop: no app, opções de bandeja/inicialização e atualização; no site, link de download. */
-function DesktopSettingsSection() {
+export function DesktopSettingsSection() {
   const [ds, setDs] = useState<DesktopSettings | null>(null);
   const shareActivity = useVoice((s) => s.settings.shareActivity);
   const [checking, setChecking] = useState(false);
@@ -782,7 +731,7 @@ function DesktopSettingsSection() {
   );
 }
 
-function SoundSettings() {
+export function SoundSettings() {
   const settings = useVoice((s) => s.settings);
   const [permission, setPermission] = useState(notificationsSupported() ? Notification.permission : 'denied');
   return (

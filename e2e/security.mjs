@@ -88,7 +88,7 @@ try {
   const pa = await ctx();
   await pa.getByRole('tab', { name: 'Criar conta' }).click();
   await pa.getByLabel('Usuário').fill('ana');
-  await pa.getByLabel('Senha').fill('Pao-de-Queijo-77');
+  await pa.getByLabel('Senha', { exact: true }).fill('Pao-de-Queijo-77');
   await pa.locator('.strength', { hasText: 'Forte' }).waitFor();
   const disabled = await pa.getByRole('button', { name: 'Criar conta' }).last().isDisabled();
   await pa.getByLabel(/li e aceito os Termos/).check();
@@ -101,10 +101,11 @@ try {
   // ---------- aparelhos conectados: sair dos outros ----------
   const pb = await ctx();
   await pb.getByLabel('Usuário').fill('ana');
-  await pb.getByLabel('Senha').fill('Pao-de-Queijo-77');
+  await pb.getByLabel('Senha', { exact: true }).fill('Pao-de-Queijo-77');
   await pb.getByRole('button', { name: 'Entrar' }).last().click();
   await pb.getByText('Bem-vindo à Resenha!').waitFor({ timeout: 10000 });
   await pa.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await pa.getByRole('navigation', { name: 'Categorias' }).getByRole('button', { name: 'Segurança', exact: true }).click();
   await pa.locator('.sessions li').nth(1).waitFor();
   await pa.locator('.sessions li', { hasText: 'este aparelho' }).waitFor();
   await pa.getByRole('button', { name: 'Sair de todos os outros' }).click();
@@ -149,7 +150,7 @@ try {
   await sleep(wait);
   const pc = await ctx();
   await pc.getByLabel('Usuário').fill('ana');
-  await pc.getByLabel('Senha').fill('Pao-de-Queijo-77');
+  await pc.getByLabel('Senha', { exact: true }).fill('Pao-de-Queijo-77');
   await pc.getByRole('button', { name: 'Entrar' }).last().click();
   await pc.getByLabel('Código de verificação').fill(totp(secret));
   await pc.screenshot({ path: `${shots}/31-login-2fa.png` });

@@ -188,6 +188,11 @@ Sem e-mail configurado, tudo continua funcionando e a recuperação é feita com
 
 ### Conta segura
 
+- **Cadastro com e-mail confirmado** (quando o e-mail está configurado): a pessoa preenche e-mail, usuário, nome e senha,
+  recebe um código de 6 dígitos e a conta só é criada com ele. Um e-mail por conta. O nome de usuário é conferido enquanto se digita.
+- **Login com usuário ou e-mail.** Contas antigas sem e-mail recebem um convite (no máximo 1 vez por dia) para adicionar.
+- Para abrir o cadastro para todo mundo, apague a variável `REGISTRATION_CODE` no Render (ela faz o campo "Código de cadastro" aparecer).
+
 - Login guardado em cookie protegido (HttpOnly, Secure, SameSite=Lax): scripts da página não conseguem lê-lo.
   Quem estava logado na versão antiga é migrado sozinho. Pedidos vindos de outros sites são recusados (CSRF).
 - Senhas que aparecem em vazamentos (Have I Been Pwned, por k-anonimato) são recusadas, e o login avisa se a senha atual vazou.

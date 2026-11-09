@@ -322,6 +322,22 @@ create table if not exists security_events (
   created_at timestamptz not null default now()
 );
 create index if not exists security_events_user_idx on security_events(user_id, created_at desc);
+-- v13: cadastro com e-mail confirmado (a conta só nasce depois do código)
+create table if not exists pending_signups (
+  id text primary key,
+  email text not null,
+  username text not null,
+  display_name text not null,
+  password_hash text not null,
+  password_checked boolean not null default false,
+  terms boolean not null default false,
+  code_hash text not null,
+  attempts integer not null default 0,
+  sends integer not null default 1,
+  last_sent_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
 create table if not exists backups (
   id text primary key,
   started_at timestamptz not null default now(),

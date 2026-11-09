@@ -301,6 +301,7 @@ try {
 
   // Configurações → Meus arquivos
   await page.getByRole('button', { name: /Configurações/ }).first().click();
+  await page.getByRole('navigation', { name: 'Categorias' }).getByRole('button', { name: 'Privacidade e dados', exact: true }).click();
   await page.getByRole('heading', { name: 'Meus arquivos' }).waitFor();
   await page.getByText(/de 3 MB usados/).waitFor();
   await page.getByRole('heading', { name: 'Meus arquivos' }).scrollIntoViewIfNeeded();

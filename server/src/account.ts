@@ -199,7 +199,21 @@ async function useCode(db: Db, userId: string, purpose: 'verify' | 'reset', code
   return row.email;
 }
 
-const emailSchema = z.string().trim().toLowerCase().max(254).email('E-mail inválido.');
+export const emailSchema = z.string().trim().toLowerCase().max(254).email('E-mail inválido.');
+
+/** Código de 6 dígitos (cadastro): guardado só como hash. */
+export const sixDigits = () => String(randomInt(0, 1_000_000)).padStart(6, '0');
+export const signupCodeHash = (pendingId: string, code: string) => sha256(`signup:${pendingId}:${code.replace(/\D/g, '')}`);
+
+export async function sendSignupCode(email: string, username: string, code: string) {
+  return sendEmail({
+    to: email,
+    subject: 'Seu código para criar a conta',
+    lines: [`Falta pouco! Digite o código abaixo no Resenha para criar a conta @${username}. Ele vale por ${CODE_MINUTES} minutos.`],
+    code,
+    warning: 'Não pediu isso? Ignore este e-mail: nenhuma conta é criada sem o código.',
+  });
+}
 
 // ---------- rotas ----------
 
@@ -381,6 +395,7 @@ export function registerAccountRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
   const cleanup = () =>
     Promise.all([
       db.query(`delete from email_codes where expires_at < now() - interval '1 day'`),
+      db.query(`delete from pending_signups where expires_at < now() - interval '1 day'`),
       db.query(`delete from security_events where created_at < now() - interval '180 days'`),
     ]).catch(() => {});
   setTimeout(cleanup, 90_000).unref();

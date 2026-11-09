@@ -59,7 +59,13 @@ export type ModalState =
   | { kind: 'channelSettings'; channelId: string }
   | { kind: 'createCategory'; guildId: string }
   | { kind: 'categorySettings'; guildId: string; categoryId: string }
-  | { kind: 'userSettings' }
+  | {
+      kind: 'userSettings';
+      section?: 'account' | 'profile' | 'security' | 'privacy' | 'voice' | 'notifications' | 'shortcuts';
+      /** abre já um painel (ex.: adicionar e-mail) */
+      panel?: 'email';
+    }
+  | { kind: 'addEmail' }
   | { kind: 'screenShare' }
   | { kind: 'image'; src: string; name: string }
   | { kind: 'profile'; userId: string; guildId?: string | null }

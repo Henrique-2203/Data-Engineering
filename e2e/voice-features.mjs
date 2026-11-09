@@ -161,6 +161,7 @@ try {
   if (!(await sawSpeaking(speaker, 'Ouvinte', 5000))) throw new Error('ativação por voz sensível não transmitiu');
   step('ativação por voz: com sensibilidade alta, transmite');
   await listener.getByRole('button', { name: 'Configurações' }).click();
+  await listener.getByRole('navigation', { name: 'Categorias' }).getByRole('button', { name: 'Voz e vídeo', exact: true }).click();
   await listener.getByLabel('Sensibilidade da ativação por voz').fill('-10');
   await speaker.waitForTimeout(1000);
   if (await sawSpeaking(speaker, 'Ouvinte', 3000)) throw new Error('com sensibilidade baixa o ruído passou');

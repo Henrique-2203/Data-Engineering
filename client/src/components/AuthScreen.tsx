@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { EyeOff, Lock, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Check, Eye, EyeOff, Loader2, Lock, MailCheck, ShieldCheck, X } from 'lucide-react';
 import { ApiError, api } from '../lib/api';
 import { SOURCE_URL } from './LegalPage';
 import { Turnstile } from './Turnstile';
@@ -9,8 +9,11 @@ interface Props {
   onAuthenticated(): Promise<void>;
 }
 
-/** recover = código de recuperação guardado; forgot/reset = código enviado por e-mail */
-type Mode = 'login' | 'register' | 'recover' | 'forgot' | 'reset';
+/**
+ * register → verify: cadastro com e-mail confirmado (a conta só nasce depois do código)
+ * recover = código de recuperação guardado; forgot/reset = código enviado por e-mail
+ */
+type Mode = 'login' | 'register' | 'verify' | 'recover' | 'forgot' | 'reset';
 
 /** Força da senha (só uma dica visual; quem decide é o servidor). */
 export function passwordStrength(pw: string): {
@@ -30,11 +33,11 @@ export function passwordStrength(pw: string): {
   return { score: 3, label: 'Forte' };
 }
 
-export function StrengthMeter({ password }: { password: string }) {
+export function StrengthMeter({ password, id }: { password: string; id?: string }) {
   const { score, label } = passwordStrength(password);
   if (!password) return null;
   return (
-    <div className={`strength s${score}`} aria-live="polite">
+    <div className={`strength s${score}`} aria-live="polite" id={id}>
       <span className="strength-bar">
         <i />
         <i />
@@ -48,8 +51,10 @@ export function StrengthMeter({ password }: { password: string }) {
 export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
   const [mode, setMode] = useState<Mode>(hasInvite ? 'register' : 'login');
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [code, setCode] = useState('');
   const [otp, setOtp] = useState('');
   const [needs2fa, setNeeds2fa] = useState(false);
@@ -67,13 +72,13 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
   /** cada resposta do captcha vale uma vez: muda a chave para gerar outra */
   const [captchaRound, setCaptchaRound] = useState(0);
   const [emailCode, setEmailCode] = useState('');
+  /** cadastro aguardando o código do e-mail */
+  const [pending, setPending] = useState<{ id: string; sentTo: string } | null>(null);
+  const [resendIn, setResendIn] = useState(0);
+  const [nameCheck, setNameCheck] = useState<{ name: string; available: boolean; reason?: string } | null>(null);
 
   useEffect(() => {
-    api<{
-      registrationRequiresCode: boolean;
-      turnstileSiteKey: string | null;
-      emailEnabled: boolean;
-    }>('/config')
+    api<{ registrationRequiresCode: boolean; turnstileSiteKey: string | null; emailEnabled: boolean }>('/config')
       .then((c) => {
         setNeedsCode(c.registrationRequiresCode);
         setSiteKey(c.turnstileSiteKey);
@@ -81,6 +86,26 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
       })
       .catch(() => {});
   }, []);
+
+  // nome de usuário disponível? (confere enquanto a pessoa digita, com uma pequena espera)
+  const cleanName = username.trim().toLowerCase().replace(/^@/, '');
+  useEffect(() => {
+    if (mode !== 'register' || cleanName.length < 3) return setNameCheck(null);
+    const t = setTimeout(() => {
+      void api<{ available: boolean; reason?: string }>(`/auth/username-available?u=${encodeURIComponent(cleanName)}`).then(
+        (r) => setNameCheck({ name: cleanName, ...r }),
+        () => {},
+      );
+    }, 350);
+    return () => clearTimeout(t);
+  }, [cleanName, mode]);
+
+  // contagem para "reenviar código"
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
 
   function switchMode(m: Mode) {
     setMode(m);
@@ -94,34 +119,35 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
 
   const showCaptcha = !!siteKey && (mode === 'register' || mode === 'forgot' || (mode === 'login' && needCaptcha));
 
+  async function finish(res: { codesLeft?: number; passwordLeaked?: boolean }) {
+    if (res.codesLeft !== undefined && res.codesLeft <= 2) {
+      alert(`Senha trocada! Restam ${res.codesLeft} códigos de recuperação. Gere novos em Configurações → Segurança.`);
+    }
+    if (res.passwordLeaked) {
+      alert(
+        '⚠️ Atenção: a senha que você usou apareceu em vazamentos de dados de OUTROS sites.\n\nCriminosos testam essas senhas em todo lugar. Troque agora em Configurações → Segurança (e não repita senhas entre sites).',
+      );
+    }
+    await onAuthenticated();
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      let res: { codesLeft?: number; passwordLeaked?: boolean };
       if (mode === 'forgot') {
-        const r = await api<{ message: string }>('/auth/forgot', {
-          body: { login: username, captcha: captcha || undefined },
-        });
+        const r = await api<{ message: string }>('/auth/forgot', { body: { login: username, captcha: captcha || undefined } });
         setMode('reset');
         setInfo(r.message);
         setBusy(false);
         return;
       }
-      if (mode === 'login') {
-        res = await api('/auth/login', {
+      if (mode === 'register' && emailOn) {
+        const r = await api<{ pendingId: string; sentTo: string }>('/auth/register/start', {
           body: {
-            username,
-            password,
-            captcha: captcha || undefined,
-            ...(needs2fa ? { code: otp } : {}),
-          },
-        });
-      } else if (mode === 'register') {
-        res = await api('/auth/register', {
-          body: {
-            username,
+            email,
+            username: cleanName,
             password,
             displayName: displayName || undefined,
             registrationCode: code || undefined,
@@ -129,29 +155,30 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
             captcha: captcha || undefined,
           },
         });
-      } else if (mode === 'reset') {
-        res = await api('/auth/reset', {
-          body: {
-            login: username,
-            code: emailCode,
-            password,
-            ...(needs2fa ? { totp: otp } : {}),
-          },
-        });
-      } else {
-        res = await api('/auth/recover', {
-          body: { username, code: recoveryCode, password },
-        });
-        if (res.codesLeft !== undefined && res.codesLeft <= 2) {
-          alert(`Senha trocada! Restam ${res.codesLeft} códigos de recuperação. Gere novos em Configurações → Segurança e privacidade.`);
-        }
+        setPending({ id: r.pendingId, sentTo: r.sentTo });
+        setEmailCode('');
+        setResendIn(45);
+        setMode('verify');
+        setBusy(false);
+        return;
       }
-      if (res.passwordLeaked) {
-        alert(
-          '⚠️ Atenção: a senha que você usou apareceu em vazamentos de dados de OUTROS sites.\n\nCriminosos testam essas senhas em todo lugar. Troque agora em Configurações → Segurança e privacidade (e não repita senhas entre sites).',
+      if (mode === 'verify') {
+        return await finish(await api('/auth/register/confirm', { body: { pendingId: pending!.id, code: emailCode } }));
+      }
+      if (mode === 'login') {
+        return await finish(await api('/auth/login', { body: { username, password, captcha: captcha || undefined, ...(needs2fa ? { code: otp } : {}) } }));
+      }
+      if (mode === 'register') {
+        return await finish(
+          await api('/auth/register', {
+            body: { username: cleanName, password, displayName: displayName || undefined, registrationCode: code || undefined, acceptTerms: accept, captcha: captcha || undefined },
+          }),
         );
       }
-      await onAuthenticated();
+      if (mode === 'reset') {
+        return await finish(await api('/auth/reset', { body: { login: username, code: emailCode, password, ...(needs2fa ? { totp: otp } : {}) } }));
+      }
+      await finish(await api('/auth/recover', { body: { username, code: recoveryCode, password } }));
     } catch (err) {
       if (err instanceof ApiError && err.data.needCaptcha) setNeedCaptcha(true);
       if (err instanceof ApiError && err.data.need2fa) {
@@ -165,13 +192,76 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
     }
   }
 
-  const title = mode === 'recover' || mode === 'forgot' || mode === 'reset' ? 'Recuperar a conta' : null;
+  async function resend() {
+    if (!pending || resendIn > 0) return;
+    setError(null);
+    try {
+      const r = await api<{ sentTo: string }>('/auth/register/resend', { body: { pendingId: pending.id } });
+      setInfo(`Enviamos um código novo para ${r.sentTo}.`);
+      setResendIn(45);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  const recovering = mode === 'recover' || mode === 'forgot' || mode === 'reset';
   const subtitle =
     mode === 'recover'
       ? 'Use um dos códigos de recuperação que você guardou para criar uma senha nova.'
       : mode === 'forgot'
-        ? 'Digite seu usuário ou o e-mail confirmado na conta. Vamos enviar um código para o e-mail.'
-        : 'Digite o código que chegou no seu e-mail e escolha uma senha nova.';
+        ? 'Digite seu usuário ou e-mail. Vamos enviar um código para o e-mail da conta.'
+        : mode === 'reset'
+          ? 'Digite o código que chegou no seu e-mail e escolha uma senha nova.'
+          : hasInvite
+            ? 'Você recebeu um convite! Crie sua conta ou entre para aceitar.'
+            : 'Chat, voz e transmissão de tela em alta qualidade com os amigos.';
+
+  const passwordField = (label: string, autoComplete: string) => (
+    <label>
+      {label}
+      <span className="input-with-action">
+        <input
+          type={showPassword ? 'text' : 'password'}
+          aria-label={label}
+          aria-describedby={mode !== 'login' ? 'password-strength' : undefined}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete={autoComplete}
+          required
+          minLength={mode === 'login' ? undefined : 8}
+        />
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label={showPassword ? 'Esconder senha' : 'Mostrar senha'}
+          title={showPassword ? 'Esconder senha' : 'Mostrar senha'}
+          onClick={() => setShowPassword((v) => !v)}
+        >
+          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      </span>
+      {mode !== 'login' && <StrengthMeter password={password} id="password-strength" />}
+    </label>
+  );
+
+  const submitLabel = busy
+    ? 'Aguarde…'
+    : showCaptcha && !captcha
+      ? 'Verificando que você não é um robô…'
+      : mode === 'login'
+        ? needs2fa
+          ? 'Confirmar'
+          : 'Entrar'
+        : mode === 'register'
+          ? emailOn
+            ? 'Continuar'
+            : 'Criar conta'
+          : mode === 'verify'
+            ? 'Confirmar e criar conta'
+            : mode === 'forgot'
+              ? 'Enviar código'
+              : 'Trocar senha e entrar';
+
   return (
     <div className="auth">
       <form className="auth-card" onSubmit={submit}>
@@ -179,123 +269,177 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
           <img src="/icon.svg" alt="" width={48} height={48} />
           <h1>Resenha</h1>
         </div>
-        <p className="muted">
-          {title
-            ? subtitle
-            : hasInvite
-              ? 'Você recebeu um convite! Crie sua conta ou entre para aceitar.'
-              : 'Chat, voz e transmissão de tela em alta qualidade com os amigos.'}
-        </p>
 
-        {!title && (
-          <div className="tabs" role="tablist">
-            <button type="button" role="tab" aria-selected={mode === 'login'} onClick={() => switchMode('login')}>
-              Entrar
-            </button>
-            <button type="button" role="tab" aria-selected={mode === 'register'} onClick={() => switchMode('register')}>
-              Criar conta
-            </button>
-          </div>
-        )}
-
-        {needs2fa && (mode === 'login' || mode === 'reset') ? (
-          <label>
-            Código de verificação
-            <input
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              autoFocus
-              required
-              placeholder="6 dígitos do app autenticador"
-              maxLength={12}
-            />
-            <span className="muted small">Perdeu o celular? Digite um dos seus códigos de recuperação (ex.: ABCD-EFGH).</span>
-          </label>
-        ) : (
+        {mode === 'verify' && pending ? (
           <>
+            <div className="auth-verify">
+              <MailCheck size={40} />
+              <h2>Confirme seu e-mail</h2>
+              <p className="muted">
+                Enviamos um código de 6 dígitos para <strong>{pending.sentTo}</strong>. Ele vale por 15 minutos.
+              </p>
+            </div>
             <label>
-              {mode === 'forgot' || mode === 'reset' ? 'Usuário ou e-mail' : 'Usuário'}
+              Código
               <input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
+                className="code-input"
+                value={emailCode}
+                onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
                 required
-                placeholder={mode === 'forgot' || mode === 'reset' ? 'ex.: joao_silva ou joao@email.com' : 'ex.: joao_silva'}
+                placeholder="000000"
+                maxLength={6}
               />
             </label>
-            {mode === 'reset' && (
+            <p className="muted small">Não chegou? Confira a pasta de spam ou promoções.</p>
+          </>
+        ) : (
+          <>
+            <p className="muted">{subtitle}</p>
+            {!recovering && (
+              <div className="tabs" role="tablist">
+                <button type="button" role="tab" aria-selected={mode === 'login'} onClick={() => switchMode('login')}>
+                  Entrar
+                </button>
+                <button type="button" role="tab" aria-selected={mode === 'register'} onClick={() => switchMode('register')}>
+                  Criar conta
+                </button>
+              </div>
+            )}
+
+            {needs2fa && (mode === 'login' || mode === 'reset') ? (
               <label>
-                Código do e-mail
+                Código de verificação
                 <input
-                  value={emailCode}
-                  onChange={(e) => setEmailCode(e.target.value)}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
                   inputMode="numeric"
                   autoComplete="one-time-code"
+                  autoFocus
                   required
-                  placeholder="6 dígitos"
+                  placeholder="6 dígitos do app autenticador"
                   maxLength={12}
                 />
+                <span className="muted small">Perdeu o celular? Digite um dos seus códigos de recuperação (ex.: ABCD-EFGH).</span>
               </label>
-            )}
-            {mode === 'register' && (
-              <label>
-                Nome de exibição <span className="muted">(opcional)</span>
-                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Como seus amigos te veem" maxLength={32} />
-              </label>
-            )}
-            {mode === 'recover' && (
-              <label>
-                Código de recuperação
-                <input
-                  value={recoveryCode}
-                  onChange={(e) => setRecoveryCode(e.target.value)}
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                  required
-                  placeholder="ex.: ABCD-EFGH"
-                />
-              </label>
-            )}
-            {mode !== 'forgot' && (
-              <label>
-                {mode === 'recover' || mode === 'reset' ? 'Nova senha' : 'Senha'}
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                  required
-                  minLength={mode === 'login' ? undefined : 8}
-                />
-                {mode !== 'login' && <StrengthMeter password={password} />}
-              </label>
-            )}
-            {mode === 'register' && needsCode && (
-              <label>
-                Código de cadastro
-                <input value={code} onChange={(e) => setCode(e.target.value)} required placeholder="Peça para quem criou o site" />
-              </label>
-            )}
-            {mode === 'register' && (
-              <label className="check terms-check">
-                <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} required />
-                <span>
-                  Tenho 13 anos ou mais e li e aceito os{' '}
-                  <a href="/termos" target="_blank" rel="noopener">
-                    Termos de uso
-                  </a>{' '}
-                  e a{' '}
-                  <a href="/privacidade" target="_blank" rel="noopener">
-                    Política de Privacidade
-                  </a>
-                  .
-                </span>
-              </label>
+            ) : mode === 'register' ? (
+              <>
+                {emailOn && (
+                  <label>
+                    E-mail
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                      required
+                      placeholder="voce@email.com"
+                    />
+                    <span className="muted small">Para confirmar que é você e recuperar a conta. Nunca mandamos propaganda.</span>
+                  </label>
+                )}
+                <label>
+                  Nome de usuário
+                  <span className="input-with-action">
+                    <span className="input-prefix">@</span>
+                    <input
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      required
+                      placeholder="joao_silva"
+                      maxLength={24}
+                    />
+                    {nameCheck?.name === cleanName && (
+                      <span className={`name-check ${nameCheck.available ? 'ok' : 'bad'}`} aria-hidden>
+                        {nameCheck.available ? <Check size={16} /> : <X size={16} />}
+                      </span>
+                    )}
+                    {cleanName.length >= 3 && nameCheck?.name !== cleanName && <Loader2 size={16} className="spin name-check" aria-hidden />}
+                  </span>
+                  <span className={`small ${nameCheck?.name === cleanName && !nameCheck.available ? 'error-text' : 'muted'}`} aria-live="polite">
+                    {nameCheck?.name === cleanName && !nameCheck.available
+                      ? nameCheck.reason
+                      : nameCheck?.name === cleanName
+                        ? `@${cleanName} está disponível.`
+                        : 'Letras minúsculas, números, _ ou ponto. É como seus amigos te encontram.'}
+                  </span>
+                </label>
+                <label>
+                  Nome de exibição <span className="muted">(opcional)</span>
+                  <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Como seus amigos te veem" maxLength={32} />
+                </label>
+                {passwordField('Senha', 'new-password')}
+                {needsCode && (
+                  <label>
+                    Código de cadastro
+                    <input value={code} onChange={(e) => setCode(e.target.value)} required placeholder="Peça para quem criou o site" />
+                  </label>
+                )}
+                <label className="check terms-check">
+                  <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} required />
+                  <span>
+                    Tenho 13 anos ou mais e li e aceito os{' '}
+                    <a href="/termos" target="_blank" rel="noopener">
+                      Termos de uso
+                    </a>{' '}
+                    e a{' '}
+                    <a href="/privacidade" target="_blank" rel="noopener">
+                      Política de Privacidade
+                    </a>
+                    .
+                  </span>
+                </label>
+              </>
+            ) : (
+              <>
+                <label>
+                  {mode === 'recover' ? 'Usuário' : 'Usuário ou e-mail'}
+                  <input
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    required
+                    placeholder={mode === 'recover' ? 'ex.: joao_silva' : 'ex.: joao_silva ou joao@email.com'}
+                  />
+                </label>
+                {mode === 'reset' && (
+                  <label>
+                    Código do e-mail
+                    <input
+                      value={emailCode}
+                      onChange={(e) => setEmailCode(e.target.value)}
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      required
+                      placeholder="6 dígitos"
+                      maxLength={12}
+                    />
+                  </label>
+                )}
+                {mode === 'recover' && (
+                  <label>
+                    Código de recuperação
+                    <input
+                      value={recoveryCode}
+                      onChange={(e) => setRecoveryCode(e.target.value)}
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      required
+                      placeholder="ex.: ABCD-EFGH"
+                    />
+                  </label>
+                )}
+                {mode !== 'forgot' && passwordField(mode === 'login' ? 'Senha' : 'Nova senha', mode === 'login' ? 'current-password' : 'new-password')}
+              </>
             )}
           </>
         )}
@@ -303,21 +447,28 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
         {showCaptcha && <Turnstile key={captchaRound} siteKey={siteKey!} onToken={setCaptcha} onError={setError} />}
         {info && <p className="notice">{info}</p>}
         {error && <p className="error">{error}</p>}
-        <button className="btn primary block" disabled={busy || (mode === 'register' && !accept) || (showCaptcha && !captcha)}>
-          {busy
-            ? 'Aguarde…'
-            : showCaptcha && !captcha
-              ? 'Verificando que você não é um robô…'
-              : mode === 'login'
-                ? needs2fa
-                  ? 'Confirmar'
-                  : 'Entrar'
-                : mode === 'register'
-                  ? 'Criar conta'
-                  : mode === 'forgot'
-                    ? 'Enviar código'
-                    : 'Trocar senha e entrar'}
+        <button
+          className="btn primary block"
+          disabled={
+            busy ||
+            (mode === 'register' && (!accept || (nameCheck?.name === cleanName && !nameCheck.available))) ||
+            (mode === 'verify' && emailCode.length !== 6) ||
+            (showCaptcha && !captcha)
+          }
+        >
+          {submitLabel}
         </button>
+
+        {mode === 'verify' && (
+          <div className="auth-links">
+            <button type="button" className="link-btn" disabled={resendIn > 0} onClick={() => void resend()}>
+              {resendIn > 0 ? `Reenviar código em ${resendIn}s` : 'Reenviar código'}
+            </button>
+            <button type="button" className="link-btn" onClick={() => switchMode('register')}>
+              <ArrowLeft size={14} /> Corrigir o e-mail
+            </button>
+          </div>
+        )}
         {mode === 'login' && !needs2fa && (
           <button type="button" className="link-btn auth-forgot" onClick={() => switchMode(emailOn ? 'forgot' : 'recover')}>
             Esqueci minha senha
@@ -333,7 +484,7 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
             Receber um código por e-mail
           </button>
         )}
-        {(title || needs2fa) && (
+        {(recovering || needs2fa) && (
           <button type="button" className="link-btn auth-forgot" onClick={() => switchMode('login')}>
             Voltar para o login
           </button>

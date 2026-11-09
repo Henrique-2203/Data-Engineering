@@ -68,7 +68,7 @@ function MainApp() {
 
   const start = useCallback(async () => {
     const [data, dms, friends] = await Promise.all([
-      api<{ user: PublicUser; guilds: Guild[]; isPlatformAdmin?: boolean }>('/bootstrap'),
+      api<{ user: PublicUser; guilds: Guild[]; isPlatformAdmin?: boolean; account?: { emailVerified: boolean; emailEnabled: boolean } }>('/bootstrap'),
       api<{ dms: DmChannel[] }>('/dms'),
       api<{ friends: Friend[] }>('/friends'),
     ]);
@@ -91,6 +91,16 @@ function MainApp() {
     if (pendingInvite.code) {
       openModal({ kind: 'joinGuild', code: pendingInvite.code });
       pendingInvite.code = null;
+    }
+    // conta antiga sem e-mail: convida para adicionar (no máximo uma vez por dia)
+    else if (data.account?.emailEnabled && !data.account.emailVerified) {
+      let asked = 0;
+      try {
+        asked = Number(localStorage.getItem('resenha.addEmailAsked') ?? 0);
+      } catch {
+        /* sem armazenamento local */
+      }
+      if (Date.now() - asked > 24 * 3600_000) openModal({ kind: 'addEmail' });
     }
   }, []);
 
