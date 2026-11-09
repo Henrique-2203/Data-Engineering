@@ -1,5 +1,6 @@
 import type { Db } from './db.ts';
 import { config } from './config.ts';
+import { r2Configured } from './storage.ts';
 import { HttpError } from './http.ts';
 import {
   Perm,
@@ -147,18 +148,69 @@ export async function loadChannel(db: Db, channelId: string): Promise<ChannelRow
   return c ?? null;
 }
 
-/** Tamanho atual do banco e se cabe mais `extraBytes` dentro do limite configurado. */
+/** Uso do armazenamento inteiro (só a equipe vê; para as pessoas aparecem as cotas delas). */
 export async function storageUsage(db: Db) {
   const [row] = await db.query<{ db: string | number; files: string | number }>(
     `select pg_database_size(current_database()) as db,
        (select coalesce(sum(size), 0) from attachments) + (select coalesce(sum(size), 0) from images) as files`,
   );
-  return { databaseBytes: Number(row.db), filesBytes: Number(row.files), limitBytes: config.maxStorageMb * 1024 * 1024 };
+  const r2 = r2Configured();
+  return {
+    where: r2 ? ('r2' as const) : ('db' as const),
+    databaseBytes: Number(row.db),
+    databaseLimitBytes: config.maxStorageMb * 1024 * 1024,
+    filesBytes: Number(row.files),
+    filesLimitBytes: r2 ? config.storageLimitGb * 1024 ** 3 : config.maxStorageMb * 1024 * 1024,
+  };
 }
 
+const PAUSED = 'Os envios de arquivos estão pausados por alguns instantes para manutenção. Tente de novo mais tarde.';
+
+/** Trava de segurança do armazenamento inteiro (nunca estoura o plano grátis nem gera conta surpresa). */
 export async function requireStorage(db: Db, extraBytes: number) {
   const u = await storageUsage(db);
-  if (u.databaseBytes + extraBytes > u.limitBytes) {
-    throw new HttpError(507, 'O espaço do banco está quase cheio, então novos arquivos estão pausados. Apague imagens antigas ou fale com quem administra o Resenha.');
+  if (u.where === 'db' ? u.databaseBytes + extraBytes > u.databaseLimitBytes : u.filesBytes + extraBytes > u.filesLimitBytes) {
+    console.warn(`[storage] limite atingido (${u.where}): envios pausados`);
+    throw new HttpError(507, PAUSED);
   }
+}
+
+const MB = 1024 * 1024;
+export const fmtMb = (bytes: number) => `${(bytes / MB).toLocaleString('pt-BR', { maximumFractionDigits: bytes < 10 * MB ? 1 : 0 })} MB`;
+
+/** Espaço de cada pessoa: tudo que ela enviou e ainda existe, e quanto enviou nas últimas 24 h. */
+export async function userUsage(db: Db, userId: string) {
+  const [u] = await db.query<{ used: string | number; today: string | number; files: number }>(
+    `select coalesce(sum(size), 0) as used, count(*)::int as files,
+       coalesce(sum(size) filter (where created_at > now() - interval '1 day'), 0) as today
+     from attachments where uploader_id = $1`,
+    [userId],
+  );
+  return { usedBytes: Number(u.used), todayBytes: Number(u.today), files: u.files, quotaBytes: config.userQuotaMb * MB, dailyBytes: config.userDailyMb * MB };
+}
+
+export async function guildUsage(db: Db, guildId: string) {
+  const [g] = await db.query<{ used: string | number; files: number }>(
+    'select coalesce(sum(size), 0) as used, count(*)::int as files from attachments where guild_id = $1',
+    [guildId],
+  );
+  return { usedBytes: Number(g.used), files: g.files, quotaBytes: config.guildQuotaMb * MB };
+}
+
+/** Confere as cotas antes de aceitar um arquivo: da pessoa, do dia, do servidor e a trava geral. */
+export async function requireQuota(db: Db, o: { userId: string; guildId?: string | null; bytes: number }) {
+  const u = await userUsage(db, o.userId);
+  if (u.usedBytes + o.bytes > u.quotaBytes) {
+    throw new HttpError(413, `Seu espaço de arquivos está cheio (${fmtMb(u.usedBytes)} de ${fmtMb(u.quotaBytes)}). Apague arquivos antigos em Configurações → Meus arquivos.`);
+  }
+  if (u.todayBytes + o.bytes > u.dailyBytes) {
+    throw new HttpError(429, `Você já enviou ${fmtMb(u.todayBytes)} hoje (limite de ${fmtMb(u.dailyBytes)} por dia). Tente de novo amanhã.`);
+  }
+  if (o.guildId) {
+    const g = await guildUsage(db, o.guildId);
+    if (g.usedBytes + o.bytes > g.quotaBytes) {
+      throw new HttpError(413, `Este servidor atingiu o espaço de arquivos dele (${fmtMb(g.quotaBytes)}). Quem administra pode apagar arquivos antigos.`);
+    }
+  }
+  await requireStorage(db, o.bytes);
 }

@@ -23,6 +23,19 @@ services:
       # Equipe do Resenha (seu nome de usuário; vários separados por vírgula): recebe as denúncias.
       - key: PLATFORM_ADMINS
         sync: false
+      # Arquivos no Cloudflare R2 (10 GB grátis, sem custo de download). Sem isso, ficam no banco.
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      # Chave dos backups criptografados (uma frase longa). GUARDE UMA CÓPIA fora do Render:
+      # sem ela, nenhum backup pode ser aberto. Sem esta variável, não há backup.
+      - key: BACKUP_KEY
+        sync: false
       # TURN (opcional, ajuda conexões pelo 4G/5G e provedores com CGNAT)
       # Metered: grátis e sem cartão (https://www.metered.ca/stun-turn)
       - key: METERED_TURN_DOMAIN

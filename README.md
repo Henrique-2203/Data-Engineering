@@ -131,6 +131,46 @@ todas as conexões passarão pelo TURN (apague a chave para voltar ao normal).
 Também é possível usar a Cloudflare (`CLOUDFLARE_TURN_KEY_ID` e `CLOUDFLARE_TURN_API_TOKEN`, pede cartão)
 ou qualquer TURN com usuário e senha fixos (`TURN_URLS`, `TURN_USERNAME` e `TURN_CREDENTIAL`).
 
+### 4. Arquivos no Cloudflare R2 (10 GB grátis)
+
+Sem isto, fotos e arquivos ficam no próprio banco (que tem só 0,5 GB no Neon grátis). Com o R2, o banco
+guarda só texto e os arquivos vão para lá: 10 GB grátis por mês e **sem custo de download**. Acima de 10 GB,
+o R2 cobra US$ 0,015 por GB, mas o Resenha trava os envios em 9,5 GB (`STORAGE_LIMIT_GB`), então não há cobrança surpresa.
+
+1. Crie uma conta em <https://dash.cloudflare.com> e abra **R2 Object Storage** (pede um cartão para ativar, mas não cobra dentro do grátis).
+2. **Create bucket** → nome `resenha-arquivos` → localização automática. Deixe o bucket **privado** (não ative acesso público).
+3. Na página do R2, copie o **Account ID** (lado direito).
+4. **Manage R2 API Tokens → Create API token** → permissão **Object Read & Write**, só para o bucket `resenha-arquivos`. Copie o **Access Key ID** e o **Secret Access Key** (o segredo aparece uma vez só).
+5. No Render, em **Environment**, preencha `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID` e `R2_SECRET_ACCESS_KEY` e salve.
+
+Os arquivos que já estavam no banco são levados para o R2 sozinhos, aos poucos. O andamento aparece no
+**Painel da equipe → Sistema**.
+
+### 5. Backups automáticos criptografados
+
+1. Invente uma frase longa (ex.: 6 palavras aleatórias) e **guarde num lugar seguro fora do Render** (gerenciador de senhas, papel guardado).
+2. No Render, crie a variável `BACKUP_KEY` com essa frase.
+
+Todo dia o servidor faz um backup do banco inteiro, criptografa com AES-256-GCM, guarda no R2 (pasta `backups/`),
+baixa de volta e confere se abre. Os últimos 30 dias ficam guardados (`BACKUP_KEEP_DAYS`). O painel
+**Sistema** mostra o último backup e tem o botão **Fazer backup agora**.
+
+Para restaurar (num banco **novo**, nunca por cima do que está no ar): baixe o arquivo `.rsnbk` pelo painel
+da Cloudflare e rode
+
+```bash
+BACKUP_KEY='sua frase' DATABASE_URL='postgres://...banco-novo...' npx tsx server/scripts/restore-backup.ts arquivo.rsnbk
+```
+
+(`--check` só confere se o backup abre, sem restaurar nada.)
+
+### Arquivos e cotas
+
+- Fotos, vídeos, áudios e arquivos (PDF, zip...) em DMs e canais. Até 25 MB por arquivo com o R2 (8 MB sem ele) — `MAX_FILE_MB`.
+- Fotos e vídeos perdem o GPS e outros metadados **no servidor**; programas e scripts (.exe, .bat, .apk...) são recusados pelo conteúdo, mesmo renomeados.
+- Cada arquivo abre só por link assinado que expira (12 a 24 h), entregue a quem está na conversa.
+- Cotas: 500 MB por pessoa (`USER_QUOTA_MB`), 2 GB por servidor (`GUILD_QUOTA_MB`), 300 MB por dia (`USER_DAILY_MB`). Cada pessoa vê o seu espaço em **Configurações → Meus arquivos**.
+
 ## App de desktop (Windows)
 
 O app (`desktop/`, Electron) abre o mesmo Resenha do servidor, então **novidades do site chegam no

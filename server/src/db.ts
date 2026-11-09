@@ -6,6 +6,8 @@ export interface Db {
   query<T = Record<string, any>>(sql: string, params?: unknown[]): Promise<T[]>;
   exec(sql: string): Promise<void>;
   close(): Promise<void>;
+  /** Lê tudo numa "foto" consistente do banco (usado pelo backup). */
+  snapshot<T>(fn: (query: Db['query']) => Promise<T>): Promise<T>;
 }
 
 const SCHEMA = /* sql */ `
@@ -260,6 +262,51 @@ create table if not exists images (
   data bytea not null,
   created_at timestamptz not null default now()
 );
+
+-- v11: arquivos fora do banco (Cloudflare R2) ou na tabela blobs; lixeira de arquivos; cotas; backups
+alter table attachments add column if not exists storage_key text;
+alter table attachments alter column data drop not null;
+alter table attachments add column if not exists kind text not null default 'image';
+alter table attachments add column if not exists guild_id text;
+alter table images add column if not exists storage_key text;
+alter table images alter column data drop not null;
+create index if not exists attachments_uploader_idx on attachments(uploader_id);
+create index if not exists attachments_guild_idx on attachments(guild_id) where guild_id is not null;
+create table if not exists blobs (
+  key text primary key,
+  data bytea not null
+);
+-- quando uma linha com arquivo some (mensagem apagada, conta excluída...), o arquivo vai para a lixeira
+create table if not exists storage_trash (
+  key text primary key,
+  deleted_at timestamptz not null default now()
+);
+create or replace function resenha_trash_file() returns trigger language plpgsql as $$
+begin
+  if old.storage_key is not null then
+    insert into storage_trash (key) values (old.storage_key) on conflict do nothing;
+  end if;
+  return old;
+end $$;
+drop trigger if exists attachments_trash on attachments;
+create trigger attachments_trash after delete on attachments for each row execute function resenha_trash_file();
+drop trigger if exists images_trash on images;
+create trigger images_trash after delete on images for each row execute function resenha_trash_file();
+create table if not exists server_secrets (
+  name text primary key,
+  value text not null
+);
+create table if not exists backups (
+  id text primary key,
+  started_at timestamptz not null default now(),
+  finished_at timestamptz,
+  ok boolean,
+  size bigint,
+  tables integer,
+  rows bigint,
+  verified boolean,
+  error text
+);
 `;
 
 export async function createDb(): Promise<Db> {
@@ -273,6 +320,20 @@ export async function createDb(): Promise<Db> {
         await pool.query(sql);
       },
       close: () => pool.end(),
+      snapshot: async (fn) => {
+        const client = await pool.connect();
+        try {
+          await client.query('begin isolation level repeatable read read only');
+          const out = await fn(async (sql, params) => (await client.query(sql, params as any[])).rows);
+          await client.query('commit');
+          return out;
+        } catch (err) {
+          await client.query('rollback').catch(() => {});
+          throw err;
+        } finally {
+          client.release();
+        }
+      },
     };
     console.log('[db] usando Postgres via DATABASE_URL');
   } else {
@@ -285,6 +346,8 @@ export async function createDb(): Promise<Db> {
         await lite.exec(sql);
       },
       close: () => lite.close(),
+      // o PGlite tem uma conexão só: uma transação longa travaria o app, então lê direto
+      snapshot: (fn) => fn(async (sql, params) => (await lite.query<any>(sql, params as any[])).rows),
     };
     console.log(`[db] usando Postgres embutido (PGlite) em ${config.dataDir}`);
   }

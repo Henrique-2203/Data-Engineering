@@ -18,9 +18,10 @@ import {
 import type { Channel, Guild, Member, Message, PublicUser } from '../../shared/types.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { dmMemberIds, registerSocialRoutes } from './social.ts';
-import { registerAttachmentRoutes } from './attachments.ts';
+import { maxFileBytes, registerAttachmentRoutes, withFileLinks } from './attachments.ts';
+import { registerSystemRoutes } from './backup.ts';
 import { loadGuilds, registerGuildRoutes } from './guilds.ts';
-import { type MemberAccess, canSee, channelAudience, loadChannel, memberAccess, requireNotTimedOut } from './access.ts';
+import { type MemberAccess, canSee, channelAudience, guildUsage, loadChannel, memberAccess, requireNotTimedOut } from './access.ts';
 import { Perm, has } from '../../shared/permissions.ts';
 import { siteVersion } from './version.ts';
 import { registerProfileRoutes } from './profile.ts';
@@ -107,7 +108,7 @@ export function createRoutes(db: Db, rt: Realtime) {
         ) r
       ), '[]'::json) as reactions,
       coalesce((
-        select json_agg(json_build_object('id', a.id, 'name', a.filename, 'mime', a.mime, 'size', a.size,
+        select json_agg(json_build_object('id', a.id, 'name', a.filename, 'mime', a.mime, 'kind', a.kind, 'size', a.size,
           'width', a.width, 'height', a.height) order by a.created_at)
         from attachments a where a.message_id = msg.id
       ), '[]'::json) as attachments
@@ -130,7 +131,12 @@ export function createRoutes(db: Db, rt: Realtime) {
   });
 
   r.get('/config', (_req, res) => {
-    res.json({ registrationRequiresCode: !!config.registrationCode, privacyContact: config.privacyContact });
+    res.json({
+      registrationRequiresCode: !!config.registrationCode,
+      privacyContact: config.privacyContact,
+      maxFileMb: Math.floor(maxFileBytes() / 1024 / 1024),
+      maxImageMb: config.maxUploadMb,
+    });
   });
 
   r.post(
@@ -239,6 +245,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerReportRoutes(r, db, rt, auth);
   registerWaitlistRoutes(r, db, rt, auth);
   registerStatsRoutes(r, db, auth);
+  registerSystemRoutes(r, db, auth);
 
   r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers(), hasTurn: hasTurn() })));
 
@@ -256,7 +263,7 @@ export function createRoutes(db: Db, rt: Realtime) {
          order by msg.created_at desc limit $2`,
         before ? [c.id, limit, before] : [c.id, limit],
       );
-      return { messages: rows.reverse(), hasMore: rows.length === limit };
+      return { messages: await withFileLinks(db, rows.reverse()), hasMore: rows.length === limit };
     }),
   );
 
@@ -272,7 +279,7 @@ export function createRoutes(db: Db, rt: Realtime) {
         z.object({
           content: z.string().trim().max(4000, 'Mensagem muito longa.').default(''),
           replyToId: z.string().optional(),
-          attachmentIds: z.array(z.string()).max(4, 'No máximo 4 imagens por mensagem.').default([]),
+          attachmentIds: z.array(z.string()).max(10, 'No máximo 10 arquivos por mensagem.').default([]),
           stickerId: z.string().optional(),
         }),
         req.body,
@@ -287,11 +294,18 @@ export function createRoutes(db: Db, rt: Realtime) {
         if (!target) throw new HttpError(400, 'A mensagem respondida não existe mais.');
       }
       if (body.attachmentIds.length) {
-        const owned = await db.query(
-          'select id from attachments where id = any($1) and uploader_id = $2 and message_id is null',
+        const owned = await db.query<{ size: number }>(
+          'select size from attachments where id = any($1) and uploader_id = $2 and message_id is null',
           [body.attachmentIds, req.user!.id],
         );
-        if (owned.length !== body.attachmentIds.length) throw new HttpError(400, 'Imagem inválida. Envie de novo.');
+        if (owned.length !== body.attachmentIds.length) throw new HttpError(400, 'Arquivo inválido. Envie de novo.');
+        // o arquivo pode ter sido enviado sem dizer o canal: confere a cota do servidor agora
+        if (c.guildId) {
+          const g = await guildUsage(db, c.guildId);
+          if (g.usedBytes + owned.reduce((a, x) => a + x.size, 0) > g.quotaBytes) {
+            throw new HttpError(413, 'Este servidor atingiu o espaço de arquivos dele. Quem administra pode apagar arquivos antigos.');
+          }
+        }
       }
       // @todos só notifica se a pessoa tem permissão (senão vira texto comum)
       const mentionEveryone =
@@ -302,9 +316,9 @@ export function createRoutes(db: Db, rt: Realtime) {
         [id, c.id, req.user!.id, body.content, body.replyToId ?? null, mentionEveryone, body.stickerId ?? null],
       );
       if (body.attachmentIds.length) {
-        await db.query('update attachments set message_id = $1 where id = any($2)', [id, body.attachmentIds]);
+        await db.query('update attachments set message_id = $1, guild_id = $3 where id = any($2)', [id, body.attachmentIds, c.guildId]);
       }
-      const [message] = await db.query<Message>(`${MESSAGE_SELECT} where msg.id = $1`, [id]);
+      const [message] = await withFileLinks(db, await db.query<Message>(`${MESSAGE_SELECT} where msg.id = $1`, [id]));
       bump('messages');
       await emitToChannel(c, 'message:new', { message });
       return { message };
@@ -337,7 +351,7 @@ export function createRoutes(db: Db, rt: Realtime) {
         if (!att) throw new HttpError(400, 'Mensagem vazia.');
       }
       await db.query('update messages set content = $2, edited_at = now() where id = $1', [m.id, body.content]);
-      const [message] = await db.query<Message>(`${MESSAGE_SELECT} where msg.id = $1`, [m.id]);
+      const [message] = await withFileLinks(db, await db.query<Message>(`${MESSAGE_SELECT} where msg.id = $1`, [m.id]));
       await emitToChannel(m.channel, 'message:update', { message });
       return { message };
     }),
@@ -402,7 +416,26 @@ export function createRoutes(db: Db, rt: Realtime) {
     }),
   );
 
-  registerAttachmentRoutes(r, db, auth);
+  registerAttachmentRoutes(r, db, auth, {
+    channelGuild: async (channelId, userId) => (await channelForMember(channelId, userId)).guildId,
+    messageChanged: async (messageId) => {
+      const [m] = await db.query<{ channel_id: string; empty: boolean }>(
+        `select m.channel_id, (m.content = '' and m.sticker_id is null and not exists (select 1 from attachments a where a.message_id = m.id)) as empty
+         from messages m where m.id = $1`,
+        [messageId],
+      );
+      if (!m) return;
+      const c = await loadChannel(db, m.channel_id);
+      if (!c) return;
+      if (m.empty) {
+        await db.query('delete from messages where id = $1', [messageId]);
+        await emitToChannel(c, 'message:delete', { channelId: c.id, id: messageId });
+      } else {
+        const [message] = await withFileLinks(db, await db.query<Message>(`${MESSAGE_SELECT} where msg.id = $1`, [messageId]));
+        await emitToChannel(c, 'message:update', { message });
+      }
+    },
+  });
 
   return r;
 }

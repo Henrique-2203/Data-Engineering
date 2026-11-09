@@ -5,7 +5,7 @@ import { PERMISSION_INFO, outranks, type Role } from '../../../shared/permission
 import { api } from '../lib/api';
 import { Perm, has, imageUrl, memberColor, myTopPosition, timeoutUntil, usePerms } from '../lib/perms';
 import { refreshGuild } from '../lib/socket';
-import { uploadGuildImage } from '../lib/upload';
+import { formatBytes, uploadGuildImage } from '../lib/upload';
 import { closeModal, toast, useApp } from '../store/app';
 import { Avatar } from './Avatar';
 import { ExpressionSettings } from './ExpressionSettings';
@@ -75,11 +75,11 @@ function Overview({ guild }: { guild: Guild }) {
   const [name, setName] = useState(guild.name);
   const [description, setDescription] = useState(guild.description);
   const [busy, setBusy] = useState<string | null>(null);
-  const [storage, setStorage] = useState<{ databaseBytes: number; limitBytes: number } | null>(null);
+  const [storage, setStorage] = useState<{ usedBytes: number; files: number; quotaBytes: number } | null>(null);
   const iconInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
 
-  const loadStorage = () => void api<{ databaseBytes: number; limitBytes: number }>(`/guilds/${guild.id}/storage`).then(setStorage, () => {});
+  const loadStorage = () => void api<{ usedBytes: number; files: number; quotaBytes: number }>(`/guilds/${guild.id}/storage`).then(setStorage, () => {});
   useEffect(loadStorage, [guild.id]);
 
   async function upload(kind: 'icon' | 'banner', file: File | undefined) {
@@ -100,7 +100,7 @@ function Overview({ guild }: { guild: Guild }) {
     loadStorage();
   }
 
-  const pct = storage ? Math.min(100, (storage.databaseBytes / storage.limitBytes) * 100) : 0;
+  const pct = storage ? Math.min(100, (storage.usedBytes / storage.quotaBytes) * 100) : 0;
   return (
     <div className="form settings-section">
       <h2>Visão geral</h2>
@@ -162,14 +162,14 @@ function Overview({ guild }: { guild: Guild }) {
       </div>
 
       {storage && (
-        <div className="storage">
-          <h3 className="subhead">Espaço do banco (plano grátis)</h3>
-          <div className="storage-bar" aria-hidden>
-            <div className={pct > 85 ? 'warn' : ''} style={{ width: `${pct}%` }} />
+        <div className="quota">
+          <h3 className="subhead">Espaço de arquivos do servidor</h3>
+          <div className="quota-bar" aria-hidden>
+            <div className={pct > 85 ? 'warn' : ''} style={{ width: `${Math.max(pct, storage.usedBytes ? 1 : 0)}%` }} />
           </div>
           <p className="muted small">
-            {(storage.databaseBytes / 1e6).toFixed(1)} MB de {(storage.limitBytes / 1e6).toFixed(0)} MB usados por todo o Resenha (mensagens, imagens e
-            servidores). Perto do limite, novos arquivos são recusados para o banco não estourar.
+            {formatBytes(storage.usedBytes)} de {formatBytes(storage.quotaBytes)} · {storage.files} arquivo{storage.files === 1 ? '' : 's'} enviado
+            {storage.files === 1 ? '' : 's'} nos canais. Apagar mensagens antigas com arquivos libera espaço.
           </p>
         </div>
       )}

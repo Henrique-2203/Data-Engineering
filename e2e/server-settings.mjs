@@ -93,7 +93,10 @@ try {
   await pa.getByLabel('Descrição').fill('A resenha da galera 🎮');
   await pa.getByRole('button', { name: 'Salvar', exact: true }).click();
   await pa.getByText('Servidor atualizado.').waitFor();
-  await pa.getByText(/MB de \d+ MB usados/).waitFor();
+  // espaço de arquivos do PRÓPRIO servidor (o limite do banco inteiro não aparece mais para ninguém)
+  await pa.getByText('Espaço de arquivos do servidor').waitFor();
+  await pa.getByText(/de 2 GB · \d+ arquivos? enviados?/).waitFor();
+  if (await pa.getByText(/usados por todo o Resenha/).count()) throw new Error('o limite do banco inteiro ainda aparece');
   await pa.screenshot({ path: `${shots}/19-config-visao-geral.png` });
   await pb.locator('.rail-item img.rail-img').waitFor({ timeout: 5000 });
   await pb.locator('.sidebar-header.with-banner').waitFor();

@@ -5,7 +5,8 @@ import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import { USER_COLUMNS, userJson, type requireAuth } from './auth.ts';
 import { HttpError, parse, wrap } from './http.ts';
-import { sniffImage } from './attachments.ts';
+import { sniffImage } from './sanitize.ts';
+import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
 import { deleteFiles, guildFileIds, loadExpressions } from './expressions.ts';
 import {
   CHANNEL_COLUMNS,
@@ -18,8 +19,7 @@ import {
   requireMember,
   requireOutranks,
   requirePerm,
-  requireStorage,
-  storageUsage,
+  guildUsage,
 } from './access.ts';
 import { ALL_PERMISSIONS, Perm, has, topRolePosition, type Role } from '../../shared/permissions.ts';
 import type { Ban, Category, Channel, Guild, Member } from '../../shared/types.ts';
@@ -231,14 +231,12 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
   r.get(
     '/images/:id',
     wrap(async (req, res) => {
-      const [img] = await db.query<{ mime: string; data: Uint8Array }>('select mime, data from images where id = $1', [
-        String(req.params.id),
-      ]);
+      const [img] = await db.query<{ id: string; mime: string; data: Uint8Array | null; storage_key: string | null }>(
+        `select ${IMAGE_ROW} from images i where i.id = $1`,
+        [String(req.params.id)],
+      );
       if (!img) throw new HttpError(404, 'Imagem não encontrada.');
-      res.setHeader('Content-Type', img.mime);
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.end(Buffer.from(img.data));
+      await sendStoredImage(db, res, img);
     }),
   );
 
@@ -255,15 +253,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         if (!Buffer.isBuffer(data) || !data.length) throw new HttpError(400, 'Arquivo vazio.');
         const mime = sniffImage(data);
         if (!mime || mime === 'image/gif') throw new HttpError(415, 'Envie uma imagem PNG, JPG ou WebP.');
-        await requireStorage(db, data.length);
-        const imageId = randomUUID();
-        await db.query('insert into images (id, uploader_id, mime, size, data) values ($1, $2, $3, $4, $5)', [
-          imageId,
-          req.user!.id,
-          mime,
-          data.length,
-          data,
-        ]);
+        const imageId = await saveImage(db, { userId: req.user!.id, mime, data });
         // troca a imagem e apaga a antiga: o espaço não vai acumulando
         const [old] = await db.query<{ old: string | null }>(`select ${column} as old from guilds where id = $1`, [id]);
         await db.query(`update guilds set ${column} = $2 where id = $1`, [id, imageId]);
@@ -290,8 +280,9 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     '/guilds/:id/storage',
     auth,
     wrap(async (req) => {
-      await requirePerm(db, String(req.params.id), req.user!.id, Perm.MANAGE_GUILD);
-      return storageUsage(db);
+      const guildId = String(req.params.id);
+      await requirePerm(db, guildId, req.user!.id, Perm.MANAGE_GUILD);
+      return guildUsage(db, guildId);
     }),
   );
 

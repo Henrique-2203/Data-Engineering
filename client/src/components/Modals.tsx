@@ -28,6 +28,7 @@ import { refreshGuild } from '../lib/socket';
 import { DESKTOP_DOWNLOAD_URL, desktop, isDesktop, type DesktopSettings } from '../lib/desktop';
 import { Avatar } from './Avatar';
 import { SecuritySettings } from './SecuritySettings';
+import { MyFiles } from './MyFiles';
 import { AdminReports, ReportModal } from './Reports';
 
 export function Modals({ onLogout }: { onLogout(): void }) {
@@ -571,6 +572,8 @@ function UserSettings({ onLogout }: { onLogout(): void }) {
       </p>
 
       <DesktopSettingsSection />
+
+      <MyFiles />
 
       <SecuritySettings
         onLogout={async () => {

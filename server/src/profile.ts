@@ -5,8 +5,8 @@ import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import { USER_COLUMNS, type requireAuth } from './auth.ts';
 import { HttpError, parse, wrap } from './http.ts';
-import { sniffImage } from './attachments.ts';
-import { requireStorage } from './access.ts';
+import { sniffImage } from './sanitize.ts';
+import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
 import type { Profile, ProfileLink, PublicUser } from '../../shared/types.ts';
 
 /**
@@ -108,15 +108,7 @@ export function registerProfileRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
         const mime = sniffImage(data);
         if (!mime) throw new HttpError(415, 'Envie uma imagem PNG, JPG, WebP ou GIF.');
         if (mime === 'image/gif' && kind === 'banner') throw new HttpError(415, 'O banner não pode ser GIF.');
-        await requireStorage(db, data.length);
-        const imageId = randomUUID();
-        await db.query('insert into images (id, uploader_id, mime, size, data) values ($1, $2, $3, $4, $5)', [
-          imageId,
-          me,
-          mime,
-          data.length,
-          data,
-        ]);
+        const imageId = await saveImage(db, { userId: me, mime, data });
         // troca e apaga a anterior: o espaço não acumula
         const [old] = await db.query<{ old: string | null }>(`select ${column} as old from users where id = $1`, [me]);
         await db.query(`update users set ${column} = $2 where id = $1`, [me, imageId]);

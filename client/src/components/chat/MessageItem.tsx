@@ -4,7 +4,7 @@ import type { Channel, Message, StickerRef } from '../../../../shared/types';
 import { EmojiView, encodeEmojis, fileUrl, plainEmojis, renderCustomEmojis } from '../../lib/expressions';
 import { api } from '../../lib/api';
 import { mentionsUser } from '../../lib/mentions';
-import { attachmentUrl } from '../../lib/upload';
+import { AttachmentList } from './Attachments';
 import { findMember, openModal, toast, updateReactions, useApp } from '../../store/app';
 import { memberColor } from '../../lib/perms';
 import { Avatar } from '../Avatar';
@@ -110,24 +110,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
 
         {message.sticker && <StickerView sticker={message.sticker} />}
 
-        {message.attachments.length > 0 && (
-          <div className={`attachments count-${Math.min(message.attachments.length, 4)}`}>
-            {message.attachments.map((a) => {
-              const src = attachmentUrl(a);
-              return (
-                <button
-                  key={a.id}
-                  className="attachment"
-                  onClick={() => openModal({ kind: 'image', src, name: a.name })}
-                  aria-label={`Ampliar ${a.name}`}
-                  style={a.width && a.height ? { aspectRatio: `${a.width} / ${a.height}` } : undefined}
-                >
-                  <img src={src} alt={a.name} loading="lazy" width={a.width ?? undefined} height={a.height ?? undefined} />
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {message.attachments.length > 0 && <AttachmentList attachments={message.attachments} />}
 
         {message.reactions.length > 0 && (
           <div className="reactions">
@@ -183,7 +166,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
               onClick={() =>
                 openModal({
                   kind: 'report',
-                  target: { type: 'message', id: message.id, label: `${author.displayName}: ${plainEmojis(message.content).slice(0, 120) || (message.sticker ? 'figurinha' : 'imagem')}` },
+                  target: { type: 'message', id: message.id, label: `${author.displayName}: ${plainEmojis(message.content).slice(0, 120) || (message.sticker ? 'figurinha' : 'anexo')}` },
                 })
               }
             >
@@ -222,7 +205,7 @@ function ReplyLine({ reply, channel, onJump }: { reply: NonNullable<Message['rep
               renderCustomEmojis(reply.content, 'r', (t, key) => [<Fragment key={key}>{t}</Fragment>])
             ) : reply.hasAttachments ? (
               <>
-                <ImageIcon size={13} /> Imagem
+                <ImageIcon size={13} /> Anexo
               </>
             ) : reply.hasSticker ? (
               'Figurinha'

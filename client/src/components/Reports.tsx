@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Flag, ShieldAlert, X } from 'lucide-react';
 import { api, getToken } from '../lib/api';
 import { StatsPanel } from './StatsPanel';
+import { SystemPanel } from './SystemPanel';
 import { closeModal, toast, useApp } from '../store/app';
 import { fileUrl } from '../lib/expressions';
 
@@ -149,7 +150,7 @@ interface AdminReport {
 const reasonLabel = (id: string) => REASONS.find((r) => r.id === id)?.label ?? id;
 
 export function AdminReports() {
-  const [tab, setTab] = useState<'stats' | 'open' | 'closed' | 'waitlist'>(useApp.getState().openReports > 0 ? 'open' : 'stats');
+  const [tab, setTab] = useState<'stats' | 'open' | 'closed' | 'waitlist' | 'system'>(useApp.getState().openReports > 0 ? 'open' : 'stats');
   const [reports, setReports] = useState<AdminReport[] | null>(null);
   const openCount = useApp((s) => s.openReports);
   const load = () => {
@@ -195,9 +196,13 @@ export function AdminReports() {
             <button role="tab" aria-selected={tab === 'waitlist'} onClick={() => setTab('waitlist')}>
               Lista de espera
             </button>
+            <button role="tab" aria-selected={tab === 'system'} onClick={() => setTab('system')}>
+              Sistema
+            </button>
           </div>
           {tab === 'waitlist' && <WaitlistAdmin />}
           {tab === 'stats' && <StatsPanel />}
+          {tab === 'system' && <SystemPanel />}
           {(tab === 'open' || tab === 'closed') && reports === null && <p className="muted">Carregando…</p>}
           {(tab === 'open' || tab === 'closed') && reports?.length === 0 && <p className="muted center">{tab === 'open' ? '🎉 Nenhuma denúncia aberta.' : 'Nada por aqui ainda.'}</p>}
           <ul className="report-list" hidden={tab !== 'open' && tab !== 'closed'}>
@@ -286,11 +291,11 @@ function Evidence({ r }: { r: AdminReport }) {
         {s.content && <p className="evidence-text">{s.content}</p>}
         {s.attachments?.length > 0 && (
           <p className="muted small">
-            📷 {s.attachments.length} imagem(ns){' '}
+            📎 {s.attachments.length} anexo(s){' '}
             {r.targetExists &&
               r.reason !== 'minors' &&
-              s.attachments.map((a: { id: string; name: string }) => (
-                <a key={a.id} href={`/api/attachments/${a.id}/${encodeURIComponent(a.name)}`} target="_blank" rel="noopener noreferrer">
+              s.attachments.map((a: { id: string; name: string; url?: string }) => (
+                <a key={a.id} href={a.url ?? '#'} target="_blank" rel="noopener noreferrer">
                   ver
                 </a>
               ))}

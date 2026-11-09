@@ -96,7 +96,7 @@ function Privacy({ contact }: { contact: ReactNode }) {
             <td>Mostrar seu perfil para quem divide servidor, amizade ou conversa com você</td>
           </tr>
           <tr>
-            <td>Mensagens, imagens, reações, emojis, figurinhas e sons que você envia</td>
+            <td>Mensagens, fotos, vídeos, arquivos, reações, emojis, figurinhas e sons que você envia</td>
             <td>Entregar e mostrar para as pessoas da conversa ou do servidor</td>
           </tr>
           <tr>
@@ -148,12 +148,19 @@ function Privacy({ contact }: { contact: ReactNode }) {
           áudio e o vídeo passam por um servidor de retransmissão (TURN) <em>ainda criptografados</em>: ele não consegue ouvir nem ver.
         </li>
         <li>
-          <Lock size={14} /> Sendo transparentes: as <strong>mensagens de texto e imagens não têm criptografia de ponta a ponta</strong>. Elas
-          viajam criptografadas e ficam guardadas no banco de dados do servidor (que também é criptografado pelo provedor), para que você
+          <Lock size={14} /> Sendo transparentes: as <strong>mensagens e arquivos não têm criptografia de ponta a ponta</strong>. Eles
+          viajam criptografados e ficam guardados no servidor (criptografados em disco pelos provedores), para que você
           veja o histórico em qualquer aparelho. Não lemos suas conversas. Só acessaríamos um conteúdo específico para cumprir ordem
           judicial ou analisar uma denúncia de abuso.
         </li>
-        <li>Imagens enviadas ficam em endereços impossíveis de adivinhar, mas quem tiver o link de uma imagem consegue abri-la.</li>
+        <li>
+          Fotos e vídeos perdem a <strong>localização (GPS)</strong>, o modelo do celular e outros dados escondidos antes de serem guardados.
+        </li>
+        <li>
+          Arquivos só abrem por <strong>links protegidos que expiram</strong> em até 24 horas e só são entregues a quem está na conversa.
+          Programas e scripts (.exe, .bat, .apk...) não podem ser enviados.
+        </li>
+        <li>Backups diários do banco de dados, criptografados (AES-256) e conferidos depois de feitos.</li>
       </ul>
 
       <h2>4. Com quem os dados ficam (operadores)</h2>
@@ -161,6 +168,9 @@ function Privacy({ contact }: { contact: ReactNode }) {
       <ul>
         <li>
           <strong>Render</strong> (hospedagem do site, EUA) e <strong>Neon</strong> (banco de dados, EUA): guardam a conta e o conteúdo.
+        </li>
+        <li>
+          <strong>Cloudflare R2</strong> (armazenamento de arquivos): guarda fotos, vídeos, arquivos e os backups criptografados.
         </li>
         <li>
           <strong>Metered</strong> (servidor TURN): retransmite chamadas criptografadas quando não dá para conectar direto.
@@ -178,8 +188,8 @@ function Privacy({ contact }: { contact: ReactNode }) {
       <ul>
         <li>Enquanto sua conta existir. Mensagem apagada sai do banco na hora.</li>
         <li>
-          Ao excluir a conta, apagamos imediatamente seu perfil, suas mensagens, imagens, amizades e os servidores de que você é dono. Cópias
-          de segurança automáticas do provedor do banco podem levar alguns dias para serem substituídas.
+          Ao excluir a conta, apagamos imediatamente seu perfil, suas mensagens, arquivos, amizades e os servidores de que você é dono. Os
+          arquivos saem do armazenamento em poucos minutos. Os backups criptografados são substituídos em até 30 dias.
         </li>
         <li>Sessões sem uso por 60 dias são apagadas.</li>
         <li>Denúncias são apagadas 6 meses depois de analisadas (salvo se a lei exigir guardar por mais tempo).</li>

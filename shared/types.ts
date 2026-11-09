@@ -138,13 +138,19 @@ export interface StickerRef {
   fileId: string | null;
 }
 
+export type AttachmentKind = 'image' | 'video' | 'audio' | 'file';
+
 export interface Attachment {
   id: string;
   name: string;
   mime: string;
+  /** imagem, vídeo e áudio aparecem na conversa; "file" vira um cartão para baixar */
+  kind: AttachmentKind;
   size: number;
   width: number | null;
   height: number | null;
+  /** link assinado que expira (12 a 24 h); o site pede um novo quando expira */
+  url?: string;
 }
 
 export interface Reaction {

@@ -3,6 +3,8 @@ import type { NextFunction, Request, Response, Router } from 'express';
 import QRCode from 'qrcode';
 import { z } from 'zod';
 import type { Db } from './db.ts';
+import { config } from './config.ts';
+import { r2Configured } from './storage.ts';
 import type { Realtime } from './realtime.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { SESSION_IDLE_DAYS, createSession, hashPassword, sha256, verifyPassword, type requireAuth } from './auth.ts';
@@ -16,6 +18,9 @@ import { deleteFiles, guildFileIds } from './expressions.ts';
 
 // ---------- cabeçalhos de segurança (valem para o site inteiro) ----------
 
+/** vídeos e áudios dos anexos tocam direto do R2 (por link assinado que expira) */
+const R2_ORIGIN = r2Configured() ? new URL(config.r2.endpoint).origin : '';
+
 export function securityHeaders(req: Request, res: Response, next: NextFunction) {
   const host = req.headers.host ?? '';
   res.setHeader(
@@ -24,8 +29,8 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
       "default-src 'self'",
       "script-src 'self'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https:",
-      "media-src 'self' blob: data:",
+      `img-src 'self' data: blob: https:${R2_ORIGIN ? ` ${R2_ORIGIN}` : ''}`,
+      `media-src 'self' blob: data:${R2_ORIGIN ? ` ${R2_ORIGIN}` : ''}`,
       `connect-src 'self' wss://${host} ws://${host}`,
       "font-src 'self' data:",
       "worker-src 'self' blob:",
@@ -386,9 +391,13 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
       const messages = await db.query(
         `select m.created_at as "sentAt", m.edited_at as "editedAt", m.content,
            case when c.type = 'dm' then 'Mensagem direta' else coalesce(g.name, '') || ' #' || c.name end as "where",
-           (select count(*)::int from attachments a where a.message_id = m.id) as images
+           (select count(*)::int from attachments a where a.message_id = m.id) as files
          from messages m join channels c on c.id = m.channel_id left join guilds g on g.id = c.guild_id
          where m.author_id = $1 order by m.created_at`,
+        [id],
+      );
+      const files = await db.query(
+        `select filename as name, kind, size, created_at as "sentAt" from attachments where uploader_id = $1 and message_id is not null order by created_at`,
         [id],
       );
       const sessions = await db.query(
@@ -402,6 +411,7 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
         servers,
         friends,
         messages,
+        files,
         sessions,
       };
       res.setHeader('Content-Type', 'application/json; charset=utf-8');

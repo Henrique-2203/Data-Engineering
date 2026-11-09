@@ -5,8 +5,9 @@ import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import type { requireAuth } from './auth.ts';
 import { HttpError, parse, wrap } from './http.ts';
-import { sniffImage } from './attachments.ts';
-import { requireMember, requireOutranks, requirePerm, requireStorage } from './access.ts';
+import { sniffImage } from './sanitize.ts';
+import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
+import { requireMember, requireOutranks, requirePerm } from './access.ts';
 import { Perm, has } from '../../shared/permissions.ts';
 import type { Expression, ExpressionKind } from '../../shared/types.ts';
 
@@ -53,12 +54,7 @@ export async function usableExpression(db: Db, id: string, userId: string, kind:
   return e ?? null;
 }
 
-async function saveFile(db: Db, userId: string, mime: string, data: Buffer) {
-  await requireStorage(db, data.length);
-  const id = randomUUID();
-  await db.query('insert into images (id, uploader_id, mime, size, data) values ($1, $2, $3, $4, $5)', [id, userId, mime, data.length, data]);
-  return id;
-}
+const saveFile = (db: Db, userId: string, mime: string, data: Buffer) => saveImage(db, { userId, mime, data });
 
 const deleteFiles = (db: Db, ids: (string | null | undefined)[]) => {
   const list = ids.filter(Boolean);
@@ -97,15 +93,12 @@ export function registerExpressionRoutes(r: Router, db: Db, rt: Realtime, auth: 
   r.get(
     '/emojis/:id',
     wrap(async (req, res) => {
-      const [f] = await db.query<{ mime: string; data: Uint8Array }>(
-        `select i.mime, i.data from expressions e join images i on i.id = e.file_id where e.id = $1 and e.kind <> 'sound'`,
+      const [f] = await db.query<{ id: string; mime: string; data: Uint8Array | null; storage_key: string | null }>(
+        `select ${IMAGE_ROW} from expressions e join images i on i.id = e.file_id where e.id = $1 and e.kind <> 'sound'`,
         [String(req.params.id)],
       );
       if (!f) throw new HttpError(404, 'Emoji não encontrado.');
-      res.setHeader('Content-Type', f.mime);
-      res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-      res.end(Buffer.from(f.data));
+      await sendStoredImage(db, res, f, 'public, max-age=86400');
     }),
   );
 

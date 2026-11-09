@@ -6,7 +6,8 @@ const MAX_DIMENSION = 2560;
 const KEEP_ORIGINAL_BYTES = 1.5 * 1024 * 1024;
 export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
-export const attachmentUrl = (a: Pick<Attachment, 'id' | 'name'>) => `/api/attachments/${a.id}/${encodeURIComponent(a.name)}`;
+/** Link do anexo: assinado pelo servidor e com validade (veja useAttachmentSrc para renovar). */
+export const attachmentUrl = (a: Pick<Attachment, 'id' | 'name' | 'url'>) => a.url ?? `/api/attachments/${a.id}/${encodeURIComponent(a.name)}`;
 
 export const isImageFile = (f: File) => /^image\/(png|jpeg|gif|webp|avif)$/.test(f.type);
 
@@ -44,28 +45,99 @@ export async function prepareImage(file: File): Promise<{ blob: Blob; width: num
   return { blob: finalBlob, width: w, height: h, name: file.name || 'imagem' };
 }
 
-export async function uploadImage(file: File): Promise<Attachment> {
-  const { blob, width, height, name } = await prepareImage(file);
-  if (blob.size > MAX_UPLOAD_BYTES) throw new Error('Imagem grande demais (máx. 8 MB). GIFs grandes não podem ser reduzidos.');
-  let res: Response;
-  try {
-    res = await fetch('/api/attachments', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${getToken()}`,
-        'Content-Type': blob.type || 'application/octet-stream',
-        'X-Filename': encodeURIComponent(name),
-        'X-Width': String(width),
-        'X-Height': String(height),
-      },
-      body: blob,
-    });
-  } catch {
-    throw new ApiError(0, 'Sem conexão com o servidor.');
+/** Limites de envio informados pelo servidor (dependem de onde os arquivos ficam guardados). */
+let limitsPromise: Promise<{ maxFileMb: number; maxImageMb: number }> | null = null;
+export const uploadLimits = () =>
+  (limitsPromise ??= fetch('/api/config')
+    .then((r) => r.json())
+    .then((c) => ({ maxFileMb: Number(c.maxFileMb) || 8, maxImageMb: Number(c.maxImageMb) || 8 }))
+    .catch(() => ({ maxFileMb: 8, maxImageMb: 8 })));
+
+/** Mesmo bloqueio do servidor (ele é quem decide; aqui é só para avisar antes de gastar internet). */
+const BLOCKED = /\.(exe|msi|msix|msp|bat|cmd|com|scr|pif|cpl|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|jar|apk|xapk|aab|app|ipa|dll|sys|drv|ocx|lnk|url|reg|inf|scf|iso|img|vhdx?|dmg|pkg|deb|rpm|sh|run|elf|appimage|gadget|msc|chm)$/i;
+
+const videoSize = (file: File) =>
+  new Promise<{ width: number; height: number } | null>((resolve) => {
+    const v = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    const done = (r: { width: number; height: number } | null) => {
+      URL.revokeObjectURL(url);
+      resolve(r);
+    };
+    v.preload = 'metadata';
+    v.muted = true;
+    v.onloadedmetadata = () => done(v.videoWidth && v.videoHeight ? { width: v.videoWidth, height: v.videoHeight } : null);
+    v.onerror = () => done(null);
+    setTimeout(() => done(null), 4000);
+    v.src = url;
+  });
+
+/**
+ * Envia um anexo de qualquer tipo. Fotos são reduzidas no navegador; o servidor ainda tira o GPS,
+ * confere o tipo real e aplica as cotas. `onProgress` recebe de 0 a 1.
+ */
+export async function uploadAttachment(file: File, channelId: string, onProgress?: (p: number) => void): Promise<Attachment> {
+  if (BLOCKED.test(file.name)) throw new Error('Por segurança, programas e scripts (.exe, .bat, .apk...) não podem ser enviados.');
+  const limits = await uploadLimits();
+  let blob: Blob = file;
+  let name = file.name || 'arquivo';
+  let dims: { width: number; height: number } | null = null;
+  if (isImageFile(file)) {
+    const img = await prepareImage(file);
+    blob = img.blob;
+    name = img.name;
+    dims = { width: img.width, height: img.height };
+    if (blob.size > limits.maxImageMb * 1024 * 1024) throw new Error(`Imagem grande demais (máx. ${limits.maxImageMb} MB). GIFs grandes não podem ser reduzidos.`);
+  } else {
+    if (file.size > limits.maxFileMb * 1024 * 1024) throw new Error(`Arquivo grande demais (máx. ${limits.maxFileMb} MB).`);
+    if (file.type.startsWith('video/')) dims = await videoSize(file);
   }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, data.error ?? `Erro ${res.status} ao enviar a imagem.`);
-  return data.attachment as Attachment;
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/attachments?channelId=${encodeURIComponent(channelId)}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${getToken()}`);
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.setRequestHeader('X-Filename', encodeURIComponent(name));
+    if (dims) {
+      xhr.setRequestHeader('X-Width', String(dims.width));
+      xhr.setRequestHeader('X-Height', String(dims.height));
+    }
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+    xhr.onerror = () => reject(new ApiError(0, 'Sem conexão com o servidor.'));
+    xhr.onload = () => {
+      let data: { attachment?: Attachment; error?: string } = {};
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {
+        /* resposta sem JSON */
+      }
+      if (xhr.status >= 200 && xhr.status < 300 && data.attachment) resolve(data.attachment);
+      else reject(new ApiError(xhr.status, data.error ?? (xhr.status === 413 ? 'Arquivo grande demais.' : `Erro ${xhr.status} ao enviar o arquivo.`)));
+    };
+    xhr.send(blob);
+  });
+}
+
+/** Links de anexos renovados (o original expirou com a aba aberta por muito tempo). */
+const refreshed = new Map<string, string>();
+export const refreshedUrl = (id: string) => refreshed.get(id);
+export async function refreshAttachmentUrl(id: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/attachments/${id}/link`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` } });
+    if (!res.ok) return null;
+    const { url } = (await res.json()) as { url: string };
+    refreshed.set(id, url);
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+export function formatBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  if (n < 1024 ** 3) return `${(n / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: n < 10 * 1024 * 1024 ? 1 : 0 })} MB`;
+  return `${(n / 1024 ** 3).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} GB`;
 }
 
 /**

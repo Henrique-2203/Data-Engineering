@@ -35,7 +35,9 @@ export function onIncomingMessage(message: Message) {
       : mentioned
         ? `${message.author.displayName} mencionou você em #${channel?.name ?? 'canal'}`
         : `${message.author.displayName} em #${channel?.name ?? 'canal'}`;
-  const body = plainEmojis(message.content) || (message.attachments.length ? '📷 Imagem' : message.sticker ? `Figurinha: ${message.sticker.name}` : '');
+  const body = plainEmojis(message.content) || (message.attachments.length
+      ? ({ image: '📷 Foto', video: '🎬 Vídeo', audio: '🎵 Áudio', file: '📎 Arquivo' } as const)[message.attachments[0].kind ?? 'image']
+      : message.sticker ? `Figurinha: ${message.sticker.name}` : '');
   try {
     // Obs.: no Android o construtor Notification não é permitido (exige service worker) e lança erro.
     const n = new Notification(title, {

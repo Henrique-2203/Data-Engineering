@@ -7,11 +7,15 @@ import { createDb } from './db.ts';
 import { Realtime } from './realtime.ts';
 import { HttpError, createRoutes } from './routes.ts';
 import { securityHeaders } from './security.ts';
+import { startStorageJobs } from './storage.ts';
+import { startBackups } from './backup.ts';
 
 const db = await createDb();
 const app = express();
 const http = createServer(app);
 const rt = new Realtime(http, db);
+startStorageJobs(db);
+startBackups(db);
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');

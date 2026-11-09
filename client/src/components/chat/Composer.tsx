@@ -1,10 +1,11 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent, type Ref } from 'react';
-import { ImagePlus, Loader2, SendHorizontal, Smile, Sticker, X } from 'lucide-react';
+import { Loader2, Paperclip, SendHorizontal, Smile, Sticker, X } from 'lucide-react';
+import { FileIcon } from './Attachments';
 import type { Attachment, Channel, Expression, Message, PublicUser } from '../../../../shared/types';
 import { api } from '../../lib/api';
 import { mentionQuery } from '../../lib/mentions';
 import { getSocket } from '../../lib/socket';
-import { isImageFile, uploadImage } from '../../lib/upload';
+import { formatBytes, isImageFile, uploadAttachment } from '../../lib/upload';
 import { findMember, toast, useApp } from '../../store/app';
 import { Perm, has, myPermissions, timeoutUntil } from '../../lib/perms';
 import { Avatar } from '../Avatar';
@@ -15,7 +16,7 @@ import { encodeEmojis, expressionGroups, fileUrl, plainEmojis } from '../../lib/
 /** Texto antes do cursor termina com ":algo" (2+ letras)? Retorna o que foi digitado depois dos dois-pontos. */
 const emojiQuery = (before: string) => /(^|\s):([a-z0-9_]{2,32})$/i.exec(before)?.[2].toLowerCase() ?? null;
 
-const MAX_ATTACHMENTS = 4;
+const MAX_ATTACHMENTS = 10;
 const isTouch = () => window.matchMedia('(pointer: coarse)').matches;
 
 export interface ComposerHandle {
@@ -25,7 +26,11 @@ export interface ComposerHandle {
 
 interface Pending {
   key: string;
+  /** miniatura (só imagens) */
   preview: string;
+  name: string;
+  size: number;
+  progress: number;
   status: 'uploading' | 'done' | 'error';
   attachment?: Attachment;
 }
@@ -106,14 +111,13 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
   }, [text]);
 
   function addFiles(files: File[]) {
-    const images = files.filter(isImageFile);
-    if (images.length < files.length) toast('Só dá para enviar imagens (PNG, JPG, GIF, WebP).');
     const room = MAX_ATTACHMENTS - pending.length;
-    if (images.length > room) toast(`No máximo ${MAX_ATTACHMENTS} imagens por mensagem.`);
-    for (const file of images.slice(0, Math.max(0, room))) {
+    if (files.length > room) toast(`No máximo ${MAX_ATTACHMENTS} arquivos por mensagem.`);
+    for (const file of files.slice(0, Math.max(0, room))) {
       const key = crypto.randomUUID();
-      setPending((p) => [...p, { key, preview: URL.createObjectURL(file), status: 'uploading' }]);
-      uploadImage(file).then(
+      const preview = isImageFile(file) ? URL.createObjectURL(file) : '';
+      setPending((p) => [...p, { key, preview, name: file.name || 'arquivo', size: file.size, progress: 0, status: 'uploading' }]);
+      uploadAttachment(file, channel.id, (progress) => setPending((p) => p.map((x) => (x.key === key ? { ...x, progress } : x)))).then(
         (attachment) => setPending((p) => p.map((x) => (x.key === key ? { ...x, status: 'done', attachment } : x))),
         (err) => {
           toast((err as Error).message);
@@ -128,7 +132,7 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
   function removePending(key: string) {
     setPending((p) => {
       const item = p.find((x) => x.key === key);
-      if (item) URL.revokeObjectURL(item.preview);
+      if (item?.preview) URL.revokeObjectURL(item.preview);
       return p.filter((x) => x.key !== key);
     });
   }
@@ -145,7 +149,7 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
         body: { content: encodeEmojis(text.trim(), channel.guildId), replyToId: replyTo?.id, attachmentIds: ready.map((p) => p.attachment!.id) },
       });
       setText('');
-      pending.forEach((p) => URL.revokeObjectURL(p.preview));
+      pending.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
       setPending([]);
       onCancelReply();
       onSent();
@@ -359,15 +363,25 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
       {pending.length > 0 && (
         <div className="pending-attachments">
           {pending.map((p) => (
-            <div key={p.key} className={`pending ${p.status}`}>
-              <img src={p.preview} alt="" />
-              {p.status === 'uploading' && (
-                <span className="pending-state" aria-label="Enviando">
-                  <Loader2 size={20} className="spin" />
+            <div key={p.key} className={`pending ${p.status}${p.preview ? '' : ' file'}`} title={`${p.name} · ${formatBytes(p.size)}`}>
+              {p.preview ? (
+                <img src={p.preview} alt="" />
+              ) : (
+                <span className="pending-file">
+                  <FileIcon name={p.name} size={22} />
+                  <span className="pending-name">{p.name}</span>
+                  <span className="muted small">{formatBytes(p.size)}</span>
                 </span>
               )}
+              {p.status === 'uploading' && (
+                <span className="pending-state" aria-label={`Enviando ${Math.round(p.progress * 100)}%`}>
+                  <Loader2 size={20} className="spin" />
+                  {p.size > 512 * 1024 && <small>{Math.round(p.progress * 100)}%</small>}
+                </span>
+              )}
+              {p.status === 'uploading' && <span className="pending-progress" style={{ width: `${Math.round(p.progress * 100)}%` }} />}
               {p.status === 'error' && <span className="pending-state error-text">Falhou</span>}
-              <button className="pending-remove" aria-label="Remover imagem" onClick={() => removePending(p.key)}>
+              <button className="pending-remove" aria-label={`Remover ${p.name}`} onClick={() => removePending(p.key)}>
                 <X size={14} />
               </button>
             </div>
@@ -378,17 +392,16 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
       <div className={`composer${replyTo || pending.length ? ' attached' : ''}`}>
         <button
           className="icon-btn attach-btn"
-          aria-label="Enviar imagem"
-          title="Enviar imagem (ou cole / arraste aqui)"
+          aria-label="Enviar arquivo"
+          title="Enviar foto, vídeo ou arquivo (ou cole / arraste aqui)"
           onClick={() => fileRef.current?.click()}
           disabled={pending.length >= MAX_ATTACHMENTS}
         >
-          <ImagePlus size={20} />
+          <Paperclip size={20} />
         </button>
         <input
           ref={fileRef}
           type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp,image/avif"
           multiple
           hidden
           onChange={(e) => {
@@ -405,7 +418,7 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
           onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
           onPaste={(e) => {
-            const files = [...e.clipboardData.files].filter(isImageFile);
+            const files = [...e.clipboardData.files];
             if (files.length) {
               e.preventDefault();
               addFiles(files);

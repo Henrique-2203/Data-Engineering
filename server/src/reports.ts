@@ -8,6 +8,7 @@ import { HttpError, parse, wrap } from './http.ts';
 import { canSee, loadChannel, memberAccess } from './access.ts';
 import { deleteFiles, guildFileIds } from './expressions.ts';
 import { limit } from './security.ts';
+import { signFileLink } from './storage.ts';
 import type { requireAuth } from './auth.ts';
 
 /**
@@ -159,6 +160,11 @@ export function registerReportRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
          order by r.created_at desc limit 200`,
       );
       if (status === 'open') rows.sort((a, b) => PRIORITY[a.reason] - PRIORITY[b.reason]);
+      // links assinados (que expiram) para a equipe ver os anexos guardados como prova
+      for (const row of rows) {
+        const snap = row.snapshot as { attachments?: { id: string; name: string; url?: string }[] } | null;
+        for (const a of snap?.attachments ?? []) a.url = await signFileLink(db, a.id, a.name);
+      }
       return { reports: rows };
     }),
   );
