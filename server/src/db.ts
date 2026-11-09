@@ -241,6 +241,16 @@ create table if not exists waitlist (
   created_at timestamptz not null default clock_timestamp()
 );
 
+-- v10: painel de números (só contadores somados por dia, sem identificar ninguém)
+create table if not exists daily_stats (
+  day date not null,
+  metric text not null,
+  key text not null default '',
+  count integer not null default 0,
+  primary key (day, metric, key)
+);
+alter table users add column if not exists last_active_on date;
+
 -- imagens (ícone/banner do servidor, foto/banner de perfil): pequenas e substituídas, nunca acumuladas
 create table if not exists images (
   id text primary key,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Flag, ShieldAlert, X } from 'lucide-react';
 import { api, getToken } from '../lib/api';
+import { StatsPanel } from './StatsPanel';
 import { closeModal, toast, useApp } from '../store/app';
 import { fileUrl } from '../lib/expressions';
 
@@ -148,11 +149,11 @@ interface AdminReport {
 const reasonLabel = (id: string) => REASONS.find((r) => r.id === id)?.label ?? id;
 
 export function AdminReports() {
-  const [tab, setTab] = useState<'open' | 'closed' | 'waitlist'>('open');
+  const [tab, setTab] = useState<'stats' | 'open' | 'closed' | 'waitlist'>(useApp.getState().openReports > 0 ? 'open' : 'stats');
   const [reports, setReports] = useState<AdminReport[] | null>(null);
   const openCount = useApp((s) => s.openReports);
   const load = () => {
-    if (tab !== 'waitlist') void api<{ reports: AdminReport[] }>(`/admin/reports?status=${tab}`).then((r) => setReports(r.reports), (e) => toast(e.message));
+    if (tab === 'open' || tab === 'closed') void api<{ reports: AdminReport[] }>(`/admin/reports?status=${tab}`).then((r) => setReports(r.reports), (e) => toast(e.message));
   };
   useEffect(load, [tab, openCount]);
 
@@ -171,10 +172,10 @@ export function AdminReports() {
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeModal()}>
-      <div className="modal wide" role="dialog" aria-modal="true" aria-label="Denúncias">
+      <div className="modal wide" role="dialog" aria-modal="true" aria-label="Painel da equipe">
         <div className="modal-head">
           <h2>
-            <ShieldAlert size={20} /> Denúncias
+            <ShieldAlert size={20} /> Painel da equipe
           </h2>
           <button className="icon-btn" aria-label="Fechar" onClick={closeModal}>
             <X size={20} />
@@ -182,8 +183,11 @@ export function AdminReports() {
         </div>
         <div className="modal-body">
           <div className="tabs" role="tablist">
+            <button role="tab" aria-selected={tab === 'stats'} onClick={() => setTab('stats')}>
+              Números
+            </button>
             <button role="tab" aria-selected={tab === 'open'} onClick={() => setTab('open')}>
-              Abertas {openCount > 0 && `(${openCount})`}
+              Denúncias {openCount > 0 && `(${openCount})`}
             </button>
             <button role="tab" aria-selected={tab === 'closed'} onClick={() => setTab('closed')}>
               Encerradas
@@ -193,9 +197,10 @@ export function AdminReports() {
             </button>
           </div>
           {tab === 'waitlist' && <WaitlistAdmin />}
-          {tab !== 'waitlist' && reports === null && <p className="muted">Carregando…</p>}
-          {tab !== 'waitlist' && reports?.length === 0 && <p className="muted center">{tab === 'open' ? '🎉 Nenhuma denúncia aberta.' : 'Nada por aqui ainda.'}</p>}
-          <ul className="report-list" hidden={tab === 'waitlist'}>
+          {tab === 'stats' && <StatsPanel />}
+          {(tab === 'open' || tab === 'closed') && reports === null && <p className="muted">Carregando…</p>}
+          {(tab === 'open' || tab === 'closed') && reports?.length === 0 && <p className="muted center">{tab === 'open' ? '🎉 Nenhuma denúncia aberta.' : 'Nada por aqui ainda.'}</p>}
+          <ul className="report-list" hidden={tab !== 'open' && tab !== 'closed'}>
             {reports?.map((r) => (
               <li key={r.id} className={`report-item${r.reason === 'minors' || r.reason === 'selfharm' ? ' urgent' : ''}`}>
                 <div className="report-head">

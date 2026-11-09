@@ -27,6 +27,7 @@ import { registerProfileRoutes } from './profile.ts';
 import { registerExpressionRoutes, usableExpression } from './expressions.ts';
 import { isPlatformAdmin, registerReportRoutes } from './reports.ts';
 import { registerWaitlistRoutes } from './waitlist.ts';
+import { bump, registerStatsRoutes } from './stats.ts';
 import { checkSecondFactor, clearLimit, limit, limited, registerSecurityRoutes, requireStrongPassword } from './security.ts';
 
 export { HttpError };
@@ -163,6 +164,7 @@ export function createRoutes(db: Db, rt: Realtime) {
          values ($1, $2, $3, $4, $5, case when $6 then now() else null end)`,
         [user.id, user.username, user.displayName, await hashPassword(body.password), user.avatarColor, !!body.acceptTerms],
       );
+      bump('signup');
       return { token: await createSession(db, user.id, req.headers['user-agent']), user };
     }),
   );
@@ -236,6 +238,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerSecurityRoutes(r, db, rt, auth);
   registerReportRoutes(r, db, rt, auth);
   registerWaitlistRoutes(r, db, rt, auth);
+  registerStatsRoutes(r, db, auth);
 
   r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers(), hasTurn: hasTurn() })));
 
@@ -302,6 +305,7 @@ export function createRoutes(db: Db, rt: Realtime) {
         await db.query('update attachments set message_id = $1 where id = any($2)', [id, body.attachmentIds]);
       }
       const [message] = await db.query<Message>(`${MESSAGE_SELECT} where msg.id = $1`, [id]);
+      bump('messages');
       await emitToChannel(c, 'message:new', { message });
       return { message };
     }),

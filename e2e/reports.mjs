@@ -103,7 +103,7 @@ try {
 
   // ---------- fila da equipe ----------
   await pe.getByRole('button', { name: /Denúncias \(2 abertas\)/ }).click();
-  const queue = pe.getByRole('dialog', { name: 'Denúncias' });
+  const queue = pe.getByRole('dialog', { name: 'Painel da equipe' });
   const item = queue.locator('.report-item', { hasText: 'Assédio ou ameaça' });
   await item.getByText('vou te achar na saída, otário').waitFor();
   await item.getByText(/já foi apagada; esta é a cópia guardada/).waitFor();
@@ -138,7 +138,7 @@ try {
   await pa.getByRole('button', { name: 'Enviar denúncia' }).click();
   await pa.getByText('Denúncia enviada.').waitFor();
   await pa.getByRole('button', { name: 'Fechar' }).last().click();
-  await queue.getByRole('tab', { name: /Abertas/ }).click();
+  await queue.getByRole('tab', { name: /^Denúncias/ }).click();
   await queue.locator('.report-item', { hasText: 'Skins Grátis Free Fire' }).getByRole('button', { name: 'Excluir servidor' }).click();
   await pa.locator('.rail-item[aria-label="Skins Grátis Free Fire"]').waitFor({ state: 'detached', timeout: 5000 });
   const gone = await api(`/guilds/${golpe.guild.id}`, null, caio.token);

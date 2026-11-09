@@ -127,6 +127,11 @@ function Privacy({ contact }: { contact: ReactNode }) {
         telefone nem e-mail (só a lista de espera pede um contato, se você quiser entrar nela).
       </p>
       <p>
+        <strong>Estatísticas sem rastreador:</strong> contamos só totais por dia (quantas visitas a página inicial teve e de onde vieram,
+        quantas mensagens e chamadas aconteceram), sem cookies e sem identificar quem visitou. De cada conta guardamos apenas o último dia
+        em que ela usou o Resenha, para saber quantas pessoas estão ativas.
+      </p>
+      <p>
         <strong>Endereço IP:</strong> usamos o IP só por alguns minutos, na memória, para bloquear ataques (como alguém tentando adivinhar
         senhas). Ele não fica salvo no nosso banco de dados. O provedor de hospedagem pode registrar acessos em logs técnicos por um
         período curto, como qualquer site.

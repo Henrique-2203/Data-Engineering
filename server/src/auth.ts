@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import type { Request, Response, NextFunction } from 'express';
 import type { Db } from './db.ts';
 import type { PublicUser } from '../../shared/types.ts';
+import { markActive } from './stats.ts';
 
 const scryptAsync = promisify(scrypt) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>;
 
@@ -73,6 +74,7 @@ export async function sessionFromToken(db: Db, token: unknown): Promise<{ user: 
   );
   if (!rows[0]) return null;
   const { stale, ...user } = rows[0];
+  markActive(user.id);
   if (stale) void db.query('update sessions set last_seen_at = now() where token_hash = $1', [hash]).catch(() => {});
   return { user, sessionHash: hash };
 }

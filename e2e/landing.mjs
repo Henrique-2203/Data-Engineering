@@ -130,13 +130,32 @@ try {
 
   // ---------- celular ----------
   const phone = await (await browser.newContext({ ...devices['Pixel 7'] })).newPage();
-  await phone.goto(BASE);
+  await phone.goto(`${BASE}/?src=ig_bio`);
   await phone.getByRole('heading', { name: /Sua call/ }).waitFor();
   await phone.waitForTimeout(1200);
   await phone.screenshot({ path: `${shots}/38-pagina-celular.png` });
   const overflow = await phone.evaluate(() => document.querySelector('.lp').scrollWidth > window.innerWidth + 1);
   if (overflow) throw new Error('a página estoura a largura no celular');
   step('layout do celular sem rolagem para os lados');
+
+  // ---------- painel de números ----------
+  await fetch(`${BASE}/api/stats/view`, { method: 'POST', headers: { 'content-type': 'application/json', 'user-agent': 'facebookexternalhit/1.1' }, body: '{}' });
+  await new Promise((r) => setTimeout(r, 500));
+  const st = await api('/admin/stats?days=7', null, equipe.token);
+  const today = st.days[st.days.length - 1];
+  const src = Object.fromEntries(st.sources.landing_view.map((x) => [x.key, x.total]));
+  const wsrc = Object.fromEntries(st.sources.waitlist.map((x) => [x.key, x.total]));
+  if (today.landing_view !== 1 || src.instagram !== 1 || src.direto) throw new Error(`visitas: ${JSON.stringify({ today, src })}`);
+  if (today.waitlist !== 2 || wsrc.instagram !== 1 || wsrc.tiktok !== 1 || today.download_windows !== 1 || today.signup !== 2) throw new Error(`contadores: ${JSON.stringify({ today, wsrc })}`);
+  if (st.totals.active7 < 1 || today.active_user < 1) throw new Error('ativos não contados');
+  const statsDenied = await api('/admin/stats', null, (await api('/auth/login', { username: 'zeca', password: 'segredo123' })).token);
+  if (statsDenied.status !== 404) throw new Error('números visíveis para quem não é da equipe');
+  await pa.getByRole('tab', { name: 'Números' }).click();
+  await pa.locator('.stat-tile', { hasText: 'Visitas à página' }).getByText('1', { exact: true }).waitFor();
+  await pa.locator('.stat-source', { hasText: 'De onde vêm as visitas' }).getByText('Instagram').waitFor();
+  await pa.locator('.stat-bars svg').hover();
+  await pa.screenshot({ path: `${shots}/39-painel-numeros.png` });
+  step('painel de números: visita do celular contada como Instagram; robôs (navegador automático e prévia de link) ignorados; 1 download, 2 inscritos por origem, contas e ativos');
 
   const relevant = errors.filter((e) => !/favicon|ERR_ABORTED|net::/.test(e));
   if (relevant.length) throw new Error(`erros no navegador: ${relevant.join(' | ')}`);

@@ -6,6 +6,7 @@ import { sessionFromToken } from './auth.ts';
 import { canSee, channelAudience, isTimedOut, loadChannel, memberAccess } from './access.ts';
 import type { Db } from './db.ts';
 import { usableExpression } from './expressions.ts';
+import { bump } from './stats.ts';
 import { Perm, has } from '../../shared/permissions.ts';
 import type { PublicUser, RtcSignal, VoiceState, Activity } from '../../shared/types.ts';
 
@@ -270,6 +271,7 @@ export class Realtime {
         })
         .safeParse(payload);
       if (!state || !p.success) return;
+      if (p.data.screen && !state.screen) bump('screen_share');
       Object.assign(state, p.data);
       this.emitVoice(state, 'voice:state', state);
     });
@@ -398,6 +400,7 @@ export class Realtime {
       screen: false,
     };
     this.voice.set(socket.id, state);
+    bump('voice_join');
     socket.join(`voice:${state.channelId}`);
     for (const peer of peers) {
       this.io.to(peer.socketId).emit('voice:peer-joined', { socketId: socket.id, userId: user.id });

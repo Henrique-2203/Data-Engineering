@@ -6,6 +6,7 @@ import type { Realtime } from './realtime.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { limit } from './security.ts';
 import { isPlatformAdmin } from './reports.ts';
+import { bump } from './stats.ts';
 import type { requireAuth } from './auth.ts';
 
 /**
@@ -50,6 +51,7 @@ export function registerWaitlistRoutes(r: Router, db: Db, _rt: Realtime, auth: R
         `insert into waitlist (id, name, email, whatsapp, platforms, source, consent_at) values ($1, $2, $3, $4, $5, $6, now())`,
         [randomUUID(), body.name, body.email, body.whatsapp || null, body.platforms, body.source ?? null],
       );
+      bump('waitlist', body.source ?? 'nao_informado');
       const [{ position }] = await db.query<{ position: number }>('select count(*)::int as position from waitlist');
       return { position, already: false };
     }),
@@ -138,6 +140,7 @@ export function registerWaitlistRoutes(r: Router, db: Db, _rt: Realtime, auth: R
   r.get(
     '/download/windows',
     wrap(async (_req, res) => {
+      bump('download_windows');
       res.redirect(302, (await latestWindows()).url);
     }),
   );
