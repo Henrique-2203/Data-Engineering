@@ -1,37 +1,57 @@
-// Trilha original (phonk + funk carioca) sintetizada aqui mesmo, sincronizada com a narração:
-// intro abafada que "trava" no fim da 1ª frase, subida em "Então... eu criei o meu", DROP no
-// "Esse é o Resenha", pausa no "Soundboard?", tamborzão no "Feito no Brasil" e final no
-// "Link na bio" / "Chama a resenha!". Sem direitos autorais: pode usar em qualquer conta.
+// Trilha original, suave e envolvente (chill/lo-fi eletrônico), sintetizada aqui e sincronizada
+// com a narração. Tom de Fá maior (F – C – Dm – Bb), 100 BPM:
+//  - "O Discord quer te cobrar...": só um pad em Ré menor (o "problema")
+//  - "Então... eu criei o meu": o som cresce devagar
+//  - "Esse é o Resenha": entra o groove (arpejo dedilhado com eco, baixo e bateria leve)
+//  - "Soundboard?": fica só o pad, e volta em "De graça"
+//  - "Feito no Brasil": arpejo vira levada de bossa nova
+//  - "Link na bio": volta completo e termina num acorde que ressoa em "Chama a resenha!"
+// Sem direitos autorais: pode usar em qualquer conta, inclusive em anúncio.
 import { DURATION, LINES } from './timeline.mjs';
 
 const RATE = 44100;
-const BPM = 128;
+const BPM = 100;
 const BEAT = 60 / BPM;
-const STEP = BEAT / 4; // semicolcheia
+const STEP = BEAT / 4;
+
+/** notas (Hz) a partir do nome: 'F3', 'Bb4'... */
+const NOTE = (n) => {
+  const m = /^([A-G])(b|#)?(\d)$/.exec(n);
+  const base = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1]] + (m[2] === 'b' ? -1 : m[2] === '#' ? 1 : 0);
+  return 440 * Math.pow(2, (base + (Number(m[3]) + 1) * 12 - 69) / 12);
+};
+/** acordes do arpejo/pad e nota do baixo */
+const CHORDS = {
+  F: { pad: ['F3', 'A3', 'C4', 'E4'], arp: ['F4', 'A4', 'C5', 'E5', 'C5', 'A4'], bass: 'F2' },
+  C: { pad: ['E3', 'G3', 'C4', 'D4'], arp: ['C4', 'E4', 'G4', 'D5', 'G4', 'E4'], bass: 'C2' },
+  Dm: { pad: ['D3', 'F3', 'A3', 'C4'], arp: ['D4', 'F4', 'A4', 'C5', 'A4', 'F4'], bass: 'D2' },
+  Bb: { pad: ['D3', 'F3', 'Bb3', 'C4'], arp: ['Bb3', 'D4', 'F4', 'C5', 'F4', 'D4'], bass: 'Bb1' },
+};
+const PROGRESSION = ['F', 'C', 'Dm', 'Bb'];
 
 export function makeMusic() {
   const N = Math.ceil(DURATION * RATE);
   const L = new Float32Array(N);
   const R = new Float32Array(N);
-  const send = new Float32Array(N); // reverb
-  let seed = 12345;
+  const echo = new Float32Array(N); // envio para o eco (arpejo)
+  const verb = new Float32Array(N); // envio para o reverb
+  let seed = 4242;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
 
   // ---------- momentos da narração ----------
-  const DROP = LINES[2].start; // "Esse é o Resenha."
-  const RISER_FROM = LINES[1].start; // "Então..."
-  const LAG_END = LINES[0].end; // fim de "live em HD."
-  const SB_BREAK = [LINES[5].start - 0.05, LINES[5].segs[1][0]]; // "Soundboard?" ... "De graça."
-  const FUNK = [LINES[9].start, LINES[10].start - 0.2]; // "Feito no Brasil..."
-  const LAST_BREAK = [LINES[10].start - 0.2, LINES[10].segs[1][0] - 0.06]; // "Quer testar?"
-  const FINAL_DROP = LINES[10].segs[1][0] - 0.06; // "Link na bio."
-  const END_HIT = LINES[10].segs[2][1] - 0.02; // fim de "Chama a resenha!"
-  const stepAt = (i) => DROP + i * STEP; // grade presa ao drop
+  const GROOVE = LINES[2].start; // "Esse é o Resenha."
+  const SWELL = [LINES[1].start, GROOVE];
+  const SB_BREAK = [LINES[5].start - 0.05, LINES[5].segs[1][0]]; // "Soundboard?"
+  const BOSSA = [LINES[9].start, LINES[10].start - 0.2]; // "Feito no Brasil..."
+  const LAST_BREAK = [LINES[10].start - 0.2, LINES[10].segs[1][0] - 0.05]; // "Quer testar?"
+  const FINAL = LINES[10].segs[1][0] - 0.05; // "Link na bio."
+  const END = LINES[10].segs[2][1]; // fim de "Chama a resenha!"
+  const inRange = (t, [a, b]) => t >= a && t < b;
 
   // ---------- instrumentos ----------
-  const put = (t, len, fn, { pan = 0, rev = 0, gain = 1 } = {}) => {
+  const put = (t, len, fn, { pan = 0, gain = 1, ech = 0, rev = 0 } = {}) => {
     const s0 = Math.floor(t * RATE);
-    const gl = gain * Math.min(1, 1 - pan), gr = gain * Math.min(1, 1 + pan);
+    const gl = gain * (pan > 0 ? 1 - pan : 1), gr = gain * (pan < 0 ? 1 + pan : 1);
     for (let i = 0; i < len * RATE; i++) {
       const j = s0 + i;
       if (j < 0) continue;
@@ -39,214 +59,165 @@ export function makeMusic() {
       const v = fn(i / RATE);
       L[j] += v * gl;
       R[j] += v * gr;
-      if (rev) send[j] += v * rev;
+      if (ech) echo[j] += v * ech;
+      if (rev) verb[j] += v * rev;
     }
   };
   const env = (t, a, d) => (t < a ? t / a : Math.exp(-(t - a) / d));
-  const sat = (x, k) => Math.tanh(x * k) / Math.tanh(k);
 
-  const kick = (t, g = 1) =>
-    put(t, 0.45, (x) => {
-      const ph = 2 * Math.PI * (48 * x + (140 / 30) * (1 - Math.exp(-x * 30)));
-      return sat(Math.sin(ph) * env(x, 0.002, 0.16) * 1.6, 2) * 0.9 + (x < 0.004 ? rnd() * 0.3 : 0);
-    }, { gain: g });
-  const clap = (t, g = 1) => {
+  // pad: ondas triangulares levemente desafinadas, ataque e saída lentos, filtrado
+  const pad = (t, len, notes, gain = 1, cutoff = 0.06) => {
+    for (const [k, n] of notes.entries()) {
+      const f = NOTE(n);
+      for (const [det, pan] of [[0.997, -0.5], [1.003, 0.5]]) {
+        let lp = 0, lp2 = 0;
+        put(t, len + 1.2, (x) => {
+          const ph = (f * det * x) % 1;
+          const tri = 4 * Math.abs(ph - 0.5) - 1;
+          lp += cutoff * (tri - lp);
+          lp2 += cutoff * (lp - lp2);
+          const a = Math.min(1, x / 0.6) * (x > len ? Math.exp(-(x - len) / 0.35) : 1);
+          return lp2 * a * 0.075;
+        }, { pan: pan * (k % 2 ? 1 : 0.7), gain, rev: 0.2 });
+      }
+    }
+  };
+  // dedilhado (tipo kalimba/pluck): seno + harmônico com decaimento rápido
+  const pluck = (t, n, gain = 1, pan = 0, dec = 0.22) => {
+    const f = NOTE(n);
+    put(t, dec * 5, (x) => (Math.sin(2 * Math.PI * f * x) * 0.7 + Math.sin(4 * Math.PI * f * x) * 0.18 * Math.exp(-x * 25) + Math.sin(6 * Math.PI * f * x) * 0.06 * Math.exp(-x * 40)) * env(x, 0.003, dec) * 0.2, { pan, gain, ech: 0.45, rev: 0.15 });
+  };
+  // violão de nylon (bossa): pluck mais grave e quente
+  const nylon = (t, n, gain = 1, pan = 0) => {
+    const f = NOTE(n);
     let lp = 0;
-    put(t, 0.35, (x) => {
-      const bursts = [0, 0.011, 0.022].reduce((a, o) => a + (x >= o ? env(x - o, 0.001, x - o < 0.03 ? 0.008 : 0.09) : 0), 0);
-      const n = rnd();
-      lp += 0.35 * (n - lp);
-      return (n - lp) * bursts * 0.5;
-    }, { rev: 0.35, gain: g });
+    put(t, 1.2, (x) => {
+      const raw = Math.sin(2 * Math.PI * f * x) + 0.5 * Math.sin(4 * Math.PI * f * x) * Math.exp(-x * 8) + 0.25 * Math.sin(6 * Math.PI * f * x) * Math.exp(-x * 14);
+      lp += 0.3 * (raw - lp);
+      return lp * env(x, 0.002, 0.28) * 0.13;
+    }, { pan, gain, rev: 0.2 });
   };
-  const snare = (t, g = 1) =>
-    put(t, 0.22, (x) => (Math.sin(2 * Math.PI * 190 * x) * env(x, 0.001, 0.05) * 0.5 + rnd() * env(x, 0.001, 0.07) * 0.45) * g, { rev: 0.25 });
-  const hat = (t, g = 1, open = false) => {
-    let hp = 0, prev = 0;
-    put(t, open ? 0.25 : 0.06, (x) => {
-      const n = rnd();
-      hp = 0.6 * (hp + n - prev);
-      prev = n;
-      return hp * env(x, 0.0005, open ? 0.08 : 0.018) * 0.28 * g;
-    }, { pan: 0.25 });
+  const bell = (t, n, gain = 1, pan = 0) => {
+    const f = NOTE(n);
+    put(t, 2.5, (x) => (Math.sin(2 * Math.PI * f * x) + 0.35 * Math.sin(2 * Math.PI * f * 2.76 * x) * Math.exp(-x * 3) + 0.2 * Math.sin(2 * Math.PI * f * 5.4 * x) * Math.exp(-x * 6)) * env(x, 0.002, 0.7) * 0.07, { pan, gain, ech: 0.3, rev: 0.4 });
   };
-  // cowbell de phonk (dois quadrados desafinados, filtrado), afinado em notas
-  const cowbell = (t, freq, g = 1, pan = -0.2) => {
-    let bp = 0, lp2 = 0;
-    put(t, 0.35, (x) => {
-      const sq = Math.sign(Math.sin(2 * Math.PI * freq * x)) * 0.6 + Math.sign(Math.sin(2 * Math.PI * freq * 1.48 * x)) * 0.4;
-      bp += 0.3 * (sq - bp);
-      lp2 += 0.5 * (bp - lp2);
-      return (bp - lp2 * 0.6) * env(x, 0.001, 0.07 + 0.05 * (freq < 450 ? 1 : 0)) * 0.32 * g;
-    }, { pan, rev: 0.3 });
+  const bass = (t, n, len, gain = 1) => {
+    const f = NOTE(n);
+    put(t, len, (x) => (Math.sin(2 * Math.PI * f * x) * 0.8 + Math.sin(4 * Math.PI * f * x) * 0.15) * Math.min(1, x / 0.01) * Math.min(1, (len - x) / 0.04) * Math.exp(-x * 1.2) * 0.24, { gain });
   };
-  // 808: seno longo saturado + oitava acima (para aparecer em alto-falante de celular)
-  const bass808 = (t, freq, len, g = 1, glideTo = null) =>
-    put(t, len, (x) => {
-      const k = Math.min(1, x / len);
-      const f = glideTo ? freq * Math.pow(glideTo / freq, Math.max(0, (k - 0.6) / 0.4)) : freq;
-      const ph = 2 * Math.PI * f * x;
-      const a = env(x, 0.004, len * 0.9) * (x > len - 0.03 ? (len - x) / 0.03 : 1);
-      return (sat(Math.sin(ph) * 1.8, 2.5) * 0.55 + Math.sin(2 * ph) * 0.18) * a * g;
-    });
-  const crash = (t, g = 1) => {
-    let hp = 0, prev = 0;
-    put(t, 2.2, (x) => {
-      const n = rnd();
-      hp = 0.7 * (hp + n - prev);
-      prev = n;
-      return hp * env(x, 0.002, 0.6) * 0.32 * g;
-    }, { rev: 0.4, pan: 0.15 });
-  };
-  const subBoom = (t, g = 1) => put(t, 1.6, (x) => Math.sin(2 * Math.PI * (38 + 60 * Math.exp(-x * 9)) * x) * env(x, 0.003, 0.55) * 0.9 * g);
-  const riser = (a, b, g = 1) => {
+  const softKick = (t, g = 1) => put(t, 0.3, (x) => Math.sin(2 * Math.PI * (50 * x + (70 / 25) * (1 - Math.exp(-x * 25)))) * env(x, 0.003, 0.08) * 0.3 * g);
+  const rim = (t, g = 1) => {
     let lp = 0;
-    put(a, b - a, (x) => {
-      const k = x / (b - a);
+    put(t, 0.12, (x) => {
       const n = rnd();
-      lp += (0.01 + 0.5 * k * k) * (n - lp);
-      return (lp * 0.8 + Math.sin(2 * Math.PI * (200 + 900 * k * k) * x) * 0.15) * k * k * 0.5 * g;
-    }, { rev: 0.3 });
+      lp += 0.5 * (n - lp);
+      return (Math.sin(2 * Math.PI * 1700 * x) * 0.4 + (n - lp) * 0.6) * env(x, 0.0008, 0.018) * 0.2 * g;
+    }, { pan: -0.15, rev: 0.3 });
   };
-  const reverseCymbal = (a, b) => {
+  const shaker = (t, g = 1) => {
     let hp = 0, prev = 0;
-    put(a, b - a, (x) => {
+    put(t, 0.09, (x) => {
       const n = rnd();
-      hp = 0.7 * (hp + n - prev);
+      hp = 0.5 * (hp + n - prev);
       prev = n;
-      return hp * Math.pow(x / (b - a), 3) * 0.4;
-    }, { rev: 0.2 });
+      return hp * (x < 0.015 ? x / 0.015 : Math.exp(-(x - 0.015) / 0.025)) * 0.07 * g;
+    }, { pan: 0.35 });
+  };
+  const swell = (a, b, g = 1) => {
+    let lp = 0;
+    put(a, b - a + 0.1, (x) => {
+      const k = Math.min(1, x / (b - a));
+      const n = rnd();
+      lp += (0.005 + 0.12 * k * k) * (n - lp);
+      return lp * Math.pow(k, 2.5) * 0.35 * g * (x > b - a ? 0 : 1);
+    }, { rev: 0.5 });
   };
 
   // ---------- música ----------
-  // fá menor: progressão de 2 compassos por acorde (Fm, Fm, Db, Eb)
-  const ROOTS = [43.65, 43.65, 34.65, 38.89];
-  const SCALE = [349.23, 415.3, 466.16, 523.25, 622.25, 698.46]; // F Ab Bb C Eb F
-  // melodia do cowbell (índice da escala por semicolcheia; -1 = pausa), 2 compassos
-  const MELODY = [5, -1, 3, -1, 4, -1, 3, 2, -1, 3, -1, 0, 2, -1, 3, -1, 5, -1, 3, -1, 4, -1, 3, 2, -1, 3, -1, 4, 5, -1, 3, -1];
-  const PHONK_KICK = [0, 7, 10];
-  const TAMBOR = [0, 3, 6, 8, 10, 12, 14]; // "tamborzão" do funk (3-3-2)
-
-  const inRange = (t, [a, b]) => t >= a && t < b;
-  const firstStep = Math.floor((0 - DROP) / STEP);
-  const lastStep = Math.floor((END_HIT - DROP) / STEP);
-
-  // a intro abafada vai para um buffer separado e depois é filtrada e "travada"
-  const swapOut = () => [L.slice(), R.slice()];
-
-  const playStep = (i, intro) => {
-    const t = stepAt(i);
-    const s = ((i % 16) + 16) % 16;
-    const bar = Math.floor(i / 16);
-    const chord = ROOTS[(((Math.floor(bar / 2)) % 4) + 4) % 4];
-    const funk = inRange(t, FUNK);
-    // bateria
-    if (funk) {
-      if (TAMBOR.includes(s)) kick(t, s === 0 ? 1 : 0.75);
-      if ([4, 12].includes(s)) clap(t, 0.8);
-      if (s % 2 === 1) hat(t, 0.8);
-      if (s === 0 || s === 6) bass808(t, chord * 2, STEP * 3, 0.55);
-    } else {
-      if (PHONK_KICK.includes(s)) kick(t);
-      if (s === 8) clap(t);
-      if (s === 8 && !intro) snare(t, 0.4);
-      if (s % 2 === 0) hat(t, s % 4 === 2 ? 1 : 0.6);
-      if (!intro && bar % 2 === 1 && s >= 12) hat(t + STEP / 2, 0.7); // rolinho de chimbal
-      if (!intro && s === 14 && bar % 4 === 3) hat(t, 1, true);
-      // 808 no ritmo do bumbo
-      if (PHONK_KICK.includes(s)) {
-        const next = PHONK_KICK.find((k) => k > s) ?? 16;
-        const glide = s === 10 && bar % 2 === 1 ? chord * 1.5 : null;
-        bass808(t, chord, (next - s) * STEP, intro ? 0.6 : 1, glide);
-      }
-    }
-    // cowbell (melodia), mais alto depois do drop
-    const note = MELODY[(((i % 32) + 32) % 32)];
-    if (note >= 0 && !funk) cowbell(t, SCALE[note] * (bar % 8 >= 4 && !intro ? 2 : 1), intro ? 0.6 : 1, s % 4 === 0 ? -0.25 : 0.25);
-    if (funk && note >= 0 && s % 4 === 0) cowbell(t, SCALE[note], 0.6, 0.3);
+  const bars = (from, to) => {
+    const out = [];
+    for (let t = from, i = 0; t < to - 0.01; t += BEAT * 4, i++) out.push({ t, i });
+    return out;
   };
 
-  // 1) intro (até o fim de "live em HD."), em buffer separado
-  for (let i = firstStep; ; i++) {
-    const t = stepAt(i);
-    if (t >= LAG_END) break;
-    if (t < 0) continue;
-    playStep(i, true);
-  }
-  const [iL, iR] = swapOut();
-  L.fill(0);
-  R.fill(0);
-  send.fill(0); // o reverb da intro também fica abafado (não vaza)
-  // filtro abafado + "travadas" (como live com lag) + desacelera no fim (tape stop)
-  const lagEnd = Math.floor(LAG_END * RATE);
-  const stopStart = Math.floor((LAG_END - 0.5) * RATE);
-  let lpL = 0, lpL2 = 0, lpR = 0, lpR2 = 0;
-  let pos = 0, rate = 1;
-  for (let j = 0; j < lagEnd; j++) {
-    // engasgos: repete pedacinhos curtos em 2 momentos
-    let src = j;
-    const tt = j / RATE;
-    if ((tt > 1.2 && tt < 1.42) || (tt > 2.05 && tt < 2.2)) src = Math.floor(RATE * (tt > 2 ? 2.05 : 1.2)) + (j % Math.floor(RATE * 0.06));
-    if (j >= stopStart) {
-      rate = Math.max(0, 1 - (j - stopStart) / (lagEnd - stopStart));
-      pos += rate;
-      src = stopStart + Math.floor(pos);
-    } else pos = 0;
-    const cut = 0.09;
-    lpL += cut * (iL[src] - lpL);
-    lpL2 += cut * (lpL - lpL2);
-    lpR += cut * (iR[src] - lpR);
-    lpR2 += cut * (lpR - lpR2);
-    const crackle = rnd() > 0.9986 ? rnd() * 0.25 : 0;
-    const fadeIn = Math.min(1, j / (RATE * 0.15));
-    L[j] = (lpL2 * 1.6 + crackle) * fadeIn;
-    R[j] = (lpR2 * 1.6 + crackle) * fadeIn;
-  }
+  // 1) o "problema": pad em Ré menor, com um dedilhado triste e espaçado
+  pad(0, LINES[0].end - 0.1, ['D3', 'F3', 'A3', 'C4'], 0.9, 0.035);
+  for (const [k, n] of ['A4', 'F4', 'D4', 'C4'].entries()) pluck(0.4 + k * BEAT * 1.5, n, 0.5, k % 2 ? 0.3 : -0.3, 0.3);
 
-  // 2) "Então... eu criei o meu": silêncio tenso, depois subida com caixa acelerando
-  riser(RISER_FROM + 0.4, DROP, 1);
-  {
-    const a = LINES[1].segs[1][0];
-    let t = a;
-    while (t < DROP - 0.02) {
-      const p = (t - a) / (DROP - a);
-      snare(t, 0.25 + 0.6 * p);
-      t += p < 0.5 ? BEAT / 2 : p < 0.8 ? STEP : STEP / 2;
+  // 2) "Então... eu criei o meu": cresce até o groove
+  swell(SWELL[0] + 0.2, GROOVE, 0.8);
+  pad(SWELL[1] - 1.6, 1.6, ['C3', 'E3', 'G3', 'D4'], 0.5, 0.05);
+  for (let k = 0; k < 8; k++) pluck(GROOVE - (8 - k) * STEP, ['C4', 'E4', 'G4', 'C5', 'E5', 'G5', 'C6', 'E6'][k], 0.25 + k * 0.06, k % 2 ? 0.4 : -0.4, 0.12);
+
+  // 3) groove: do "Esse é o Resenha" até o fim
+  bell(GROOVE, 'C6', 1, -0.2);
+  bell(GROOVE + 0.02, 'F5', 0.8, 0.2);
+  for (const { t: barT, i: bi } of bars(GROOVE, END + 0.01)) {
+    const ch = CHORDS[PROGRESSION[bi % 4]];
+    const breakNow = (x) => inRange(x, SB_BREAK) || inRange(x, LAST_BREAK);
+    pad(barT, BEAT * 4, ch.pad, inRange(barT, BOSSA) ? 0.7 : 0.8);
+    for (let s = 0; s < 16; s++) {
+      const t = barT + s * STEP;
+      if (t >= END) break;
+      if (breakNow(t)) continue;
+      const bossa = inRange(t, BOSSA);
+      // arpejo (o que prende a atenção): semicolcheias suaves com eco
+      if (!bossa && s % 2 === 0) pluck(t, ch.arp[(s / 2) % ch.arp.length], s % 4 === 0 ? 0.9 : 0.6, (s / 2) % 2 ? 0.35 : -0.35);
+      if (!bossa && bi % 2 === 1 && s === 14) pluck(t + STEP, ch.arp[3], 0.5, 0.5);
+      // bossa nova: baixo no 1 e no 3, acordes sincopados no violão
+      if (bossa) {
+        if (s === 0 || s === 8) nylon(t, ch.bass.replace(/\d/, '3'), 1, -0.1);
+        if ([3, 6, 10, 13].includes(s)) for (const [k, n] of ch.pad.slice(1).entries()) nylon(t + k * 0.012, n.replace(/\d/, (d) => String(Number(d) + 1)), 0.55, 0.2);
+      }
+      // bateria leve
+      if (s === 0 || s === 10) softKick(t, bossa ? 0.6 : 0.9);
+      if (s === 4 || s === 12) rim(t, bossa ? 1.2 : 1);
+      if (s % 2 === 0) shaker(t, s % 4 === 2 ? 1 : 0.6);
+      if (bossa && s % 2 === 1) shaker(t, 0.5);
+    }
+    // baixo
+    if (!breakNow(barT)) {
+      bass(barT, ch.bass, BEAT * 2.5);
+      if (!breakNow(barT + BEAT * 2.5)) bass(barT + BEAT * 2.5, ch.bass, BEAT * 1.5, 0.8);
     }
   }
+  // voltas das pausas
+  bell(SB_BREAK[1], 'A5', 0.9, 0.2);
+  pluck(SB_BREAK[1], 'F5', 0.8, -0.2);
+  swell(LAST_BREAK[0], FINAL, 0.6);
+  bell(FINAL, 'C6', 1, -0.2);
+  bell(FINAL + 0.03, 'A5', 0.8, 0.2);
+  // final: acorde de Fá ressoando
+  pad(END, 1.4, ['F3', 'A3', 'C4', 'E4', 'A4'], 1, 0.05);
+  bell(END, 'F5', 1, 0);
+  bell(END + 0.05, 'C6', 0.8, 0.3);
+  bass(END, 'F2', 1.2, 0.9);
 
-  // 3) DROP e música até o fim (com as pausas)
-  crash(DROP);
-  subBoom(DROP);
-  for (let i = 0; i <= lastStep; i++) {
-    const t = stepAt(i);
-    if (inRange(t, SB_BREAK) || inRange(t, LAST_BREAK)) continue;
-    playStep(i, false);
-  }
-  reverseCymbal(SB_BREAK[1] - 0.6, SB_BREAK[1]);
-  crash(SB_BREAK[1]);
-  kick(SB_BREAK[1]);
-  bass808(SB_BREAK[1], ROOTS[0], 0.5);
-  crash(FUNK[0], 0.8);
-  riser(LAST_BREAK[0], FINAL_DROP, 0.9);
-  crash(FINAL_DROP);
-  subBoom(FINAL_DROP, 0.8);
-  // impacto final
-  kick(END_HIT, 1.2);
-  subBoom(END_HIT, 1.1);
-  crash(END_HIT, 1.2);
-  bass808(END_HIT, ROOTS[0], 0.9, 1);
-
-
-  // ---------- reverb simples (Schroeder) ----------
-  const combs = [1557, 1617, 1491, 1422].map((d) => ({ d, buf: new Float32Array(d), i: 0 }));
-  const aps = [225, 556].map((d) => ({ d, buf: new Float32Array(d), i: 0 }));
+  // ---------- eco (ping-pong, colcheia pontuada) e reverb ----------
+  const dly = Math.floor(BEAT * 0.75 * RATE);
+  const eL = new Float32Array(N), eR = new Float32Array(N);
   for (let j = 0; j < N; j++) {
-    let x = send[j] * 0.5;
+    const inp = echo[j];
+    eL[j] = inp + (j >= dly ? eR[j - dly] * 0.38 : 0);
+    eR[j] = j >= dly ? eL[j - dly] * 0.38 : 0;
+  }
+  let lpe = 0, lpe2 = 0;
+  for (let j = 0; j < N; j++) {
+    lpe += 0.25 * (eL[j] - echo[j] - lpe);
+    lpe2 += 0.25 * (eR[j] - lpe2);
+    L[j] += lpe * 0.6;
+    R[j] += lpe2 * 0.6;
+    verb[j] += (eL[j] - echo[j] + eR[j]) * 0.1;
+  }
+  const combs = [1687, 1601, 2053, 2251].map((d) => ({ d, buf: new Float32Array(d), i: 0, lp: 0 }));
+  const aps = [347, 113].map((d) => ({ d, buf: new Float32Array(d), i: 0 }));
+  for (let j = 0; j < N; j++) {
+    const x = verb[j] * 0.35;
     let y = 0;
     for (const c of combs) {
       const o = c.buf[c.i];
-      c.buf[c.i] = x + o * 0.82;
+      c.lp += 0.45 * (o - c.lp); // reverb mais escuro e macio
+      c.buf[c.i] = x + c.lp * 0.86;
       c.i = (c.i + 1) % c.d;
       y += o;
     }
@@ -258,14 +229,14 @@ export function makeMusic() {
       a.i = (a.i + 1) % a.d;
       y = o - v * 0.5;
     }
-    L[j] += y * 0.6;
-    R[j] += y * 0.55;
+    L[j] += y * 0.7;
+    R[j] += y * 0.7;
   }
 
-  // ---------- master: limita e grava WAV estéreo 16 bits ----------
+  // ---------- master ----------
   let peak = 0;
   for (let j = 0; j < N; j++) peak = Math.max(peak, Math.abs(L[j]), Math.abs(R[j]));
-  const norm = peak > 0 ? 1 / peak : 1;
+  const norm = peak > 0 ? 0.95 / peak : 1;
   const out = Buffer.alloc(44 + N * 4);
   out.write('RIFF', 0);
   out.writeUInt32LE(36 + N * 4, 4);
@@ -279,11 +250,12 @@ export function makeMusic() {
   out.writeUInt16LE(16, 34);
   out.write('data', 36);
   out.writeUInt32LE(N * 4, 40);
-  const fadeOut = Math.floor((DURATION - 0.3) * RATE);
+  const fadeIn = Math.floor(0.3 * RATE);
+  const fadeOut = Math.floor((DURATION - 0.7) * RATE);
   for (let j = 0; j < N; j++) {
-    const f = j > fadeOut ? 1 - (j - fadeOut) / (N - fadeOut) : 1;
-    out.writeInt16LE(Math.round(Math.tanh(L[j] * norm * 1.4) * 0.89 * f * 32767), 44 + j * 4);
-    out.writeInt16LE(Math.round(Math.tanh(R[j] * norm * 1.4) * 0.89 * f * 32767), 46 + j * 4);
+    const f = Math.min(1, j / fadeIn) * (j > fadeOut ? 1 - (j - fadeOut) / (N - fadeOut) : 1);
+    out.writeInt16LE(Math.round(Math.tanh(L[j] * norm * 1.1) * 0.9 * f * 32767), 44 + j * 4);
+    out.writeInt16LE(Math.round(Math.tanh(R[j] * norm * 1.1) * 0.9 * f * 32767), 46 + j * 4);
   }
   return out;
 }

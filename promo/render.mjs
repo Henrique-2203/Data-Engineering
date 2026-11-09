@@ -77,7 +77,7 @@ if (preview) {
     // com a trilha: a música abaixa sozinha enquanto a voz fala (sidechain) e sobe nas pausas
     const mixMusic =
       `[1:a]highpass=f=80,acompressor=threshold=-20dB:ratio=3:attack=5:release=80,loudnorm=I=-14:TP=-1.5:LRA=7,adelay=${Math.round(VOICE_START * 1000)}:all=1,asplit=2[v][vk];` +
-      `[3:a]loudnorm=I=-18:TP=-2,aformat=channel_layouts=stereo[m0];[m0][vk]sidechaincompress=threshold=0.1:ratio=2.5:attack=20:release=300:makeup=1[m];` +
+      `[3:a]loudnorm=I=-19.5:TP=-2,aformat=channel_layouts=stereo[m0];[m0][vk]sidechaincompress=threshold=0.1:ratio=2.5:attack=20:release=300:makeup=1[m];` +
       `[2:a]volume=0.3[s];[v][m][s]amix=inputs=3:normalize=0:duration=longest,alimiter=limit=0.89[a]`;
     run(['-framerate', String(FPS), '-i', path.join(frames, '%05d.jpg'), '-i', voice, '-i', path.join(OUT, 'efeitos.wav'), '-i', path.join(OUT, 'trilha.wav'), '-filter_complex', mixMusic, '-map', '0:v', '-map', '[a]', ...enc, '-c:a', 'aac', '-b:a', '192k', '-t', String(DURATION), path.join(OUT, 'resenha-video-final.mp4')]);
     console.log('vídeo com trilha em promo/out/resenha-video-final.mp4');
