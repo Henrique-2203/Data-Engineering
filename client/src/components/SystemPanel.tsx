@@ -95,6 +95,68 @@ function Bar({ used, total }: { used: number; total: number }) {
   );
 }
 
+interface Capacity {
+  cpu: { avgPct: number; peakPct: number; limitPct: number };
+  memory: { usedMb: number; limitMb: number };
+  turn: { monthMb: number; quotaMb: number | null };
+  live: { online: number; inVoice: number; calls: number; streaming: number };
+  warnings: string[];
+}
+
+/** Limites do plano (processador, memória, TURN) com aviso antes de estourar. */
+function CapacityCard() {
+  const [c, setC] = useState<Capacity | null>(null);
+  useEffect(() => {
+    const load = () => api<Capacity>('/admin/capacity').then(setC, () => {});
+    void load();
+    const t = setInterval(load, 15_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!c) return null;
+  return (
+    <>
+      <h3 className="subhead">Limites do plano (agora)</h3>
+      {c.warnings.map((w) => (
+        <p key={w} className="notice warn">
+          ⚠️ Perto do limite: {w}
+        </p>
+      ))}
+      <div className="stat-tiles capacity-tiles">
+        <div className="stat-tile">
+          <span className="stat-label">Processador do servidor</span>
+          <strong className="stat-value">{c.cpu.avgPct}%</strong>
+          <Bar used={c.cpu.avgPct} total={c.cpu.limitPct} />
+          <span className="stat-note">
+            de 1 núcleo, média do último minuto (pico {c.cpu.peakPct}%) · o plano dá {c.cpu.limitPct}%
+          </span>
+        </div>
+        <div className="stat-tile">
+          <span className="stat-label">Memória do servidor</span>
+          <strong className="stat-value">{c.memory.usedMb} MB</strong>
+          <Bar used={c.memory.usedMb} total={c.memory.limitMb} />
+          <span className="stat-note">de {c.memory.limitMb} MB</span>
+        </div>
+        <div className="stat-tile">
+          <span className="stat-label">TURN este mês</span>
+          <strong className="stat-value">{c.turn.monthMb} MB</strong>
+          {c.turn.quotaMb ? <Bar used={c.turn.monthMb} total={c.turn.quotaMb} /> : null}
+          <span className="stat-note">
+            {c.turn.quotaMb ? `de ${c.turn.quotaMb} MB` : 'defina TURN_QUOTA_MB no Render com a cota do seu plano Metered para ver a barra'}
+          </span>
+        </div>
+        <div className="stat-tile">
+          <span className="stat-label">Conectados agora</span>
+          <strong className="stat-value">{c.live.online}</strong>
+          <span className="stat-note">
+            {c.live.inVoice} em call ({c.live.calls} call{c.live.calls === 1 ? '' : 's'}) · {c.live.streaming} transmitindo
+          </span>
+        </div>
+      </div>
+      <p className="muted small">Passou de 80% em algum limite: a equipe recebe um e-mail (no máximo um por dia). Veja o guia em docs/CAPACIDADE.md.</p>
+    </>
+  );
+}
+
 /** Painel da equipe → Sistema: onde estão os arquivos, quanto espaço sobra e se os backups estão em dia. */
 export function SystemPanel() {
   const [sys, setSys] = useState<System | null>(null);
@@ -119,6 +181,8 @@ export function SystemPanel() {
           ⚠️ {w}
         </p>
       ))}
+      <CapacityCard />
+      <h3 className="subhead">Espaço e backups</h3>
       <div className="stat-tiles">
         <div className="stat-tile">
           <span className="stat-label">Arquivos ({s.where === 'r2' ? 'Cloudflare R2' : 'no banco'})</span>

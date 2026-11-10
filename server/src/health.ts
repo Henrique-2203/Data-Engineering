@@ -7,6 +7,7 @@ import { HttpError, parse, wrap } from './http.ts';
 import { limit } from './security.ts';
 import { isPlatformAdmin } from './reports.ts';
 import type { requireAuth } from './auth.ts';
+import { capacity, overLimits } from './capacity.ts';
 
 /**
  * Saúde das calls (Painel da equipe → Saúde). O app manda, a cada minuto de call, NÚMEROS de qualidade
@@ -91,6 +92,16 @@ export function registerHealthRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
         );
       }
       return { ok: true };
+    }),
+  );
+
+  r.get(
+    '/admin/capacity',
+    auth,
+    wrap(async (req) => {
+      if (!isPlatformAdmin(req.user!.username)) throw new HttpError(404, 'Rota não encontrada.');
+      const c = await capacity(db, rt);
+      return { ...c, warnings: overLimits(c).map((o) => o.text) };
     }),
   );
 
