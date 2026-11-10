@@ -21,6 +21,8 @@ export interface Denoiser {
 }
 
 let ctx: AudioContext | null = null;
+/** +8 dB depois do filtro */
+const MAKEUP_GAIN = 2.5;
 const loaded = new Map<AiNoiseMode, Promise<ArrayBuffer>>();
 
 function context() {
@@ -58,8 +60,20 @@ export async function createDenoiser(raw: MediaStreamTrack, mode: AiNoiseMode): 
     mode === 'rnnoise' ? new RnnoiseWorkletNode(c, { wasmBinary, maxChannels: 1 }) : new GtcrnWorkletNode(c, { wasmBinary, maxChannels: 1 });
   const dest = c.createMediaStreamDestination();
   dest.channelCount = 1;
+  // o filtro deixa a voz uns 8-10 dB mais baixa (medido no e2e/noise.mjs): devolve o volume e um
+  // limitador segura os picos para nunca distorcer
+  const makeup = c.createGain();
+  makeup.gain.value = MAKEUP_GAIN;
+  const limiter = c.createDynamicsCompressor();
+  limiter.threshold.value = -3;
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.002;
+  limiter.release.value = 0.08;
   source.connect(node);
-  node.connect(dest);
+  node.connect(makeup);
+  makeup.connect(limiter);
+  limiter.connect(dest);
   const track = dest.stream.getAudioTracks()[0];
   return {
     track,
@@ -67,6 +81,8 @@ export async function createDenoiser(raw: MediaStreamTrack, mode: AiNoiseMode): 
       try {
         source.disconnect();
         node.disconnect();
+        makeup.disconnect();
+        limiter.disconnect();
         node.destroy?.();
       } catch {
         /* já desligado */

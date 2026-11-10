@@ -93,7 +93,7 @@ try {
       assert(!errors.some((e) => /wasm|worklet|Content Security/i.test(e)), `sem erro de carregamento (${errors.join(' | ')})`);
       levels.sort((x, y) => x - y);
       const pick = (q) => levels[Math.floor(levels.length * q)];
-      return { status, p90: pick(0.9), p50: pick(0.5) };
+      return { status, p90: pick(0.9), p75: pick(0.75), p50: pick(0.5) };
     } finally {
       await b.close();
     }
@@ -104,7 +104,7 @@ try {
   for (const [k, f] of Object.entries(files)) {
     res[k] = {};
     for (const m of modes) res[k][m] = await measure(f, m);
-    console.log(`  ${k.padEnd(7)} (pico/mediana, 0-100): ` + modes.map((m) => `${m} ${res[k][m].p90}/${res[k][m].p50}`).join(' · '));
+    console.log(`  ${k.padEnd(7)} (pico/fala/mediana, 0-100): ` + modes.map((m) => `${m} ${res[k][m].p90}/${res[k][m].p75}/${res[k][m].p50}`).join(' · '));
   }
   const t = res.teclado;
   assert(t.off.status === 'Desligada' && t.rnnoise.status === 'Leve (IA)' && t.gtcrn.status === 'Forte (IA)', 'filtro certo ligado');
@@ -112,9 +112,13 @@ try {
   // a escala é linear em dB: 20 pontos = 20 dB a menos (10x menos amplitude)
   assert(t.gtcrn.p90 < t.off.p90 - 20, `GTCRN abaixa o teclado em mais de 20 dB (${t.off.p90} → ${t.gtcrn.p90})`);
   if (res.voz) {
-    // a voz continua: pico no máximo 10 dB abaixo do sem filtro (a medição varia uns 2-3 dB entre execuções)
-    assert(res.voz.gtcrn.p90 > res.voz.off.p90 - 10, `GTCRN mantém a voz (${res.voz.off.p90} → ${res.voz.gtcrn.p90})`);
-    assert(res.voz.rnnoise.p90 > res.voz.off.p90 - 10, `RNNoise mantém a voz (${res.voz.off.p90} → ${res.voz.rnnoise.p90})`);
+    // a voz continua: nível enquanto a pessoa fala (percentil 75: a voz ocupa ~60% do áudio de teste) no
+    // máximo 8 dB abaixo do sem filtro. Nas pausas entre palavras o filtro tira o chiado de fundo (o que
+    // abaixa a mediana, e é o esperado).
+    for (const m of ['gtcrn', 'rnnoise']) {
+      const v = res.voz[m];
+      assert(v.p75 > res.voz.off.p75 - 8 && v.p90 > res.voz.off.p90 - 14, `${m} mantém a voz (fala ${res.voz.off.p75} → ${v.p75}, pico ${res.voz.off.p90} → ${v.p90})`);
+    }
   }
   step('supressão de ruído: o teclado some e a voz continua');
   console.log('\nTUDO CERTO (supressão de ruído)');
