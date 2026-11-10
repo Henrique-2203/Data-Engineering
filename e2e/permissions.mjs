@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { tempDir } from './_tmp.mjs';
 
 const require = createRequire(import.meta.url);
 const { io } = require('socket.io-client');
@@ -13,7 +14,7 @@ const { io } = require('socket.io-client');
 const PORT = 3132;
 const BASE = `http://localhost:${PORT}`;
 const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: mkdtempSync(path.join(tmpdir(), 'resenha-perm-')) },
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: tempDir('resenha-perm-') },
   stdio: ['ignore', 'ignore', 'pipe'],
 });
 server.stderr.on('data', (d) => process.stderr.write(`[server] ${d}`));

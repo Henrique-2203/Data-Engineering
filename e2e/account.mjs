@@ -8,6 +8,7 @@ import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { tempDir } from './_tmp.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -17,7 +18,7 @@ const MOCK = 3162;
 const BASE = `http://localhost:${PORT}`;
 const shots = path.resolve('e2e/screenshots');
 mkdirSync(shots, { recursive: true });
-const DATA_DIR = mkdtempSync(path.join(tmpdir(), 'resenha-acc-'));
+const DATA_DIR = tempDir('resenha-acc-');
 const OUTBOX = path.join(DATA_DIR, 'outbox.jsonl');
 const step = (m) => console.log(`✓ ${m}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

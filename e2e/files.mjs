@@ -7,6 +7,7 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { tempDir } from './_tmp.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -17,7 +18,7 @@ const PORT = R2 ? 3152 : 3151;
 const BASE = `http://localhost:${PORT}`;
 const shots = path.resolve('e2e/screenshots');
 mkdirSync(shots, { recursive: true });
-const DATA_DIR = mkdtempSync(path.join(tmpdir(), 'resenha-files-'));
+const DATA_DIR = tempDir('resenha-files-');
 const step = (msg) => console.log(`✓ ${msg}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const assert = (cond, msg) => {
@@ -253,7 +254,7 @@ try {
       encoding: 'utf8',
     });
     assert(check.status === 0 && /Backup íntegro/.test(check.stdout), `script confere o backup: ${check.stderr}`);
-    const restoreDir = mkdtempSync(path.join(tmpdir(), 'resenha-restored-'));
+    const restoreDir = tempDir('resenha-restored-');
     const restore = spawnSync(process.execPath, ['--import', 'tsx', 'server/scripts/restore-backup.ts', file], {
       env: { ...process.env, BACKUP_KEY: 'chave-secreta-de-teste-0123456789', DATA_DIR: restoreDir, DATABASE_URL: '' },
       encoding: 'utf8',

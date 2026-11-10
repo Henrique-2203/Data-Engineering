@@ -5,6 +5,7 @@ import { mkdtempSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { tempDir } from './_tmp.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium, devices } = require('playwright');
@@ -17,7 +18,7 @@ const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'
   env: {
     ...process.env,
     PORT: String(PORT),
-    DATA_DIR: mkdtempSync(path.join(tmpdir(), 'resenha-call-')),
+    DATA_DIR: tempDir('resenha-call-'),
     RING_TIMEOUT_MS: '4000',
   },
   stdio: ['ignore', 'ignore', 'pipe'],

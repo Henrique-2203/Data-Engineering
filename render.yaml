@@ -12,6 +12,9 @@ services:
       - key: NODE_VERSION
         value: "22"
       # Site de TESTE: crie outro serviço com APP_ENV=staging (veja docs/LANCAMENTOS.md). O oficial não precisa desta variável.
+      # Cota de TURN do seu plano Metered, em MB (aviso em Painel da equipe → Sistema ao passar de 80%)
+      - key: TURN_QUOTA_MB
+        sync: false
       # Postgres gratuito e permanente (ex.: Neon). Sem isso, os dados somem quando o Render reinicia.
       - key: DATABASE_URL
         sync: false

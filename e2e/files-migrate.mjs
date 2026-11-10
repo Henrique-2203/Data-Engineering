@@ -6,13 +6,14 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { tempDir } from './_tmp.mjs';
 
 const require = createRequire(import.meta.url);
 const { AwsClient } = require('aws4fetch');
 const PORT = 3153;
 const S3 = 5056;
 const BASE = `http://localhost:${PORT}`;
-const DATA_DIR = mkdtempSync(path.join(tmpdir(), 'resenha-migr-'));
+const DATA_DIR = tempDir('resenha-migr-');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const assert = (c, m) => {
   if (!c) throw new Error(`FALHOU: ${m}`);

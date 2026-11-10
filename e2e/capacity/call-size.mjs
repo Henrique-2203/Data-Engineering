@@ -7,6 +7,7 @@ import { mkdtempSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { tempDir } from '../_tmp.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -15,7 +16,7 @@ const BASE = `http://localhost:${PORT}`;
 const SIZES = (process.argv[2] ?? '2,4,6,8').split(',').map(Number);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: mkdtempSync(path.join(tmpdir(), 'resenha-callsize-')), PWNED_CHECK: 'off' },
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: tempDir('resenha-callsize-'), PWNED_CHECK: 'off' },
   stdio: ['ignore', 'ignore', 'pipe'],
 });
 server.stderr.on('data', (d) => /\[ice\]|BACKUP_KEY/.test(d) || process.stderr.write(`[server] ${d}`));
@@ -102,7 +103,16 @@ try {
       ctxs.push(ctx);
     }
     const t0 = Date.now();
-    for (const p of pages) await p.getByRole('button', { name: 'Sala de voz' }).first().click();
+    for (const [i, p] of pages.entries()) {
+      await p
+        .getByRole('button', { name: 'Sala de voz' })
+        .first()
+        .click({ timeout: 15000 })
+        .catch(async (e) => {
+          console.error(`pessoa ${i} não achou o canal de voz`);
+          throw e;
+        });
+    }
     // todo mundo conectado com todo mundo
     let full = false;
     for (let i = 0; i < 120 && !full; i++) {

@@ -5,6 +5,7 @@ import { mkdtempSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { tempDir } from './_tmp.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -17,7 +18,7 @@ const assert = (c, m) => {
 };
 
 function start(port, env) {
-  const dir = mkdtempSync(path.join(tmpdir(), 'resenha-env-'));
+  const dir = tempDir('resenha-env-');
   const outbox = path.join(dir, 'outbox.jsonl');
   const proc = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], {
     env: { ...process.env, PORT: String(port), DATA_DIR: path.join(dir, 'db'), EMAIL_PROVIDER: 'file', EMAIL_FROM: 'teste@resenha.app', EMAIL_OUTBOX: outbox, PWNED_CHECK: 'off', ...env },

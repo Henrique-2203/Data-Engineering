@@ -101,6 +101,7 @@ interface Capacity {
   turn: { monthMb: number; quotaMb: number | null };
   live: { online: number; inVoice: number; calls: number; streaming: number };
   warnings: string[];
+  embeddedDb: boolean;
 }
 
 /** Limites do plano (processador, memória, TURN) com aviso antes de estourar. */
@@ -116,6 +117,12 @@ function CapacityCard() {
   return (
     <>
       <h3 className="subhead">Limites do plano (agora)</h3>
+      {c.embeddedDb && (
+        <p className="muted small">
+          Banco embutido (sem DATABASE_URL): ele roda dentro do servidor, então processador e memória aparecem maiores do que no site
+          com o Neon. Avisos desligados.
+        </p>
+      )}
       {c.warnings.map((w) => (
         <p key={w} className="notice warn">
           ⚠️ Perto do limite: {w}

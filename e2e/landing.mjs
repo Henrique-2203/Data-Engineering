@@ -5,6 +5,7 @@ import { mkdtempSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { tempDir } from './_tmp.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium, devices } = require('playwright');
@@ -14,7 +15,7 @@ const BASE = `http://localhost:${PORT}`;
 const shots = path.resolve('e2e/screenshots');
 mkdirSync(shots, { recursive: true });
 const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: mkdtempSync(path.join(tmpdir(), 'resenha-lp-')), PLATFORM_ADMINS: 'equipe' },
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: tempDir('resenha-lp-'), PLATFORM_ADMINS: 'equipe' },
   stdio: ['ignore', 'ignore', 'pipe'],
 });
 server.stderr.on('data', (d) => process.stderr.write(`[server] ${d}`));

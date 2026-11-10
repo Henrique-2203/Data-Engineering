@@ -7,12 +7,13 @@ import { mkdtempSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { tempDir } from './_tmp.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const PORT = 3185;
 const BASE = `http://localhost:${PORT}`;
-const DATA_DIR = mkdtempSync(path.join(tmpdir(), 'resenha-restart-'));
+const DATA_DIR = tempDir('resenha-restart-');
 const step = (m) => console.log(`✓ ${m}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const assert = (c, m) => {

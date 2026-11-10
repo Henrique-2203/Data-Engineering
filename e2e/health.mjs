@@ -5,6 +5,7 @@ import { mkdtempSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { tempDir } from './_tmp.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -18,7 +19,7 @@ const assert = (c, m) => {
   if (!c) throw new Error(`FALHOU: ${m}`);
 };
 const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: mkdtempSync(path.join(tmpdir(), 'resenha-health-')), PLATFORM_ADMINS: 'equipe' },
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: tempDir('resenha-health-'), PLATFORM_ADMINS: 'equipe' },
   stdio: ['ignore', 'ignore', 'pipe'],
 });
 server.stderr.on('data', (d) => /\[ice\]|BACKUP_KEY/.test(d) || process.stderr.write(`[server] ${d}`));
@@ -130,6 +131,16 @@ try {
   await e.page.getByText('Falha de teste').waitFor();
   await e.page.screenshot({ path: path.join(shots, 'saude-das-calls.png'), fullPage: true });
   step('painel da equipe → Saúde: agora, conexões, voz, transmissões, TURN e erros');
+
+  // ---------- limites do plano (Sistema) ----------
+  const cap = await api('/admin/capacity', null, equipe.token);
+  assert(cap.cpu && cap.cpu.limitPct === 10 && cap.memory.usedMb > 0 && cap.memory.limitMb === 512 && Array.isArray(cap.warnings), `capacidade (${JSON.stringify(cap)})`);
+  assert((await api('/admin/capacity', null, ana.token)).status === 404, 'limites só para a equipe');
+  await e.page.getByRole('tab', { name: 'Sistema' }).click();
+  await e.page.getByText('Limites do plano (agora)').waitFor();
+  await e.page.locator('.capacity-tiles .stat-tile', { hasText: 'Processador do servidor' }).waitFor();
+  await e.page.screenshot({ path: path.join(shots, 'limites-do-plano.png') });
+  step('Sistema → Limites do plano: processador, memória, TURN e conectados (só para a equipe)');
 
   // ---------- opção em Privacidade e dados ----------
   await c.page.getByRole('button', { name: 'Configurações', exact: true }).click();

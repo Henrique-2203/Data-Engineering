@@ -34,6 +34,8 @@ export interface Capacity {
   files: { usedMb: number; limitMb: number; where: 'r2' | 'db' };
   turn: { monthMb: number; quotaMb: number | null };
   live: { online: number; inVoice: number; calls: number; streaming: number };
+  /** banco embutido (sem DATABASE_URL): ele roda dentro do servidor e soma no processador e na memória */
+  embeddedDb: boolean;
 }
 
 export async function capacity(db: Db, rt: Realtime): Promise<Capacity> {
@@ -50,12 +52,15 @@ export async function capacity(db: Db, rt: Realtime): Promise<Capacity> {
     files: { usedMb: Math.round(s.filesBytes / 1048576), limitMb: Math.round(s.filesLimitBytes / 1048576), where: s.where },
     turn: { monthMb: Math.round(month), quotaMb: turnQuotaMb },
     live: rt.liveCounts(),
+    embeddedDb: !config.databaseUrl,
   };
 }
 
 /** Quais limites estão acima de 80% (com o texto do aviso). */
 export function overLimits(c: Capacity): { key: string; text: string }[] {
   const out: { key: string; text: string }[] = [];
+  // banco embutido (desenvolvimento/testes): processador e memória não dizem nada sobre o site de verdade
+  if (c.embeddedDb) return out;
   const p = (used: number, limit: number | null) => (limit ? used / limit : 0);
   if (p(c.cpu.avgPct, c.cpu.limitPct) >= 0.8) out.push({ key: 'cpu', text: `Processador: ${c.cpu.avgPct}% de 1 núcleo em média no último minuto (o plano dá ${c.cpu.limitPct}%).` });
   if (p(c.memory.usedMb, c.memory.limitMb) >= 0.8) out.push({ key: 'memory', text: `Memória: ${c.memory.usedMb} MB de ${c.memory.limitMb} MB.` });

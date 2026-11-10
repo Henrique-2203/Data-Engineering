@@ -6,6 +6,7 @@ import { mkdtempSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { tempDir } from './_tmp.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -16,7 +17,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const assert = (c, m) => {
   if (!c) throw new Error(`FALHOU: ${m}`);
 };
-const tmp = mkdtempSync(path.join(tmpdir(), 'resenha-noise-'));
+const tmp = tempDir('resenha-noise-');
 const wav = path.join(tmp, 'teclado.wav');
 execFileSync('python3', [path.resolve('e2e/make-keyboard-wav.py'), wav]);
 mkdirSync(path.resolve('e2e/screenshots'), { recursive: true });
