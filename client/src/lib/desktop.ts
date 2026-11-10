@@ -51,6 +51,9 @@ interface DesktopBridge {
   /** existem a partir do app 0.2.0 */
   onActivity?(cb: (a: { name: string | null }) => void): () => void;
   getActivity?(): Promise<{ name: string | null }>;
+  /** música tocando no Spotify do PC (app 0.3.6+) */
+  onMusic?(cb: (m: { track: string; artist: string } | null) => void): () => void;
+  getMusic?(): Promise<{ track: string; artist: string } | null>;
   /** existem a partir do app 0.3.0 (overlay no jogo) */
   setOverlayState?(state: OverlayState): void;
   overlayEvent?(event: { type: 'sound'; id: string; name: string; sound: string; emoji: string | null }): void;

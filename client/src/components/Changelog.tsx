@@ -11,6 +11,17 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-10e',
+    title: 'Música e vídeos com a galera',
+    items: [
+      ['▶️', 'Links do YouTube e do Spotify viram player no chat: toque no card para assistir ou ouvir ali mesmo. O player só carrega quando você toca.'],
+      ['📺', 'Assistir juntos: na call, toque no botão de TV e cole um link do YouTube. O vídeo toca sincronizado para todo mundo, com fila, pausa e "pular para" valendo para todos. O volume é só seu.'],
+      ['🔒', 'Conversa "Só da call": no painel de mensagens da call, a aba "Só da call" é só para quem está na chamada. Nada fica salvo: some quando a call acaba. A aba "Canal" continua sendo o chat salvo do canal.'],
+      ['🎵', 'Ouvindo agora (app de Windows): com o Spotify do PC tocando, a música aparece no seu perfil, como o "Jogando agora". Dá para desligar em Configurações → Atalhos e app.'],
+      ['💬', 'O nome e o horário das mensagens agora ficam alinhados com a foto de perfil.'],
+    ],
+  },
+  {
     id: '2026-11-10d',
     title: 'Calls mais confiáveis',
     items: [

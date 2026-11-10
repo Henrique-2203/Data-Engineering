@@ -39,7 +39,8 @@ import { Perm, has, myPermissions } from '../lib/perms';
 import type { SendStats } from '../voice/engine';
 import { Avatar } from './Avatar';
 import { MobileHeader } from './MobileHeader';
-import { ChatView, loadMessages } from './ChatView';
+import { loadMessages } from './ChatView';
+import { CallChatPanel } from './CallChat';
 
 interface Tile {
   id: string; // `${socketId|me}:${user|screen}`
@@ -185,7 +186,7 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
     <div className="voice-layout with-chat">
       {stage}
       <aside className="call-chat-aside" aria-label="Chat da call">
-        <ChatView channel={channel} callPanel onClose={toggleChat} />
+        <CallChatPanel channel={channel} onClose={toggleChat} />
       </aside>
     </div>
   );
@@ -193,7 +194,10 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
 
 /** Botão do chat da call, com quantas mensagens chegaram enquanto ele estava fechado. */
 function CallChatToggle({ channelId, open, onToggle }: { channelId: string; open: boolean; onToggle(): void }) {
-  const count = useApp((s) => s.messages[channelId]?.items.length ?? 0);
+  // mensagens do canal + do chat privado da call
+  const saved = useApp((s) => s.messages[channelId]?.items.length ?? 0);
+  const priv = useVoice((s) => (s.channelId === channelId ? s.callChat.length : 0));
+  const count = saved + priv;
   const [seen, setSeen] = useState(count);
   useEffect(() => {
     if (!channelMessagesLoaded(channelId)) void loadMessages(channelId);

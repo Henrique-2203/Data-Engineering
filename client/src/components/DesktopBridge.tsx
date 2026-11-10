@@ -53,12 +53,24 @@ export function DesktopBridge() {
     });
     const offUpdate = d.onUpdate(setUpdate);
 
-    // "Jogando agora": o app detecta o jogo; o site repassa ao servidor (se a pessoa permitir)
+    // "Jogando agora" / "Ouvindo agora": o app detecta o jogo e a música do Spotify; o site repassa
+    // ao servidor (se a pessoa permitir). Com jogo aberto, o jogo aparece no lugar da música.
     let game: string | null = null;
+    let music: { track: string; artist: string } | null = null;
     const publish = () => {
-      const share = useVoice.getState().settings.shareActivity;
-      getSocket()?.emit('activity:set', { name: share ? game : null });
+      const { shareActivity, shareMusic } = useVoice.getState().settings;
+      if (shareActivity && game) getSocket()?.emit('activity:set', { name: game, kind: 'game' });
+      else if (shareMusic && music) getSocket()?.emit('activity:set', { name: music.track, kind: 'music', details: music.artist });
+      else getSocket()?.emit('activity:set', { name: null });
     };
+    const offMusic = d.onMusic?.((m) => {
+      music = m;
+      publish();
+    });
+    void d.getMusic?.().then((m) => {
+      music = m;
+      publish();
+    });
     const offActivity = d.onActivity?.((a) => {
       game = a.name;
       publish();
@@ -69,7 +81,7 @@ export function DesktopBridge() {
     });
     const offReady = onSocketReady(() => publish()); // reconectou: o servidor esqueceu
     const unsubShare = useVoice.subscribe((s, prev) => {
-      if (s.settings.shareActivity !== prev.settings.shareActivity) publish();
+      if (s.settings.shareActivity !== prev.settings.shareActivity || s.settings.shareMusic !== prev.settings.shareMusic) publish();
     });
     void d.getSettings().then((s) => setUpdate(s.update));
 
@@ -124,6 +136,7 @@ export function DesktopBridge() {
       offTray();
       offUpdate();
       offActivity?.();
+      offMusic?.();
       offReady();
       unsubShare();
       unsubOverlayVoice();

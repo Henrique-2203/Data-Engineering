@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { loadSettings, saveSettings, type NoiseMode, type VoiceSettings } from '../voice/settings';
 import type { SoundBurst } from '../lib/soundboard';
-import type { TogetherState } from '../../../shared/types';
+import type { TogetherState, CallChatMessage } from '../../../shared/types';
 
 export type MediaKind = 'mic' | 'camera' | 'screen';
 
@@ -33,6 +33,8 @@ export interface VoiceStore {
   screenLight: boolean;
   /** "Assistir juntos": vídeo do YouTube tocando para a call (null = nenhum) */
   together: TogetherState | null;
+  /** chat privado da call (só quem está nela; não fica salvo) */
+  callChat: CallChatMessage[];
   /** filtro de ruído que está de fato ligado no microfone agora (null = fora da chamada) */
   noiseActive: NoiseMode | null;
   noMic: boolean;
@@ -68,6 +70,7 @@ export const useVoice = create<VoiceStore>(() => ({
   screenLight: false,
   noiseActive: null,
   together: null,
+  callChat: [],
   noMic: false,
   localCamera: null,
   localScreen: null,

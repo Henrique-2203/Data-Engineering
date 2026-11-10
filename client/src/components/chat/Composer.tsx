@@ -443,7 +443,7 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
             channel.type === 'dm'
               ? `Conversar com ${channel.name}`
               : channel.type === 'voice'
-                ? 'Mandar no chat da call'
+                ? 'Mandar no canal (fica salvo)'
                 : `Conversar em #${channel.name}`
           }
           onChange={(e) => onChange(e.target.value, e.target.selectionStart)}

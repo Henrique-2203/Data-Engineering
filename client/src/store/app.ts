@@ -233,6 +233,7 @@ export function jumpToMessage(channelId: string, messageId: string) {
   if (c.type === 'voice') {
     try {
       localStorage.setItem('resenha.callChat', '1');
+      localStorage.setItem('resenha.callChatTab', 'channel');
     } catch {
       /* sem armazenamento */
     }

@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Hash, ImagePlus, MessageSquare, Phone, Volume2, X } from 'lucide-react';
+import { Hash, ImagePlus, Phone, Volume2 } from 'lucide-react';
 import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { VoiceStage } from './VoiceStage';
@@ -37,7 +37,7 @@ export async function loadMessages(channelId: string, older = false) {
 }
 
 /** `callPanel`: chat da call (painel ao lado da chamada, num canal de voz). */
-export function ChatView({ channel, callPanel, onClose }: { channel: Channel; callPanel?: boolean; onClose?(): void }) {
+export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?: boolean }) {
   const cm = useApp((s) => s.messages[channel.id]);
   const dm = channel.type === 'dm' ? (channel as DmChannel) : null;
   const recipientOnline = useApp((s) => (dm ? !!s.online[dm.recipient.id] : false));
@@ -179,15 +179,7 @@ export function ChatView({ channel, callPanel, onClose }: { channel: Channel; ca
             </>
           }
         />
-      ) : callPanel ? (
-        <div className="call-chat-head">
-          <MessageSquare size={18} />
-          <strong className="ellipsis">Chat da call</strong>
-          <button className="icon-btn" aria-label="Fechar o chat da call" title="Fechar" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </div>
-      ) : (
+      ) : callPanel ? null : (
         <MobileHeader title={channel.name} icon={<Hash size={20} className="muted" />} showMembersButton actions={<ChatHeaderTools channel={channel} />} />
       )}
       {dm && (callActive || inThisCall) && <VoiceStage channelId={dm.id} embedded />}

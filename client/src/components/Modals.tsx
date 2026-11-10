@@ -684,6 +684,8 @@ export function InputModeSettings() {
 export function DesktopSettingsSection() {
   const [ds, setDs] = useState<DesktopSettings | null>(null);
   const shareActivity = useVoice((s) => s.settings.shareActivity);
+  const shareMusic = useVoice((s) => s.settings.shareMusic);
+  const hasMusic = !!desktop?.getMusic;
   const [checking, setChecking] = useState(false);
   useEffect(() => {
     if (!desktop) return;
@@ -736,6 +738,12 @@ export function DesktopSettingsSection() {
           <input type="checkbox" checked={shareActivity} onChange={(e) => updateSettings({ shareActivity: e.target.checked })} />
           Mostrar no meu perfil o jogo que estou jogando ("Jogando agora")
         </label>
+        {hasMusic && (
+          <label className="check">
+            <input type="checkbox" checked={shareMusic} onChange={(e) => updateSettings({ shareMusic: e.target.checked })} />
+            Mostrar no meu perfil a música que estou ouvindo no Spotify do PC ("Ouvindo agora")
+          </label>
+        )}
         {ds.gamePriority !== undefined && (
           <label className="check">
             <input type="checkbox" checked={ds.gamePriority} onChange={(e) => void set({ gamePriority: e.target.checked })} />

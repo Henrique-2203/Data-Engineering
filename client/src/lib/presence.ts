@@ -16,8 +16,9 @@ export function playingFor(activity: Activity): string {
   return `há ${h} h${mins % 60 ? ` ${mins % 60} min` : ''}`;
 }
 
-/** Linha curta embaixo do nome: o jogo (se estiver jogando) ou o status. */
+/** Linha curta embaixo do nome: o jogo/música (se tiver) ou o status. */
 export function presenceLine(user: Pick<PublicUser, 'status'> | undefined, activity: Activity | undefined): string | null {
+  if (activity?.kind === 'music') return `🎵 Ouvindo ${activity.name}${activity.details ? ` · ${activity.details}` : ''}`;
   if (activity) return `🎮 Jogando ${activity.name}`;
   const st = activeStatus(user);
   return st ? `${st.emoji ? `${st.emoji} ` : ''}${st.text}`.trim() : null;

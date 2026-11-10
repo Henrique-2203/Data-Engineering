@@ -2637,6 +2637,9 @@ input.switch:disabled {
   border-radius: 10px;
   background: var(--accent-soft);
 }
+.profile-activity > div {
+  min-width: 0;
+}
 .profile-activity-icon {
   font-size: 26px;
 }
@@ -5338,6 +5341,122 @@ input.switch:disabled {
 }
 .call-chat-btn {
   position: relative;
+}
+.call-chat-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.call-chat-tabs {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+.call-chat-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.call-chat-tabs button:hover {
+  color: var(--text);
+  background: var(--bg-2);
+}
+.call-chat-tabs button.active {
+  color: var(--text);
+  background: var(--bg-3, var(--bg-2));
+}
+.badge-count.inline {
+  position: static;
+  margin-left: 2px;
+}
+.call-private {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.call-private-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 12px 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text);
+  font-size: 12px;
+}
+.call-private-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 0 12px;
+}
+.call-private-hint {
+  padding: 8px 16px;
+}
+.call-private-msg {
+  position: relative;
+}
+.call-private-event {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.call-private-event span:first-of-type {
+  flex: 1;
+  min-width: 0;
+}
+.call-private-event strong {
+  color: var(--text);
+}
+.call-private-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin: 0 12px 12px;
+  padding: 6px 6px 6px 12px;
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+.call-private-composer textarea {
+  flex: 1;
+  resize: none;
+  max-height: 140px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  padding: 6px 0;
+  outline: none;
+}
+.call-private-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+}
+.call-private-empty strong {
+  color: var(--text);
 }
 .call-chat-btn.active {
   color: var(--accent);

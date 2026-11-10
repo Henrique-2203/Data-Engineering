@@ -150,7 +150,7 @@ function Privacy({ contact }: { contact: ReactNode }) {
             <td>Analisar abusos e cumprir a lei. Quem é denunciado não sabe quem denunciou</td>
           </tr>
           <tr>
-            <td>"Jogando agora" (só o nome do jogo, se você usa o app de desktop)</td>
+            <td>"Jogando agora" e "Ouvindo agora" (só o nome do jogo, ou da música e do artista tocando no Spotify do PC, se você usa o app de desktop)</td>
             <td>Mostrar no seu perfil. Fica só na memória enquanto você está online e pode ser desligado</td>
           </tr>
         </tbody>

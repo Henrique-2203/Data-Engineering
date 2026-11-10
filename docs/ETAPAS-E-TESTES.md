@@ -327,6 +327,27 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 
 ---
 
+## Música, YouTube e conversa "Só da call"
+- [ ] Mande um link do YouTube (youtube.com, youtu.be, Shorts, com ?t=) e um do Spotify (música, álbum, playlist) no
+      chat: aparece um card com título e miniatura. O player só carrega quando você toca no card.
+- [ ] Nome e horário das mensagens alinhados com a foto de perfil.
+- [ ] Na call, botão de **TV** (Assistir juntos): cole um link do YouTube → toca para todo mundo, sincronizado.
+- [ ] Quem entra depois começa no mesmo ponto do vídeo. Pausar, tocar e arrastar a barra vale para todos.
+- [ ] Volume do vídeo é só seu. **Fila**: adicione vídeos; quando um acaba, o próximo começa para todos.
+- [ ] No card do YouTube no chat (estando numa call): **Assistir juntos na call**.
+- [ ] Painel de mensagens da call (ícone de balão): aba **Só da call** (padrão) e aba **Canal**.
+  - [ ] **Só da call**: só quem está na chamada vê; não fica salvo; quem entra depois vê o que foi conversado nesta call;
+        quando todo mundo sai, apaga tudo. A moderação automática do servidor vale aqui também.
+  - [ ] Dá para apagar as suas mensagens. Quando alguém coloca um vídeo no "Assistir juntos", aparece um aviso.
+  - [ ] **Canal**: o chat salvo do canal de voz, como antes (busca e fixadas continuam funcionando).
+- [ ] **Ouvindo agora** (app de Windows 0.3.6): com o Spotify do PC tocando, aparece "🎵 Ouvindo Música · Artista" no seu
+      perfil e na lista de membros. Pausou: some. Trocou de música: troca (em até ~10 s).
+  - [ ] Com um jogo aberto, aparece o jogo no lugar da música.
+  - [ ] Configurações → Atalhos e app → "Mostrar no meu perfil a música que estou ouvindo no Spotify do PC" desliga.
+  - [ ] Só o título da janela do Spotify é lido (nenhum outro programa); funciona com o app do Spotify, não com o Spotify no navegador.
+
+---
+
 ## Se algo der errado
 
 Anote **o que fez**, **o que esperava** e **o que aconteceu** (um print ajuda muito) e me mande.

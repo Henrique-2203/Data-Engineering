@@ -38,7 +38,7 @@ export function ProfileCard({ userId, guildId, onAction }: { userId: string; gui
 
   // reconta "jogando há X min"
   useEffect(() => {
-    if (!activity) return;
+    if (!activity || activity.kind === 'music') return;
     const t = setInterval(() => tick((n) => n + 1), 30_000);
     return () => clearInterval(t);
   }, [activity]);
@@ -74,7 +74,16 @@ export function ProfileCard({ userId, guildId, onAction }: { userId: string; gui
           {profile?.pronouns ? ` · ${profile.pronouns}` : ''}
         </div>
 
-        {activity && (
+        {activity?.kind === 'music' ? (
+          <div className="profile-activity music">
+            <span className="profile-activity-icon">🎵</span>
+            <div className="ellipsis">
+              <div className="muted small">Ouvindo no Spotify</div>
+              <strong className="ellipsis">{activity.name}</strong>
+              {activity.details && <div className="muted small ellipsis">{activity.details}</div>}
+            </div>
+          </div>
+        ) : activity ? (
           <div className="profile-activity">
             <span className="profile-activity-icon">🎮</span>
             <div>
@@ -82,7 +91,7 @@ export function ProfileCard({ userId, guildId, onAction }: { userId: string; gui
               <div className="muted small">{playingFor(activity)}</div>
             </div>
           </div>
-        )}
+        ) : null}
 
         {profile?.bio && <p className="profile-bio">{profile.bio}</p>}
 

@@ -25,8 +25,13 @@ export interface PublicUser {
 
 /** "Jogando agora" (detectado pelo app de desktop; só existe enquanto a pessoa está online) */
 export interface Activity {
+  /** jogo, ou nome da música */
   name: string;
   startedAt: string;
+  /** 'music': "Ouvindo agora" (Spotify do PC); sem kind = jogo */
+  kind?: 'game' | 'music';
+  /** música: o artista */
+  details?: string | null;
 }
 
 export type ProfileLinkType = 'steam' | 'twitch' | 'youtube' | 'instagram' | 'tiktok' | 'x' | 'spotify' | 'site';
@@ -169,6 +174,19 @@ export interface TogetherState {
   /** quem colocou o vídeo atual */
   by: string;
   queue: { videoId: string; title: string | null; by: string }[];
+}
+
+/**
+ * Mensagem do chat privado da call: só quem está na call vê, fica só na memória do servidor
+ * e some quando a call acaba (não vai para o banco).
+ */
+export interface CallChatMessage {
+  id: string;
+  userId: string;
+  content: string;
+  at: number;
+  /** 'together': aviso automático do "Assistir juntos" (content = título do vídeo) */
+  kind?: 'text' | 'together';
 }
 
 /** Enquete dentro de uma mensagem. */

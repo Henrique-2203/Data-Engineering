@@ -70,6 +70,8 @@ export interface VoiceSettings {
   notifications: boolean;
   /** mostrar o "Jogando agora" (app de desktop) */
   shareActivity: boolean;
+  /** mostrar a música do Spotify do PC ("Ouvindo agora", app de desktop 0.3.6+) */
+  shareMusic: boolean;
   /** volume dos sons do soundboard (0..1) */
   soundboardVolume: number;
   /** modo destaque: quanto da área da chamada a transmissão em destaque ocupa (só na sua tela), em % */
@@ -101,6 +103,7 @@ export const DEFAULT_SETTINGS: VoiceSettings = {
   sounds: true,
   notifications: false,
   shareActivity: true,
+  shareMusic: true,
   soundboardVolume: 0.7,
   stageMainPct: 78,
   stageLayout: 'bottom',

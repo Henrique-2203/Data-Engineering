@@ -8,7 +8,10 @@ import type { Db } from './db.ts';
 import { usableExpression } from './expressions.ts';
 import { bump } from './stats.ts';
 import { Perm, has } from '../../shared/permissions.ts';
-import type { PublicUser, RtcSignal, VoiceState, Activity, TogetherState } from '../../shared/types.ts';
+import { randomUUID } from 'node:crypto';
+import type { PublicUser, RtcSignal, VoiceState, Activity, TogetherState, CallChatMessage } from '../../shared/types.ts';
+import { checkAutomod } from './community.ts';
+import { HttpError } from './http.ts';
 
 type Ack = (res: any) => void;
 
@@ -20,6 +23,9 @@ export class Realtime {
   readonly io: Server;
   /** "Assistir juntos": vídeo de cada call (some quando a call esvazia) */
   private together = new Map<string, TogetherState>();
+  /** chat privado de cada call (só na memória; some quando a call esvazia) */
+  private callChat = new Map<string, CallChatMessage[]>();
+  private lastCallChat = new Map<string, number[]>();
   /** desligando para atualizar (ver index.ts) */
   shuttingDown = false;
   /** userId -> número de conexões abertas */
@@ -254,9 +260,15 @@ export class Realtime {
 
     socket.on('voice:leave', () => this.leaveVoice(socket.id));
 
-    // "Jogando agora": o app de desktop informa o jogo aberto (ou null quando fecha)
+    // "Jogando agora" / "Ouvindo agora": o app de desktop informa o jogo aberto ou a música do Spotify (ou null)
     socket.on('activity:set', (payload: unknown) => {
-      const p = z.object({ name: z.string().trim().min(1).max(64).nullable() }).safeParse(payload);
+      const p = z
+        .object({
+          name: z.string().trim().min(1).max(100).nullable(),
+          kind: z.enum(['game', 'music']).optional(),
+          details: z.string().trim().max(100).nullable().optional(),
+        })
+        .safeParse(payload);
       if (!p.success) return;
       const current = this.activities.get(user.id);
       if (!p.data.name) {
@@ -265,8 +277,10 @@ export class Realtime {
         this.io.emit('activity:update', { userId: user.id, activity: null });
         return;
       }
-      if (current?.name === p.data.name) return;
-      const activity: Activity = { name: p.data.name, startedAt: new Date().toISOString() };
+      const kind = p.data.kind ?? 'game';
+      const details = kind === 'music' ? p.data.details || null : null;
+      if (current?.name === p.data.name && (current.kind ?? 'game') === kind && (current.details ?? null) === details) return;
+      const activity: Activity = { name: p.data.name, startedAt: new Date().toISOString(), ...(kind === 'music' ? { kind, details } : {}) };
       this.activities.set(user.id, activity);
       this.io.emit('activity:update', { userId: user.id, activity });
     });
@@ -293,7 +307,25 @@ export class Realtime {
       const v = this.voice.get(socket.id);
       ack?.({ state: v ? (this.together.get(v.channelId) ?? null) : null, now: Date.now() });
     });
-    socket.on('together:action', (payload: unknown, ack?: Ack) => ack?.(this.onTogether(socket, payload)));
+    // (calcula antes: com `ack?.(f())`, f nem roda quando o cliente não pede resposta)
+    socket.on('together:action', (payload: unknown, ack?: Ack) => {
+      const r = this.onTogether(socket, payload);
+      ack?.(r);
+    });
+    socket.on('callchat:get', (_p: unknown, ack?: Ack) => {
+      const v = this.voice.get(socket.id);
+      ack?.({ channelId: v?.channelId ?? null, messages: v ? (this.callChat.get(v.channelId) ?? []) : [] });
+    });
+    socket.on('callchat:send', (payload: unknown, ack?: Ack) => {
+      this.onCallChat(socket, payload).then(
+        (r) => ack?.(r),
+        (err) => ack?.({ ok: false, error: err instanceof HttpError ? err.message : 'Não deu para mandar a mensagem.' }),
+      );
+    });
+    socket.on('callchat:delete', (payload: unknown, ack?: Ack) => {
+      const r = this.onCallChatDelete(socket, payload);
+      ack?.(r);
+    });
 
     // Soundboard: toca um som para todos da chamada (sons de qualquer servidor seu, como no Nitro)
     socket.on('soundboard:play', (payload: unknown, ack?: Ack) => {
@@ -505,8 +537,11 @@ export class Realtime {
     const state = this.voice.get(socketId);
     if (!state) return;
     this.voice.delete(socketId);
-    // call vazia: o "Assistir juntos" acaba
-    if (![...this.voice.values()].some((v) => v.channelId === state.channelId)) this.together.delete(state.channelId);
+    // call vazia: o "Assistir juntos" e o chat privado acabam
+    if (![...this.voice.values()].some((v) => v.channelId === state.channelId)) {
+      this.together.delete(state.channelId);
+      this.callChat.delete(state.channelId);
+    }
     this.io.in(socketId).socketsLeave(`voice:${state.channelId}`);
     this.io.to(`voice:${state.channelId}`).emit('voice:peer-left', { socketId });
     this.emitVoice(state, 'voice:state-remove', { socketId, guildId: state.guildId });
@@ -585,7 +620,67 @@ export class Realtime {
     }
     if (next) this.together.set(v.channelId, next);
     else this.together.delete(v.channelId);
+    // avisa no chat privado da call o que foi colocado para tocar
+    if (a.action === 'play' || a.action === 'enqueue') this.pushCallChat(v.channelId, { userId: user, content: a.title?.trim() || 'um vídeo do YouTube', kind: 'together' });
     this.io.to(`voice:${v.channelId}`).emit('together:state', { channelId: v.channelId, state: next, now, by: user, action: a.action });
+    return { ok: true };
+  }
+
+  private pushCallChat(channelId: string, m: Omit<CallChatMessage, 'id' | 'at'>) {
+    const msg: CallChatMessage = { id: randomUUID(), at: Date.now(), ...m };
+    const list = this.callChat.get(channelId) ?? [];
+    list.push(msg);
+    if (list.length > 200) list.splice(0, list.length - 200);
+    this.callChat.set(channelId, list);
+    this.io.to(`voice:${channelId}`).emit('callchat:message', { channelId, message: msg });
+    return msg;
+  }
+
+  /** Chat privado da call: só quem está nela manda e recebe; nada vai para o banco. */
+  private async onCallChat(socket: Socket, payload: unknown) {
+    const v = this.voice.get(socket.id);
+    if (!v) return { ok: false, error: 'Entre na call para usar o chat dela.' };
+    const p = z.object({ content: z.string().trim().min(1).max(1000) }).safeParse(payload);
+    if (!p.success) return { ok: false, error: 'Mensagem vazia ou longa demais (até 1000 caracteres).' };
+    const user = socket.data.user as PublicUser;
+    const now = Date.now();
+    const recent = (this.lastCallChat.get(user.id) ?? []).filter((t) => now - t < 10_000);
+    if (recent.length >= 8) return { ok: false, error: 'Calma! Muitas mensagens seguidas. Espere uns segundos.' };
+    if (v.guildId) {
+      const access = await memberAccess(this.db, v.guildId, user.id);
+      if (!access) return { ok: false, error: 'Você não está mais neste servidor.' };
+      if (isTimedOut(access)) return { ok: false, error: 'Você está de castigo neste servidor.' };
+      const [g] = await this.db.query<{ invite_code: string }>('select invite_code from guilds where id = $1', [v.guildId]);
+      const [c] = await this.db.query<{ name: string }>('select name from channels where id = $1', [v.channelId]);
+      await checkAutomod(this.db, {
+        guildId: v.guildId,
+        channelName: c?.name ?? 'call',
+        access,
+        userId: user.id,
+        inviteCode: g?.invite_code ?? '',
+        texts: [p.data.content],
+      });
+    }
+    // saiu da call enquanto conferia
+    if (this.voice.get(socket.id)?.channelId !== v.channelId) return { ok: false, error: 'Você saiu da call.' };
+    this.lastCallChat.set(user.id, [...recent, now]);
+    if (this.lastCallChat.size > 5000) for (const k of [...this.lastCallChat.keys()].slice(0, 1000)) this.lastCallChat.delete(k);
+    const message = this.pushCallChat(v.channelId, { userId: user.id, content: p.data.content, kind: 'text' });
+    bump('messages');
+    return { ok: true, message };
+  }
+
+  /** Apaga a própria mensagem do chat privado. */
+  private onCallChatDelete(socket: Socket, payload: unknown) {
+    const v = this.voice.get(socket.id);
+    const p = z.object({ id: z.string().max(64) }).safeParse(payload);
+    if (!v || !p.success) return { ok: false };
+    const list = this.callChat.get(v.channelId) ?? [];
+    const i = list.findIndex((m) => m.id === p.data.id);
+    if (i < 0) return { ok: true };
+    if (list[i].userId !== (socket.data.user as PublicUser).id) return { ok: false, error: 'Você só pode apagar as suas mensagens.' };
+    list.splice(i, 1);
+    this.io.to(`voice:${v.channelId}`).emit('callchat:delete', { channelId: v.channelId, id: p.data.id });
     return { ok: true };
   }
 

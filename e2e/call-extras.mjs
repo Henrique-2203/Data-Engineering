@@ -82,12 +82,15 @@ try {
 
   // ---------- chat da call ----------
   await pa.getByRole('button', { name: /^Abrir o chat da call/ }).click();
+  // aba "Canal": o chat salvo do canal de voz (a aba "Só da call" tem teste próprio: call-private-chat.mjs)
+  await pa.getByRole('tab', { name: /Canal/ }).click();
   await pa.getByText('Chat de Sala de voz').waitFor();
   await pa.locator('.call-chat textarea').fill('link do clipe: https://exemplo.com/clipe');
   await pa.keyboard.press('Enter');
   await pa.locator('.call-chat .message-content', { hasText: 'link do clipe' }).waitFor();
   await pb.getByRole('button', { name: 'Abrir o chat da call (1 nova)' }).waitFor({ timeout: 10000 });
   await pb.getByRole('button', { name: /^Abrir o chat da call/ }).click();
+  await pb.getByRole('tab', { name: /Canal/ }).click();
   await pb.locator('.call-chat .message-content', { hasText: 'link do clipe' }).waitFor();
   const stored = await api(`/channels/${voiceCh.id}/messages`, null, bia.token);
   assert(stored.messages?.some((m) => m.content.startsWith('link do clipe')), 'mensagem fica guardada no canal de voz');
