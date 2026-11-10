@@ -1,7 +1,6 @@
-# Gera o instalador do app de desktop para Windows a cada mudança em desktop/. Só no `main` (o
-# oficial) publica a versão (desktop/package.json -> "version") em Releases deste repositório: os
-# apps instalados olham essas Releases e se atualizam sozinhos. Na branch de trabalho o instalador
-# fica só em "Artifacts" da execução, para testar antes.
+# Gera o instalador do app de desktop para Windows a cada mudança em desktop/ e publica a versão
+# (desktop/package.json -> "version") em Releases deste repositório: os apps instalados olham essas
+# Releases e se atualizam sozinhos. Com a variável RELEASE_BRANCH definida, só essa branch publica.
 # Versão já publicada não é sobrescrita: para lançar uma atualização, aumente o "version".
 name: App de desktop (Windows)
 
@@ -43,14 +42,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
+          RELEASE_BRANCH: ${{ vars.RELEASE_BRANCH }}
         run: |
           VER=$(node -p "require('./package.json').version")
           TAG="v$VER"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          # Só o oficial (main) publica para todo mundo. Na branch de trabalho (site de teste) o
-          # instalador é gerado e fica em "Artifacts" desta execução, para testar antes de lançar.
-          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "Branch de teste ($GITHUB_REF): gera o instalador, mas não publica a versão."
+          # Quem publica para todo mundo é a branch que o site oficial segue (variável do repositório
+          # RELEASE_BRANCH; sem ela, as duas). Quando existir o site de teste (docs/LANCAMENTOS.md),
+          # defina RELEASE_BRANCH=main: na branch de trabalho o instalador fica só em "Artifacts".
+          if [ -n "$RELEASE_BRANCH" ] && [ "$GITHUB_REF" != "refs/heads/$RELEASE_BRANCH" ]; then
+            echo "Branch $GITHUB_REF não é a de lançamento ($RELEASE_BRANCH): gera o instalador, mas não publica."
             echo "publish=no" >> "$GITHUB_OUTPUT"
             exit 0
           fi

@@ -1,5 +1,11 @@
 # Site de teste e site oficial
 
+> **Situação atual (10/11): adiado.** Para não arriscar passar das 750 horas grátis do Render, continuamos com um
+> site só, que atualiza a cada mudança na branch de trabalho (como antes). Este passo a passo fica pronto para
+> quando o site oficial for para o plano pago. Ao criar o site de teste, defina também no GitHub
+> (**Settings → Secrets and variables → Actions → Variables**) a variável `RELEASE_BRANCH` = `main`, para o app
+> de Windows só publicar versões a partir do oficial.
+
 Dois sites, o mesmo código:
 
 | | Site de **teste** | Site **oficial** |
