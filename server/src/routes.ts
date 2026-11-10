@@ -53,6 +53,7 @@ import { POLL_SELECT, checkAutomod, checkSlowmode, pollSchema, registerCommunity
 import { registerPushRoutes, sendPush } from './push.ts';
 import { registerSupportRoutes } from './support.ts';
 import { registerHealthRoutes } from './health.ts';
+import { registerEmbedRoutes } from './embeds.ts';
 import { mentionedUsernames } from './mentions.ts';
 
 export { HttpError };
@@ -702,6 +703,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerPushRoutes(r, db, auth);
   registerSupportRoutes(r, db, rt, auth);
   registerHealthRoutes(r, db, rt, auth);
+  registerEmbedRoutes(r, auth);
 
   registerAttachmentRoutes(r, db, auth, {
     channelGuild: async (channelId, userId) => (await channelForMember(channelId, userId)).guildId,

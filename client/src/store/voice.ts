@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { loadSettings, saveSettings, type NoiseMode, type VoiceSettings } from '../voice/settings';
 import type { SoundBurst } from '../lib/soundboard';
+import type { TogetherState } from '../../../shared/types';
 
 export type MediaKind = 'mic' | 'camera' | 'screen';
 
@@ -30,6 +31,8 @@ export interface VoiceStore {
   screenAudioOff: boolean;
   /** modo desempenho deixou minha transmissão mais leve (720p · 30 FPS) */
   screenLight: boolean;
+  /** "Assistir juntos": vídeo do YouTube tocando para a call (null = nenhum) */
+  together: TogetherState | null;
   /** filtro de ruído que está de fato ligado no microfone agora (null = fora da chamada) */
   noiseActive: NoiseMode | null;
   noMic: boolean;
@@ -64,6 +67,7 @@ export const useVoice = create<VoiceStore>(() => ({
   screenAudioOff: false,
   screenLight: false,
   noiseActive: null,
+  together: null,
   noMic: false,
   localCamera: null,
   localScreen: null,

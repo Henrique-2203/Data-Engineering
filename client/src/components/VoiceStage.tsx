@@ -34,6 +34,7 @@ import { voice, type CallSecurity } from '../voice/engine';
 import { CODECS, canShareScreen, keyLabel, screenCodecFor, screenPresetFor } from '../voice/settings';
 import { CallBannerBackground } from '../lib/callBanners';
 import { CallReportButton } from './CallReport';
+import { TogetherButton, TogetherTile } from './Together';
 import { Perm, has, myPermissions } from '../lib/perms';
 import type { SendStats } from '../voice/engine';
 import { Avatar } from './Avatar';
@@ -72,6 +73,8 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
     tiles.push({ id: `${isMe ? 'me' : p.socketId}:user`, kind: 'user', state: p, isMe });
   }
   const focused = joined ? tiles.find((t) => t.id === focus) : undefined;
+  const togetherOn = useVoice((s) => !!s.together) && joined;
+  const togetherBig = togetherOn && focus === 'together';
   const side = useVoice((s) => s.settings.stageLayout === 'side');
   const mainPct = useVoice((s) => (s.settings.stageLayout === 'side' ? s.settings.stageSidePct : s.settings.stageMainPct));
   const [chatOpen, setChatOpen] = useState(() => {
@@ -153,16 +156,17 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
               Chamando {channel?.name}…
             </div>
           )}
-          <div className={`stage${focused ? ' focused' : ''}${focused && side ? ' side' : ''}`} ref={stageRef}>
-            {focused && (
+          <div className={`stage${focused || togetherBig ? ' focused' : ''}${(focused || togetherBig) && side ? ' side' : ''}`} ref={stageRef}>
+            {(focused || togetherBig) && (
               <>
                 <div className="stage-main" style={{ flex: `0 0 ${mainPct}%` }}>
-                  <TileView tile={focused} big />
+                  {togetherBig ? <TogetherTile big /> : <TileView tile={focused!} big />}
                 </div>
                 <StageResizer stageRef={stageRef} />
               </>
             )}
-            <div className={`tiles count-${Math.min(tiles.length, 9)}`}>
+            <div className={`tiles count-${Math.min(tiles.length + (togetherOn && !togetherBig ? 1 : 0), 9)}`}>
+              {togetherOn && !togetherBig && <TogetherTile />}
               {tiles
                 .filter((t) => t !== focused)
                 .map((t) => (
@@ -849,6 +853,7 @@ function VoiceControls() {
         {screen ? <MonitorX /> : <MonitorUp />}
       </button>
       <SoundboardButton className="round-btn" />
+      <TogetherButton />
       <button className="round-btn danger" aria-label="Sair da chamada" title="Sair da chamada" onClick={() => voice.leave()}>
         <PhoneOff />
       </button>

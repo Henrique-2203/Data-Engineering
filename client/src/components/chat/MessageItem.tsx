@@ -1,6 +1,7 @@
 import { Fragment, memo, useState } from 'react';
 import { CornerUpLeft, Flag, Image as ImageIcon, Pencil, Pin, PinOff, Reply, SmilePlus, Trash2 } from 'lucide-react';
 import { PollView, togglePin, useCanPin } from '../Community';
+import { LinkEmbeds } from './LinkEmbed';
 import type { Channel, Message, StickerRef } from '../../../../shared/types';
 import { EmojiView, encodeEmojis, fileUrl, plainEmojis, renderCustomEmojis } from '../../lib/expressions';
 import { api } from '../../lib/api';
@@ -118,6 +119,8 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
             </div>
           )
         )}
+
+        {message.content && !editing && <LinkEmbeds content={message.content} />}
 
         {message.poll && <PollView message={message} channel={channel} />}
 

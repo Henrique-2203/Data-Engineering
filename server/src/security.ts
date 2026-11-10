@@ -35,7 +35,8 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
       "default-src 'self'",
       // 'wasm-unsafe-eval': só WebAssembly (filtro de ruído do microfone); continua proibido eval de JavaScript
       `script-src 'self' 'wasm-unsafe-eval'${TURNSTILE}`,
-      `frame-src ${TURNSTILE ? TURNSTILE.trim() : "'none'"}`,
+      // players do YouTube (sem cookies) e do Spotify, só quando a pessoa clica para tocar
+      `frame-src https://www.youtube-nocookie.com https://open.spotify.com${TURNSTILE}`,
       "style-src 'self' 'unsafe-inline'",
       `img-src 'self' data: blob: https:${R2_ORIGIN ? ` ${R2_ORIGIN}` : ''}`,
       `media-src 'self' blob: data:${R2_ORIGIN ? ` ${R2_ORIGIN}` : ''}`,

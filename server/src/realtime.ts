@@ -8,7 +8,7 @@ import type { Db } from './db.ts';
 import { usableExpression } from './expressions.ts';
 import { bump } from './stats.ts';
 import { Perm, has } from '../../shared/permissions.ts';
-import type { PublicUser, RtcSignal, VoiceState, Activity } from '../../shared/types.ts';
+import type { PublicUser, RtcSignal, VoiceState, Activity, TogetherState } from '../../shared/types.ts';
 
 type Ack = (res: any) => void;
 
@@ -18,6 +18,8 @@ type Ack = (res: any) => void;
  */
 export class Realtime {
   readonly io: Server;
+  /** "Assistir juntos": vídeo de cada call (some quando a call esvazia) */
+  private together = new Map<string, TogetherState>();
   /** desligando para atualizar (ver index.ts) */
   shuttingDown = false;
   /** userId -> número de conexões abertas */
@@ -286,6 +288,13 @@ export class Realtime {
       this.emitVoice(state, 'voice:state', state);
     });
 
+    // Assistir juntos (YouTube sincronizado): qualquer pessoa da call controla
+    socket.on('together:get', (_p: unknown, ack?: Ack) => {
+      const v = this.voice.get(socket.id);
+      ack?.({ state: v ? (this.together.get(v.channelId) ?? null) : null, now: Date.now() });
+    });
+    socket.on('together:action', (payload: unknown, ack?: Ack) => ack?.(this.onTogether(socket, payload)));
+
     // Soundboard: toca um som para todos da chamada (sons de qualquer servidor seu, como no Nitro)
     socket.on('soundboard:play', (payload: unknown, ack?: Ack) => {
       this.onSoundboard(socket, payload)
@@ -496,6 +505,8 @@ export class Realtime {
     const state = this.voice.get(socketId);
     if (!state) return;
     this.voice.delete(socketId);
+    // call vazia: o "Assistir juntos" acaba
+    if (![...this.voice.values()].some((v) => v.channelId === state.channelId)) this.together.delete(state.channelId);
     this.io.in(socketId).socketsLeave(`voice:${state.channelId}`);
     this.io.to(`voice:${state.channelId}`).emit('voice:peer-left', { socketId });
     this.emitVoice(state, 'voice:state-remove', { socketId, guildId: state.guildId });
@@ -505,6 +516,77 @@ export class Realtime {
       this.stopRing(state.channelId);
       this.emitUser(ring.callee, 'call:end-ring', { channelId: state.channelId, missed: true, from: ring.caller });
     }
+  }
+
+  private onTogether(socket: Socket, payload: unknown) {
+    const v = this.voice.get(socket.id);
+    if (!v) return { ok: false, error: 'Entre na call primeiro.' };
+    const id = z.string().regex(/^[A-Za-z0-9_-]{11}$/);
+    const pos = z.number().min(0).max(86_400);
+    const parsed = z
+      .discriminatedUnion('action', [
+        z.object({ action: z.literal('play'), videoId: id, title: z.string().max(200).nullable().optional(), position: pos.optional() }),
+        z.object({ action: z.literal('enqueue'), videoId: id, title: z.string().max(200).nullable().optional() }),
+        z.object({ action: z.literal('pause'), position: pos }),
+        z.object({ action: z.literal('resume'), position: pos }),
+        z.object({ action: z.literal('seek'), position: pos }),
+        z.object({ action: z.literal('next') }),
+        z.object({ action: z.literal('ended'), videoId: id }),
+        z.object({ action: z.literal('remove'), index: z.number().int().min(0).max(100) }),
+        z.object({ action: z.literal('stop') }),
+      ])
+      .safeParse(payload);
+    if (!parsed.success) return { ok: false, error: 'Pedido inválido.' };
+    const a = parsed.data;
+    const user = (socket.data.user as PublicUser).id;
+    const now = Date.now();
+    const cur = this.together.get(v.channelId) ?? null;
+    let next: TogetherState | null = cur;
+    const start = (videoId: string, title: string | null, by: string, position = 0, queue = cur?.queue ?? []): TogetherState => ({
+      videoId,
+      title,
+      playing: true,
+      position,
+      at: now,
+      by,
+      queue,
+    });
+    switch (a.action) {
+      case 'play':
+        next = start(a.videoId, a.title ?? null, user, a.position ?? 0);
+        break;
+      case 'enqueue':
+        if (!cur) next = start(a.videoId, a.title ?? null, user);
+        else if (cur.queue.length >= 50) return { ok: false, error: 'A fila já tem 50 vídeos.' };
+        else next = { ...cur, queue: [...cur.queue, { videoId: a.videoId, title: a.title ?? null, by: user }] };
+        break;
+      case 'pause':
+      case 'resume':
+      case 'seek':
+        if (!cur) return { ok: false };
+        next = { ...cur, playing: a.action === 'seek' ? cur.playing : a.action === 'resume', position: a.position, at: now };
+        break;
+      case 'ended':
+        // várias pessoas avisam que acabou: só a primeira conta
+        if (!cur || cur.videoId !== a.videoId || now - cur.at < 3000) return { ok: true };
+      // eslint-disable-next-line no-fallthrough
+      case 'next': {
+        const q = cur?.queue ?? [];
+        next = q.length ? start(q[0].videoId, q[0].title, q[0].by, 0, q.slice(1)) : null;
+        break;
+      }
+      case 'remove':
+        if (!cur) return { ok: false };
+        next = { ...cur, queue: cur.queue.filter((_, i) => i !== a.index) };
+        break;
+      case 'stop':
+        next = null;
+        break;
+    }
+    if (next) this.together.set(v.channelId, next);
+    else this.together.delete(v.channelId);
+    this.io.to(`voice:${v.channelId}`).emit('together:state', { channelId: v.channelId, state: next, now, by: user, action: a.action });
+    return { ok: true };
   }
 
   private kickFromVoice(socketId: string, reason: string) {

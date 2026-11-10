@@ -1617,8 +1617,13 @@ kbd {
   row-gap: 0;
 }
 .message > .avatar,
+.message > .author-avatar,
 .message > .message-time-gutter {
   grid-area: side;
+}
+/* a foto alinha com a linha do nome */
+.message > .author-avatar {
+  margin-top: 2px;
 }
 .message-body {
   grid-area: body;
@@ -6248,4 +6253,236 @@ html.env-staging body {
 }
 .health-errors code {
   word-break: break-word;
+}
+
+/* ---------- YouTube e Spotify no chat ---------- */
+.link-embeds {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  max-width: 480px;
+}
+.link-embed {
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid #ef4444;
+}
+.link-embed.spotify {
+  border-left-color: #1db954;
+}
+.link-embed iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+}
+.link-embed.youtube iframe,
+.embed-video {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
+.embed-video {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: #000;
+  cursor: pointer;
+}
+.embed-video img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.embed-play-big {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 64px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(239, 68, 68, 0.92);
+  color: #fff;
+}
+.embed-video:hover .embed-play-big {
+  background: #ef4444;
+}
+.embed-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+.embed-meta .ellipsis {
+  flex: 1;
+}
+.embed-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.embed-card img,
+.embed-thumb-empty {
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  background: var(--bg-3);
+}
+.embed-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.embed-play {
+  color: #1db954;
+}
+
+/* ---------- Assistir juntos ---------- */
+.tile.together {
+  background: #000;
+  flex-direction: column;
+}
+.tile.together iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none; /* o controle é pelos botões do Resenha (todo mundo junto) */
+}
+.together-top,
+.together-controls {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  z-index: 1;
+}
+.together-top {
+  top: 8px;
+}
+.together-controls {
+  bottom: 8px;
+}
+.together-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #ef4444;
+  white-space: nowrap;
+}
+.together-title {
+  font-weight: 600;
+  min-width: 0;
+}
+.together-top-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+.together-seek {
+  flex: 1;
+  min-width: 60px;
+}
+.together-volume {
+  width: 80px;
+}
+.together-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.together-count {
+  font-size: 10px;
+  margin-left: 2px;
+}
+.together-queue {
+  position: absolute;
+  right: 8px;
+  bottom: 56px;
+  width: min(360px, calc(100% - 16px));
+  max-height: 60%;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(10, 12, 16, 0.94);
+  color: #fff;
+  z-index: 2;
+}
+.together-queue ol {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.together-queue li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.together-queue li .ellipsis {
+  flex: 1;
+}
+.together-add {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.together-add input {
+  flex: 1;
+  min-width: 160px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-1, rgba(0, 0, 0, 0.3));
+  color: inherit;
+  font: inherit;
+}
+.together-btn-wrap {
+  position: relative;
+}
+.together-pop {
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 90vw);
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.round-btn.on {
+  color: #ef4444;
 }

@@ -158,6 +158,19 @@ export interface SupportTicket {
   diagnostics?: unknown;
 }
 
+/** "Assistir juntos": o vídeo do YouTube que toca para todo mundo da call (estado no servidor). */
+export interface TogetherState {
+  videoId: string;
+  title: string | null;
+  playing: boolean;
+  /** posição (segundos) no instante `at` (relógio do servidor, ms) */
+  position: number;
+  at: number;
+  /** quem colocou o vídeo atual */
+  by: string;
+  queue: { videoId: string; title: string | null; by: string }[];
+}
+
 /** Enquete dentro de uma mensagem. */
 export interface Poll {
   question: string;

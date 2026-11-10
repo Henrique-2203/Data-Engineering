@@ -10,6 +10,7 @@ import { preferCodec } from './sdp';
 import { CODECS, type NoiseMode, effectiveBitrate, screenCodecFor, screenPresetFor } from './settings';
 import { type AiNoiseMode, type Denoiser, aiNoiseSupported, createDenoiser } from './denoise';
 import { desktop } from '../lib/desktop';
+import { together } from './together';
 import { healthPeerClosed, healthPeerCreated, healthPeerState, healthResume, startHealthSampler, stopHealthSampler } from '../lib/health';
 import { TURBO_LABEL, TurboReceiver, TurboSender, type TurboSendStats, decodableCodecs, turboCanReceive, turboCanSend } from './turbo';
 
@@ -225,6 +226,7 @@ class VoiceEngine {
 
       setV({ status: 'connected' });
       startHealthSampler();
+      together.sync();
       if (!rejoin) playSound('join');
       // ligando numa DM sem ninguém do outro lado: fica "chamando…" até atenderem
       if (channel.type === 'dm' && !res.peers?.length && !rejoin) useApp.setState({ outgoingRing: channelId });
@@ -243,6 +245,7 @@ class VoiceEngine {
   leave(notifyServer = true) {
     this.dbg(`leave notify=${notifyServer}`);
     stopHealthSampler();
+    together.clear();
     if (getV().status !== 'idle') playSound('leave');
     useApp.setState({ outgoingRing: null });
     if (notifyServer) getSocket()?.emit('voice:leave');
