@@ -6,6 +6,10 @@ import { desktop } from '../lib/desktop';
 import { closeModal, toast, useApp } from '../store/app';
 import { Modal, useSubmit } from './Modals';
 import { Avatar } from './Avatar';
+import { DiagnosticsView, FindingsList } from './CallReport';
+import { type CallDiagnostics, explain } from '../voice/diagnostics';
+
+const isDiagnostics = (d: unknown): d is CallDiagnostics => !!d && typeof d === 'object' && (d as { v?: number }).v === 1 && Array.isArray((d as CallDiagnostics).peers);
 
 export const SUPPORT_CATEGORIES: { id: SupportCategory; label: string }[] = [
   { id: 'call', label: 'Voz, call ou transmissão' },
@@ -177,6 +181,12 @@ function TicketThread({ ticket, onBack, onChange }: { ticket: SupportTicket; onB
         <ArrowLeft size={14} /> Meus chamados
       </button>
       <TicketMessages ticket={ticket} />
+      {isDiagnostics(ticket.diagnostics) && (
+        <details className="diag-details">
+          <summary>Diagnóstico da call anexado</summary>
+          <FindingsList findings={explain(ticket.diagnostics)} />
+        </details>
+      )}
       {ticket.status !== 'closed' ? (
         <form className="form" onSubmit={submit}>
           <label>
@@ -281,6 +291,13 @@ export function AdminSupport() {
             {openId === t.id && (
               <div className="admin-ticket-body">
                 <TicketMessages ticket={t} />
+                {isDiagnostics(t.diagnostics) && (
+                  <div className="admin-diag">
+                    <strong>Diagnóstico da call</strong>
+                    <FindingsList findings={explain(t.diagnostics)} />
+                    <DiagnosticsView diag={t.diagnostics} />
+                  </div>
+                )}
                 {t.status !== 'closed' && (
                   <div className="form">
                     <textarea aria-label="Resposta da equipe" value={reply} onChange={(e) => setReply(e.target.value)} rows={3} maxLength={4000} />

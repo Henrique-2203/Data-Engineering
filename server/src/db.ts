@@ -431,6 +431,8 @@ alter table users add column if not exists changelog_seen text;
 alter table users add column if not exists call_banner text;
 alter table users add column if not exists call_banner_image text;
 alter table users add column if not exists call_banner_pos smallint not null default 50;
+-- v18: diagnóstico da call anexado ao chamado ("Relatar problema da call")
+alter table support_tickets add column if not exists diagnostics jsonb;
 create table if not exists backups (
   id text primary key,
   started_at timestamptz not null default now(),

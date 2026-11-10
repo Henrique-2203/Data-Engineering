@@ -20,7 +20,7 @@ import type { SupportCategory, SupportTicket } from '../../shared/types.ts';
 const CATEGORIES = ['bug', 'call', 'account', 'question', 'idea', 'other'] as const satisfies readonly SupportCategory[];
 
 const TICKET_SELECT = `select t.id, t.category, t.subject, t.status, t.created_at as "createdAt", t.updated_at as "updatedAt",
-    t.user_unread as "unread", ${userJson('u')} as user,
+    t.user_unread as "unread", ${userJson('u')} as user, t.diagnostics,
     coalesce((select json_agg(json_build_object('id', m.id, 'fromTeam', m.from_team, 'body', m.body, 'createdAt', m.created_at) order by m.created_at)
       from support_messages m where m.ticket_id = t.id), '[]'::json) as messages
   from support_tickets t join users u on u.id = t.user_id`;
@@ -60,11 +60,21 @@ export function registerSupportRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
           message: body,
           // informações técnicas que a pessoa aceitou mandar (navegador, versão do app)
           device: z.string().max(300).optional(),
+          // "Relatar problema da call": só números (a pessoa vê tudo antes de mandar)
+          diagnostics: z.record(z.string(), z.unknown()).optional(),
         }),
         req.body,
       );
+      const diagnostics = b.diagnostics ? JSON.stringify(b.diagnostics) : null;
+      if (diagnostics && diagnostics.length > 64_000) throw new HttpError(413, 'Diagnóstico grande demais.');
       const id = randomUUID();
-      await db.query('insert into support_tickets (id, user_id, category, subject) values ($1, $2, $3, $4)', [id, uid, b.category, b.subject]);
+      await db.query('insert into support_tickets (id, user_id, category, subject, diagnostics) values ($1, $2, $3, $4, $5)', [
+        id,
+        uid,
+        b.category,
+        b.subject,
+        diagnostics,
+      ]);
       const text = b.device ? `${b.message}\n\n— Aparelho: ${b.device}` : b.message;
       await db.query('insert into support_messages (id, ticket_id, from_team, body) values ($1, $2, false, $3)', [randomUUID(), id, text]);
       await notifyAdmins();

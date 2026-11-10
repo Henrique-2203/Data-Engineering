@@ -303,6 +303,17 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 
 ---
 
+## Relatar problema da call (diagnóstico)
+- [ ] Numa call, botão **Relatar problema** (ao lado de "Criptografada"): mede por 5 segundos sem atrapalhar a call.
+- [ ] Aparece **O que encontramos**, com dicas em português (ex.: "a captura da tela está em 25 FPS…", "perda de 8% na voz…").
+- [ ] **Ver exatamente o que vai ser enviado**: tabelas com aparelho, placa de vídeo, conexão com cada pessoa (atraso,
+      perda, TURN), a sua transmissão (captura, envio, ms por quadro) e o que você assiste. Sem áudio, vídeo, mensagens ou IP.
+- [ ] Enviar: vira um chamado de Suporte. No Painel da equipe → Suporte, o chamado mostra o **Diagnóstico da call**.
+- [ ] Teste de amanhã: quem transmitir o jogo relata uma vez com o jogo rodando; quem assiste relata outra. Com os dois,
+      dá para ver se o gargalo é captura, codificação ou internet.
+
+---
+
 ## Se algo der errado
 
 Anote **o que fez**, **o que esperava** e **o que aconteceu** (um print ajuda muito) e me mande.

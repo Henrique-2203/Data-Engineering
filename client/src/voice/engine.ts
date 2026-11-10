@@ -990,6 +990,24 @@ class VoiceEngine {
     for (const p of this.peers.values()) this.applyEncodings(p);
   }
 
+  // ---------------- diagnóstico da call ----------------
+
+  /** Conexões abertas agora (para o "Relatar problema da call"). */
+  diagnosticPeers() {
+    return [...this.peers.values()].map((p) => ({ socketId: p.id, userId: p.userId, pc: p.pc, relayed: p.relayed }));
+  }
+
+  /** Estado interno da transmissão (modo leve, turbo). */
+  get streamInfo() {
+    return {
+      lightLevel: this.lightLevel,
+      turbo: !!this.turbo,
+      turboViewers: this.turbo?.active ? (this.turboStats?.viewers.length ?? 0) : 0,
+      target: this.screenStream ? this.turboTarget() : null,
+      watchingTurbo: [...this.turboRecv.keys()],
+    };
+  }
+
   get uploadPeers() {
     return this.screenWatchers.size;
   }

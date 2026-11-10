@@ -32,6 +32,7 @@ import { UserSettings } from './UserSettings';
 import { AdminReports, ReportModal } from './Reports';
 import { CreatePollModal, EventsModal, PushSettings } from './Community';
 import { SupportModal } from './Support';
+import { CallReportModal } from './CallReport';
 import { ChangelogModal } from './Changelog';
 import { slowLabel } from './AuditLog';
 
@@ -93,6 +94,8 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       return <CreatePollModal channelId={modal.channelId} />;
     case 'support':
       return <SupportModal />;
+    case 'callReport':
+      return <CallReportModal />;
     case 'changelog':
       return <ChangelogModal />;
     case 'events':

@@ -154,6 +154,8 @@ export interface SupportTicket {
   updatedAt: string;
   user: PublicUser;
   messages: { id: string; fromTeam: boolean; body: string; createdAt: string }[];
+  /** "Relatar problema da call": números da call no momento (ver client/src/voice/diagnostics.ts) */
+  diagnostics?: unknown;
 }
 
 /** Enquete dentro de uma mensagem. */

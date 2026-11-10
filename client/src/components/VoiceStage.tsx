@@ -33,6 +33,7 @@ import { setStreamVolume, setUserVolume, updateSettings, useVoice } from '../sto
 import { voice, type CallSecurity } from '../voice/engine';
 import { CODECS, canShareScreen, keyLabel, screenCodecFor, screenPresetFor } from '../voice/settings';
 import { CallBannerBackground } from '../lib/callBanners';
+import { CallReportButton } from './CallReport';
 import { Perm, has, myPermissions } from '../lib/perms';
 import type { SendStats } from '../voice/engine';
 import { Avatar } from './Avatar';
@@ -820,6 +821,7 @@ function VoiceControls() {
   return (
     <div className="voice-controls">
       <CallSecurityButton />
+      <CallReportButton />
       <button className={`round-btn${muted ? ' off' : ''}`} aria-label={muted ? 'Ativar microfone' : 'Silenciar'} title={muted ? 'Ativar microfone' : 'Silenciar'} onClick={() => voice.setMuted(!muted)}>
         {muted ? <MicOff /> : <Mic />}
       </button>

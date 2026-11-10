@@ -11,6 +11,13 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-10c',
+    title: 'Relatar problema da call',
+    items: [
+      ['🩺', 'Algo estranho na call (voz cortando, transmissão travando)? Toque em "Relatar problema" na barra da call: o Resenha mede a conexão por 5 segundos, mostra o que encontrou e manda os números para a equipe. Nunca vai áudio, vídeo, mensagens nem seu endereço IP, e você vê tudo antes de enviar.'],
+    ],
+  },
+  {
     id: '2026-11-10b',
     title: 'Banner da call',
     items: [
