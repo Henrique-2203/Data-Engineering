@@ -918,9 +918,19 @@ function ScreenShare() {
             </span>
           </span>
         </label>
+        <label className={`perf-card${settings.turbo ? ' on' : ''}`}>
+          <input type="checkbox" checked={settings.turbo} disabled={sharing} onChange={(e) => update({ turbo: e.target.checked })} />
+          <span>
+            <strong>⚡ Transmissão turbo (recomendado)</strong>
+            <span className="muted small">
+              O vídeo é codificado uma vez só e os mesmos pacotes vão para todos os amigos (no modo normal, cada amigo é uma
+              codificação a mais no seu PC). Sob pressão baixa a resolução, nunca o FPS. Quem não suporta recebe pelo modo normal.
+            </span>
+          </span>
+        </label>
         {light && (
           <div className="warn-box small">
-            Sua transmissão está na versão leve (720p · 30 FPS) para proteger o FPS do jogo.{' '}
+            Sua transmissão está com resolução menor para manter o FPS sem pesar no jogo.{' '}
             <button className="link-btn" onClick={() => voice.setScreenLight(false)}>
               Voltar para {preset.label}
             </button>

@@ -5879,3 +5879,46 @@ input.switch:disabled {
 .noise-status {
   color: var(--accent);
 }
+.turbo-chip {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0b0d12;
+  background: #f5b942;
+}
+.poll-faces {
+  display: inline-flex;
+  margin-right: 6px;
+}
+.poll-faces .avatar {
+  margin-left: -5px;
+  box-shadow: 0 0 0 2px var(--bg-2);
+}
+.poll-faces .avatar:first-child {
+  margin-left: 0;
+}
+.poll-voters {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.poll-voters ul {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.poll-voters li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}

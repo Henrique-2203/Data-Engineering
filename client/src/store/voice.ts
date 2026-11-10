@@ -9,6 +9,8 @@ export interface RemoteMedia {
   mic?: MediaStream;
   camera?: MediaStream;
   screen?: MediaStream;
+  /** vídeo da transmissão turbo (decodificado aqui); o som continua em `screen` */
+  screenTurbo?: MediaStream;
   connection: RTCPeerConnectionState;
   /** a conexão com esta pessoa passa pelo servidor TURN */
   relayed?: boolean;

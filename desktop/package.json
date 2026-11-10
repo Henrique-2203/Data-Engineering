@@ -1,7 +1,7 @@
 {
   "name": "resenha-desktop",
   "productName": "Resenha",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": true,
   "description": "App de desktop do Resenha: chat, voz e transmissão de tela com push-to-talk global.",
   "author": "Resenha",
@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "electron-updater": "6.8.10",
+    "koffi": "^2.16.3",
     "uiohook-napi": "1.5.5"
   },
   "devDependencies": {
@@ -30,7 +31,13 @@
     },
     "files": [
       "src/**/*",
-      "package.json"
+      "package.json",
+      "!**/node_modules/koffi/build/koffi/{darwin,freebsd,linux,musl,openbsd}_*/**",
+      "!**/node_modules/koffi/build/koffi/win32_{arm64,ia32}/**",
+      "!**/node_modules/koffi/{src,doc,vendor}/**"
+    ],
+    "asarUnpack": [
+      "**/node_modules/koffi/build/**/*.node"
     ],
     "npmRebuild": false,
     "electronFuses": {

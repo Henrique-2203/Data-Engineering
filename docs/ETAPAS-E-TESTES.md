@@ -273,6 +273,26 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 
 ---
 
+## Transmissão turbo e enquete (10/11)
+
+### Transmissão turbo ⚡ (app 0.3.5)
+- [ ] Janela de transmitir: **⚡ Transmissão turbo** já vem marcada.
+- [ ] Quem assiste vê no canto da transmissão "⚡ Turbo · 1920×1080 · 60 FPS · … Mbps · H.264".
+- [ ] Quem transmite vê no painel: Captura X FPS · Envio Y FPS · **ms por quadro** · "na tela de quem assiste: Z FPS".
+- [ ] Jogando e transmitindo para 2–3 amigos: o FPS de quem assiste fica acima de 40 (antes caía para 15–25).
+- [ ] Se o PC apertar, aparece "Sua transmissão foi para 720p (mantendo 60 FPS)…" (a resolução cai, o FPS não).
+- [ ] Amigo com internet ruim: só ele perde quadros; os outros continuam lisos.
+- [ ] Se "Captura" estiver abaixo de 40: deixe o jogo em "janela sem bordas" e use o app de Windows 0.3.5
+      (ele dá prioridade de placa de vídeo para a captura enquanto você transmite).
+- [ ] Desmarcar "Transmissão turbo" volta ao modo antigo (para comparar ou se algo der errado).
+
+### Enquete: quem votou
+- [ ] Depois de votar, cada opção mostra as fotos de quem votou nela.
+- [ ] "Ver quem votou" abre a lista com o nome de cada pessoa por opção ("Você" no seu voto).
+- [ ] Antes de votar aparece "vote para ver o resultado e quem votou" (o resultado não influencia o voto).
+
+---
+
 ## Se algo der errado
 
 Anote **o que fez**, **o que esperava** e **o que aconteceu** (um print ajuda muito) e me mande.

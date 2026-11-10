@@ -16,6 +16,7 @@ const settings = require('./settings');
 const { buildKeymap, MOUSE } = require('./keymap');
 const { watchGames } = require('./games');
 const overlay = require('./overlay');
+const { setGpuPriority } = require('./gpuPriority');
 
 const DEFAULT_URL = 'https://resenha-m2bt.onrender.com';
 const argUrl = process.argv.find((a) => a.startsWith('--url='))?.slice(6);
@@ -531,23 +532,37 @@ function setupGameWatcher() {
 }
 ipcMain.handle('resenha:get-activity', () => ({ name: gameWatcher?.current() ?? null }));
 
-// ---------- o jogo primeiro ----------
-// Com um jogo aberto, os processos do Resenha (inclusive o que codifica a transmissão) ficam com
-// prioridade "abaixo do normal": o Windows dá o processador primeiro ao jogo e o Resenha usa o que sobra.
-let lowered = false;
+// ---------- prioridades (processador e placa de vídeo) ----------
+// Jogando SEM transmitir: o Resenha fica "abaixo do normal" no processador (o jogo primeiro).
+// Jogando E transmitindo: a captura da tela, a codificação e a página ficam "acima do normal" no
+// processador e com prioridade ALTA na placa de vídeo (como o OBS). Elas usam pouco, mas precisam ser
+// atendidas na hora; senão o jogo ocupa tudo e o FPS da transmissão despenca.
+let streaming = false;
+let priorityMode = 'normal';
 function applyPriority() {
-  const low = settings.load().gamePriority !== false && !!gameWatcher?.current();
-  if (!low && !lowered) return;
-  const level = low ? os.constants.priority.PRIORITY_BELOW_NORMAL : os.constants.priority.PRIORITY_NORMAL;
+  const game = !!gameWatcher?.current();
+  const mode = streaming ? 'stream' : game && settings.load().gamePriority !== false ? 'game' : 'normal';
+  if (mode === 'normal' && priorityMode === 'normal') return;
+  const P = os.constants.priority;
   for (const m of app.getAppMetrics()) {
+    const critical = m.type === 'GPU' || m.type === 'Tab' || m.type === 'Utility';
+    let cpu = P.PRIORITY_NORMAL;
+    if (mode === 'game') cpu = P.PRIORITY_BELOW_NORMAL;
+    if (mode === 'stream' && critical) cpu = P.PRIORITY_ABOVE_NORMAL;
     try {
-      os.setPriority(m.pid, level);
+      os.setPriority(m.pid, cpu);
     } catch {
       /* processo já fechou */
     }
+    if (process.platform === 'win32') setGpuPriority(m.pid, mode === 'stream' && critical ? 'high' : 'normal');
   }
-  lowered = low;
+  priorityMode = mode;
 }
+ipcMain.on('resenha:streaming', (e, on) => {
+  if (!fromMainWindow(e)) return;
+  streaming = !!on;
+  applyPriority();
+});
 
 app.whenReady().then(() => {
   setupSession();

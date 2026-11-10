@@ -38,6 +38,8 @@ export type GlobalKeyEvent = { type: 'ptt-down' | 'ptt-up' | 'toggle-mute' | 'to
 interface DesktopBridge {
   platform: string;
   setGlobalKeys(keys: { ptt: string | null }): void;
+  /** a partir do app 0.3.5: prioridade de processador e placa de vídeo para a transmissão */
+  setStreaming?(on: boolean): void;
   onGlobalKey(cb: (e: GlobalKeyEvent) => void): () => void;
   setTrayState(state: { muted: boolean; deafened: boolean; inCall: boolean }): void;
   onTrayAction(cb: (action: 'toggle-mute' | 'toggle-deafen' | 'leave-call') => void): () => void;

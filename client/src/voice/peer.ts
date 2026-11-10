@@ -18,7 +18,9 @@ export interface PeerCallbacks {
   onStream(kind: MediaKind, stream: MediaStream | null): void;
   onStreamChanged(): void;
   onConnectionState(state: RTCPeerConnectionState): void;
-  onWatch(on: boolean): void;
+  onWatch(on: boolean, decoders?: string[]): void;
+  /** quem transmite abriu o canal da transmissão turbo */
+  onDataChannel?(dc: RTCDataChannel): void;
   /** chamado quando a negociação estabiliza, para reaplicar bitrate/fps nos envios */
   onStable(): void;
   /** diagnóstico */
@@ -118,6 +120,14 @@ export class Peer {
       e.track.onunmute = () => this.cb.onStreamChanged();
       this.cb.onStream(kind, stream);
     };
+
+    this.pc.ondatachannel = (e) => this.cb.onDataChannel?.(e.channel);
+  }
+
+  /** Canal de dados confiável e em ordem (transmissão turbo). Criar o primeiro dispara uma renegociação. */
+  openChannel(label: string): RTCDataChannel | null {
+    if (this.closed) return null;
+    return this.pc.createDataChannel(label, { ordered: true });
   }
 
   private sendDescription() {
@@ -158,7 +168,7 @@ export class Peer {
       } else if (data.type === 'meta') {
         this.remoteMeta = data.streams;
       } else if (data.type === 'watch') {
-        this.cb.onWatch(data.on);
+        this.cb.onWatch(data.on, Array.isArray(data.decoders) ? data.decoders.filter((d) => typeof d === 'string').slice(0, 10) : undefined);
       }
     } catch (err) {
       this.cb.log?.(`erro de sinalização (${data.type}): ${err}`);
@@ -347,6 +357,7 @@ export class Peer {
     this.pc.onnegotiationneeded = null;
     this.pc.onconnectionstatechange = null;
     this.pc.onsignalingstatechange = null;
+    this.pc.ondatachannel = null;
     this.pc.close();
   }
 }

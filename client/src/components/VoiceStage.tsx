@@ -309,7 +309,8 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
   const name = user?.displayName ?? 'Alguém';
 
   if (tile.kind === 'screen') {
-    const stream = tile.isMe ? localScreen : remote?.screen;
+    // turbo: o vídeo vem decodificado aqui (screenTurbo); o som continua no `screen`
+    const stream = tile.isMe ? localScreen : (remote?.screenTurbo ?? remote?.screen);
     const canWatch = !tile.isMe;
     return (
       <div ref={ref} className={`tile screen${big ? ' big' : ''}${sizeClass}`} onDoubleClick={tile.isMe ? undefined : () => fullscreen(ref.current)}>
@@ -588,7 +589,7 @@ function MyStreamAudioToggle() {
 function SendStatsView() {
   const chosen = useVoice((s) => screenCodecFor(s.settings));
   const light = useVoice((s) => s.screenLight);
-  const targetFps = useVoice((s) => (s.screenLight ? 30 : screenPresetFor(s.settings).fps));
+  const targetFps = useVoice((s) => Math.max(40, screenPresetFor(s.settings).fps));
   const [st, setSt] = useState<SendStats | null>(null);
   const [mbps, setMbps] = useState<number | null>(null);
   useEffect(() => {
@@ -596,7 +597,8 @@ function SendStatsView() {
     const t = setInterval(async () => {
       const s = await voice.screenSendStats();
       setSt(s);
-      if (s && last && s.ts > last.ts && s.bytes >= last.bytes) {
+      if (s?.mbps !== undefined) setMbps(s.mbps);
+      else if (s && last && s.ts > last.ts && s.bytes >= last.bytes) {
         setMbps(((s.bytes - last.bytes) * 8) / ((s.ts - last.ts) / 1000) / 1e6);
       }
       last = s;
@@ -608,8 +610,8 @@ function SendStatsView() {
   const wanted = CODECS.find((c) => c.id === chosen)?.mime.replace('video/', '') ?? '';
   const fallback = st.codec && wanted && st.codec.toUpperCase() !== wanted.toUpperCase();
   const tips: string[] = [];
-  if (light) tips.push('Modo desempenho: a transmissão está mais leve (720p · 30 FPS) para não tirar FPS do jogo.');
-  if (fallback) {
+  if (light) tips.push(`Modo desempenho: a resolução baixou para manter ${targetFps} FPS sem pesar no jogo.`);
+  if (fallback && !st.turbo) {
     tips.push(
       `O ${wanted} não está disponível (no seu navegador ou no de quem assiste), então está indo em ${st.codec}. Use Chrome ou Edge atualizados dos dois lados — Opera/Opera GX e Brave podem vir sem H.264.`,
     );
@@ -621,22 +623,36 @@ function SendStatsView() {
         : 'Processador sobrecarregado: baixe para 720p · 60 FPS ou feche programas pesados.',
     );
   }
-  if (st.limitedBy === 'bandwidth') tips.push('Sua internet (upload) está limitando a qualidade. Diminua o bitrate ou a resolução.');
+  if (st.limitedBy === 'bandwidth')
+    tips.push(
+      st.turbo
+        ? 'A internet de alguém que assiste não está acompanhando: só essa pessoa perde quadros (os outros continuam lisos). Se for o seu upload, diminua o bitrate.'
+        : 'Sua internet (upload) está limitando a qualidade. Diminua o bitrate ou a resolução.',
+    );
   // O navegador só captura quando a imagem muda: tela parada = FPS baixo, e isso é normal.
   if (st.captureFps > 0 && st.captureFps < targetFps * 0.75 && st.limitedBy === 'none') {
     tips.push(
-      `A captura está abaixo de ${targetFps} FPS. Se for durante o jogo (e não uma tela parada), deixe o jogo em "janela sem bordas" (tela cheia em janela) em vez de tela cheia exclusiva.`,
+      `A captura está abaixo de ${targetFps} FPS. Se for durante o jogo (e não uma tela parada), deixe o jogo em "janela sem bordas" (tela cheia em janela) em vez de tela cheia exclusiva, e use o app de Windows (ele dá prioridade de placa de vídeo para a captura).`,
     );
   }
 
-  const enc = st.hardware === null ? '' : st.hardware ? ' (placa de vídeo)' : ' (processador)';
+  const enc =
+    st.encodeMs !== undefined
+      ? ` · ${st.encodeMs} ms por quadro${st.hardware === false ? ' (processador)' : ''}`
+      : st.hardware === null
+        ? ''
+        : st.hardware
+          ? ' (placa de vídeo)'
+          : ' (processador)';
   const limited = { none: '', cpu: ' · limitado: processador', bandwidth: ' · limitado: internet', other: '' }[st.limitedBy];
   return (
     <div className="send-stats">
       <div>
+        {st.turbo && <span className="turbo-chip" title="Codificada uma vez só para todo mundo (mais leve e estável)">⚡ Turbo</span>}
         Captura {Math.round(st.captureFps)} FPS · Envio {st.width}×{st.height} {Math.round(st.fps)} FPS
         {mbps !== null ? ` · ${mbps.toFixed(1)} Mbps` : ''} · {st.codec}
         {enc}
+        {st.viewerFps !== undefined ? ` · na tela de quem assiste: ${st.viewerFps} FPS` : ''}
         {limited}
       </div>
       {tips.map((t) => (
@@ -654,6 +670,13 @@ function StreamStats({ socketId, relayed }: { socketId: string; relayed: boolean
   useEffect(() => {
     let last: { bytes: number; ts: number } | null = null;
     const t = setInterval(async () => {
+      // transmissão turbo: números do próprio decodificador
+      const turbo = voice.turboRecvStats(socketId);
+      if (turbo) {
+        const res = turbo.width ? `${turbo.width}×${turbo.height}` : '';
+        setText(['⚡ Turbo', res, `${turbo.fps} FPS`, `${turbo.mbps.toFixed(1)} Mbps`, turbo.codec].filter(Boolean).join(' · '));
+        return;
+      }
       const report = await voice.screenStats(socketId);
       if (!report) return;
       report.forEach((s) => {

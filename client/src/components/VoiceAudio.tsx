@@ -50,5 +50,5 @@ function RemoteAudio({ stream, userId, version, kind = 'mic' }: { stream: MediaS
     if (ref.current) ref.current.volume = Math.max(0, Math.min(1, volume));
   }, [volume]);
 
-  return <audio ref={ref} autoPlay playsInline />;
+  return <audio ref={ref} autoPlay playsInline data-kind={kind} />;
 }

@@ -39,6 +39,8 @@ export const CODECS: { id: CodecChoice; label: string; mime: string }[] = [
 export interface VoiceSettings {
   /** modo desempenho: H.264 pela placa de vídeo, no máximo 1080p e fica mais leve sozinho se o PC sofrer */
   performanceMode: boolean;
+  /** transmissão turbo: codifica uma vez só (WebCodecs) e manda os mesmos pacotes para todos */
+  turbo: boolean;
   screenPreset: string;
   contentType: ContentType;
   codec: CodecChoice;
@@ -82,6 +84,7 @@ const KEY = 'resenha.voiceSettings';
 
 export const DEFAULT_SETTINGS: VoiceSettings = {
   performanceMode: true,
+  turbo: true,
   screenPreset: '1080p60',
   contentType: 'motion',
   codec: 'h264',

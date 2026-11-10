@@ -198,8 +198,18 @@ try {
   });
   await poll.getByRole('button', { name: /^Pizza/ }).click();
   await pb.locator('.poll', { hasText: 'Pizza ou hambúrguer?' }).getByText('1 voto').waitFor({ timeout: 8000 });
+  // quem votou: aparece para quem já votou (ou depois que a enquete acaba)
+  await pa.locator('.poll', { hasText: 'Pizza ou hambúrguer?' }).getByRole('button', { name: 'Ver quem votou' }).click();
+  await pa.getByRole('region', { name: 'Quem votou' }).getByText('Você').waitFor();
+  const pbPoll = pb.locator('.poll', { hasText: 'Pizza ou hambúrguer?' });
+  await pbPoll.getByText('vote para ver o resultado e quem votou').waitFor();
+  await pbPoll.getByRole('button', { name: /^Hambúrguer/ }).click();
+  await pbPoll.getByRole('button', { name: 'Ver quem votou' }).click();
+  const region = pb.getByRole('region', { name: 'Quem votou' });
+  await region.locator('.poll-voters-option', { hasText: 'Pizza' }).getByText('Ana').waitFor();
+  await region.locator('.poll-voters-option', { hasText: 'Hambúrguer' }).getByText('Você').waitFor();
   await pb.screenshot({ path: path.join(shots, 'enquete.png') });
-  step('interface: criar enquete e votar (o voto aparece na hora para os outros)');
+  step('interface: criar enquete e votar (o voto aparece na hora para os outros); "Ver quem votou" mostra o nome de quem votou em cada opção');
 
   // fixar pela interface
   const target = pa.locator('.message', { hasText: 'Amanhã tem campeonato' });

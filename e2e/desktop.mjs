@@ -254,7 +254,23 @@ try {
   });
   await win.screenshot({ path: `${shots}/18-desktop-transmitindo.png` });
   step(`seletor de tela do app funciona e a transmissão começou (${size})`);
+  // transmitindo: a página (codificação) e a placa de vídeo ficam acima do normal; o principal fica normal
+  let streamPrio = [];
+  for (let i = 0; i < 10; i++) {
+    streamPrio = await priorities();
+    if (streamPrio.some((x) => x.type === 'Tab' && x.p < 0)) break;
+    await sleep(300);
+  }
+  assert(streamPrio.find((x) => x.type === 'Tab')?.p < 0 && streamPrio.find((x) => x.type === 'Browser')?.p === 0, `prioridade da transmissão (${JSON.stringify(streamPrio)})`);
   await win.getByRole('button', { name: 'Parar transmissão' }).click();
+  let after = [];
+  for (let i = 0; i < 10; i++) {
+    after = keyProcs(await priorities());
+    if (after.every((p) => p === 0)) break;
+    await sleep(300);
+  }
+  assert(after.every((p) => p === 0), `prioridade volta ao normal ao parar de transmitir (${after.join(',')})`);
+  step('transmitindo: captura e codificação com prioridade acima do normal (e placa de vídeo alta no Windows); volta ao normal ao parar');
 
   // cancelar o seletor não quebra nada
   await win.getByRole('button', { name: 'Transmitir tela' }).click();

@@ -119,6 +119,9 @@ export function PollView({ message, channel }: { message: Message; channel: Chan
   const totalVotes = poll.options.reduce((a, o) => a + o.userIds.length, 0);
   const top = Math.max(...poll.options.map((o) => o.userIds.length));
   const showResults = ended || mine.length > 0;
+  const [showVoters, setShowVoters] = useState(false);
+  const member = (id: string) => findMember(channel.guildId, id);
+  const nameOf = (id: string) => (id === meId ? 'Você' : (member(id)?.displayName ?? 'Alguém'));
 
   async function vote(i: number) {
     if (ended) return;
@@ -158,6 +161,13 @@ export function PollView({ message, channel }: { message: Message; channel: Chan
               </span>
               {showResults && (
                 <span className="poll-count">
+                  {o.userIds.length > 0 && (
+                    <span className="poll-faces" aria-hidden>
+                      {o.userIds.slice(0, 4).map((id) => (
+                        <Avatar key={id} user={member(id)} size={18} />
+                      ))}
+                    </span>
+                  )}
                   {o.userIds.length} · {pct}%
                 </span>
               )}
@@ -168,7 +178,39 @@ export function PollView({ message, channel }: { message: Message; channel: Chan
       <div className="muted small poll-foot">
         {voters === 1 ? '1 voto' : `${voters} votos`} · {timeLeft(poll.endsAt)}
         {!ended && mine.length > 0 && ' · clique de novo para tirar o voto'}
+        {showResults && voters > 0 && (
+          <>
+            {' · '}
+            <button className="link-btn small" aria-expanded={showVoters} onClick={() => setShowVoters((v) => !v)}>
+              {showVoters ? 'Esconder quem votou' : 'Ver quem votou'}
+            </button>
+          </>
+        )}
+        {!showResults && voters > 0 && ' · vote para ver o resultado e quem votou'}
       </div>
+      {showResults && showVoters && (
+        <div className="poll-voters" role="region" aria-label="Quem votou" ref={(el) => el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}>
+          {poll.options.map((o, i) => (
+            <div key={i} className="poll-voters-option">
+              <strong>
+                {o.text} <span className="muted small">({o.userIds.length})</span>
+              </strong>
+              {o.userIds.length === 0 ? (
+                <span className="muted small">Ninguém</span>
+              ) : (
+                <ul>
+                  {o.userIds.map((id) => (
+                    <li key={id}>
+                      <Avatar user={member(id)} size={20} />
+                      <span>{nameOf(id)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

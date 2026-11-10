@@ -33,4 +33,6 @@ contextBridge.exposeInMainWorld('resenhaDesktop', {
   /** overlay no jogo (a partir do app 0.3.0) */
   setOverlayState: (state) => ipcRenderer.send('resenha:overlay-state', state),
   overlayEvent: (event) => ipcRenderer.send('resenha:overlay-event', event),
+  /** estou transmitindo a tela (a partir do app 0.3.5: prioridade de processador e placa de vídeo) */
+  setStreaming: (on) => ipcRenderer.send('resenha:streaming', !!on),
 });

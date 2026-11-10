@@ -129,7 +129,7 @@ try {
   await slider.fill('0.3');
   const volumes = async () =>
     pb.evaluate(() =>
-      [...document.querySelectorAll('audio')].map((a) => ({ v: Math.round(a.volume * 100) / 100, video: (a.srcObject?.getVideoTracks?.().length ?? 0) > 0 })),
+      [...document.querySelectorAll('audio')].map((a) => ({ v: Math.round(a.volume * 100) / 100, video: a.dataset.kind === 'screen' })),
     );
   // a trilha da transmissão chega depois da renegociação: espera o <audio> dela aparecer
   let vols = [];
@@ -151,7 +151,7 @@ try {
 
   // ---------- modo desempenho: codificando no processador, a transmissão fica leve sozinha ----------
   // (o navegador de teste não tem placa de vídeo, então codifica no processador)
-  await pa.getByText(/Sua transmissão ficou em 720p · 30 FPS/).waitFor({ timeout: 30000 });
+  await pa.getByText(/Sua transmissão foi para 720p \(mantendo \d+ FPS\)/).waitFor({ timeout: 30000 });
   let sent = null;
   for (let i = 0; i < 20; i++) {
     sent = await pb.evaluate(() => {
@@ -163,7 +163,7 @@ try {
   }
   assert(sent && sent.h > 0 && sent.h <= 720, `quem assiste recebe a versão leve (${JSON.stringify(sent)})`);
   await pa.getByRole('button', { name: 'Tela' }).first().click().catch(() => {});
-  step('modo desempenho: sem placa de vídeo, a transmissão vai sozinha para 720p · 30 FPS e avisa (o jogo vem primeiro)');
+  step('modo desempenho: codificando no processador, a resolução cai sozinha para 720p mantendo o FPS (e avisa)');
 
   console.log('\nTUDO CERTO (pedidos da call)');
 } catch (err) {

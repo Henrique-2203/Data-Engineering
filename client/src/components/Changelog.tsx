@@ -11,6 +11,16 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-10a',
+    title: 'Transmissão turbo',
+    items: [
+      ['⚡', 'Transmissão turbo: o vídeo da sua tela é preparado uma vez só para todos os amigos. Fica bem mais fluida (no nosso teste com 3 amigos, de cerca de 25 para mais de 50 FPS) e pesa menos no seu PC.'],
+      ['🎮', 'Quando o PC aperta, a transmissão diminui a resolução e mantém o FPS.'],
+      ['🖥️', 'App de Windows: enquanto você transmite, a captura da tela ganha prioridade na placa de vídeo (o jogo quase não sente).'],
+      ['📊', 'Enquetes: depois de votar, toque em "Ver quem votou" para ver o nome de quem escolheu cada opção.'],
+    ],
+  },
+  {
     id: '2026-11-09b',
     title: 'Novidades para quem joga',
     items: [

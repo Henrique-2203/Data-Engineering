@@ -9,6 +9,8 @@ import { Peer, type SenderSlot } from './peer';
 import { preferCodec } from './sdp';
 import { CODECS, type NoiseMode, effectiveBitrate, screenCodecFor, screenPresetFor } from './settings';
 import { type AiNoiseMode, type Denoiser, aiNoiseSupported, createDenoiser } from './denoise';
+import { desktop } from '../lib/desktop';
+import { TURBO_LABEL, TurboReceiver, TurboSender, type TurboSendStats, decodableCodecs, turboCanReceive, turboCanSend } from './turbo';
 
 const CAMERA_BITRATE = 1_200_000;
 
@@ -35,6 +37,12 @@ export interface SendStats {
   limitedBy: 'none' | 'cpu' | 'bandwidth' | 'other';
   bytes: number;
   ts: number;
+  /** transmissão turbo (codificada uma vez): Mbps já calculado e o pior FPS mostrado por quem assiste */
+  turbo?: boolean;
+  mbps?: number;
+  viewerFps?: number;
+  /** tempo médio para codificar um quadro */
+  encodeMs?: number;
 }
 
 const setV = useVoice.setState;
@@ -244,8 +252,12 @@ class VoiceEngine {
     this.pttDown = this.vadOpen = false;
     setV({ noiseActive: null });
     this.camTrack?.stop();
+    if (this.screenStream) desktop?.setStreaming?.(false);
+    this.stopTurbo();
+    for (const r of this.turboRecv.values()) r.close();
+    this.turboRecv.clear();
     this.stopPerfGuard();
-    this.light = false;
+    this.lightLevel = 0;
     this.screenStream?.getTracks().forEach((t) => t.stop());
     this.micTrack = this.camTrack = this.screenStream = null;
     this.screenWatchers.clear();
@@ -389,7 +401,8 @@ class VoiceEngine {
         this.patchRemote(socketId, () => ({ connection }));
         if (connection === 'connected' && this.oldPeers.size) this.replaceOldPeer(socketId, userId);
       },
-      onWatch: (on) => this.onWatchRequest(socketId, on),
+      onWatch: (on, decoders) => this.onWatchRequest(socketId, on, decoders),
+      onDataChannel: (dc) => this.onScreenChannel(socketId, dc),
       onStable: () => this.applyEncodings(peer),
       log: (msg) => this.dbg(`[${socketId.slice(0, 6)}] ${msg}`),
       onRelayChange: (relayed) => {
@@ -570,40 +583,132 @@ class VoiceEngine {
       const p = this.peers.get(id);
       if (p) await this.addScreen(p);
     }
+    // transmissão turbo: codifica uma vez só para todo mundo (quando o navegador permite)
+    this.turbo?.stop();
+    this.turbo = turboCanSend() && settings.turbo !== false ? new TurboSender(videoTrack, this.turboTarget(), (m) => this.dbg(m)) : null;
+    this.startTurboStats();
     setV({ screen: true, localScreen: stream, screenLight: false });
     getSocket()?.emit('voice:update', { screen: true });
+    desktop?.setStreaming?.(true);
     this.startPerfGuard();
     return true;
   }
 
+  // ---------------- transmissão turbo ----------------
+
+  private turbo: TurboSender | null = null;
+  private turboStats: TurboSendStats | null = null;
+  private turboStatsTimer: ReturnType<typeof setInterval> | null = null;
+  /** quem assiste em modo turbo: socketId -> receptor */
+  private turboRecv = new Map<string, TurboReceiver>();
+
+  /** resolução máxima / FPS / bitrate da transmissão turbo (o modo leve baixa a resolução, nunca o FPS) */
+  private turboTarget() {
+    const { settings } = getV();
+    const preset = screenPresetFor(settings);
+    const fps = Math.max(40, preset.fps);
+    const maxHeight = this.lightLevel >= 2 ? 540 : this.lightLevel === 1 ? 720 : (preset.height ?? 2160);
+    const bitrate = this.lightLevel ? Math.min(effectiveBitrate(settings), this.lightLevel >= 2 ? 3_000_000 : 5_000_000) : effectiveBitrate(settings);
+    return { fps, bitrate, maxHeight };
+  }
+
+  private startTurboStats() {
+    if (this.turboStatsTimer) clearInterval(this.turboStatsTimer);
+    this.turboStats = null;
+    this.turboStatsTimer = setInterval(() => {
+      this.turboStats = this.turbo?.active ? this.turbo.stats() : null;
+    }, 1000);
+  }
+
+  private stopTurbo() {
+    this.turbo?.stop();
+    this.turbo = null;
+    this.turboStats = null;
+    if (this.turboStatsTimer) clearInterval(this.turboStatsTimer);
+    this.turboStatsTimer = null;
+  }
+
+  /** Quem assiste: chegou o canal da transmissão turbo de alguém. */
+  private onScreenChannel(socketId: string, dc: RTCDataChannel) {
+    if (dc.label !== TURBO_LABEL) return dc.close();
+    this.turboRecv.get(socketId)?.close();
+    const recv = new TurboReceiver(dc, (m) => this.dbg(m));
+    this.turboRecv.set(socketId, recv);
+    this.patchRemote(socketId, (r) => ({ screenTurbo: recv.stream, v: r.v + 1 }));
+    dc.addEventListener('close', () => {
+      if (this.turboRecv.get(socketId) !== recv) return;
+      recv.close();
+      this.turboRecv.delete(socketId);
+      this.patchRemote(socketId, (r) => ({ screenTurbo: undefined, v: r.v + 1 }));
+    });
+  }
+
+  /** Estatísticas do que estou recebendo em modo turbo (null = não é turbo). */
+  turboRecvStats(socketId: string) {
+    return this.turboRecv.get(socketId)?.stats() ?? null;
+  }
+
+  /** Estatísticas da minha transmissão turbo (null = ninguém em modo turbo). */
+  get turboSendStats() {
+    return this.turbo?.active ? this.turboStats : null;
+  }
+
   // ---------------- modo desempenho ----------------
 
-  /** transmissão ficou mais leve (720p · 30 FPS) para não roubar FPS do jogo */
-  private light = false;
+  /**
+   * Versão leve da transmissão: 0 = normal, 1 = até 720p, 2 = até 540p. O FPS NÃO cai: menos pixels
+   * para codificar mantém a transmissão fluida (o que importa em jogo).
+   */
+  private lightLevel = 0;
   private perfTimer: ReturnType<typeof setInterval> | null = null;
 
   /**
-   * Modo desempenho: a cada poucos segundos confere como a transmissão está sendo codificada. Se for
-   * pelo processador (sem placa de vídeo) ou o processador estiver no limite, deixa a transmissão mais
-   * leve sozinha e avisa uma vez. O jogo vem primeiro.
+   * Modo desempenho: a cada poucos segundos confere a transmissão. Se o codificador não acompanha o FPS
+   * (ou está no processador em alta resolução), baixa a resolução um degrau e avisa. O FPS é mantido.
    */
   private startPerfGuard() {
     this.stopPerfGuard();
-    this.light = false;
+    this.lightLevel = 0;
     let strikes = 0;
     this.perfTimer = setInterval(async () => {
-      if (!getV().settings.performanceMode || this.light || !this.screenStream) return;
-      const st = await this.screenSendStats();
-      if (!st || !st.fps) return;
-      strikes = st.hardware === false || st.limitedBy === 'cpu' ? strikes + 1 : 0;
+      if (!getV().settings.performanceMode || this.lightLevel >= 2 || !this.screenStream) return;
+      const target = this.turboTarget().fps;
+      const t = this.turboSendStats;
+      let struggling: boolean;
+      let software: boolean;
+      let height: number;
+      if (t) {
+        // codificador não acompanha: está pulando quadros ou entregando menos do que a captura manda
+        struggling = t.encoderDrops >= 3 || (t.captureFps >= target * 0.85 && t.encodeFps < Math.min(t.captureFps, target) * 0.85);
+        // o navegador não diz se é placa de vídeo: mais de 14 ms por quadro é sinal de processador
+        software = t.hardware === false || t.encodeMs > 14;
+        height = t.height;
+      } else {
+        const st = await this.screenSendStats();
+        if (!st || !st.fps) return;
+        struggling = st.limitedBy === 'cpu';
+        software = st.hardware === false;
+        height = st.height;
+      }
+      const tooBigForSoftware = software && height > (this.lightLevel ? 540 : 720);
+      strikes = struggling || tooBigForSoftware ? strikes + 1 : 0;
       if (strikes < 2) return;
-      this.setScreenLight(true);
+      strikes = 0;
+      this.setLightLevel(this.lightLevel + 1);
+      const res = this.lightLevel >= 2 ? '540p' : '720p';
       toast(
-        st.hardware === false
-          ? 'Sua transmissão ficou em 720p · 30 FPS: o vídeo estava sendo codificado pelo processador e isso tira FPS do jogo.'
-          : 'Sua transmissão ficou em 720p · 30 FPS para não pesar no jogo (processador no limite).',
+        software
+          ? `Sua transmissão foi para ${res} (mantendo ${target} FPS): o vídeo está sendo codificado pelo processador.`
+          : `Sua transmissão foi para ${res} (mantendo ${target} FPS) para não pesar no jogo.`,
       );
-    }, 4000);
+    }, 3000);
+  }
+
+  private setLightLevel(level: number) {
+    this.lightLevel = Math.max(0, Math.min(2, level));
+    setV({ screenLight: this.lightLevel > 0 });
+    this.turbo?.setTarget(this.turboTarget());
+    this.refreshEncodings();
   }
 
   private stopPerfGuard() {
@@ -613,15 +718,15 @@ class VoiceEngine {
 
   /** Liga/desliga a versão leve da transmissão (sem parar). */
   setScreenLight(on: boolean) {
-    this.light = on;
-    setV({ screenLight: on });
-    this.refreshEncodings();
+    this.setLightLevel(on ? 1 : 0);
   }
 
   stopScreen() {
     if (!this.screenStream) return;
+    desktop?.setStreaming?.(false);
+    this.stopTurbo();
     this.stopPerfGuard();
-    this.light = false;
+    this.lightLevel = 0;
     this.stopScreenTracks();
     for (const id of this.screenWatchers) {
       const p = this.peers.get(id);
@@ -685,13 +790,13 @@ class VoiceEngine {
             scaleDown: height > TURN_LIMITS.screen.maxHeight ? height / TURN_LIMITS.screen.maxHeight : 1,
             degradation: 'balanced',
           }
-        : this.light
+        : this.lightLevel
           ? {
-              // versão leve (modo desempenho): menos pixels e quadros para codificar
-              maxBitrate: Math.min(effectiveBitrate(settings), 2_500_000),
-              maxFramerate: Math.min(30, preset.fps),
-              scaleDown: height > 720 ? height / 720 : 1,
-              degradation: 'balanced',
+              // versão leve (modo desempenho): menos pixels para codificar, mesmo FPS
+              maxBitrate: Math.min(effectiveBitrate(settings), this.lightLevel >= 2 ? 3_000_000 : 5_000_000),
+              maxFramerate: preset.fps,
+              scaleDown: height > (this.lightLevel >= 2 ? 540 : 720) ? height / (this.lightLevel >= 2 ? 540 : 720) : 1,
+              degradation: 'maintain-framerate',
               codecMime: CODECS.find((c) => c.id === screenCodecFor(settings))?.mime,
             }
           : {
@@ -714,6 +819,25 @@ class VoiceEngine {
    * Retorna null se ninguém está assistindo.
    */
   async screenSendStats(): Promise<SendStats | null> {
+    const t = this.turboSendStats;
+    if (t) {
+      const shown = t.viewers.map((v) => v.shownFps).filter((f) => f > 0);
+      return {
+        captureFps: t.captureFps,
+        fps: t.encodeFps,
+        width: t.width,
+        height: t.height,
+        codec: t.codec,
+        hardware: t.hardware,
+        limitedBy: t.encoderDrops >= 3 ? 'cpu' : t.viewers.some((v) => v.skipped > 0) ? 'bandwidth' : 'none',
+        bytes: 0,
+        ts: Date.now(),
+        turbo: true,
+        encodeMs: t.encodeMs,
+        mbps: t.viewers.reduce((a, v) => Math.max(a, v.mbps), 0),
+        viewerFps: shown.length ? Math.min(...shown) : undefined,
+      };
+    }
     let worst: SendStats | null = null;
     for (const id of this.screenWatchers) {
       const report = await this.peers.get(id)?.screenSendStats();
@@ -742,17 +866,49 @@ class VoiceEngine {
     return [...this.screenWatchers].filter((id) => this.peers.get(id)?.relayed).length;
   }
 
-  private onWatchRequest(socketId: string, on: boolean) {
+  private onWatchRequest(socketId: string, on: boolean, decoders?: string[]) {
     const peer = this.peers.get(socketId);
     if (!peer) return;
     if (on) {
       this.screenWatchers.add(socketId);
-      void this.addScreen(peer);
+      const { settings } = getV();
+      // turbo: quem assiste decodifica e a conexão é direta (via TURN fica a versão econômica do WebRTC)
+      if (this.turbo && decoders?.length && !(peer.relayed && settings.turnSaver)) void this.addTurboViewer(peer, decoders);
+      else void this.addScreen(peer);
     } else {
       this.screenWatchers.delete(socketId);
+      this.turbo?.removeViewer(socketId);
       void peer.setTrack('screenVideo', null, this.msid.screen);
       void peer.setTrack('screenAudio', null, this.msid.screen);
     }
+  }
+
+  /** Manda a tela pelo canal turbo (o som vai como sempre); se não der, cai na transmissão normal. */
+  private async addTurboViewer(peer: Peer, decoders: string[]) {
+    const turbo = this.turbo;
+    if (!turbo || turbo.has(peer.id)) return;
+    const dc = peer.openChannel(TURBO_LABEL);
+    if (!dc) return;
+    const audio = this.screenStream?.getAudioTracks()[0] ?? null;
+    if (audio) await peer.setTrack('screenAudio', audio, this.msid.screen);
+    // sem vídeo pelo WebRTC para esta pessoa
+    await peer.setTrack('screenVideo', null, this.msid.screen);
+    const fallback = () => {
+      if (!this.screenWatchers.has(peer.id) || this.turbo !== turbo) return;
+      this.dbg(`turbo indisponível para ${peer.id.slice(0, 6)}: transmissão normal`);
+      try {
+        dc.close();
+      } catch {
+        /* já fechado */
+      }
+      void this.addScreen(peer);
+    };
+    const timer = setTimeout(fallback, 10_000);
+    dc.onopen = async () => {
+      clearTimeout(timer);
+      if (!(await turbo.addViewer(peer.id, dc, decoders))) fallback();
+      else this.applyEncodings(peer);
+    };
   }
 
   // ---------------- assistir transmissões ----------------
@@ -769,7 +925,11 @@ class VoiceEngine {
   }
 
   private sendWatch(socketId: string, on: boolean) {
-    getSocket()?.emit('rtc:signal', { to: socketId, data: { type: 'watch', on } satisfies RtcSignal });
+    const send = (decoders?: string[]) =>
+      getSocket()?.emit('rtc:signal', { to: socketId, data: { type: 'watch', on, ...(decoders?.length ? { decoders } : {}) } satisfies RtcSignal });
+    // aceito a transmissão turbo se este aparelho decodifica (e a pessoa não desligou)
+    if (on && turboCanReceive() && getV().settings.turbo !== false) void decodableCodecs().then(send, () => send());
+    else send();
   }
 
   /** Diagnóstico: nível do áudio recebido de cada participante (0..1, via getStats). */

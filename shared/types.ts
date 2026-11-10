@@ -264,7 +264,8 @@ export type RtcSignal =
   | { type: 'description'; description: { type: 'offer' | 'answer'; sdp: string } }
   | { type: 'candidate'; candidate: unknown }
   | { type: 'meta'; streams: Record<string, 'mic' | 'camera' | 'screen'> }
-  | { type: 'watch'; on: boolean };
+  /** `decoders`: quem assiste aceita a transmissão turbo (codecs que consegue decodificar) */
+  | { type: 'watch'; on: boolean; decoders?: string[] };
 
 /** Ações que entram no registro de auditoria do servidor. */
 export type AuditAction =
