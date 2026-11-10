@@ -34,7 +34,7 @@ import { voice, type CallSecurity } from '../voice/engine';
 import { CODECS, canShareScreen, keyLabel, screenCodecFor, screenPresetFor } from '../voice/settings';
 import { CallBannerBackground } from '../lib/callBanners';
 import { CallReportButton } from './CallReport';
-import { TogetherButton, TogetherTile } from './Together';
+import { TogetherButton, TogetherHiddenChip, TogetherTile } from './Together';
 import { Perm, has, myPermissions } from '../lib/perms';
 import type { SendStats } from '../voice/engine';
 import { Avatar } from './Avatar';
@@ -74,7 +74,7 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
     tiles.push({ id: `${isMe ? 'me' : p.socketId}:user`, kind: 'user', state: p, isMe });
   }
   const focused = joined ? tiles.find((t) => t.id === focus) : undefined;
-  const togetherOn = useVoice((s) => !!s.together) && joined;
+  const togetherOn = useVoice((s) => !!s.together && !s.togetherHidden) && joined;
   const togetherBig = togetherOn && focus === 'together';
   const side = useVoice((s) => s.settings.stageLayout === 'side');
   const mainPct = useVoice((s) => (s.settings.stageLayout === 'side' ? s.settings.stageSidePct : s.settings.stageMainPct));
@@ -175,6 +175,7 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
                 ))}
             </div>
           </div>
+          <TogetherHiddenChip />
           <PttHint />
           <VoiceControls />
         </>

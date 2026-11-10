@@ -14,7 +14,7 @@ type Action =
   | { action: 'enqueue'; videoId: string; title?: string | null }
   | { action: 'pause' | 'resume' | 'seek'; position: number }
   | { action: 'next' | 'stop' }
-  | { action: 'ended'; videoId: string }
+  | { action: 'ended'; videoId: string; position?: number; duration?: number }
   | { action: 'remove'; index: number };
 
 /** diferença entre o relógio do servidor e o daqui (ms) */
@@ -28,8 +28,10 @@ function apply(state: TogetherState | null) {
   const prev = useVoice.getState().together;
   useVoice.setState((s) => ({
     together: state,
-    // começou um vídeo: ele vai para o destaque
-    focus: state && !prev ? 'together' : !state && s.focus === 'together' ? null : s.focus,
+    // acabou: quem tinha fechado só para si volta a ver o próximo "Assistir juntos"
+    togetherHidden: state ? s.togetherHidden : false,
+    // começou um vídeo: ele vai para o destaque (menos para quem fechou só para si)
+    focus: state && !prev && !s.togetherHidden ? 'together' : !state && s.focus === 'together' ? null : s.focus,
   }));
 }
 
@@ -44,7 +46,10 @@ export const together = {
   resume: (position: number) => send({ action: 'resume', position }),
   seek: (position: number) => send({ action: 'seek', position }),
   next: () => send({ action: 'next' }),
-  ended: (videoId: string) => send({ action: 'ended', videoId }),
+  ended: (videoId: string, position: number, duration: number) => send({ action: 'ended', videoId, position, duration }),
+  /** fecha só para mim (o vídeo continua para os outros) */
+  hide: () => useVoice.setState((s) => ({ togetherHidden: true, focus: s.focus === 'together' ? null : s.focus })),
+  show: () => useVoice.setState({ togetherHidden: false, focus: 'together' }),
   remove: (index: number) => send({ action: 'remove', index }),
   stop: () => send({ action: 'stop' }),
   /** onde o vídeo deveria estar agora (segundos) */
@@ -59,7 +64,10 @@ export const together = {
       apply(r.state);
     });
   },
-  clear: () => apply(null),
+  clear: () => {
+    apply(null);
+    useVoice.setState({ togetherHidden: false });
+  },
 };
 
 const bound = new WeakSet<object>();

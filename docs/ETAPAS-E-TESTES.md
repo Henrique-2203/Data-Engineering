@@ -335,6 +335,13 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 - [ ] Quem entra depois começa no mesmo ponto do vídeo. Pausar, tocar e arrastar a barra vale para todos.
 - [ ] Volume do vídeo é só seu. **Fila**: adicione vídeos; quando um acaba, o próximo começa para todos.
 - [ ] No card do YouTube no chat (estando numa call): **Assistir juntos na call**.
+- [ ] Título e barra de tempo **somem sozinhos** depois de 3 s sem mexer o mouse (com o vídeo pausado, ficam).
+- [ ] Botão de **legenda**: liga/desliga só para você.
+- [ ] Botão ⚙ **Qualidade e legendas**: recarrega só o seu player com os controles do YouTube (qualidade, legendas,
+      idioma). Pausar e pular por eles vale para todos. O ⚙ de novo volta para os controles do Resenha.
+- [ ] **X = Fechar só para mim**: os outros continuam; aparece "Voltar a assistir" (também no botão da TV).
+      O botão **■** para para todos.
+- [ ] Quem colocou o vídeo sai da call (ou o PC dorme): o vídeo continua para os outros.
 - [ ] Painel de mensagens da call (ícone de balão): aba **Só da call** (padrão) e aba **Canal**.
   - [ ] **Só da call**: só quem está na chamada vê; não fica salvo; quem entra depois vê o que foi conversado nesta call;
         quando todo mundo sai, apaga tudo. A moderação automática do servidor vale aqui também.

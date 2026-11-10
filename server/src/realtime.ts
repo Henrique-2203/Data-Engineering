@@ -566,7 +566,7 @@ export class Realtime {
         z.object({ action: z.literal('resume'), position: pos }),
         z.object({ action: z.literal('seek'), position: pos }),
         z.object({ action: z.literal('next') }),
-        z.object({ action: z.literal('ended'), videoId: id }),
+        z.object({ action: z.literal('ended'), videoId: id, position: pos.optional(), duration: pos.optional() }),
         z.object({ action: z.literal('remove'), index: z.number().int().min(0).max(100) }),
         z.object({ action: z.literal('stop') }),
       ])
@@ -604,6 +604,12 @@ export class Realtime {
       case 'ended':
         // várias pessoas avisam que acabou: só a primeira conta
         if (!cur || cur.videoId !== a.videoId || now - cur.at < 3000) return { ok: true };
+        // só acaba quando a linha do tempo de TODOS chegou ao fim: um player com defeito (ou um PC que
+        // dormiu) não encerra o vídeo dos outros
+        {
+          const shared = cur.playing ? cur.position + (now - cur.at) / 1000 : cur.position;
+          if (!a.duration || shared < a.duration - 10) return { ok: true };
+        }
       // eslint-disable-next-line no-fallthrough
       case 'next': {
         const q = cur?.queue ?? [];

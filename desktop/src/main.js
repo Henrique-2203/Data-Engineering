@@ -15,6 +15,7 @@ const { app, BrowserWindow, Menu, Tray, desktopCapturer, globalShortcut, ipcMain
 const settings = require('./settings');
 const { buildKeymap, MOUSE } = require('./keymap');
 const { watchGames } = require('./games');
+const { watchMusic } = require('./music');
 const overlay = require('./overlay');
 const { setGpuPriority } = require('./gpuPriority');
 
@@ -532,6 +533,17 @@ function setupGameWatcher() {
 }
 ipcMain.handle('resenha:get-activity', () => ({ name: gameWatcher?.current() ?? null }));
 
+// ---------- "Ouvindo agora" (Spotify do PC) ----------
+
+let musicWatcher = null;
+function setupMusicWatcher() {
+  const intervalMs = Number(process.env.RESENHA_MUSIC_INTERVAL_MS) || 10_000;
+  musicWatcher = watchMusic((music) => send('resenha:music', music), intervalMs);
+  win?.webContents.on('did-finish-load', () => send('resenha:music', musicWatcher?.current() ?? null));
+  app.on('will-quit', () => musicWatcher?.stop());
+}
+ipcMain.handle('resenha:get-music', () => musicWatcher?.current() ?? null);
+
 // ---------- prioridades (processador e placa de vídeo) ----------
 // Jogando SEM transmitir: o Resenha fica "abaixo do normal" no processador (o jogo primeiro).
 // Jogando E transmitindo: a captura da tela, a codificação e a página ficam "acima do normal" no
@@ -581,4 +593,5 @@ app.whenReady().then(() => {
   setupGlobalHook();
   setupUpdater();
   setupGameWatcher();
+  setupMusicWatcher();
 });

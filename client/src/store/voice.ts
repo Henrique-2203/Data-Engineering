@@ -33,6 +33,8 @@ export interface VoiceStore {
   screenLight: boolean;
   /** "Assistir juntos": vídeo do YouTube tocando para a call (null = nenhum) */
   together: TogetherState | null;
+  /** fechei o "Assistir juntos" só para mim (continua para os outros) */
+  togetherHidden: boolean;
   /** chat privado da call (só quem está nela; não fica salvo) */
   callChat: CallChatMessage[];
   /** filtro de ruído que está de fato ligado no microfone agora (null = fora da chamada) */
@@ -70,6 +72,7 @@ export const useVoice = create<VoiceStore>(() => ({
   screenLight: false,
   noiseActive: null,
   together: null,
+  togetherHidden: false,
   callChat: [],
   noMic: false,
   localCamera: null,

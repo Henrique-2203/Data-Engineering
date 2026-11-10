@@ -6502,6 +6502,42 @@ html.env-staging body {
 .together-top {
   top: 8px;
 }
+.together-top,
+.together-controls {
+  transition: opacity 0.25s;
+}
+/* sem mexer o mouse por 3 s (com o vídeo tocando): as barras somem. Continuam recebendo o mouse
+   (passar por cima traz de volta), o que importa com os controles do YouTube ligados: ali o mouse
+   em cima do vídeo vai para o player e não chega ao Resenha. */
+.tile.together.bars-hidden .together-top,
+.tile.together.bars-hidden .together-controls {
+  opacity: 0;
+}
+.tile.together.bars-hidden {
+  cursor: none;
+}
+/* controles do YouTube ligados: o player recebe os cliques (qualidade, legendas, idioma) */
+.tile.together.native iframe {
+  pointer-events: auto;
+}
+.icon-btn.overlay.active {
+  color: var(--accent);
+}
+.together-hidden-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto 8px;
+  padding: 6px 8px 6px 12px;
+  max-width: min(560px, calc(100% - 32px));
+  border-radius: 10px;
+  background: var(--bg-2);
+  font-size: 13px;
+}
+.together-hidden-chip .ellipsis {
+  flex: 1;
+  min-width: 0;
+}
 .together-controls {
   bottom: 8px;
 }

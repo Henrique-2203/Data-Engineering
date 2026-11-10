@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld('resenhaDesktop', {
   /** jogo aberto agora ({ name } ou { name: null }) */
   onActivity: (cb) => listen('resenha:activity', cb),
   getActivity: () => ipcRenderer.invoke('resenha:get-activity'),
+  /** música tocando no Spotify do PC ({ track, artist } ou null) (a partir do app 0.3.6) */
+  onMusic: (cb) => listen('resenha:music', cb),
+  getMusic: () => ipcRenderer.invoke('resenha:get-music'),
   /** overlay no jogo (a partir do app 0.3.0) */
   setOverlayState: (state) => ipcRenderer.send('resenha:overlay-state', state),
   overlayEvent: (event) => ipcRenderer.send('resenha:overlay-event', event),

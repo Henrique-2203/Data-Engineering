@@ -83,8 +83,11 @@ addEventListener('message', (e) => {
   if (d.func === 'seekTo') t = a[0];
   if (d.func === 'loadVideoById') { vid = a[0].videoId; t = a[0].startSeconds || 0; playing = true; state = 1; }
   if (d.func === 'setVolume') window.__volume = a[0];
+  if (d.func === 'loadModule' && a[0] === 'captions') window.__cc = true;
+  if (d.func === 'unloadModule' && a[0] === 'captions') window.__cc = false;
 });
-window.__fake = () => ({ vid, t, playing, state, volume: window.__volume });
+window.__pauseLocal = () => { tick(); playing = false; state = 2; };
+window.__fake = () => ({ vid, t, playing, state, volume: window.__volume, cc: window.__cc });
 window.__end = () => { playing = false; state = 0; };
 </script>`;
 
@@ -182,6 +185,7 @@ try {
   step(`assistir juntos: começou para a Ana e quem entrou depois pegou na mesma posição (${a.t.toFixed(1)} s x ${b.t.toFixed(1)} s)`);
 
   // pausar e pular para um ponto: vale para todos
+  await pa.locator('.tile.together').hover();
   await pa.getByRole('button', { name: 'Pausar para todos' }).click();
   await sleep(2000);
   b = await fake(pb);
@@ -199,6 +203,8 @@ try {
   step('pausar, tocar e pular para um ponto valem para todo mundo');
 
   // volume é só de cada um
+  const wake = (page) => page.locator('.tile.together').hover({ position: { x: 200, y: 200 } });
+  await wake(pb);
   await pb.locator('.together-volume').evaluate((el) => {
     const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     set.call(el, '20');
@@ -207,21 +213,102 @@ try {
   await sleep(800);
   assert((await fake(pb)).volume === 20 && (await fake(pa)).volume !== 20, 'volume só muda para quem mexeu');
 
+  // barras somem depois de 3 s sem mexer o mouse e voltam ao mexer
+  await pb.locator('.tile.together.bars-hidden').waitFor({ timeout: 6000 });
+  await wake(pb);
+  await pb.locator('.tile.together:not(.bars-hidden)').waitFor({ timeout: 2000 });
+  step('título e barra de tempo somem sozinhos depois de 3 s (e voltam ao mexer o mouse)');
+
+  // legendas: cada um liga as suas
+  await pb.getByRole('button', { name: 'Ligar legendas (só para você)' }).click();
+  await sleep(600);
+  assert((await fake(pb)).cc === true && (await fake(pa)).cc === undefined, 'legenda só para quem ligou');
+  await wake(pb);
+  await pb.getByRole('button', { name: 'Desligar legendas (só para você)' }).click();
+  await sleep(600);
+  assert((await fake(pb)).cc === false, 'desligou a legenda');
+  step('legendas: cada um liga ou desliga as suas');
+
+  // controles do YouTube (qualidade, legendas, idioma pelo menu dele): pausar por eles vale para todos
+  await wake(pb);
+  await pb.getByRole('button', { name: 'Qualidade e legendas (controles do YouTube)' }).click();
+  await pb.waitForFunction(() => document.querySelector('.tile.together iframe')?.src.includes('controls=1'));
+  await sleep(2500);
+  b = await fake(pb);
+  assert(b && b.vid === 'aaaaaaaaaaa' && b.playing && b.t >= 119, `player do YouTube recarregou no mesmo ponto (${JSON.stringify(b)})`);
+  const fb = () => pb.frames().find((fr) => fr.url().startsWith('https://www.youtube-nocookie.com/embed/'));
+  await sleep(1500);
+  await fb().evaluate(() => window.__pauseLocal());
+  await pa.getByRole('button', { name: 'Tocar para todos' }).waitFor({ timeout: 6000 });
+  await sleep(1500);
+  assert(!(await fake(pa)).playing, 'pausar pelos controles do YouTube pausou para a Ana também');
+  await wake(pa);
+  await pa.getByRole('button', { name: 'Tocar para todos' }).click();
+  await wake(pb);
+  await pb.getByRole('button', { name: 'Usar os controles do Resenha' }).click();
+  await pb.waitForFunction(() => document.querySelector('.tile.together iframe')?.src.includes('controls=0'));
+  step('controles do YouTube (qualidade, legendas, idioma) só para quem ligou; pausar por eles vale para todos');
+
+  // fechar só para mim: o vídeo continua para os outros
+  await sleep(1500);
+  await wake(pb);
+  await pb.getByRole('button', { name: 'Fechar só para mim' }).click();
+  await pb.locator('.tile.together').waitFor({ state: 'detached' });
+  await pb.getByText('Voltar a assistir').waitFor();
+  await sleep(1500);
+  assert((await fake(pa))?.playing, 'continua tocando para a Ana');
+  await pb.getByRole('button', { name: 'Voltar a assistir' }).click();
+  await pb.locator('.tile.together').waitFor();
+  await sleep(2500);
+  a = await fake(pa);
+  b = await fake(pb);
+  assert(b?.playing && Math.abs(a.t - b.t) < 2.5, `voltou no mesmo ponto (${a.t.toFixed(1)} x ${b?.t.toFixed(1)})`);
+  step('"Fechar só para mim": some só para quem fechou e dá para voltar no mesmo ponto');
+
+  // quem colocou o vídeo sai da call: continua para os outros
+  await pa.getByRole('button', { name: 'Sair da chamada' }).click();
+  await sleep(3000);
+  b = await fake(pb);
+  assert(b?.playing && b.vid === 'aaaaaaaaaaa', `continua para a Bia quando a Ana sai (${JSON.stringify(b)})`);
+  await pa.getByRole('button', { name: 'Sala de voz' }).first().click();
+  const again = pa.getByRole('button', { name: 'Entrar na chamada' });
+  if (await again.isVisible().catch(() => false)) await again.click();
+  await pa.getByText('Voz conectada').waitFor({ timeout: 15000 });
+  await pa.locator('.tile.together').getByText('Vídeo de Teste').waitFor();
+  step('quem colocou o vídeo saiu da call: continua para os outros (e ao voltar, pega no mesmo ponto)');
+
   // fila: o próximo vídeo começa sozinho quando o atual acaba
+  await wake(pa);
   await pa.getByRole('button', { name: 'Fila', exact: true }).click();
   await pa.locator('.together-queue').getByLabel('Link do YouTube').fill('https://youtu.be/bbbbbbbbbbb');
   await pa.locator('.together-queue').getByRole('button', { name: 'Adicionar à fila' }).click();
   await pb.locator('.together-count', { hasText: '1' }).waitFor();
-  const fa = pa.frames().find((fr) => fr.url().startsWith('https://www.youtube-nocookie.com/embed/'));
-  await fa.evaluate(() => window.__end());
+  // um player que diz "acabou" no meio do vídeo (com defeito, PC que dormiu) não encerra o vídeo de todos
+  await sleep(2000);
+  const fa = () => pa.frames().find((fr) => fr.url().startsWith('https://www.youtube-nocookie.com/embed/'));
+  await fa().evaluate(() => window.__end());
+  await sleep(3500);
+  b = await fake(pb);
+  assert(b.vid === 'aaaaaaaaaaa' && b.playing, `"acabou" falso no meio não pula o vídeo (${JSON.stringify(b)})`);
+  // perto do fim de verdade: o próximo da fila começa para todos
+  await wake(pb);
+  await pb.locator('.together-seek').evaluate((el) => {
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    set.call(el, '597');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await sleep(2500);
+  await fa().evaluate(() => window.__end());
   await pb.locator('.tile.together').getByText('Segundo Vídeo').waitFor({ timeout: 8000 });
   await sleep(2000);
   b = await fake(pb);
   assert(b.vid === 'bbbbbbbbbbb' && b.playing, `o próximo da fila começou para todos (${JSON.stringify(b)})`);
+  await wake(pb);
   await pb.screenshot({ path: path.join(shots, 'assistir-juntos.png') });
-  step('fila: quando o vídeo acaba, o próximo começa para todo mundo; volume é só de cada um');
+  step('fila: quando o vídeo acaba de verdade, o próximo começa para todo mundo; "acabou" falso no meio é ignorado');
 
   // assistir juntos direto do chat
+  await wake(pa);
   await pa.getByRole('button', { name: 'Parar para todos' }).click();
   await pb.locator('.tile.together').waitFor({ state: 'detached' });
   await pb.getByRole('button', { name: 'geral' }).first().click();

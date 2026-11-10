@@ -3,7 +3,7 @@
 // atalho global de silenciar, seletor de tela e "fechar para a bandeja".
 // Uso: npm run build && (cd desktop && npm install) && xvfb-run -a node e2e/desktop.mjs
 import { spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -51,6 +51,9 @@ try {
 
   // "jogo" de teste: um processo qualquer que o app vai reconhecer pelo nome
   const fakeGame = spawn('sleep', ['300'], { stdio: 'ignore' });
+  // "Spotify" de teste: o título da janela vem de um arquivo (no Windows, da janela do Spotify)
+  const spotifyTitle = path.join(tempDir('resenha-spotify-'), 'title.txt');
+  writeFileSync(spotifyTitle, 'Artista Teste - Música Teste');
   process.on('exit', () => fakeGame.kill());
 
   app = await electron.launch({
@@ -62,7 +65,7 @@ try {
       '--no-sandbox', // só porque este ambiente de teste roda como root
       '--use-fake-device-for-media-stream',
     ],
-    env: { ...process.env, ELECTRON_ENABLE_LOGGING: '0', RESENHA_EXTRA_GAMES: 'sleep=Jogo de Teste', RESENHA_GAME_INTERVAL_MS: '1000' },
+    env: { ...process.env, ELECTRON_ENABLE_LOGGING: '0', RESENHA_EXTRA_GAMES: 'sleep=Jogo de Teste', RESENHA_GAME_INTERVAL_MS: '1000', RESENHA_FAKE_SPOTIFY_TITLE_FILE: spotifyTitle, RESENHA_MUSIC_INTERVAL_MS: '1000' },
   });
   // registros do processo principal do app (ex.: avisos do hook de teclado)
   const appLog = [];
@@ -129,6 +132,28 @@ try {
   assert(normal.every((p) => p === 0), `prioridade volta ao normal quando o jogo fecha (${normal.join(',')})`);
   step('"Jogando agora": o app detecta o jogo aberto, mostra no perfil e tira quando fecha');
   step('o jogo primeiro: com jogo aberto, o Resenha fica com prioridade abaixo do normal (e volta quando o jogo fecha)');
+
+  // ---- "Ouvindo agora": com o jogo fechado, aparece a música do Spotify ----
+  await win.locator('.user-panel').getByText('🎵 Ouvindo Música Teste · Artista Teste').waitFor({ timeout: 15000 });
+  await win.locator('.members').getByText('🎵 Ouvindo Música Teste · Artista Teste').waitFor();
+  writeFileSync(spotifyTitle, 'Spotify Premium'); // pausou
+  await win.locator('.user-panel').getByText('🎵 Ouvindo').waitFor({ state: 'detached', timeout: 15000 });
+  writeFileSync(spotifyTitle, 'Outra Banda - Outra Música');
+  await win.locator('.user-panel').getByText('🎵 Ouvindo Outra Música · Outra Banda').waitFor({ timeout: 15000 });
+  // dá para desligar
+  await win.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await win.getByRole('button', { name: 'Atalhos e app' }).click();
+  const musicBox = win.getByLabel(/a música que estou ouvindo no Spotify/);
+  assert(await musicBox.isChecked(), '"Ouvindo agora" ligado por padrão');
+  await musicBox.uncheck();
+  await win.keyboard.press('Escape');
+  await win.locator('.user-panel').getByText('🎵 Ouvindo').waitFor({ state: 'detached', timeout: 5000 });
+  await win.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await win.getByRole('button', { name: 'Atalhos e app' }).click();
+  await win.getByLabel(/a música que estou ouvindo no Spotify/).check();
+  await win.keyboard.press('Escape');
+  await win.locator('.user-panel').getByText('🎵 Ouvindo Outra Música').waitFor({ timeout: 5000 });
+  step('"Ouvindo agora": a música do Spotify do PC aparece no perfil, some quando pausa, troca com a música e dá para desligar');
 
   await win.getByRole('button', { name: 'Sala de voz' }).click();
   await win.getByText('Voz conectada').waitFor({ timeout: 15000 });

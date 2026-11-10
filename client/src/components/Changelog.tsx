@@ -11,6 +11,17 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-10f',
+    title: 'Assistir juntos melhorado',
+    items: [
+      ['🫥', 'O título e a barra de tempo somem sozinhos depois de 3 segundos sem mexer o mouse (e voltam quando você mexe).'],
+      ['💬', 'Legendas: botão de legenda no player, só para você.'],
+      ['⚙️', 'Qualidade do vídeo: no botão de engrenagem, liga os controles do próprio YouTube só no seu player (qualidade, legendas e idioma). Pausar e pular por eles vale para todos.'],
+      ['👋', 'O X agora fecha o vídeo só para você: os outros continuam assistindo, e você volta quando quiser ("Voltar a assistir"). Para parar para todo mundo, use o botão ■.'],
+      ['🔁', 'O vídeo não depende de quem colocou: se essa pessoa sair da call, continua para os outros.'],
+    ],
+  },
+  {
     id: '2026-11-10e',
     title: 'Música e vídeos com a galera',
     items: [
