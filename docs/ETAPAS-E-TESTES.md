@@ -293,6 +293,16 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 
 ---
 
+## Banner da call
+- [ ] Configurações → Perfil → **Banner da call**: 13 temas prontos com prévia num quadro largo e num estreito.
+- [ ] Escolher um tema: na call, o seu quadro (para você e para os amigos) ganha o fundo na hora.
+- [ ] **Enviar meu banner** (PNG, JPG ou WebP; GIF não) e ajustar a **posição da imagem** no quadro.
+- [ ] **Usar o banner do perfil** (aparece se você tiver banner no perfil).
+- [ ] Com a câmera ligada, o quadro mostra a câmera (o banner some).
+- [ ] Foto e nome continuam legíveis em todos os temas; o contorno verde de quem fala continua aparecendo.
+
+---
+
 ## Se algo der errado
 
 Anote **o que fez**, **o que esperava** e **o que aconteceu** (um print ajuda muito) e me mande.

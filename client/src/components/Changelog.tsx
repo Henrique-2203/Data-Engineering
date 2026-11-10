@@ -11,6 +11,13 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-10b',
+    title: 'Banner da call',
+    items: [
+      ['🎨', 'Banner da call: escolha um fundo para o seu quadro na chamada. São 13 temas (Cidade Neon, Tático, Blocos, Zona da Tempestade, Corrida, Espaço…), sua própria imagem ou o banner do perfil. Ele se ajusta ao tamanho do quadro de cada pessoa. Configurações → Perfil.'],
+    ],
+  },
+  {
     id: '2026-11-10a',
     title: 'Transmissão turbo',
     items: [

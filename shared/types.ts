@@ -17,6 +17,10 @@ export interface PublicUser {
   /** foto de perfil (imagem em /api/images/:id) */
   avatarId?: string | null;
   status?: UserStatus | null;
+  /** banner da call: 'preset:<tema>' ou 'image:<id>' (null = sem banner) */
+  callBanner?: string | null;
+  /** posição vertical da imagem do banner no quadro (0 = topo, 100 = base) */
+  callBannerPos?: number;
 }
 
 /** "Jogando agora" (detectado pelo app de desktop; só existe enquanto a pessoa está online) */

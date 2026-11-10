@@ -427,6 +427,10 @@ create table if not exists support_messages (
 );
 create index if not exists support_messages_ticket_idx on support_messages(ticket_id, created_at);
 alter table users add column if not exists changelog_seen text;
+-- v17: banner da call ('preset:<tema>', 'upload' = imagem enviada, 'profile' = banner do perfil)
+alter table users add column if not exists call_banner text;
+alter table users add column if not exists call_banner_image text;
+alter table users add column if not exists call_banner_pos smallint not null default 50;
 create table if not exists backups (
   id text primary key,
   started_at timestamptz not null default now(),

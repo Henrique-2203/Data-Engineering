@@ -9,6 +9,7 @@ import { Perm, has, myPermissions } from '../lib/perms';
 import { closeModal, toast, updateUserEverywhere, useApp } from '../store/app';
 import { Avatar } from './Avatar';
 import { EmojiPicker } from './EmojiPicker';
+import { CallBannerEditor } from './CallBannerEditor';
 
 const COLORS = ['#f97316', '#ef4444', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
 
@@ -185,6 +186,8 @@ export function ProfileEditor() {
           Salvar perfil
         </button>
       </div>
+
+      <CallBannerEditor hasProfileBanner={!!extra?.bannerId} />
     </div>
   );
 }

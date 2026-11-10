@@ -8,6 +8,7 @@ import { HttpError, parse, wrap } from './http.ts';
 import { sniffImage } from './sanitize.ts';
 import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
 import type { Profile, ProfileLink, PublicUser } from '../../shared/types.ts';
+import { CALL_BANNER_PRESETS } from '../../shared/callBanners.ts';
 
 /**
  * Perfil social: foto (inclusive GIF), banner, bio, pronome, links e status com prazo.
@@ -19,7 +20,15 @@ const MAX_BANNER_BYTES = 1024 * 1024; // banner já chega comprimido (~30-90 KB)
 
 const LINK_TYPES = ['steam', 'twitch', 'youtube', 'instagram', 'tiktok', 'x', 'spotify', 'site'] as const;
 
+const MAX_CALL_BANNER_BYTES = 1536 * 1024; // já chega comprimido (WebP até 1280 px)
+
 const profileSchema = z.object({
+  /** banner da call: tema pronto, imagem enviada, banner do perfil ou nenhum */
+  callBanner: z
+    .string()
+    .refine((v) => ['none', 'upload', 'profile'].includes(v) || CALL_BANNER_PRESETS.some((p) => v === `preset:${p}`), 'Banner inválido.')
+    .optional(),
+  callBannerPos: z.number().int().min(0).max(100).optional(),
   displayName: z.string().trim().min(1, 'Informe um nome.').max(32, 'Nome muito longo.').optional(),
   avatarColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   bio: z.string().trim().max(190, 'A bio pode ter até 190 caracteres.').optional(),
@@ -79,6 +88,8 @@ export function registerProfileRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
       if (body.bio !== undefined) set('bio', body.bio);
       if (body.pronouns !== undefined) set('pronouns', body.pronouns);
       if (body.links !== undefined) set('links', JSON.stringify(body.links));
+      if (body.callBanner !== undefined) set('call_banner', body.callBanner === 'none' ? null : body.callBanner);
+      if (body.callBannerPos !== undefined) set('call_banner_pos', body.callBannerPos);
       if (body.status !== undefined) {
         const st = body.status;
         const empty = !st || (!st.text && !st.emoji);
@@ -129,6 +140,36 @@ export function registerProfileRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
       }),
     );
   }
+
+  // banner da call enviado pela pessoa (sem GIF: animação em todos os quadros da call pesa)
+  r.post(
+    '/me/call-banner',
+    auth,
+    express.raw({ type: () => true, limit: MAX_CALL_BANNER_BYTES }),
+    wrap(async (req) => {
+      const me = req.user!.id;
+      const data = req.body as Buffer;
+      if (!Buffer.isBuffer(data) || !data.length) throw new HttpError(400, 'Arquivo vazio.');
+      const mime = sniffImage(data);
+      if (!mime || mime === 'image/gif') throw new HttpError(415, 'Envie uma imagem PNG, JPG ou WebP.');
+      const imageId = await saveImage(db, { userId: me, mime, data });
+      const [old] = await db.query<{ old: string | null }>('select call_banner_image as old from users where id = $1', [me]);
+      await db.query("update users set call_banner_image = $2, call_banner = 'upload' where id = $1", [me, imageId]);
+      if (old?.old) await db.query('delete from images where id = $1', [old.old]);
+      return { imageId, user: await broadcast(me) };
+    }),
+  );
+  r.delete(
+    '/me/call-banner',
+    auth,
+    wrap(async (req) => {
+      const me = req.user!.id;
+      const [old] = await db.query<{ old: string | null }>('select call_banner_image as old from users where id = $1', [me]);
+      await db.query("update users set call_banner_image = null, call_banner = case when call_banner = 'upload' then null else call_banner end where id = $1", [me]);
+      if (old?.old) await db.query('delete from images where id = $1', [old.old]);
+      return { user: await broadcast(me) };
+    }),
+  );
 
   /** Cartão de perfil: só de quem divide servidor, é amigo ou tem conversa com você. */
   r.get(

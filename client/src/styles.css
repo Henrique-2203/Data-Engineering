@@ -5922,3 +5922,118 @@ input.switch:disabled {
   gap: 6px;
   font-size: 13px;
 }
+
+/* ---------- banner da call (fundo do quadro de cada pessoa) ---------- */
+.call-banner {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.call-banner svg,
+.call-banner img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+/* película para foto e nome continuarem legíveis em qualquer banner */
+.call-banner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.45));
+}
+.tile.has-banner .tile-center {
+  position: relative;
+}
+.tile.has-banner .tile-center .avatar {
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35), 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.tile.has-banner.speaking .tile-center .avatar {
+  box-shadow: 0 0 0 3px var(--accent), 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.tile.has-banner .tile-label,
+.tile.has-banner .tile-actions,
+.tile.has-banner .tile-volume,
+.tile.has-banner .tile-badge {
+  z-index: 1;
+}
+.call-banner-editor {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cb-preview {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+.cb-tile {
+  height: 150px;
+}
+.cb-tile.wide {
+  flex: 1 1 auto;
+  max-width: 300px;
+}
+.cb-tile.narrow {
+  width: 110px;
+  flex: 0 0 auto;
+}
+.cb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+}
+.cb-option {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid var(--line);
+  background: var(--bg-3);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.cb-option:hover {
+  border-color: var(--text-2, #a7adbb);
+}
+.cb-option.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.cb-option.none {
+  display: grid;
+  place-content: center;
+  color: var(--text-2, #a7adbb);
+}
+.cb-option .call-banner::after {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent 60%);
+}
+.cb-name {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 4px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.cb-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 600px) {
+  .cb-tile.wide {
+    max-width: none;
+  }
+}

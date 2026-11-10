@@ -32,6 +32,7 @@ import { SoundBurstBadge, SoundboardButton } from './Soundboard';
 import { setStreamVolume, setUserVolume, updateSettings, useVoice } from '../store/voice';
 import { voice, type CallSecurity } from '../voice/engine';
 import { CODECS, canShareScreen, keyLabel, screenCodecFor, screenPresetFor } from '../voice/settings';
+import { CallBannerBackground } from '../lib/callBanners';
 import { Perm, has, myPermissions } from '../lib/perms';
 import type { SendStats } from '../voice/engine';
 import { Avatar } from './Avatar';
@@ -391,9 +392,10 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
   return (
     <div
       ref={ref}
-      className={`tile user${big ? ' big' : ''}${sizeClass}${speaking && !tile.state.muted ? ' speaking' : ''}`}
+      className={`tile user${big ? ' big' : ''}${sizeClass}${speaking && !tile.state.muted ? ' speaking' : ''}${!showCam && user?.callBanner ? ' has-banner' : ''}`}
       onClick={showCam ? toggleFocus : undefined}
     >
+      {!showCam && <CallBannerBackground banner={user?.callBanner} pos={user?.callBannerPos} />}
       {showCam ? (
         <VideoEl stream={camStream!} version={remote?.v} mirror={tile.isMe} />
       ) : (
