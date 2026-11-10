@@ -338,7 +338,8 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 - [ ] Título e barra de tempo **somem sozinhos** depois de 3 s sem mexer o mouse (com o vídeo pausado, ficam).
 - [ ] Botão de **legenda**: liga/desliga só para você.
 - [ ] Botão ⚙ **Qualidade e legendas**: recarrega só o seu player com os controles do YouTube (qualidade, legendas,
-      idioma). Pausar e pular por eles vale para todos. O ⚙ de novo volta para os controles do Resenha.
+      idioma). Pausar e pular por eles vale para todos. A faixa do Resenha fica ACIMA do vídeo (não cobre o título
+      nem a engrenagem do YouTube). O ⚙ de novo volta para os controles do Resenha.
 - [ ] **X = Fechar só para mim**: os outros continuam; aparece "Voltar a assistir" (também no botão da TV).
       O botão **■** para para todos.
 - [ ] Quem colocou o vídeo sai da call (ou o PC dorme): o vídeo continua para os outros.

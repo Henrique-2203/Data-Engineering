@@ -236,6 +236,13 @@ try {
   await sleep(2500);
   b = await fake(pb);
   assert(b && b.vid === 'aaaaaaaaaaa' && b.playing && b.t >= 119, `player do YouTube recarregou no mesmo ponto (${JSON.stringify(b)})`);
+  // a barra do Resenha fica acima do vídeo, sem cobrir nada do player do YouTube
+  const barBox = await pb.locator('.tile.together .together-top').boundingBox();
+  const ytBox = await pb.locator('.tile.together iframe').boundingBox();
+  assert(barBox.y + barBox.height <= ytBox.y + 1, `barra não cobre o player do YouTube (barra até ${barBox.y + barBox.height}, vídeo de ${ytBox.y})`);
+  await sleep(3500);
+  assert(!(await pb.locator('.tile.together.bars-hidden').count()), 'com os controles do YouTube, a faixa do Resenha fica visível (não cobre nada)');
+  await pb.screenshot({ path: path.join(shots, 'assistir-juntos-controles-youtube.png') });
   const fb = () => pb.frames().find((fr) => fr.url().startsWith('https://www.youtube-nocookie.com/embed/'));
   await sleep(1500);
   await fb().evaluate(() => window.__pauseLocal());

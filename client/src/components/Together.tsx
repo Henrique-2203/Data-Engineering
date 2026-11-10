@@ -217,7 +217,8 @@ export function TogetherTile({ big }: { big?: boolean }) {
   const c = ctl.current;
   const now = together.expected(state);
   const duration = c?.duration ?? 0;
-  const showBars = awake || !state.playing || showQueue;
+  // com os controles do YouTube a faixa fica fora do vídeo: não precisa sumir
+  const showBars = native || awake || !state.playing || showQueue;
 
   const toggleNative = () => {
     savePref('resenha.togetherYtControls', native ? '0' : '1');

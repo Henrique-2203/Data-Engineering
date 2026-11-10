@@ -6516,9 +6516,25 @@ html.env-staging body {
 .tile.together.bars-hidden {
   cursor: none;
 }
-/* controles do YouTube ligados: o player recebe os cliques (qualidade, legendas, idioma) */
+/* controles do YouTube ligados: o player recebe os cliques (qualidade, legendas, idioma) e a barra do
+   Resenha vira uma faixa ACIMA do vídeo (não cobre o título nem a engrenagem do YouTube) */
 .tile.together.native iframe {
   pointer-events: auto;
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.tile.together.native .together-top {
+  position: static;
+  order: -1;
+  flex: none;
+  border-radius: 0;
+  padding: 4px 8px;
+  background: #0b0d12;
+}
+.tile.together.native .together-queue {
+  top: 48px;
+  bottom: auto;
 }
 .icon-btn.overlay.active {
   color: var(--accent);
