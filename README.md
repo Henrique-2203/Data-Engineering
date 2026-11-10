@@ -83,6 +83,9 @@ entre os navegadores (sinalização).
 A troca é que quem transmite envia uma cópia para cada pessoa assistindo. A 1080p60 com 8 Mbps e
 3 amigos assistindo, você precisa de uns 24 Mbps de upload. Para um grupo de amigos isso funciona bem.
 
+> **Site de teste e site oficial:** veja [docs/LANCAMENTOS.md](docs/LANCAMENTOS.md) (como criar o site de teste,
+> com banco e arquivos separados, e como lançar uma versão no oficial).
+
 ## Colocar no ar de graça (para testar no celular)
 
 ### 1. Banco de dados gratuito (Neon)

@@ -3,6 +3,13 @@ import { fileURLToPath } from 'node:url';
 const list = (v?: string) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 
 export const config = {
+  /**
+   * 'staging' = site de TESTE (aviso no topo, e-mails com [TESTE], fora do Google). Qualquer outro
+   * valor (ou nada) = site oficial. O site de teste usa banco, arquivos e chaves próprios.
+   */
+  appEnv: (process.env.APP_ENV === 'staging' ? 'staging' : 'production') as 'staging' | 'production',
+  /** endereço do site oficial (o site de teste mostra um link para ele) */
+  officialUrl: process.env.OFFICIAL_URL || 'https://resenha-m2bt.onrender.com',
   port: Number(process.env.PORT ?? 3000),
   databaseUrl: process.env.DATABASE_URL || null,
   dataDir: process.env.DATA_DIR || './data/pglite',

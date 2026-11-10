@@ -74,6 +74,8 @@ function explain(status: number, body: string): string {
 /** Envia (sem travar quem chamou se o provedor falhar: o erro vai para o log). */
 export async function sendEmail(m: Mail): Promise<boolean> {
   if (!emailEnabled()) return false;
+  // site de teste: deixa claro no assunto (ninguém confunde com o Resenha oficial)
+  if (config.appEnv === 'staging' && !m.subject.startsWith('[TESTE]')) m = { ...m, subject: `[TESTE] ${m.subject}` };
   const { text, html } = render(m);
   const { provider, apiKey, from, fromName } = config.email;
   try {

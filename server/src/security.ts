@@ -51,6 +51,8 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
   );
   if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  // site de teste fora do Google e de outros buscadores
+  if (config.appEnv === 'staging') res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');

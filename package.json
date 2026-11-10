@@ -41,6 +41,7 @@
     "test:e2e:turbo": "node e2e/turbo.mjs",
     "test:e2e:banners": "node e2e/banners.mjs",
     "test:e2e:diagnostics": "node e2e/diagnostics.mjs",
+    "test:e2e:envs": "node e2e/envs.mjs",
     "test:e2e:files": "node --import tsx e2e/files-unit.ts && node e2e/files.mjs",
     "test:e2e:files:r2": "node e2e/files.mjs --r2 && node e2e/files-migrate.mjs"
   },

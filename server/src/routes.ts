@@ -194,7 +194,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   // "Impressão digital" do site publicado: muda a cada nova versão, e o site/app avisam para atualizar.
   r.get('/version', (_req, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    res.json({ version: siteVersion() });
+    res.json({ version: siteVersion(), env: config.appEnv, commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null });
   });
 
   r.get('/config', (_req, res) => {
@@ -202,6 +202,8 @@ export function createRoutes(db: Db, rt: Realtime) {
       turnstileSiteKey: turnstileEnabled() ? config.turnstile.siteKey : null,
       emailEnabled: emailEnabled(),
       registrationRequiresCode: !!config.registrationCode,
+      env: config.appEnv,
+      officialUrl: config.appEnv === 'staging' ? config.officialUrl : null,
       privacyContact: config.privacyContact,
       maxFileMb: Math.floor(maxFileBytes() / 1024 / 1024),
       maxImageMb: config.maxUploadMb,
