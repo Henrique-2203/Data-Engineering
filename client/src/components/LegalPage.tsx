@@ -138,6 +138,14 @@ function Privacy({ contact }: { contact: ReactNode }) {
             <td>Mandar o seu convite e avisar das novidades do Resenha (com o seu consentimento)</td>
           </tr>
           <tr>
+            <td>Números de qualidade das calls (atraso, perda da voz, FPS das transmissões) e erros do site, somados por dia</td>
+            <td>Achar e corrigir problemas nas calls. Não guardamos de quem veio nem de qual call. Dá para desligar em Configurações → Privacidade e dados</td>
+          </tr>
+          <tr>
+            <td>Chamados de suporte e o "Relatar problema da call" (o que você escreve e os números da call naquele momento, sem áudio, vídeo ou IP)</td>
+            <td>Responder você e resolver o problema</td>
+          </tr>
+          <tr>
             <td>Denúncias que você envia ou recebe: motivo, detalhes e uma cópia do conteúdo denunciado</td>
             <td>Analisar abusos e cumprir a lei. Quem é denunciado não sabe quem denunciou</td>
           </tr>

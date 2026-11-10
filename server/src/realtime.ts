@@ -331,6 +331,17 @@ export class Realtime {
     else this.activeSockets.delete(userId);
   }
 
+  /** Agora: pessoas online, em call, calls abertas e transmissões (Painel da equipe → Saúde). */
+  liveCounts() {
+    const states = [...this.voice.values()];
+    return {
+      online: this.online.size,
+      inVoice: states.length,
+      calls: new Set(states.map((s) => s.channelId)).size,
+      streaming: states.filter((s) => s.screen).length,
+    };
+  }
+
   /** A pessoa está com o Resenha aberto e visível em algum aparelho agora. */
   isActive(userId: string) {
     return this.activeSockets.has(userId);

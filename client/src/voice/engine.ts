@@ -10,6 +10,7 @@ import { preferCodec } from './sdp';
 import { CODECS, type NoiseMode, effectiveBitrate, screenCodecFor, screenPresetFor } from './settings';
 import { type AiNoiseMode, type Denoiser, aiNoiseSupported, createDenoiser } from './denoise';
 import { desktop } from '../lib/desktop';
+import { healthPeerClosed, healthPeerCreated, healthPeerState, healthResume, startHealthSampler, stopHealthSampler } from '../lib/health';
 import { TURBO_LABEL, TurboReceiver, TurboSender, type TurboSendStats, decodableCodecs, turboCanReceive, turboCanSend } from './turbo';
 
 const CAMERA_BITRATE = 1_200_000;
@@ -223,6 +224,7 @@ class VoiceEngine {
       if (getV().channelId !== channelId) return; // saiu enquanto conectava
 
       setV({ status: 'connected' });
+      startHealthSampler();
       if (!rejoin) playSound('join');
       // ligando numa DM sem ninguém do outro lado: fica "chamando…" até atenderem
       if (channel.type === 'dm' && !res.peers?.length && !rejoin) useApp.setState({ outgoingRing: channelId });
@@ -240,6 +242,7 @@ class VoiceEngine {
 
   leave(notifyServer = true) {
     this.dbg(`leave notify=${notifyServer}`);
+    stopHealthSampler();
     if (getV().status !== 'idle') playSound('leave');
     useApp.setState({ outgoingRing: null });
     if (notifyServer) getSocket()?.emit('voice:leave');
@@ -286,7 +289,10 @@ class VoiceEngine {
 
   private resetPeers() {
     this.dbg(`resetPeers (${this.peers.size})`);
-    for (const p of this.peers.values()) p.close();
+    for (const p of this.peers.values()) {
+      healthPeerClosed(p.id);
+      p.close();
+    }
     this.peers.clear();
     this.oldPeers.clear();
     if (this.oldPeersTimer) clearTimeout(this.oldPeersTimer);
@@ -306,6 +312,7 @@ class VoiceEngine {
       else if (!this.oldPeers.has(sid)) this.closePeer(sid);
     }
     this.dbg(`keepOldPeers (${this.oldPeers.size})`);
+    if (this.oldPeers.size) healthResume();
     // quem não voltou em 25 s (saiu da call enquanto isso): fecha
     if (this.oldPeersTimer) clearTimeout(this.oldPeersTimer);
     this.oldPeersTimer = setTimeout(() => {
@@ -399,6 +406,7 @@ class VoiceEngine {
       onStreamChanged: () => this.patchRemote(socketId, (r) => ({ v: r.v + 1 })),
       onConnectionState: (connection) => {
         this.patchRemote(socketId, () => ({ connection }));
+        healthPeerState(socketId, connection);
         if (connection === 'connected' && this.oldPeers.size) this.replaceOldPeer(socketId, userId);
       },
       onWatch: (on, decoders) => this.onWatchRequest(socketId, on, decoders),
@@ -411,6 +419,7 @@ class VoiceEngine {
       },
     }, this.opusKbps);
     this.peers.set(socketId, peer);
+    healthPeerCreated(socketId);
     setV((s) => ({ remotes: { ...s.remotes, [socketId]: { userId, connection: 'new', v: 0 } } }));
 
     // diz ao outro lado o que significa cada stream antes de mandar mídia
@@ -435,6 +444,7 @@ class VoiceEngine {
 
   private closePeer(socketId: string) {
     this.dbg(`closePeer ${socketId}`);
+    healthPeerClosed(socketId);
     this.peers.get(socketId)?.close();
     this.peers.delete(socketId);
     this.screenWatchers.delete(socketId);

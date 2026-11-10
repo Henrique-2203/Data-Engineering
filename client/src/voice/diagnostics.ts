@@ -93,9 +93,9 @@ function gpuName(): string | null {
 /** Remove qualquer coisa parecida com endereço IP dos eventos. */
 const noIps = (line: string) => line.replace(/\b\d{1,3}(\.\d{1,3}){3}\b/g, '[ip]').replace(/\b[0-9a-f]{1,4}(:[0-9a-f]{0,4}){3,7}\b/gi, '[ip]');
 
-type Snap = Map<string, Record<string, any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
+export type Snap = Map<string, Record<string, any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-async function snapshot(pc: RTCPeerConnection): Promise<Snap> {
+export async function snapshot(pc: RTCPeerConnection): Promise<Snap> {
   const out: Snap = new Map();
   try {
     (await pc.getStats()).forEach((r) => out.set(r.id, r));
@@ -105,7 +105,7 @@ async function snapshot(pc: RTCPeerConnection): Promise<Snap> {
   return out;
 }
 
-function peerDiag(name: string, state: string, relayed: boolean, a: Snap, b: Snap, secs: number): PeerDiag {
+export function peerDiag(name: string, state: string, relayed: boolean, a: Snap, b: Snap, secs: number): PeerDiag {
   let rttMs: number | null = null;
   let outKbps: number | null = null;
   b.forEach((r) => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AdminSupport } from './Support';
+import { HealthPanel } from './HealthPanel';
 import { Flag, ShieldAlert, X } from 'lucide-react';
 import { api, authHeaders } from '../lib/api';
 import { StatsPanel } from './StatsPanel';
@@ -151,7 +152,7 @@ interface AdminReport {
 const reasonLabel = (id: string) => REASONS.find((r) => r.id === id)?.label ?? id;
 
 export function AdminReports() {
-  const [tab, setTab] = useState<'stats' | 'open' | 'closed' | 'support' | 'waitlist' | 'system'>(
+  const [tab, setTab] = useState<'stats' | 'health' | 'open' | 'closed' | 'support' | 'waitlist' | 'system'>(
     useApp.getState().openReports > 0 ? 'open' : useApp.getState().openSupport > 0 ? 'support' : 'stats',
   );
   const supportCount = useApp((s) => s.openSupport);
@@ -191,6 +192,9 @@ export function AdminReports() {
             <button role="tab" aria-selected={tab === 'stats'} onClick={() => setTab('stats')}>
               Números
             </button>
+            <button role="tab" aria-selected={tab === 'health'} onClick={() => setTab('health')}>
+              Saúde
+            </button>
             <button role="tab" aria-selected={tab === 'open'} onClick={() => setTab('open')}>
               Denúncias {openCount > 0 && `(${openCount})`}
             </button>
@@ -209,6 +213,7 @@ export function AdminReports() {
           </div>
           {tab === 'waitlist' && <WaitlistAdmin />}
           {tab === 'support' && <AdminSupport />}
+          {tab === 'health' && <HealthPanel />}
           {tab === 'stats' && <StatsPanel />}
           {tab === 'system' && <SystemPanel />}
           {(tab === 'open' || tab === 'closed') && reports === null && <p className="muted">Carregando…</p>}

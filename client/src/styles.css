@@ -6158,3 +6158,94 @@ input.switch:disabled {
 html.env-staging body {
   box-shadow: inset 0 0 0 3px #f59e0b;
 }
+
+/* ---------- painel de saúde das calls ---------- */
+.health h4 {
+  margin: 18px 0 8px;
+}
+.health-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.health-live {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 14px;
+}
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.health-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-2);
+  border-left: 4px solid var(--line);
+}
+.health-tile strong {
+  font-size: 20px;
+}
+.health-tile.ok {
+  border-left-color: var(--accent);
+}
+.health-tile.warn {
+  border-left-color: #f5b942;
+}
+.health-tile.bad {
+  border-left-color: #ef4444;
+}
+.health-bars {
+  margin-top: 8px;
+}
+.health-bars-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 46px;
+  margin-top: 4px;
+}
+.health-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: var(--bg-2);
+  border-radius: 3px;
+}
+.health-bar span {
+  width: 100%;
+  border-radius: 3px;
+  background: var(--line);
+}
+.health-bar span.ok {
+  background: var(--accent);
+}
+.health-bar span.warn {
+  background: #f5b942;
+}
+.health-bar span.bad {
+  background: #ef4444;
+}
+.health-errors {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.health-errors th,
+.health-errors td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.health-errors code {
+  word-break: break-word;
+}

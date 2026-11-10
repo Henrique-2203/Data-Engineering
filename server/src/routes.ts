@@ -52,6 +52,7 @@ import { checkSecondFactor, clearLimit, hits, limit, limited, registerSecurityRo
 import { POLL_SELECT, checkAutomod, checkSlowmode, pollSchema, registerCommunityRoutes } from './community.ts';
 import { registerPushRoutes, sendPush } from './push.ts';
 import { registerSupportRoutes } from './support.ts';
+import { registerHealthRoutes } from './health.ts';
 import { mentionedUsernames } from './mentions.ts';
 
 export { HttpError };
@@ -700,6 +701,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerCommunityRoutes(r, db, rt, auth, { channelForMember, emitToChannel, messageSelect: MESSAGE_SELECT });
   registerPushRoutes(r, db, auth);
   registerSupportRoutes(r, db, rt, auth);
+  registerHealthRoutes(r, db, rt, auth);
 
   registerAttachmentRoutes(r, db, auth, {
     channelGuild: async (channelId, userId) => (await channelForMember(channelId, userId)).guildId,

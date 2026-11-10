@@ -433,6 +433,23 @@ alter table users add column if not exists call_banner_image text;
 alter table users add column if not exists call_banner_pos smallint not null default 50;
 -- v18: diagnóstico da call anexado ao chamado ("Relatar problema da call")
 alter table support_tickets add column if not exists diagnostics jsonb;
+-- v19: saúde das calls (só somas por dia, sem identificar ninguém) e erros do site agrupados
+create table if not exists call_health (
+  day date not null,
+  metric text not null,
+  sum double precision not null default 0,
+  count integer not null default 0,
+  primary key (day, metric)
+);
+create table if not exists client_errors (
+  day date not null,
+  hash text not null,
+  message text not null,
+  count integer not null default 0,
+  version text,
+  last_at timestamptz not null default now(),
+  primary key (day, hash)
+);
 create table if not exists backups (
   id text primary key,
   started_at timestamptz not null default now(),

@@ -5,6 +5,14 @@ import { connectSocket, disconnectSocket } from './lib/socket';
 import { findChannel, goHome, openModal, selectChannel, selectGuild, setDms, setFriends, setGuilds, useApp } from './store/app';
 import { disablePush, initPush, pushActive } from './lib/push';
 import { pendingChangelog } from './components/Changelog';
+import { initHealth } from './lib/health';
+
+let healthStarted = false;
+const initHealthOnce = () => {
+  if (healthStarted) return;
+  healthStarted = true;
+  initHealth();
+};
 import { voice } from './voice/engine';
 import { AuthScreen } from './components/AuthScreen';
 import { Layout } from './components/Layout';
@@ -126,6 +134,7 @@ function MainApp() {
     }
     connectSocket();
     initPush(openChannelFromNotification);
+    initHealthOnce();
     if (pendingInvite.code) {
       openModal({ kind: 'joinGuild', code: pendingInvite.code });
       pendingInvite.code = null;

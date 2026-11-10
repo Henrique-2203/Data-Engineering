@@ -10,6 +10,7 @@ import { Avatar } from './Avatar';
 import { ProfileEditor } from './ProfileEditor';
 import { SecuritySettings } from './SecuritySettings';
 import { MyFiles } from './MyFiles';
+import { healthEnabled, setHealthEnabled } from '../lib/health';
 import { DesktopSettingsSection, InputModeSettings, SoundSettings } from './Modals';
 
 export type SettingsSection = 'account' | 'profile' | 'security' | 'privacy' | 'voice' | 'notifications' | 'shortcuts';
@@ -144,6 +145,9 @@ export function UserSettings({
             <>
               <div className="settings-card">
                 <MyFiles />
+              </div>
+              <div className="settings-card">
+                <HealthToggle />
               </div>
               <SecuritySettings part="data" onLogout={() => void logout()} />
             </>
@@ -300,6 +304,30 @@ function NoiseStatus() {
     <span className="small noise-status" role="status">
       Na chamada agora: <strong>{label}</strong>
     </span>
+  );
+}
+
+/** Liga/desliga o envio dos números anônimos de qualidade das calls. */
+function HealthToggle() {
+  const [on, setOn] = useState(healthEnabled());
+  return (
+    <div className="form">
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => {
+            setHealthEnabled(e.target.checked);
+            setOn(e.target.checked);
+          }}
+        />
+        Ajudar a melhorar as calls com números anônimos de qualidade
+      </label>
+      <p className="muted small">
+        Durante a call, o Resenha soma por dia números como atraso, perda da voz e FPS das transmissões, além de erros do site. Não vai
+        quem você é, com quem fala, nem nada do que é dito ou mostrado: só totais do dia, para a equipe achar problemas antes de você.
+      </p>
+    </div>
   );
 }
 

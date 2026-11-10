@@ -314,6 +314,19 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 
 ---
 
+## Saúde das calls (Painel da equipe → Saúde)
+- [ ] **Agora**: quantas pessoas online, em call, quantas calls e quantas transmitindo.
+- [ ] **Conexões**: % que deram certo, tempo para conectar, % de minutos via TURN, atualizações que não derrubaram a call.
+- [ ] **Voz**: atraso médio, perda média, % de minutos com voz ruim.
+- [ ] **Transmissões**: % de minutos com 40+ FPS (o objetivo), FPS na tela de quem assiste, captura x envio, tempo por
+      quadro, % em turbo e em versão leve. Barrinhas por dia (verde, amarelo, vermelho).
+- [ ] **TURN**: MB usados no mês (compare com a cota no painel do Metered).
+- [ ] **Erros do site**: os mais frequentes, já sem e-mails, números longos, ids e endereços.
+- [ ] Configurações → **Privacidade e dados**: "Ajudar a melhorar as calls com números anônimos" liga e desliga o envio.
+- [ ] Os números aparecem conforme o pessoal usa as calls (uma amostra por minuto de call).
+
+---
+
 ## Se algo der errado
 
 Anote **o que fez**, **o que esperava** e **o que aconteceu** (um print ajuda muito) e me mande.

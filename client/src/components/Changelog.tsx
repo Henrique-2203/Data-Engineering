@@ -11,6 +11,13 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-10d',
+    title: 'Calls mais confiáveis',
+    items: [
+      ['📈', 'Para achar problemas antes de você: durante a call, o Resenha soma por dia números anônimos de qualidade (atraso, perda da voz, FPS das transmissões) e erros do site. Não vai quem você é, com quem fala nem nada do que é dito ou mostrado. Dá para desligar em Configurações → Privacidade e dados.'],
+    ],
+  },
+  {
     id: '2026-11-10c',
     title: 'Relatar problema da call',
     items: [
