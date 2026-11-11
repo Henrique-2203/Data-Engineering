@@ -73,9 +73,9 @@ if (!preview) {
   await writeFile(path.join(OUT, 'sem-musica.wav'), makeVoiceOnly());
   const input = ['-framerate', String(FPS), '-i', path.join(frames, '%05d.jpg')];
   const video = ['-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', String(FPS), '-movflags', '+faststart'];
-  run([...input, '-i', path.join(OUT, 'trilha-narrado.wav'), '-af', 'loudnorm=I=-14:TP=-1.5:LRA=11', ...video, '-c:a', 'aac', '-b:a', '192k', '-shortest', path.join(OUT, 'resenha-reels2-narrado.mp4')]);
+  run([...input, '-i', path.join(OUT, 'trilha-narrado.wav'), '-af', 'loudnorm=I=-14:TP=-2:LRA=11,alimiter=limit=0.71:level=false:attack=1:release=60,aresample=48000', '-ar', '48000', ...video, '-c:a', 'aac', '-b:a', '192k', '-shortest', path.join(OUT, 'resenha-reels2-narrado.mp4')]);
   // sem a música, mas COM a narração e a gravação: coloque um áudio do Instagram em volume baixo
-  run([...input, '-i', path.join(OUT, 'sem-musica.wav'), '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', ...video, '-c:a', 'aac', '-b:a', '192k', '-shortest', path.join(OUT, 'resenha-reels2-narrado-sem-musica.mp4')]);
+  run([...input, '-i', path.join(OUT, 'sem-musica.wav'), '-af', 'loudnorm=I=-16:TP=-2:LRA=11,alimiter=limit=0.71:level=false:attack=1:release=60,aresample=48000', '-ar', '48000', ...video, '-c:a', 'aac', '-b:a', '192k', '-shortest', path.join(OUT, 'resenha-reels2-narrado-sem-musica.mp4')]);
   run(['-i', path.join(OUT, 'capa.png'), '-q:v', '3', path.join(OUT, 'resenha-reels2-narrado-capa.jpg')]);
   console.log('pronto: promo/out/reels2n/resenha-reels2-narrado.mp4 (+ sem música e capa)');
 }
