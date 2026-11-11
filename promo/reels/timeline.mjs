@@ -15,11 +15,14 @@ const CHAT = [0.25, 0, 0.57, 1];
  */
 export const SHOTS = [
   { t0: 0, t1: 2, img: 'call-assistir-juntos', from: [0.34, 0.14, 0.5, 0.48], to: TOGETHER, ph: 1000 },
-  { t0: 2, t1: 4, img: 'call-assistir-juntos', from: [0, 0, 1, 1], to: [0.2, 0.04, 0.82, 0.86], ph: 700, cursor: { from: [0.62, 0.45], to: [0.283, 0.672], click: 3.55 } },
+  // print de verdade do Henrique (vídeo do canal dele; a imagem do vídeo vai desfocada: personagem de terceiros)
+  { t0: 2, t1: 4, img: 'user-assistir-juntos', from: [0, 0, 1, 1], to: [0.17, 0.07, 0.645, 0.79], ph: 700, cursor: { from: [0.66, 0.62], to: [0.49, 0.485], click: 3.55 } },
   { t0: 4, t1: 6, img: 'call-pausado-para-todos', from: TILE, to: [0.27, 0.2, 0.42, 0.5], ph: 900, burst: { t: 4.05, icon: '⏸' } },
   { t0: 6, t1: 8, img: 'call-chat-so-da-call', from: [0.715, 0, 0.285, 0.56], to: [0.715, 0.03, 0.285, 0.47], ph: 1060 },
+  // transmissão de verdade (clipe do Henrique: o jogo vai pixelizado, é de terceiros)
+  { t0: 8, t1: 9, img: 'clip-transmissao', clip: { n: 48, fps: 30 }, from: [0.0, 0.0, 1, 1], to: [0.16, 0.03, 0.84, 0.87], ph: 700 },
   {
-    t0: 8,
+    t0: 9,
     t1: 10.5,
     img: 'qualidade-menu',
     from: TILE,
@@ -53,8 +56,8 @@ export const CAPTIONS = [
   { t: 5.0, end: 6.0, text: '*pausou pra todos*' },
   { t: 6.05, end: 7.0, text: 'chat *só da call* 🔒' },
   { t: 7.0, end: 8.0, text: 'some quando *acaba*' },
-  { t: 8.05, end: 9.0, text: 'a *SUA* internet' },
-  { t: 9.0, end: 10.5, text: 'a *SUA* qualidade' },
+  { t: 8.05, end: 9.0, text: '*transmite* o jogo 🎮' },
+  { t: 9.0, end: 10.5, text: 'cada um na *SUA qualidade*' },
   { t: 10.5, end: 12.0, text: 'muda *só pra você*' },
   { t: 12.05, end: 13.0, text: 'você escolhe' },
   { t: 13.0, end: 14.0, text: '*QUEM ASSISTE* 🔒' },
@@ -74,6 +77,6 @@ export const PARTS = [
 ];
 
 /** cortes que ganham "whoosh" (os da montagem ganham só um "tic") */
-export const CUTS = [2, 4, 6, 8, 10.5, 12, 13, 14, 18, 21, 22, 24];
+export const CUTS = [2, 4, 6, 8, 9, 10.5, 12, 13, 14, 18, 21, 22, 24];
 export const TICKS = [14.5, 15, 15.5, 16, 16.5, 17, 17.5, 18.5, 19, 19.5, 20, 20.5];
 export const CLICKS = SHOTS.filter((s) => s.cursor).map((s) => s.cursor.click);

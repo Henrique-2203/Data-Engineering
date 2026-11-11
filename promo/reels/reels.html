@@ -97,10 +97,12 @@ const lerp = (a, b, k) => a + (b - a) * k;
 
 // ---------- imagens (uma <img> por tela, pré-carregadas) ----------
 const imgs = {};
-const names = [...new Set(SHOTS.map((s) => s.img).filter((n) => n !== 'compare')), 'transmitir-antiga', 'transmitir-nova'];
+const names = [...new Set(SHOTS.filter((s) => !s.clip).map((s) => s.img).filter((n) => n !== 'compare')), 'transmitir-antiga', 'transmitir-nova'];
+// clipes viram uma sequência de quadros (img por quadro)
+for (const s of SHOTS.filter((x) => x.clip)) for (let i = 1; i <= s.clip.n; i++) names.push(`${s.img}/${String(i).padStart(3, '0')}`);
 for (const n of names) {
   const el = document.createElement('img');
-  el.src = `../out/reels/shots/${n}.png`;
+  el.src = `../out/reels/shots/${n}${n.includes('/') ? '.jpg' : '.png'}`;
   imgs[n] = el;
 }
 const icons = await (await fetch('../out/reels/icons.json')).json();
@@ -125,14 +127,18 @@ const GLOW = { 'chat-meia-noite-doodles': '#a78bfa', 'chat-claro-por-do-sol': '#
 
 /** posiciona a tela para mostrar o retângulo r (frações) cobrindo o painel PW×ph */
 function place(el, r, ph) {
+  // cada print tem o seu tamanho (os do app em 2560x1600; os do Henrique em 1919x1030)
+  const W = el.naturalWidth || 2560, H = el.naturalHeight || 1600;
   const s = Math.max(PW / (r[2] * W), ph / (r[3] * H));
   const x = PW / 2 - (r[0] + r[2] / 2) * W * s;
   const y = ph / 2 - (r[1] + r[3] / 2) * H * s;
   el.style.display = 'block';
   el.style.width = `${W}px`;
   el.style.height = `${H}px`;
+  el.W = W;
+  el.H = H;
   el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
-  return { s, x, y, map: (px, py) => [x + px * W * s, y + py * H * s] };
+  return { s, x, y, W, H, map: (px, py) => [x + px * W * s, y + py * H * s] };
 }
 
 function drawFx(t) {
@@ -203,7 +209,9 @@ window.seek = function seek(t) {
       $('pillB').style.transform = `scale(${back(clamp((t - 22.3) / 0.2))}) rotate(-3deg)`;
     } else {
       $('layerB').style.clipPath = 'none';
-      const el = imgs[shot.img];
+      const el = shot.clip
+        ? imgs[`${shot.img}/${String(Math.min(shot.clip.n, 1 + Math.floor(since * shot.clip.fps))).padStart(3, '0')}`]
+        : imgs[shot.img];
       $('layerA').append(el);
       const k = shot.beat ? easeOut(clamp(since / (shot.t1 - shot.t0))) : easeIO(clamp(since / (shot.t1 - shot.t0)));
       const r = shot.from.map((v, i) => lerp(v, shot.to[i], k));
@@ -215,7 +223,7 @@ window.seek = function seek(t) {
         const d = document.createElement('div');
         d.className = 'mark';
         const pop = back(clamp((t - m.t) / 0.15));
-        Object.assign(d.style, { left: `${x}px`, top: `${y}px`, width: `${m.r[2] * W * P.s}px`, height: `${m.r[3] * H * P.s}px`, opacity: 1, transform: `scale(${0.9 + 0.1 * pop})` });
+        Object.assign(d.style, { left: `${x}px`, top: `${y}px`, width: `${m.r[2] * P.W * P.s}px`, height: `${m.r[3] * P.H * P.s}px`, opacity: 1, transform: `scale(${0.9 + 0.1 * pop})` });
         $('marks').append(d);
       }
       // cursor que vai até o botão e clica
