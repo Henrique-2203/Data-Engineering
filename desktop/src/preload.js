@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('resenhaDesktop', {
   /** música tocando no Spotify do PC ({ track, artist } ou null) (a partir do app 0.3.6) */
   onMusic: (cb) => listen('resenha:music', cb),
   getMusic: () => ipcRenderer.invoke('resenha:get-music'),
+  /** troca o ícone do app (a partir do 0.3.7): { id, png: data URL } -> { ok, shortcuts?, error? } */
+  setAppIcon: (id, png) => ipcRenderer.invoke('resenha:set-app-icon', { id, png }),
   /** overlay no jogo (a partir do app 0.3.0) */
   setOverlayState: (state) => ipcRenderer.send('resenha:overlay-state', state),
   overlayEvent: (event) => ipcRenderer.send('resenha:overlay-event', event),

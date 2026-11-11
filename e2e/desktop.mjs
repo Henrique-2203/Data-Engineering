@@ -3,7 +3,7 @@
 // atalho global de silenciar, seletor de tela e "fechar para a bandeja".
 // Uso: npm run build && (cd desktop && npm install) && xvfb-run -a node e2e/desktop.mjs
 import { spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -154,6 +154,31 @@ try {
   await win.keyboard.press('Escape');
   await win.locator('.user-panel').getByText('🎵 Ouvindo Outra Música').waitFor({ timeout: 5000 });
   step('"Ouvindo agora": a música do Spotify do PC aparece no perfil, some quando pausa, troca com a música e dá para desligar');
+
+  // ---- ícone do app (Configurações → Aparência) ----
+  const userData = await app.evaluate(({ app: a }) => a.getPath('userData'));
+  await win.getByRole('button', { name: 'Configurações', exact: true }).click();
+  await win.getByRole('button', { name: 'Aparência' }).click();
+  await win.getByRole('radio', { name: 'Ícone Neon' }).click();
+  const icoPath = path.join(userData, 'app-icon.ico');
+  for (let i = 0; i < 30 && !existsSync(icoPath); i++) await sleep(200);
+  assert(existsSync(path.join(userData, 'app-icon.png')) && existsSync(icoPath), 'o app guardou o ícone (PNG e ICO)');
+  const ico = readFileSync(icoPath);
+  const count = ico.readUInt16LE(4);
+  const sizes = Array.from({ length: count }, (_, i) => ico.readUInt8(6 + 16 * i) || 256);
+  assert(ico.readUInt16LE(2) === 1 && sizes.join(',') === '16,24,32,48,64,128,256', `ICO válido com 7 tamanhos (${sizes})`);
+  assert(ico.subarray(ico.readUInt32LE(6 + 12), ico.readUInt32LE(6 + 12) + 4).readUInt32BE(0) === 0x89504e47, 'cada tamanho é um PNG dentro do ICO');
+  assert(JSON.parse(readFileSync(path.join(userData, 'settings.json'), 'utf8')).appIconId === 'neon', 'escolha guardada pelo app');
+  // um PNG falso/estranho é recusado pelo app
+  const bad = await win.evaluate(() => window.resenhaDesktop.setAppIcon('neon', 'data:image/png;base64,AAAA'));
+  assert(bad.ok === false, 'imagem inválida é recusada');
+  const badId = await win.evaluate(() => window.resenhaDesktop.setAppIcon('../../etc', ''));
+  assert(badId.ok === false, 'nome de ícone inválido é recusado');
+  await win.getByRole('radio', { name: 'Ícone Clássico' }).click();
+  for (let i = 0; i < 30 && existsSync(icoPath); i++) await sleep(200);
+  assert(!existsSync(icoPath), 'voltar ao Clássico apaga o ícone guardado');
+  await win.keyboard.press('Escape');
+  step('ícone do app: guarda PNG e ICO (7 tamanhos), recusa imagem/nome inválido e volta ao Clássico');
 
   await win.getByRole('button', { name: 'Sala de voz' }).click();
   await win.getByText('Voz conectada').waitFor({ timeout: 15000 });

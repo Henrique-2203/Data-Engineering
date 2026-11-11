@@ -76,21 +76,21 @@ try {
     await page.getByRole('button', { name: 'Aparência' }).click();
   };
   await openAppearance();
-  await page.getByRole('radio', { name: 'Claro' }).click();
+  await page.getByRole('radio', { name: 'Claro', exact: true }).click();
   assert((await theme()) === 'light', 'modo claro aplicado na hora');
   assert((await cssVar('--bg-1')) === '#f4f6f9', 'fundo claro');
-  await page.getByRole('radio', { name: 'Roxo' }).click();
+  await page.getByRole('radio', { name: 'Roxo', exact: true }).click();
   assert((await cssVar('--accent')) === '#6d3fd9', 'cor de destaque roxa (versão do claro)');
   await page.screenshot({ path: path.join(shots, 'aparencia-claro.png') });
-  await page.getByRole('radio', { name: 'Seguir o sistema' }).click();
+  await page.getByRole('radio', { name: 'Seguir o sistema', exact: true }).click();
   await page.getByText(/Agora: (escuro|claro)/).waitFor();
-  await page.getByRole('radio', { name: 'Escuro' }).click();
-  await page.getByRole('radio', { name: 'Preto total' }).click();
+  await page.getByRole('radio', { name: 'Escuro', exact: true }).click();
+  await page.getByRole('radio', { name: 'Preto total', exact: true }).click();
   assert(/^#000(000)?$/.test(await cssVar('--bg-1')), 'fundo preto total');
   assert((await cssVar('--accent')) === '#a78bfa', 'roxo na versão do escuro');
-  await page.getByRole('radio', { name: 'Meia-noite' }).click();
+  await page.getByRole('radio', { name: 'Meia-noite', exact: true }).click();
   // papel de parede de todos os chats
-  await page.getByRole('radio', { name: 'Doodles gamer' }).click();
+  await page.getByRole('radio', { name: 'Doodles gamer', exact: true }).click();
   await page.screenshot({ path: path.join(shots, 'aparencia-escuro-papel.png') });
   await page.keyboard.press('Escape');
   await page.locator('.chat .chat-wallpaper').first().waitFor();
@@ -119,10 +119,26 @@ try {
   // a foto nunca foi enviada: nenhum pedido de upload aconteceu
   step('papel de parede só desta conversa, com foto própria guardada só no aparelho');
 
+  // ---------- ícone do app: no navegador, muda o ícone da aba ----------
+  await openAppearance();
+  await page.getByRole('radio', { name: 'Ícone Halloween', exact: true }).click();
+  const fav = await page.locator('link[rel="icon"]').getAttribute('href');
+  assert(fav.startsWith('data:image/svg+xml'), 'ícone da aba trocado');
+  await page.reload();
+  assert((await page.locator('link[rel="icon"]').getAttribute('href')).startsWith('data:image/svg+xml'), 'continua depois de recarregar');
+  await openAppearance();
+  await page.getByRole('radio', { name: 'Ícone Halloween', exact: true }).scrollIntoViewIfNeeded();
+  await sleep(500);
+  await page.screenshot({ path: path.join(shots, 'icones-do-app.png') });
+  await page.getByRole('radio', { name: 'Ícone Clássico', exact: true }).click();
+  assert((await page.locator('link[rel="icon"]').getAttribute('href')) === '/icon.svg', 'Clássico volta ao ícone original');
+  await page.keyboard.press('Escape');
+  step('ícone do app: no navegador troca o ícone da aba (e guarda a escolha)');
+
   // ---------- telas principais no modo claro (para revisar) ----------
   await openAppearance();
-  await page.getByRole('radio', { name: 'Claro' }).click();
-  await page.getByRole('radio', { name: 'Verde Resenha' }).click();
+  await page.getByRole('radio', { name: 'Claro', exact: true }).click();
+  await page.getByRole('radio', { name: 'Verde Resenha', exact: true }).click();
   await page.keyboard.press('Escape');
   await page.screenshot({ path: path.join(shots, 'claro-chat.png') });
   await page.getByRole('button', { name: 'Sala de voz' }).first().click();

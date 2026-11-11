@@ -387,6 +387,13 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 - [ ] Tudo vale **só neste aparelho** (no celular e no PC você escolhe separado). A foto não vai para o servidor.
 - [ ] Modo claro: confira chat, call, configurações, perfil, enquete, menções e janelas. Me mande print do que
       ficar estranho ou difícil de ler.
+- [ ] **Ícone do app** (Aparência): 16 versões do logo.
+  - [ ] No navegador: muda o ícone da aba (e continua depois de recarregar).
+  - [ ] No app de Windows **0.3.7**: muda na hora o ícone da janela e da bandeja; os atalhos da área de trabalho e do
+        Menu Iniciar mudam em alguns segundos. O fixado na barra de tarefas pode só mudar depois de reiniciar o PC
+        (o Windows guarda os ícones em cache).
+  - [ ] Atualizou o app: o ícone escolhido volta sozinho para os atalhos.
+  - [ ] "Clássico" volta tudo ao original.
 
 ---
 

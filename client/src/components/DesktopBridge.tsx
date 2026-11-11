@@ -1,3 +1,4 @@
+import { setAppearance, useAppearance } from '../lib/appearance';
 import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { desktop, type DesktopUpdate } from '../lib/desktop';
@@ -83,7 +84,11 @@ export function DesktopBridge() {
     const unsubShare = useVoice.subscribe((s, prev) => {
       if (s.settings.shareActivity !== prev.settings.shareActivity || s.settings.shareMusic !== prev.settings.shareMusic) publish();
     });
-    void d.getSettings().then((s) => setUpdate(s.update));
+    void d.getSettings().then((s) => {
+      setUpdate(s.update);
+      // o app guarda o ícone escolhido: a tela de Aparência mostra o mesmo
+      if (d.setAppIcon && s.appIconId && s.appIconId !== useAppearance.getState().icon) setAppearance({ icon: s.appIconId });
+    });
 
     // overlay no jogo: quem está na chamada, quem fala, quem está mutado/transmitindo
     let overlayTimer: ReturnType<typeof setTimeout> | null = null;

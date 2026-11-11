@@ -11,6 +11,14 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-11c',
+    title: 'Ícone do app',
+    items: [
+      ['🧩', 'Escolha o ícone do Resenha entre 16 versões do nosso logo (Noite, Neon, Retrô, Dourado, Arco-íris, Natal, Halloween…): Configurações → Aparência → Ícone do app.'],
+      ['🖥️', 'No app de Windows (versão 0.3.7), muda também o ícone da janela, da bandeja e dos atalhos (área de trabalho, Menu Iniciar e barra de tarefas). No navegador, muda o ícone da aba.'],
+    ],
+  },
+  {
     id: '2026-11-11b',
     title: 'Deixe o Resenha com a sua cara',
     items: [

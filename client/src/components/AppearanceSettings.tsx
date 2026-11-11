@@ -6,6 +6,7 @@ import {
   NO_WALLPAPER,
   WALLPAPERS,
   deletePhoto,
+  iconPng,
   loadPhoto,
   savePhoto,
   setAppearance,
@@ -15,6 +16,8 @@ import {
   type WallpaperChoice,
 } from '../lib/appearance';
 import { closeModal, findChannel, toast } from '../store/app';
+import { desktop } from '../lib/desktop';
+import { APP_ICONS } from '../../../shared/appIcons';
 import { Modal } from './Modals';
 import { InfoTip } from './ScreenShareModal';
 
@@ -88,6 +91,8 @@ export function AppearanceSettings() {
           </div>
         </div>
       )}
+
+      <AppIconPicker />
 
       <div className="settings-card">
         <div className="share-head">
@@ -319,5 +324,56 @@ export function ChatWallpaperModal({ channelId }: { channelId: string }) {
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** Ícone do app: a aba do navegador e, no app de Windows, janela, bandeja e atalhos. */
+function AppIconPicker() {
+  const icon = useAppearance((s) => s.icon);
+  const [busy, setBusy] = useState<string | null>(null);
+  const canDesktop = !!desktop?.setAppIcon;
+  async function choose(id: string) {
+    setAppearance({ icon: id });
+    if (!desktop) return;
+    if (!desktop.setAppIcon) return toast('Atualize o app de Windows para trocar o ícone dele também.');
+    setBusy(id);
+    try {
+      const r = await desktop.setAppIcon(id, id === 'classic' ? '' : await iconPng(id));
+      if (!r.ok) toast(r.error ?? 'Não deu para trocar o ícone do app.');
+    } catch {
+      toast('Não deu para trocar o ícone do app.');
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <div className="settings-card">
+      <div className="share-head">
+        <h3>Ícone do app</h3>
+        <InfoTip label="Ícone do app">
+          {canDesktop
+            ? 'Muda o ícone da janela, da bandeja (perto do relógio) e dos atalhos do Resenha (área de trabalho, Menu Iniciar e barra de tarefas). O fixado na barra de tarefas pode demorar um pouco ou só mudar depois de reiniciar o PC.'
+            : 'No navegador muda o ícone da aba. No app de Windows muda também a janela, a bandeja e os atalhos. Em app instalado pelo navegador ou no celular, o ícone da tela inicial não muda depois de instalado (regra do sistema).'}
+        </InfoTip>
+      </div>
+      <div className="app-icons" role="radiogroup" aria-label="Ícone do app">
+        {APP_ICONS.map((i) => (
+          <button
+            key={i.id}
+            type="button"
+            role="radio"
+            aria-checked={icon === i.id}
+            aria-label={`Ícone ${i.label}`}
+            title={i.label}
+            className={`app-icon-tile${icon === i.id ? ' selected' : ''}`}
+            disabled={!!busy}
+            onClick={() => void choose(i.id)}
+          >
+            <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(i.svg)}`} alt="" width={56} height={56} />
+            <span>{busy === i.id ? 'Trocando…' : i.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

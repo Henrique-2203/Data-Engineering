@@ -28,6 +28,8 @@ export interface DesktopSettings {
   overlay?: OverlaySettings;
   /** só existe a partir do app 0.3.4: com um jogo aberto, o Resenha fica atrás do jogo no processador */
   gamePriority?: boolean;
+  /** só existe a partir do app 0.3.7: ícone do app escolhido */
+  appIconId?: string;
   version: string;
   platform: string;
   update: DesktopUpdate;
@@ -54,6 +56,8 @@ interface DesktopBridge {
   /** música tocando no Spotify do PC (app 0.3.6+) */
   onMusic?(cb: (m: { track: string; artist: string } | null) => void): () => void;
   getMusic?(): Promise<{ track: string; artist: string } | null>;
+  /** troca o ícone do app: janela, bandeja e atalhos (app 0.3.7+) */
+  setAppIcon?(id: string, png: string): Promise<{ ok: boolean; shortcuts?: number; error?: string }>;
   /** existem a partir do app 0.3.0 (overlay no jogo) */
   setOverlayState?(state: OverlayState): void;
   overlayEvent?(event: { type: 'sound'; id: string; name: string; sound: string; emoji: string | null }): void;

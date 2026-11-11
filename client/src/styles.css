@@ -7225,3 +7225,33 @@ html.env-staging body {
 .wp-text {
   color: var(--text);
 }
+
+/* ícone do app (Configurações → Aparência) */
+.app-icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+}
+.app-icon-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 4px 8px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.app-icon-tile:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.app-icon-tile.selected {
+  border-color: var(--accent);
+}
+.app-icon-tile img {
+  border-radius: 14px;
+}

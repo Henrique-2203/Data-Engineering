@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { APP_ICONS, appIconById } from '../../../shared/appIcons';
 
 /**
  * Aparência do Resenha: modo (escuro, claro ou seguir o sistema), cor de destaque, fundo e papel de
@@ -26,6 +27,8 @@ export interface Appearance {
   bg: DarkBg;
   /** papel de parede de todos os chats */
   wallpaper: WallpaperChoice;
+  /** ícone do app (shared/appIcons) */
+  icon: string;
 }
 
 export const ACCENTS: { id: AccentId; label: string; dark: [string, string]; light: [string, string] }[] = [
@@ -48,7 +51,7 @@ export const DARK_BGS: { id: DarkBg; label: string; hint: string; swatch: string
 
 export const NO_WALLPAPER: WallpaperChoice = { kind: 'none', dim: 0.55, blur: 0 };
 
-const DEFAULTS: Appearance = { mode: 'dark', accent: 'green', bg: 'default', wallpaper: NO_WALLPAPER };
+const DEFAULTS: Appearance = { mode: 'dark', accent: 'green', bg: 'default', wallpaper: NO_WALLPAPER, icon: 'classic' };
 const KEY = 'resenha.appearance';
 const PER_CHAT_KEY = 'resenha.wallpapers';
 
@@ -74,6 +77,7 @@ const sane = (a: Appearance): Appearance => ({
   accent: isAccent(a.accent) ? a.accent : 'green',
   bg: a.bg === 'midnight' || a.bg === 'black' ? a.bg : 'default',
   wallpaper: saneWallpaper(a.wallpaper),
+  icon: APP_ICONS.some((i) => i.id === a.icon) ? a.icon : 'classic',
 });
 function saneWallpaper(w: Partial<WallpaperChoice> | undefined): WallpaperChoice {
   if (!w || !['none', 'library', 'color', 'photo'].includes(w.kind as string)) return NO_WALLPAPER;
@@ -113,7 +117,7 @@ export const useAppearance = create<Store>(() => ({
 
 export function setAppearance(patch: Partial<Appearance>) {
   const s = useAppearance.getState();
-  const next = sane({ mode: s.mode, accent: s.accent, bg: s.bg, wallpaper: s.wallpaper, ...patch });
+  const next = sane({ mode: s.mode, accent: s.accent, bg: s.bg, wallpaper: s.wallpaper, icon: s.icon, ...patch });
   useAppearance.setState({ ...next, resolved: resolve(next.mode) });
   write(KEY, next);
   applyAppearance();
@@ -142,6 +146,12 @@ export function applyAppearance() {
   root.style.setProperty('--accent', color);
   root.style.setProperty('--accent-ink', ink);
   root.style.setProperty('--accent-soft', `color-mix(in srgb, ${color} ${mode === 'light' ? 12 : 14}%, transparent)`);
+  // ícone da aba do navegador
+  const svg = appIconById(s.icon).svg;
+  const href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  for (const link of document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]')) {
+    if (link.href !== href) link.href = s.icon === 'classic' ? '/icon.svg' : href;
+  }
   const meta = document.querySelector('meta[name="theme-color"]');
   meta?.setAttribute('content', getComputedStyle(root).getPropertyValue('--bg-1').trim() || '#111318');
 }
@@ -343,4 +353,16 @@ export async function savePhoto(key: string, file: File): Promise<void> {
   if (!blob) throw new Error('Não deu para preparar a imagem.');
   await tx('readwrite', (s) => s.put(blob, key));
   useAppearance.setState((st) => ({ photoVersion: st.photoVersion + 1 }));
+}
+
+/** Desenha o ícone (SVG) num PNG quadrado (para o app de Windows usar na janela, bandeja e atalhos). */
+export async function iconPng(id: string, size = 256): Promise<string> {
+  const img = new Image();
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(appIconById(id).svg)}`;
+  await img.decode();
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  c.getContext('2d')!.drawImage(img, 0, 0, size, size);
+  return c.toDataURL('image/png');
 }

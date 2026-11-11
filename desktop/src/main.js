@@ -16,6 +16,7 @@ const settings = require('./settings');
 const { buildKeymap, MOUSE } = require('./keymap');
 const { watchGames } = require('./games');
 const { watchMusic } = require('./music');
+const appIcon = require('./appIcon');
 const overlay = require('./overlay');
 const { setGpuPriority } = require('./gpuPriority');
 
@@ -102,7 +103,7 @@ function createWindow() {
     show: false,
     backgroundColor: '#111318',
     title: 'Resenha',
-    icon: ICON,
+    icon: appIcon.currentIcon(ICON),
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -132,7 +133,7 @@ function createWindow() {
       e.preventDefault();
       win.hide();
       if (!settings.load().trayHintShown && Notification.isSupported()) {
-        new Notification({ title: 'Resenha continua aberto', body: 'Ele fica no ícone perto do relógio. Use "Sair" lá para fechar de vez.', icon: ICON }).show();
+        new Notification({ title: 'Resenha continua aberto', body: 'Ele fica no ícone perto do relógio. Use "Sair" lá para fechar de vez.', icon: appIcon.currentIcon(ICON) }).show();
         settings.save({ trayHintShown: true });
       }
     }
@@ -209,7 +210,7 @@ function openPicker() {
       minHeight: 400,
       title: 'Escolha o que transmitir',
       backgroundColor: '#111318',
-      icon: ICON,
+      icon: appIcon.currentIcon(ICON),
       autoHideMenuBar: true,
       webPreferences: { preload: path.join(__dirname, 'picker-preload.js'), contextIsolation: true, sandbox: true },
     });
@@ -304,7 +305,7 @@ function setupGlobalHook() {
 // ---------- bandeja ----------
 
 function trayIcon() {
-  const img = nativeImage.createFromPath(ICON);
+  const img = appIcon.currentIcon(ICON);
   return img.isEmpty() ? img : img.resize({ width: process.platform === 'win32' ? 16 : 22 });
 }
 
@@ -363,6 +364,7 @@ const publicSettings = () => {
     openAtLogin: s.openAtLogin,
     overlay: { showWhen: 'game', ...settings.load().overlay },
     gamePriority: s.gamePriority !== false,
+    appIconId: s.appIconId ?? 'classic',
     version: app.getVersion(),
     platform: process.platform,
     update: updateState,
@@ -417,7 +419,7 @@ function notifyUpdateWhenFree(version) {
   const busy = () => !!gameWatcher?.current() || trayState.inCall;
   const show = () => {
     if (!Notification.isSupported()) return;
-    const n = new Notification({ title: 'Atualização do Resenha pronta', body: `Versão ${version}. Reinicie quando quiser (ou ela entra na próxima vez que abrir).`, icon: ICON });
+    const n = new Notification({ title: 'Atualização do Resenha pronta', body: `Versão ${version}. Reinicie quando quiser (ou ela entra na próxima vez que abrir).`, icon: appIcon.currentIcon(ICON) });
     n.on('click', showWindow);
     n.show();
   };
@@ -450,6 +452,21 @@ ipcMain.on('resenha:tray-state', (_e, state) => {
   buildTrayMenu();
 });
 ipcMain.handle('resenha:get-settings', () => publicSettings());
+
+// ícone do app escolhido em Configurações → Aparência (o site manda o desenho em PNG)
+ipcMain.handle('resenha:set-app-icon', (_e, payload) => {
+  try {
+    const r = appIcon.setIcon(payload?.id, payload?.png);
+    if (!r.ok) return r;
+    settings.save({ appIconId: payload.id });
+    const img = appIcon.currentIcon(ICON);
+    if (win && !win.isDestroyed()) win.setIcon(img);
+    tray?.setImage(trayIcon());
+    return r;
+  } catch (err) {
+    return { ok: false, error: 'Não deu para trocar o ícone.' };
+  }
+});
 ipcMain.handle('resenha:set-settings', (_e, patch) => {
   const clean = {};
   if (typeof patch?.closeToTray === 'boolean') clean.closeToTray = patch.closeToTray;
@@ -594,4 +611,6 @@ app.whenReady().then(() => {
   setupUpdater();
   setupGameWatcher();
   setupMusicWatcher();
+  // uma atualização do app recria os atalhos com o ícone original: põe o escolhido de novo
+  setTimeout(() => appIcon.reapplyShortcuts(), 3000);
 });
