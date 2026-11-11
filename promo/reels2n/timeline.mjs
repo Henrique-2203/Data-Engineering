@@ -140,7 +140,7 @@ CAPTIONS.forEach((c, i) => {
   if (CAPTIONS[i + 1]) c.end = Math.min(c.end, CAPTIONS[i + 1].t);
 });
 /** quadro usado de capa: "não dava pra entender nada" com o teclado batendo */
-export const COVER = 6.4;
+export const COVER = 7.0;
 
 export const PARTS = [
   { t0: 7.25, t1: 26.25, label: 'Sem barulho' },
