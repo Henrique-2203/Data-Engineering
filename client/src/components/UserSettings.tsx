@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Bell, ChevronRight, Database, Keyboard, LogOut, Mic, Shield, User, UserCircle, X } from 'lucide-react';
+import { Bell, ChevronRight, Database, Keyboard, LogOut, Mic, Palette, Shield, User, UserCircle, X } from 'lucide-react';
+import { AppearanceSettings } from './AppearanceSettings';
 import { api } from '../lib/api';
 import { closeModal, openModal, useApp } from '../store/app';
 import { updateSettings, useVoice } from '../store/voice';
@@ -13,7 +14,7 @@ import { MyFiles } from './MyFiles';
 import { healthEnabled, setHealthEnabled } from '../lib/health';
 import { DesktopSettingsSection, InputModeSettings, SoundSettings } from './Modals';
 
-export type SettingsSection = 'account' | 'profile' | 'security' | 'privacy' | 'voice' | 'notifications' | 'shortcuts';
+export type SettingsSection = 'account' | 'profile' | 'appearance' | 'security' | 'privacy' | 'voice' | 'notifications' | 'shortcuts';
 
 const SECTIONS: { id: SettingsSection; label: string; icon: ReactNode; title: string; description: string }[] = [
   {
@@ -29,6 +30,13 @@ const SECTIONS: { id: SettingsSection; label: string; icon: ReactNode; title: st
     icon: <User size={18} />,
     title: 'Perfil',
     description: 'Foto, banner, nome, bio e links: o que seus amigos veem.',
+  },
+  {
+    id: 'appearance',
+    label: 'Aparência',
+    icon: <Palette size={18} />,
+    title: 'Aparência',
+    description: 'Modo claro ou escuro, cor de destaque e papel de parede dos chats. Vale só neste aparelho.',
   },
   {
     id: 'security',
@@ -131,6 +139,7 @@ export function UserSettings({
           </header>
           {section === 'account' && <AccountOverview go={setSection} onLogout={() => void logout()} />}
           {section === 'profile' && <ProfileEditor />}
+          {section === 'appearance' && <AppearanceSettings />}
           {section === 'security' && (
             <p className="muted small">
               Quer saber tudo o que fazemos para proteger você? Veja a página{' '}

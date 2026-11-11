@@ -35,6 +35,7 @@ import { SupportModal } from './Support';
 import { CallReportModal } from './CallReport';
 import { ChangelogModal } from './Changelog';
 import { ScreenShareModal } from './ScreenShareModal';
+import { ChatWallpaperModal } from './AppearanceSettings';
 import { slowLabel } from './AuditLog';
 
 const SLOWMODE_OPTIONS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600];
@@ -73,6 +74,8 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       return <AddEmailPrompt />;
     case 'screenShare':
       return <ScreenShareModal />;
+    case 'wallpaper':
+      return <ChatWallpaperModal channelId={modal.channelId} />;
     case 'image':
       return <Lightbox src={modal.src} name={modal.name} />;
     case 'profile':

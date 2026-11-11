@@ -11,6 +11,15 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-11b',
+    title: 'Deixe o Resenha com a sua cara',
+    items: [
+      ['🌗', 'Modo claro, escuro ou seguindo o sistema: Configurações → Aparência.'],
+      ['🎨', '8 cores de destaque e 3 fundos para o modo escuro: Padrão, Meia-noite e Preto total (economiza bateria em telas OLED).'],
+      ['🖼️', 'Papel de parede nos chats: 12 desenhos nossos, uma cor ou a sua foto, com ajuste para escurecer e desfocar. Vale para todos os chats ou só para uma conversa (botão de paleta no topo dela). Só você vê, e a foto fica só no seu aparelho.'],
+    ],
+  },
+  {
     id: '2026-11-11a',
     title: 'Transmissão do seu jeito',
     items: [

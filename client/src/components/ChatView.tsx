@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Hash, ImagePlus, Phone, Volume2 } from 'lucide-react';
+import { WallpaperLayer, useChatWallpaper } from './AppearanceSettings';
 import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { VoiceStage } from './VoiceStage';
@@ -132,11 +133,12 @@ export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?:
   }, [jumpTo, channel.id]);
 
   const items = cm?.items ?? [];
+  const wallpaper = useChatWallpaper(channel.id);
   const hasFiles = (e: React.DragEvent) => [...e.dataTransfer.types].includes('Files');
 
   return (
     <div
-      className={`chat${callPanel ? ' call-chat' : ''}`}
+      className={`chat${callPanel ? ' call-chat' : ''}${wallpaper.choice.kind !== 'none' ? ' has-wallpaper' : ''}`}
       onDragEnter={(e) => {
         if (!hasFiles(e)) return;
         dragDepth.current++;
@@ -155,6 +157,7 @@ export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?:
         composerRef.current?.addFiles([...e.dataTransfer.files]);
       }}
     >
+      <WallpaperLayer choice={wallpaper.choice} photoKey={wallpaper.photoKey} />
       {dm ? (
         <MobileHeader
           title={dm.recipient.displayName}

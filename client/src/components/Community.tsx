@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { BarChart3, CalendarDays, Check, Pin, Search, Trash2, Volume2, X } from 'lucide-react';
+import { BarChart3, CalendarDays, Check, Palette, Pin, Search, Trash2, Volume2, X } from 'lucide-react';
 import type { AutomodSettings, Channel, Guild, GuildEvent, Message } from '../../../shared/types';
 import { api } from '../lib/api';
 import { closeModal, findChannel, findMember, jumpToMessage, openModal, toast, updateMessage, useApp } from '../store/app';
@@ -244,6 +244,14 @@ export function ChatHeaderTools({ channel }: { channel: Channel }) {
   const search = (t: string) => useApp.setState({ sidePanel: { kind: 'search', text: t, scope }, mobilePanel: 'members' });
   return (
     <>
+      <button
+        className="icon-btn"
+        aria-label="Papel de parede desta conversa"
+        title="Papel de parede desta conversa"
+        onClick={() => openModal({ kind: 'wallpaper', channelId: channel.id })}
+      >
+        <Palette size={19} />
+      </button>
       <button
         className={`icon-btn${panel?.kind === 'pins' ? ' active' : ''}`}
         aria-label="Mensagens fixadas"

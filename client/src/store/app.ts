@@ -88,6 +88,7 @@ export type ModalState =
     }
   | { kind: 'addEmail' }
   | { kind: 'screenShare' }
+  | { kind: 'wallpaper'; channelId: string }
   | { kind: 'image'; src: string; name: string }
   | { kind: 'profile'; userId: string; guildId?: string | null }
   | { kind: 'status' }

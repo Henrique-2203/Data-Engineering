@@ -374,6 +374,22 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 
 ---
 
+## Aparência (11/11)
+- [ ] Configurações → **Aparência** → Modo: **Escuro**, **Claro** ou **Seguir o sistema** (troque o tema do
+      Windows/celular e veja o Resenha acompanhar).
+- [ ] **Cor de destaque** (8 cores): botões, selecionados e o contorno de quem fala mudam na hora.
+- [ ] **Fundo** (só no escuro): Padrão, Meia-noite, Preto total.
+- [ ] **Papel de parede dos chats**: Nenhum, 12 desenhos, Cor ou **Minha foto**; ajuste "Escurecer/Clarear" e
+      "Desfocar" (foto). A prévia mostra como fica com mensagens.
+- [ ] Botão de **paleta** no topo de uma conversa: "Só para #canal" (outro papel de parede só nela) ou "O de
+      todos os chats".
+- [ ] Recarregar a página: tudo continua igual, sem piscar o escuro antes do claro.
+- [ ] Tudo vale **só neste aparelho** (no celular e no PC você escolhe separado). A foto não vai para o servidor.
+- [ ] Modo claro: confira chat, call, configurações, perfil, enquete, menções e janelas. Me mande print do que
+      ficar estranho ou difícil de ler.
+
+---
+
 ## Se algo der errado
 
 Anote **o que fez**, **o que esperava** e **o que aconteceu** (um print ajuda muito) e me mande.

@@ -85,7 +85,7 @@ try {
   await popup.getByRole('button', { name: 'Entendi' }).click();
   await popup.waitFor({ state: 'detached' });
   await sleep(300);
-  assert((await api('/bootstrap', null, ana.token)).changelog.seen === '2026-11-11a', 'confirmação gravada na conta (a mais nova)');
+  assert((await api('/bootstrap', null, ana.token)).changelog.seen === '2026-11-11b', 'confirmação gravada na conta (a mais nova)');
   await pa.reload();
   await pa.getByRole('button', { name: /^Suporte/ }).waitFor();
   await sleep(800);
