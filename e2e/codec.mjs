@@ -72,7 +72,8 @@ try {
 
   async function shareWith(codecLabel, expected) {
     await streamer.getByRole('button', { name: 'Transmitir tela' }).click();
-    await streamer.locator('.modal select').nth(1).selectOption({ label: codecLabel });
+    await streamer.locator('.modal').getByText('Avançado').click();
+    await streamer.locator('#share-codec').selectOption({ label: codecLabel });
     await streamer.getByRole('button', { name: 'Escolher tela e transmitir' }).click();
     const watch = viewer.getByRole('button', { name: 'Assistir transmissão' });
     if (await watch.isVisible().catch(() => false)) await watch.click();

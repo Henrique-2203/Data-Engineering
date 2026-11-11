@@ -1,4 +1,4 @@
-import type { RtcSignal } from '../../../shared/types';
+import { STREAM_QUALITIES, type RtcSignal, type StreamQuality } from '../../../shared/types';
 import type { MediaKind } from '../store/voice';
 import { tuneRemoteSdp } from './sdp';
 
@@ -18,7 +18,8 @@ export interface PeerCallbacks {
   onStream(kind: MediaKind, stream: MediaStream | null): void;
   onStreamChanged(): void;
   onConnectionState(state: RTCPeerConnectionState): void;
-  onWatch(on: boolean, decoders?: string[]): void;
+  onWatch(on: boolean, decoders?: string[], quality?: StreamQuality): void;
+  onQuality(q: StreamQuality): void;
   /** quem transmite abriu o canal da transmissão turbo */
   onDataChannel?(dc: RTCDataChannel): void;
   /** chamado quando a negociação estabiliza, para reaplicar bitrate/fps nos envios */
@@ -168,7 +169,13 @@ export class Peer {
       } else if (data.type === 'meta') {
         this.remoteMeta = data.streams;
       } else if (data.type === 'watch') {
-        this.cb.onWatch(data.on, Array.isArray(data.decoders) ? data.decoders.filter((d) => typeof d === 'string').slice(0, 10) : undefined);
+        this.cb.onWatch(
+          data.on,
+          Array.isArray(data.decoders) ? data.decoders.filter((d) => typeof d === 'string').slice(0, 10) : undefined,
+          STREAM_QUALITIES.includes(data.quality as StreamQuality) ? data.quality : undefined,
+        );
+      } else if (data.type === 'quality') {
+        if (STREAM_QUALITIES.includes(data.q)) this.cb.onQuality(data.q);
       }
     } catch (err) {
       this.cb.log?.(`erro de sinalização (${data.type}): ${err}`);

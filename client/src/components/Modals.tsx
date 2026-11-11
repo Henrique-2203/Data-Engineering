@@ -17,7 +17,7 @@ import {
 } from '../store/app';
 import { updateSettings, useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
-import { CODECS, SCREEN_PRESETS, effectiveBitrate, keyLabel, presetById, screenPresetFor } from '../voice/settings';
+import { keyLabel } from '../voice/settings';
 import { notificationsSupported, requestNotificationPermission } from '../lib/notify';
 import { playSound } from '../lib/sounds';
 import { mouseCode } from './Hotkeys';
@@ -34,6 +34,7 @@ import { CreatePollModal, EventsModal, PushSettings } from './Community';
 import { SupportModal } from './Support';
 import { CallReportModal } from './CallReport';
 import { ChangelogModal } from './Changelog';
+import { ScreenShareModal } from './ScreenShareModal';
 import { slowLabel } from './AuditLog';
 
 const SLOWMODE_OPTIONS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600];
@@ -71,7 +72,7 @@ export function Modals({ onLogout }: { onLogout(): void }) {
     case 'addEmail':
       return <AddEmailPrompt />;
     case 'screenShare':
-      return <ScreenShare />;
+      return <ScreenShareModal />;
     case 'image':
       return <Lightbox src={modal.src} name={modal.name} />;
     case 'profile':
@@ -884,164 +885,3 @@ export function SoundSettings() {
   );
 }
 
-// ---------- transmissão de tela ----------
-
-function ScreenShare() {
-  const settings = useVoice((s) => s.settings);
-  const sharing = useVoice((s) => s.screen);
-  const channelId = useVoice((s) => s.channelId);
-  const viewers = useApp((s) => Object.values(s.voiceStates).filter((v) => v.channelId === channelId).length - 1);
-  const preset = screenPresetFor(settings);
-  const capped = settings.performanceMode && presetById(settings.screenPreset).id !== preset.id;
-  const light = useVoice((s) => s.screenLight);
-  const bitrate = effectiveBitrate(settings);
-  const mbps = bitrate / 1e6;
-  const [starting, setStarting] = useState(false);
-  const relayedPeers = useVoice((s) => Object.values(s.remotes).filter((r) => r.relayed).length);
-
-  function update(patch: Partial<typeof settings>) {
-    updateSettings(patch);
-    if (sharing || 'turnSaver' in patch) voice.refreshEncodings();
-  }
-
-  async function start() {
-    setStarting(true);
-    const ok = await voice.startScreen();
-    setStarting(false);
-    if (ok) closeModal();
-  }
-
-  return (
-    <Modal title="Transmitir tela" wide>
-      <div className="form">
-        <label className={`perf-card${settings.performanceMode ? ' on' : ''}`}>
-          <input
-            type="checkbox"
-            checked={settings.performanceMode}
-            disabled={sharing}
-            onChange={(e) => update({ performanceMode: e.target.checked })}
-          />
-          <span>
-            <strong>🎮 Modo desempenho (recomendado para quem está jogando)</strong>
-            <span className="muted small">
-              Usa a placa de vídeo para codificar (H.264), no máximo 1080p, e se o seu PC começar a sofrer a transmissão fica mais
-              leve sozinha (720p · 30 FPS) para não tirar FPS do jogo. Cada amigo assistindo é uma codificação a mais no seu PC.
-            </span>
-          </span>
-        </label>
-        <label className={`perf-card${settings.turbo ? ' on' : ''}`}>
-          <input type="checkbox" checked={settings.turbo} disabled={sharing} onChange={(e) => update({ turbo: e.target.checked })} />
-          <span>
-            <strong>⚡ Transmissão turbo (recomendado)</strong>
-            <span className="muted small">
-              O vídeo é codificado uma vez só e os mesmos pacotes vão para todos os amigos (no modo normal, cada amigo é uma
-              codificação a mais no seu PC). Sob pressão baixa a resolução, nunca o FPS. Quem não suporta recebe pelo modo normal.
-            </span>
-          </span>
-        </label>
-        {light && (
-          <div className="warn-box small">
-            Sua transmissão está com resolução menor para manter o FPS sem pesar no jogo.{' '}
-            <button className="link-btn" onClick={() => voice.setScreenLight(false)}>
-              Voltar para {preset.label}
-            </button>
-          </div>
-        )}
-        <label>
-          Qualidade
-          <select
-            value={settings.screenPreset}
-            disabled={sharing}
-            title={sharing ? 'Pare e reinicie a transmissão para trocar a resolução' : undefined}
-            onChange={(e) => update({ screenPreset: e.target.value, bitrateMbps: null })}
-          >
-            {SCREEN_PRESETS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label} (≈{p.bitrate / 1e6} Mbps)
-              </option>
-            ))}
-          </select>
-          {capped && <span className="muted small">No modo desempenho, vai em {preset.label}. Desligue o modo para usar mais que 1080p.</span>}
-        </label>
-
-        <label>
-          Bitrate máximo: <strong>{mbps.toFixed(1)} Mbps</strong>
-          <input
-            type="range"
-            min={1}
-            max={40}
-            step={0.5}
-            value={mbps}
-            onChange={(e) => update({ bitrateMbps: Number(e.target.value) })}
-          />
-          <span className="muted small">
-            Mais bitrate = imagem mais nítida em cenas rápidas. Cada pessoa assistindo recebe uma cópia, então seu upload precisa
-            de ≈{(mbps * Math.max(1, viewers)).toFixed(0)} Mbps com {Math.max(1, viewers)} espectador{viewers > 1 ? 'es' : ''}.
-          </span>
-        </label>
-
-        <div className="field">
-          <span>Tipo de conteúdo</span>
-          <div className="radio-cards">
-            <label className={settings.contentType === 'motion' ? 'selected' : ''}>
-              <input type="radio" checked={settings.contentType === 'motion'} onChange={() => update({ contentType: 'motion' })} />
-              <strong>🎮 Jogo / vídeo</strong>
-              <span className="muted small">Prioriza fluidez ({preset.fps} FPS)</span>
-            </label>
-            <label className={settings.contentType === 'detail' ? 'selected' : ''}>
-              <input type="radio" checked={settings.contentType === 'detail'} onChange={() => update({ contentType: 'detail' })} />
-              <strong>📝 Texto / código</strong>
-              <span className="muted small">Prioriza nitidez</span>
-            </label>
-          </div>
-        </div>
-
-        <label>
-          Codec
-          <select
-            value={settings.performanceMode ? 'h264' : settings.codec}
-            onChange={(e) => update({ codec: e.target.value as typeof settings.codec })}
-            disabled={sharing || settings.performanceMode}
-            title={settings.performanceMode ? 'No modo desempenho a transmissão usa H.264 (placa de vídeo)' : undefined}
-          >
-            {CODECS.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="check">
-          <input type="checkbox" checked={settings.screenAudio} onChange={(e) => update({ screenAudio: e.target.checked })} disabled={sharing} />
-          Transmitir o som do computador/aba
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={settings.turnSaver} onChange={(e) => update({ turnSaver: e.target.checked })} />
-          Economizar a cota do TURN
-        </label>
-        <p className="muted small">
-          Quem não consegue conexão direta com você (comum no 4G/5G) recebe pelo servidor TURN, que tem cota grátis pequena.
-          Para essas pessoas a tela vai em 720p · 30 FPS · 1 Mbps; quem tem conexão direta continua em qualidade máxima.
-          {relayedPeers > 0 && (
-            <strong className="warn"> Agora: {relayedPeers} pessoa{relayedPeers > 1 ? 's' : ''} via TURN.</strong>
-          )}
-        </p>
-
-        <p className="muted small">
-          Dica: no Chrome/Edge do Windows, escolha “Tela inteira” e marque “Compartilhar áudio do sistema”. Em uma aba, marque
-          “Compartilhar áudio da aba”.
-        </p>
-
-        <div className="modal-actions">
-          <button className="btn ghost" onClick={closeModal}>{sharing ? 'Fechar' : 'Cancelar'}</button>
-          {!sharing && (
-            <button className="btn primary" onClick={start} disabled={starting}>
-              {starting ? 'Escolha a tela…' : 'Escolher tela e transmitir'}
-            </button>
-          )}
-        </div>
-      </div>
-    </Modal>
-  );
-}

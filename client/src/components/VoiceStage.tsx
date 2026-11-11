@@ -21,10 +21,13 @@ import {
   VolumeX,
   MessageSquare,
   Lock,
+  Gauge,
+  Check,
+  Users,
   ShieldCheck,
   X,
 } from 'lucide-react';
-import type { VoiceState } from '../../../shared/types';
+import type { StreamQuality, VoiceState } from '../../../shared/types';
 import { channelMessages, findChannel, findMember, openModal, useApp } from '../store/app';
 
 const channelMessagesLoaded = (id: string) => channelMessages(id).loaded;
@@ -303,6 +306,8 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
   const localScreen = useVoice((s) => (tile.isMe ? s.localScreen : null));
   const speaking = useVoice((s) => (tile.isMe ? s.speaking.me : s.speaking[sid]));
   const watching = useVoice((s) => !!s.watching[sid]);
+  // quem transmite escolheu outras pessoas para assistir
+  const blocked = useVoice((s) => !tile.isMe && !!s.screenBlocked[sid]);
   const focus = useVoice((s) => s.focus);
   const enlarged = useVoice((s) => !!s.bigTiles[tile.id]);
   const ref = useRef<HTMLDivElement>(null);
@@ -322,7 +327,7 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
   if (tile.kind === 'screen') {
     // turbo: o vídeo vem decodificado aqui (screenTurbo); o som continua no `screen`
     const stream = tile.isMe ? localScreen : (remote?.screenTurbo ?? remote?.screen);
-    const canWatch = !tile.isMe;
+    const canWatch = !tile.isMe && !blocked;
     return (
       <div ref={ref} className={`tile screen${big ? ' big' : ''}${sizeClass}`} onDoubleClick={tile.isMe ? undefined : () => fullscreen(ref.current)}>
         {tile.isMe || watching ? (
@@ -331,6 +336,11 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
           ) : (
             <div className="tile-center muted">Carregando transmissão…</div>
           )
+        ) : blocked ? (
+          <div className="tile-center screen-blocked">
+            <Lock size={32} />
+            <p>{name} está transmitindo para outras pessoas</p>
+          </div>
         ) : (
           <div className="tile-center">
             <MonitorUp size={36} />
@@ -350,7 +360,10 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
           )}
         </div>
         {!tile.isMe && watching && <StreamVolume userId={tile.state.userId} name={name} />}
+        {!tile.isMe && watching && <StreamQualityMenu socketId={sid} name={name} />}
+        {!tile.isMe && watching && <StreamHint socketId={sid} />}
         {tile.isMe && <MyStreamAudioToggle />}
+        {tile.isMe && <MyAudienceChip />}
         <div className="tile-actions">
           {canWatch && watching && (
             <button className="icon-btn overlay" title="Parar de assistir" aria-label="Parar de assistir" onClick={() => voice.watch(sid, false)}>
@@ -566,6 +579,115 @@ function StreamVolume({ userId, name }: { userId: string; name: string }) {
         onChange={(e) => setStreamVolume(userId, Number(e.target.value))}
       />
     </div>
+  );
+}
+
+const QUALITY_OPTIONS: { id: StreamQuality; label: string; hint: string; height?: number }[] = [
+  { id: 'auto', label: 'Automático', hint: 'Recomendado. O Resenha ajusta à sua internet.' },
+  { id: 'source', label: 'Original', hint: 'A qualidade de quem transmite.' },
+  { id: '720', label: '720p', hint: 'Mais leve para a sua internet.', height: 720 },
+  { id: '480', label: '480p', hint: 'Para internet fraca ou 4G.', height: 480 },
+];
+
+/** Qualidade que EU quero assistir esta transmissão (não muda nada para os outros). */
+function StreamQualityMenu({ socketId, name }: { socketId: string; name: string }) {
+  const q = useVoice((s) => s.streamQuality[socketId] ?? 'auto');
+  const info = useVoice((s) => s.streamInfo[socketId]);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    window.addEventListener('mousedown', close);
+    return () => window.removeEventListener('mousedown', close);
+  }, [open]);
+  const now = info?.height ? `${info.height}p` : '';
+  const label = q === 'auto' ? `Auto${now ? ` · ${now}` : ''}` : q === 'source' ? `Original${now ? ` · ${now}` : ''}` : `${q}p`;
+  return (
+    <div className="stream-quality" ref={ref} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      <button
+        className="quality-chip"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Qualidade da transmissão de ${name}: ${label}`}
+        title="Qualidade (só para você)"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Gauge size={14} /> {label}
+      </button>
+      {open && (
+        <div className="quality-menu" role="menu" aria-label="Qualidade da transmissão">
+          <p className="quality-menu-title">Qualidade para você</p>
+          {QUALITY_OPTIONS.map((o) => {
+            const same = !!o.height && !!info?.srcHeight && o.height >= info.srcHeight;
+            return (
+              <button
+                key={o.id}
+                role="menuitemradio"
+                aria-checked={q === o.id}
+                className={q === o.id ? 'selected' : ''}
+                disabled={same}
+                onClick={() => {
+                  voice.setStreamQuality(socketId, o.id);
+                  setOpen(false);
+                }}
+              >
+                <span className="quality-check">{q === o.id && <Check size={14} />}</span>
+                <span>
+                  <strong>
+                    {o.label}
+                    {o.id === 'source' && info?.srcHeight ? ` (${info.srcHeight}p)` : ''}
+                  </strong>
+                  <span className="muted small">{same ? 'A transmissão já está nesta qualidade ou menor.' : o.hint}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Sugestão do Resenha: a minha internet não está dando conta desta transmissão na qualidade original. */
+function StreamHint({ socketId }: { socketId: string }) {
+  const h = useVoice((s) => s.streamHint[socketId]);
+  if (!h) return null;
+  return (
+    <div className="stream-hint" role="alert" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      <span>Sua internet não está dando conta desta transmissão. Assistir em {h}p?</span>
+      <span className="stream-hint-actions">
+        <button className="btn small primary" onClick={() => voice.setStreamQuality(socketId, String(h) as StreamQuality)}>
+          Assistir em {h}p
+        </button>
+        <button className="btn small ghost" onClick={() => voice.setStreamQuality(socketId, 'auto')}>
+          Automático
+        </button>
+        <button className="btn small ghost" onClick={() => voice.dismissStreamHint(socketId)}>
+          Manter
+        </button>
+      </span>
+    </div>
+  );
+}
+
+const AUDIENCE_LABEL = { all: 'Todos da call', friends: 'Só amigos', only: 'Só quem eu escolhi', except: 'Todos menos alguns' } as const;
+
+/** Para quem transmite: quem pode assistir agora (toque para mudar). */
+function MyAudienceChip() {
+  const mode = useVoice((s) => s.settings.screenAudience?.mode ?? 'all');
+  return (
+    <button
+      className={`audience-chip${mode !== 'all' ? ' restricted' : ''}`}
+      aria-label={`Quem pode assistir: ${AUDIENCE_LABEL[mode]}. Mudar`}
+      title="Quem pode assistir a sua transmissão"
+      onClick={(e) => {
+        e.stopPropagation();
+        openModal({ kind: 'screenShare' });
+      }}
+    >
+      {mode === 'all' ? <Users size={14} /> : <Lock size={14} />} {AUDIENCE_LABEL[mode]}
+    </button>
   );
 }
 

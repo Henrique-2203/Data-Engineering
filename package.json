@@ -45,6 +45,8 @@
     "test:e2e:health": "node e2e/health.mjs",
     "test:e2e:youtube": "node e2e/youtube.mjs",
     "test:e2e:call-private-chat": "node e2e/call-private-chat.mjs",
+    "test:e2e:stream-quality": "node e2e/stream-quality.mjs",
+    "test:e2e:stream-audience": "node e2e/stream-audience.mjs",
     "test:e2e:files": "node --import tsx e2e/files-unit.ts && node e2e/files.mjs",
     "test:e2e:files:r2": "node e2e/files.mjs --r2 && node e2e/files-migrate.mjs"
   },

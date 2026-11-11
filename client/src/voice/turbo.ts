@@ -10,6 +10,8 @@
  * Quem não suporta (navegador antigo, Firefox/Safari transmitindo) usa a transmissão normal do WebRTC.
  */
 
+import type { StreamQuality } from '../../../shared/types';
+
 export const TURBO_LABEL = 'resenha-screen';
 
 /** ordem de preferência: H.264 (placa de vídeo em quase todo PC), depois VP9/VP8 */
@@ -61,9 +63,44 @@ const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
 // Quem transmite
 // ======================================================================
 
+/**
+ * Qualidade que cada pessoa escolhe para assistir. 'auto' (padrão): o Resenha desce para 720p/480p
+ * quando a internet DELA não dá conta e sobe de novo quando melhora. As versões menores só são
+ * codificadas enquanto alguém está nelas (e são as primeiras a parar se o PC de quem transmite apertar).
+ */
+export type { StreamQuality };
+export const QUALITY_HEIGHTS = [720, 480] as const;
+
+/** bitrate de cada versão menor (nunca acima do da transmissão original) */
+const layerBitrate = (h: number, fps: number, max: number) => Math.min(max, h >= 720 ? (fps >= 50 ? 4_000_000 : 2_500_000) : fps >= 50 ? 2_000_000 : 1_200_000);
+
+interface Layer {
+  h: number;
+  encoder: VideoEncoder;
+  config: VideoEncoderConfig;
+  forceKey: boolean;
+  frameNo: number;
+  lastKeyReq: number;
+}
+
 interface Viewer {
   id: string;
   dc: RTCDataChannel;
+  /** o que a pessoa escolheu */
+  want: StreamQuality;
+  /** no automático: a altura que o Resenha escolheu (0 = original) */
+  autoH: number;
+  /** versão que ela está recebendo agora (0 = original) */
+  layerH: number;
+  /** segundos seguidos com problema / sem problema (para o automático e a sugestão) */
+  bad: number;
+  good: number;
+  /** quanto esperar (s) sem problema antes de tentar subir a qualidade de novo */
+  upWait: number;
+  lastUp: number;
+  lastHint: number;
+  /** quadros pulados porque a fila de envio dela encheu (internet dela) neste segundo */
+  netSkips: number;
   /** perdeu quadros por fila cheia: só volta a receber no próximo quadro-chave */
   waitKey: boolean;
   needCfg: boolean;
@@ -86,7 +123,9 @@ export interface TurboSendStats {
   encodeMs: number;
   /** quadros que o codificador não conseguiu acompanhar (por segundo) */
   encoderDrops: number;
-  viewers: { id: string; fps: number; shownFps: number; skipped: number; mbps: number }[];
+  viewers: { id: string; fps: number; shownFps: number; skipped: number; mbps: number; height: number; want: StreamQuality }[];
+  /** versões menores sendo codificadas agora (alturas) */
+  layers: number[];
 }
 
 export class TurboSender {
@@ -107,10 +146,12 @@ export class TurboSender {
   /** alvo atual (muda com o modo leve) */
   private target: { fps: number; bitrate: number; maxHeight: number };
   // contadores para as estatísticas (zerados a cada leitura)
-  private counters = { captured: 0, encoded: 0, encoderDrops: 0, encodeMsSum: 0, at: performance.now() };
+  private counters = { captured: 0, encoded: 0, encoderDrops: 0, layerDrops: 0, encodeMsSum: 0, at: performance.now() };
   private lastStats: TurboSendStats | null = null;
   /** quando cada quadro entrou no codificador (para medir o tempo de codificação) */
   private inFlight = new Map<number, number>();
+  /** versões menores (720p/480p), só enquanto alguém assiste nelas */
+  private layers = new Map<number, Layer>();
 
   constructor(
     private track: MediaStreamTrack,
@@ -126,7 +167,7 @@ export class TurboSender {
   }
 
   /** Começa a mandar para esta pessoa. Retorna false se ela não consegue decodificar o que estamos codificando. */
-  async addViewer(id: string, dc: RTCDataChannel, decoders: string[]): Promise<boolean> {
+  async addViewer(id: string, dc: RTCDataChannel, decoders: string[], want: StreamQuality = 'auto'): Promise<boolean> {
     if (this.stopped) return false;
     if (!this.encoder) {
       const ok = await this.openEncoder(decoders);
@@ -135,20 +176,43 @@ export class TurboSender {
       return false;
     }
     dc.binaryType = 'arraybuffer';
-    const v: Viewer = { id, dc, waitKey: true, needCfg: true, sentFrames: 0, skipped: 0, bytes: 0, shownFps: 0 };
+    const v: Viewer = {
+      id,
+      dc,
+      want,
+      autoH: 0,
+      layerH: 0,
+      bad: 0,
+      good: 0,
+      upWait: 30,
+      lastUp: -Infinity,
+      lastHint: -Infinity,
+      netSkips: 0,
+      waitKey: true,
+      needCfg: true,
+      sentFrames: 0,
+      skipped: 0,
+      bytes: 0,
+      shownFps: 0,
+    };
     dc.onmessage = (e) => {
       if (typeof e.data !== 'string') return;
       try {
         const m = JSON.parse(e.data) as { t: string; fps?: number };
-        if (m.t === 'key') this.requestKey();
+        if (m.t === 'key') this.requestKey(this.viewers.get(id)?.layerH ?? 0);
         if (m.t === 'st' && typeof m.fps === 'number') v.shownFps = m.fps;
       } catch {
         /* mensagem inválida */
       }
     };
-    dc.onclose = () => this.viewers.get(id)?.dc === dc && this.viewers.delete(id);
+    dc.onclose = () => {
+      if (this.viewers.get(id)?.dc !== dc) return;
+      this.viewers.delete(id);
+      this.rebind();
+    };
     this.viewers.set(id, v);
     this.forceKey = true;
+    this.rebind();
     this.log(`turbo: +${id.slice(0, 6)} (${this.config!.codec}${this.hardware === false ? ', processador' : ''})`);
     return true;
   }
@@ -162,6 +226,107 @@ export class TurboSender {
     } catch {
       /* já fechado */
     }
+    this.rebind();
+  }
+
+  /** A pessoa escolheu outra qualidade para assistir. */
+  setWant(id: string, want: StreamQuality) {
+    const v = this.viewers.get(id);
+    if (!v || v.want === want) return;
+    v.want = want;
+    v.autoH = 0;
+    v.bad = 0;
+    v.good = 0;
+    v.upWait = 30;
+    this.rebind();
+  }
+
+  /** altura da versão original sendo codificada agora */
+  private get mainH() {
+    return this.config?.height ?? 0;
+  }
+
+  /** versão que a pessoa deve receber: 0 (original) ou uma versão menor que a original */
+  private effective(v: Viewer) {
+    const req = v.want === 'auto' ? v.autoH : v.want === 'source' ? 0 : Number(v.want);
+    return req && req < this.mainH ? req : 0;
+  }
+
+  /** Liga cada pessoa à versão certa; cria as versões que alguém precisa e fecha as que ninguém usa. */
+  private rebind() {
+    const used = new Set<number>();
+    for (const v of this.viewers.values()) {
+      const h = this.effective(v);
+      used.add(h);
+      if (h && !this.layers.has(h)) this.openLayer(h);
+      if (h && !this.layers.has(h)) {
+        // não deu para criar a versão menor: fica na original
+        v.layerH = 0;
+        continue;
+      }
+      if (v.layerH !== h) {
+        v.layerH = h;
+        v.waitKey = true;
+        v.needCfg = true;
+        this.requestKey(h, true);
+      }
+    }
+    for (const [h, L] of this.layers) {
+      if (used.has(h)) continue;
+      this.layers.delete(h);
+      try {
+        if (L.encoder.state !== 'closed') L.encoder.close();
+      } catch {
+        /* já fechado */
+      }
+      this.log(`turbo: parou a versão ${h}p (ninguém assistindo nela)`);
+    }
+  }
+
+  private layerConfig(h: number): VideoEncoderConfig | null {
+    if (!this.config || !this.srcW || !this.srcH) return null;
+    const k = this.srcH > h ? h / this.srcH : 1;
+    return {
+      ...this.config,
+      width: even(this.srcW * k),
+      height: even(this.srcH * k),
+      bitrate: layerBitrate(h, this.target.fps, this.target.bitrate),
+      framerate: this.target.fps,
+    };
+  }
+
+  private openLayer(h: number) {
+    const config = this.layerConfig(h);
+    if (!config) return;
+    try {
+      const L: Layer = {
+        h,
+        config,
+        forceKey: true,
+        frameNo: 0,
+        lastKeyReq: 0,
+        encoder: new VideoEncoder({
+          output: (chunk) => this.onChunk(chunk, h),
+          error: (e) => {
+            this.log(`turbo: erro na versão ${h}p: ${e}`);
+            // a versão menor quebrou: quem estava nela volta para a original
+            this.layers.delete(h);
+            for (const v of this.viewers.values()) {
+              if (v.layerH !== h) continue;
+              v.layerH = 0;
+              v.waitKey = true;
+              v.needCfg = true;
+            }
+            this.requestKey(0, true);
+          },
+        }),
+      };
+      L.encoder.configure(config);
+      this.layers.set(h, L);
+      this.log(`turbo: começou a versão ${h}p (${config.width}x${config.height})`);
+    } catch (e) {
+      this.log(`turbo: não deu para criar a versão ${h}p: ${e}`);
+    }
   }
 
   has(id: string) {
@@ -174,9 +339,17 @@ export class TurboSender {
     if (this.encoder && this.srcW) this.configure(this.srcW, this.srcH);
   }
 
-  private requestKey() {
+  /** pede um quadro-chave na versão `h` (0 = original) */
+  private requestKey(h = 0, force = false) {
     const now = performance.now();
-    if (now - this.lastKeyReq < 300) return;
+    if (h) {
+      const L = this.layers.get(h);
+      if (!L || (!force && now - L.lastKeyReq < 300)) return;
+      L.lastKeyReq = now;
+      L.forceKey = true;
+      return;
+    }
+    if (!force && now - this.lastKeyReq < 300) return;
     this.lastKeyReq = now;
     this.forceKey = true;
   }
@@ -218,10 +391,18 @@ export class TurboSender {
         // recomeça com um codificador novo no próximo quadro
         this.encoder = null;
         this.config = null;
+        this.closeLayers();
         const ids = [...this.viewers.keys()];
         void this.openEncoder(decoders).then((ok) => {
           if (!ok) ids.forEach((id) => this.removeViewer(id));
-          else this.viewers.forEach((v) => (v.needCfg = true));
+          else {
+            this.viewers.forEach((v) => {
+              v.needCfg = true;
+              v.layerH = 0;
+              v.waitKey = true;
+            });
+            this.rebind();
+          }
         });
       },
     });
@@ -255,6 +436,30 @@ export class TurboSender {
     }
     this.forceKey = true;
     this.viewers.forEach((v) => (v.needCfg = true));
+    // as versões menores acompanham o tamanho da captura (e somem se a original ficou menor que elas)
+    for (const L of this.layers.values()) {
+      const cfg = this.layerConfig(L.h);
+      if (!cfg) continue;
+      L.config = cfg;
+      try {
+        L.encoder.configure(cfg);
+      } catch (e) {
+        this.log(`turbo: reconfigurar ${L.h}p falhou: ${e}`);
+      }
+      L.forceKey = true;
+    }
+    this.rebind();
+  }
+
+  private closeLayers() {
+    for (const L of this.layers.values()) {
+      try {
+        if (L.encoder.state !== 'closed') L.encoder.close();
+      } catch {
+        /* já fechado */
+      }
+    }
+    this.layers.clear();
   }
 
   /** Lê os quadros capturados e codifica no ritmo certo. */
@@ -290,6 +495,17 @@ export class TurboSender {
         this.inFlight.set(frame.timestamp, performance.now());
         if (this.inFlight.size > 30) this.inFlight.delete(this.inFlight.keys().next().value!);
         this.encoder.encode(frame, { keyFrame });
+        // versões menores: a original tem prioridade; se o PC apertar, elas pulam quadros primeiro
+        for (const L of this.layers.values()) {
+          if (this.encoder.encodeQueueSize > 1 || L.encoder.encodeQueueSize > 2 || L.encoder.state !== 'configured') {
+            this.counters.layerDrops++;
+            continue;
+          }
+          const k = L.forceKey || L.frameNo % (this.target.fps * 4) === 0;
+          L.forceKey = false;
+          L.frameNo++;
+          L.encoder.encode(frame, { keyFrame: k });
+        }
       } catch (e) {
         this.log(`turbo: falha ao codificar: ${e}`);
       } finally {
@@ -298,13 +514,17 @@ export class TurboSender {
     }
   }
 
-  private onChunk(chunk: EncodedVideoChunk) {
-    this.counters.encoded++;
-    const began = this.inFlight.get(chunk.timestamp);
-    if (began !== undefined) {
-      this.counters.encodeMsSum += performance.now() - began;
-      this.inFlight.delete(chunk.timestamp);
+  private onChunk(chunk: EncodedVideoChunk, layerH = 0) {
+    if (!layerH) {
+      this.counters.encoded++;
+      const began = this.inFlight.get(chunk.timestamp);
+      if (began !== undefined) {
+        this.counters.encodeMsSum += performance.now() - began;
+        this.inFlight.delete(chunk.timestamp);
+      }
     }
+    const cfg = layerH ? this.layers.get(layerH)?.config : this.config;
+    if (!cfg) return;
     const key = chunk.type === 'key';
     const data = new Uint8Array(chunk.byteLength);
     chunk.copyTo(data);
@@ -312,7 +532,7 @@ export class TurboSender {
     const parts = Math.max(1, Math.ceil(data.byteLength / PART));
     let packets: ArrayBuffer[] | null = null;
     for (const v of this.viewers.values()) {
-      if (v.dc.readyState !== 'open') continue;
+      if (v.dc.readyState !== 'open' || v.layerH !== layerH) continue;
       if (v.waitKey && !key) {
         v.skipped++;
         continue;
@@ -321,11 +541,22 @@ export class TurboSender {
       if (v.dc.bufferedAmount > HIGH_WATER) {
         v.waitKey = true;
         v.skipped++;
-        this.requestKeySoon();
+        v.netSkips++;
+        this.requestKeySoon(layerH);
         continue;
       }
       if (v.needCfg) {
-        v.dc.send(JSON.stringify({ t: 'cfg', codec: this.config!.codec, width: this.config!.width, height: this.config!.height }));
+        v.dc.send(
+          JSON.stringify({
+            t: 'cfg',
+            codec: cfg.codec,
+            width: cfg.width,
+            height: cfg.height,
+            fps: this.target.fps,
+            want: v.want,
+            srcHeight: this.mainH,
+          }),
+        );
         v.needCfg = false;
       }
       packets ??= this.packetize(data, seq, parts, key, chunk.timestamp);
@@ -336,14 +567,60 @@ export class TurboSender {
     }
   }
 
-  private keyTimer: ReturnType<typeof setTimeout> | null = null;
-  /** depois de esvaziar a fila de quem ficou para trás, manda um quadro-chave */
-  private requestKeySoon() {
-    if (this.keyTimer) return;
-    this.keyTimer = setTimeout(() => {
-      this.keyTimer = null;
-      this.requestKey();
-    }, 400);
+  private keyTimers = new Map<number, ReturnType<typeof setTimeout>>();
+  /** depois de esvaziar a fila de quem ficou para trás, manda um quadro-chave (na versão dele) */
+  private requestKeySoon(h = 0) {
+    if (this.keyTimers.has(h)) return;
+    this.keyTimers.set(
+      h,
+      setTimeout(() => {
+        this.keyTimers.delete(h);
+        this.requestKey(h);
+      }, 400),
+    );
+  }
+
+  /**
+   * Uma vez por segundo, para cada pessoa: está perdendo quadros por causa da internet dela (ou o
+   * aparelho dela não está dando conta)? No automático desce a qualidade só para ela; quem escolheu
+   * "Original" recebe uma sugestão (uma vez a cada 5 min).
+   */
+  private adapt(v: Viewer, sentFps: number) {
+    const now = performance.now();
+    // compara com o que foi de fato ENVIADO para ela: se o PC de quem transmite está lento, todo mundo
+    // recebe menos e isso não conta contra a internet de ninguém
+    const struggling = v.netSkips > 0 || (sentFps >= 10 && v.shownFps > 0 && v.shownFps < sentFps * 0.6);
+    v.netSkips = 0;
+    if (struggling) {
+      v.bad++;
+      v.good = 0;
+    } else {
+      v.good++;
+      v.bad = Math.max(0, v.bad - 1);
+    }
+    const options = [0, ...QUALITY_HEIGHTS.filter((h) => h < this.mainH)];
+    if (v.want === 'auto') {
+      const i = Math.max(0, options.indexOf(this.effective(v)));
+      if (v.bad >= 4 && i < options.length - 1) {
+        // subiu há pouco e já voltou a sofrer: espera mais antes de tentar de novo
+        if (now - v.lastUp < 20_000) v.upWait = Math.min(300, v.upWait * 2);
+        v.autoH = options[i + 1];
+        v.bad = 0;
+        v.good = 0;
+        this.log(`turbo: automático ${v.id.slice(0, 6)} -> ${v.autoH}p`);
+        this.rebind();
+      } else if (i > 0 && v.good >= v.upWait) {
+        v.autoH = options[i - 1];
+        v.good = 0;
+        v.lastUp = now;
+        this.log(`turbo: automático ${v.id.slice(0, 6)} -> ${v.autoH || 'original'}`);
+        this.rebind();
+      }
+    } else if (v.want === 'source' && v.bad >= 8 && options.length > 1 && now - v.lastHint > 300_000 && v.dc.readyState === 'open') {
+      v.lastHint = now;
+      v.bad = 0;
+      v.dc.send(JSON.stringify({ t: 'hint', height: options[1] }));
+    }
   }
 
   private packetize(data: Uint8Array, seq: number, parts: number, key: boolean, ts: number) {
@@ -370,7 +647,16 @@ export class TurboSender {
     const now = performance.now();
     const secs = Math.max(0.25, (now - this.counters.at) / 1000);
     const viewers = [...this.viewers.values()].map((v) => {
-      const r = { id: v.id, fps: Math.round(v.sentFrames / secs), shownFps: v.shownFps, skipped: v.skipped, mbps: (v.bytes * 8) / secs / 1e6 };
+      const r = {
+        id: v.id,
+        fps: Math.round(v.sentFrames / secs),
+        shownFps: v.shownFps,
+        skipped: v.skipped,
+        mbps: (v.bytes * 8) / secs / 1e6,
+        height: v.layerH || this.mainH,
+        want: v.want,
+      };
+      this.adapt(v, r.fps);
       v.sentFrames = 0;
       v.skipped = 0;
       v.bytes = 0;
@@ -386,8 +672,9 @@ export class TurboSender {
       codec: codecName(this.config.codec),
       hardware: this.hardware,
       viewers,
+      layers: [...this.layers.keys()],
     };
-    this.counters = { captured: 0, encoded: 0, encoderDrops: 0, encodeMsSum: 0, at: now };
+    this.counters = { captured: 0, encoded: 0, encoderDrops: 0, layerDrops: 0, encodeMsSum: 0, at: now };
     return this.lastStats;
   }
 
@@ -401,7 +688,9 @@ export class TurboSender {
       /* já fechado */
     }
     this.encoder = null;
-    if (this.keyTimer) clearTimeout(this.keyTimer);
+    this.closeLayers();
+    for (const t of this.keyTimers.values()) clearTimeout(t);
+    this.keyTimers.clear();
   }
 }
 
@@ -415,6 +704,16 @@ export interface TurboRecvStats {
   height: number;
   mbps: number;
   codec: string;
+}
+
+/** O que quem transmite contou sobre a versão que estou recebendo. */
+export interface TurboRecvInfo {
+  /** altura da versão que estou recebendo */
+  height: number;
+  /** altura da transmissão original */
+  srcHeight: number;
+  fps: number;
+  want: StreamQuality;
 }
 
 export class TurboReceiver {
@@ -433,6 +732,11 @@ export class TurboReceiver {
   private size = { w: 0, h: 0 };
   private last: TurboRecvStats | null = null;
   private stTimer: ReturnType<typeof setInterval>;
+  private dims = '';
+  info: TurboRecvInfo | null = null;
+  /** quem transmite sugeriu uma qualidade menor (minha internet não está dando conta) */
+  onHint?: (height: number) => void;
+  onInfo?: (info: TurboRecvInfo) => void;
 
   constructor(
     private dc: RTCDataChannel,
@@ -460,8 +764,18 @@ export class TurboReceiver {
     if (this.closed) return;
     if (typeof data === 'string') {
       try {
-        const m = JSON.parse(data) as { t: string; codec?: string };
-        if (m.t === 'cfg' && m.codec) this.setup(m.codec);
+        const m = JSON.parse(data) as { t: string; codec?: string; width?: number; height?: number; srcHeight?: number; fps?: number; want?: StreamQuality; };
+        if (m.t === 'cfg' && m.codec) {
+          // trocou de versão (qualidade) ou de tamanho: recomeça o decodificador no próximo quadro-chave
+          const dims = `${m.width}x${m.height}`;
+          this.setup(m.codec, dims !== this.dims && !!this.dims);
+          this.dims = dims;
+          if (typeof m.height === 'number') {
+            this.info = { height: m.height, srcHeight: m.srcHeight ?? m.height, fps: m.fps ?? 0, want: m.want ?? 'auto' };
+            this.onInfo?.(this.info);
+          }
+        }
+        if (m.t === 'hint' && typeof m.height === 'number') this.onHint?.(m.height);
       } catch {
         /* inválida */
       }
@@ -486,8 +800,8 @@ export class TurboReceiver {
     if (this.cur.got === this.cur.total) this.decode();
   }
 
-  private setup(codec: string) {
-    if (this.decoder && this.codec === codec) return;
+  private setup(codec: string, force = false) {
+    if (this.decoder && this.codec === codec && !force) return;
     this.codec = codec;
     try {
       this.decoder?.close();

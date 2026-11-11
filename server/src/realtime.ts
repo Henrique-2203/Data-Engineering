@@ -9,11 +9,22 @@ import { usableExpression } from './expressions.ts';
 import { bump } from './stats.ts';
 import { Perm, has } from '../../shared/permissions.ts';
 import { randomUUID } from 'node:crypto';
-import type { PublicUser, RtcSignal, VoiceState, Activity, TogetherState, CallChatMessage } from '../../shared/types.ts';
+import type { PublicUser, RtcSignal, VoiceState, Activity, TogetherState, CallChatMessage, ScreenAudience } from '../../shared/types.ts';
 import { checkAutomod } from './community.ts';
 import { HttpError } from './http.ts';
+import { limit } from './security.ts';
 
 type Ack = (res: any) => void;
+
+/** limite contra abuso nos eventos do socket (o `limit` das rotas lança erro; aqui só recusa) */
+const allow = (key: string, max: number, windowMs: number) => {
+  try {
+    limit(key, max, windowMs);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Camada de tempo real: presença, digitação, estado de voz e
@@ -23,6 +34,8 @@ export class Realtime {
   readonly io: Server;
   /** "Assistir juntos": vídeo de cada call (some quando a call esvazia) */
   private together = new Map<string, TogetherState>();
+  /** quem pode assistir a transmissão de cada pessoa (socketId de quem transmite) */
+  private screenAudience = new Map<string, ScreenAudience>();
   /** chat privado de cada call (só na memória; some quando a call esvazia) */
   private callChat = new Map<string, CallChatMessage[]>();
   private lastCallChat = new Map<string, number[]>();
@@ -342,7 +355,39 @@ export class Realtime {
       const from = this.voice.get(socket.id);
       const target = to ? this.voice.get(to) : undefined;
       if (!to || !from || !target || from.channelId !== target.channelId) return;
+      // pedido para assistir uma transmissão restrita: só chega a quem transmite se a pessoa pode
+      // (o app de quem transmite confere de novo antes de mandar qualquer imagem)
+      if (payload.data?.type === 'watch' && payload.data.on && this.screenAudience.has(to)) {
+        // conferir custa uma consulta (amigos): no máximo 20 pedidos a cada 10 s por pessoa
+        if (!allow(`watch:${socket.id}`, 20, 10_000)) return;
+        void this.canWatchScreen(to, from.userId).then((ok) => {
+          if (ok) this.io.to(to).emit('rtc:signal', { from: socket.id, data: payload.data });
+          else this.io.to(socket.id).emit('screen:access', { socketId: to, allowed: false });
+        });
+        return;
+      }
       this.io.to(to).emit('rtc:signal', { from: socket.id, data: payload.data });
+    });
+
+    // quem pode assistir a minha transmissão
+    socket.on('screen:audience', (payload: unknown, ack?: Ack) => {
+      const state = this.voice.get(socket.id);
+      const p = z
+        .object({ mode: z.enum(['all', 'friends', 'only', 'except']), userIds: z.array(z.string().max(64)).max(100) })
+        .safeParse(payload);
+      if (!state || !p.success) {
+        ack?.({ ok: false });
+        return;
+      }
+      // avisa cada pessoa da call a cada mudança: no máximo 10 mudanças a cada 10 s
+      if (!allow(`audience:${socket.id}`, 10, 10_000)) {
+        ack?.({ ok: false, error: 'Calma: muitas mudanças seguidas. Espere uns segundos.' });
+        return;
+      }
+      if (p.data.mode === 'all') this.screenAudience.delete(socket.id);
+      else this.screenAudience.set(socket.id, { mode: p.data.mode, userIds: [...new Set(p.data.userIds)] });
+      void this.sendScreenAccess(socket.id);
+      ack?.({ ok: true });
     });
 
     // 'disconnecting' (e não 'disconnect') porque aqui socket.rooms ainda está preenchido.
@@ -484,6 +529,10 @@ export class Realtime {
     for (const peer of peers) {
       this.io.to(peer.socketId).emit('voice:peer-joined', { socketId: socket.id, userId: user.id });
     }
+    // transmissões restritas já em andamento: conta a quem chegou se pode assistir
+    for (const sid of this.screenAudience.keys()) {
+      if (this.voice.get(sid)?.channelId === state.channelId) void this.sendScreenAccess(sid, [socket.id]);
+    }
     this.emitVoice(state, 'voice:state', state);
 
     if (channel.type === 'dm') {
@@ -537,6 +586,7 @@ export class Realtime {
     const state = this.voice.get(socketId);
     if (!state) return;
     this.voice.delete(socketId);
+    this.screenAudience.delete(socketId);
     // call vazia: o "Assistir juntos" e o chat privado acabam
     if (![...this.voice.values()].some((v) => v.channelId === state.channelId)) {
       this.together.delete(state.channelId);
@@ -630,6 +680,34 @@ export class Realtime {
     if (a.action === 'play' || a.action === 'enqueue') this.pushCallChat(v.channelId, { userId: user, content: a.title?.trim() || 'um vídeo do YouTube', kind: 'together' });
     this.io.to(`voice:${v.channelId}`).emit('together:state', { channelId: v.channelId, state: next, now, by: user, action: a.action });
     return { ok: true };
+  }
+
+  /** A pessoa (userId) pode assistir a transmissão de quem está no socket `streamerSid`? */
+  private async canWatchScreen(streamerSid: string, viewerUserId: string) {
+    const a = this.screenAudience.get(streamerSid);
+    const st = this.voice.get(streamerSid);
+    if (!a || !st || a.mode === 'all' || viewerUserId === st.userId) return true;
+    if (a.mode === 'only') return a.userIds.includes(viewerUserId);
+    if (a.mode === 'except') return !a.userIds.includes(viewerUserId);
+    const rows = await this.db.query(
+      `select 1 from friendships where status = 'accepted'
+         and ((requester_id = $1 and addressee_id = $2) or (requester_id = $2 and addressee_id = $1)) limit 1`,
+      [st.userId, viewerUserId],
+    );
+    return rows.length > 0;
+  }
+
+  /** Conta a cada pessoa da call (ou só a `only`) se ela pode assistir a transmissão de `streamerSid`. */
+  private async sendScreenAccess(streamerSid: string, only?: string[]) {
+    const st = this.voice.get(streamerSid);
+    if (!st) return;
+    const targets = only ?? [...this.voice.values()].filter((v) => v.channelId === st.channelId && v.socketId !== streamerSid).map((v) => v.socketId);
+    for (const sid of targets) {
+      const v = this.voice.get(sid);
+      if (!v) continue;
+      const allowed = await this.canWatchScreen(streamerSid, v.userId).catch(() => false);
+      this.io.to(sid).emit('screen:access', { socketId: streamerSid, allowed });
+    }
   }
 
   private pushCallChat(channelId: string, m: Omit<CallChatMessage, 'id' | 'at'>) {

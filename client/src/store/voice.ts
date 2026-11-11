@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { loadSettings, saveSettings, type NoiseMode, type VoiceSettings } from '../voice/settings';
 import type { SoundBurst } from '../lib/soundboard';
-import type { TogetherState, CallChatMessage } from '../../../shared/types';
+import type { TogetherState, CallChatMessage, StreamQuality } from '../../../shared/types';
+import type { TurboRecvInfo } from '../voice/turbo';
 
 export type MediaKind = 'mic' | 'camera' | 'screen';
 
@@ -33,6 +34,14 @@ export interface VoiceStore {
   screenLight: boolean;
   /** "Assistir juntos": vídeo do YouTube tocando para a call (null = nenhum) */
   together: TogetherState | null;
+  /** qualidade que escolhi para assistir cada transmissão (socketId -> qualidade; padrão 'auto') */
+  streamQuality: Record<string, StreamQuality>;
+  /** o que quem transmite contou sobre a versão que estou recebendo (turbo) */
+  streamInfo: Record<string, TurboRecvInfo>;
+  /** sugestão de baixar a qualidade (minha internet não está dando conta): socketId -> altura sugerida */
+  streamHint: Record<string, number>;
+  /** transmissões que NÃO posso assistir (quem transmite escolheu outras pessoas): socketId -> true */
+  screenBlocked: Record<string, true>;
   /** fechei o "Assistir juntos" só para mim (continua para os outros) */
   togetherHidden: boolean;
   /** chat privado da call (só quem está nela; não fica salvo) */
@@ -72,6 +81,10 @@ export const useVoice = create<VoiceStore>(() => ({
   screenLight: false,
   noiseActive: null,
   together: null,
+  streamQuality: {},
+  streamInfo: {},
+  streamHint: {},
+  screenBlocked: {},
   togetherHidden: false,
   callChat: [],
   noMic: false,

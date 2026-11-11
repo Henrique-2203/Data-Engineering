@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { playSound } from '../lib/sounds';
 import { getSocket, onSocketReady } from '../lib/socket';
 import { findChannel, findMember, toast, useApp } from '../store/app';
-import { useVoice, type MediaKind, type RemoteMedia } from '../store/voice';
+import { updateSettings, useVoice, type MediaKind, type RemoteMedia } from '../store/voice';
 import { Peer, type SenderSlot } from './peer';
 import { preferCodec } from './sdp';
 import { CODECS, type NoiseMode, effectiveBitrate, screenCodecFor, screenPresetFor } from './settings';
@@ -14,6 +14,7 @@ import { together } from './together';
 import { callChat } from './callChat';
 import { healthPeerClosed, healthPeerCreated, healthPeerState, healthResume, startHealthSampler, stopHealthSampler } from '../lib/health';
 import { TURBO_LABEL, TurboReceiver, TurboSender, type TurboSendStats, decodableCodecs, turboCanReceive, turboCanSend } from './turbo';
+import type { ScreenAudience, StreamQuality } from '../../../shared/types';
 
 const CAMERA_BITRATE = 1_200_000;
 
@@ -128,6 +129,17 @@ class VoiceEngine {
       playSound('peerJoin');
       useApp.setState({ outgoingRing: null }); // atenderam
     });
+    // quem transmite restringiu quem pode assistir (ou liberou de novo)
+    socket.on('screen:access', ({ socketId, allowed }: { socketId: string; allowed: boolean }) => {
+      if (getV().status === 'idle') return;
+      setV((s) => {
+        const screenBlocked = { ...s.screenBlocked };
+        if (allowed) delete screenBlocked[socketId];
+        else screenBlocked[socketId] = true;
+        return { screenBlocked };
+      });
+      if (!allowed && getV().watching[socketId]) this.watch(socketId, false);
+    });
     socket.on('voice:peer-left', ({ socketId }: { socketId: string }) => {
       this.dbg(`peer-left ${socketId}`);
       if (this.peers.has(socketId)) playSound('peerLeave');
@@ -233,6 +245,8 @@ class VoiceEngine {
       // ligando numa DM sem ninguém do outro lado: fica "chamando…" até atenderem
       if (channel.type === 'dm' && !res.peers?.length && !rejoin) useApp.setState({ outgoingRing: channelId });
       if (useApp.getState().incomingCall?.channelId === channelId) useApp.setState({ incomingCall: null });
+      // voltando (ex.: servidor reiniciou): conta de novo quem pode assistir a minha tela
+      if (getV().screen) this.sendAudience();
       if (getV().camera || getV().screen) {
         socket.emit('voice:update', { camera: !!this.camTrack, screen: !!this.screenStream });
       }
@@ -286,11 +300,16 @@ class VoiceEngine {
       remotes: {},
       speaking: {},
       watching: {},
+      streamQuality: {},
+      streamInfo: {},
+      streamHint: {},
+      screenBlocked: {},
       focus: null,
       audioBlocked: false,
       pttActive: false,
       micLevelDb: -100,
     });
+    this.peerWant.clear();
   }
 
   private resetPeers() {
@@ -333,7 +352,12 @@ class VoiceEngine {
       if (uid !== userId || oldSid === socketId) continue;
       this.oldPeers.delete(oldSid);
       const wasWatching = !!getV().watching[oldSid];
+      const quality = getV().streamQuality[oldSid];
+      const want = this.peerWant.get(oldSid);
       this.closePeer(oldSid);
+      // continua com a mesma qualidade escolhida (dos dois lados)
+      if (quality) setV((s) => ({ streamQuality: { ...s.streamQuality, [socketId]: quality } }));
+      if (want) this.peerWant.set(socketId, want);
       if (wasWatching) this.watch(socketId, true);
       this.dbg(`old peer ${oldSid} -> ${socketId}`);
     }
@@ -415,7 +439,8 @@ class VoiceEngine {
         healthPeerState(socketId, connection);
         if (connection === 'connected' && this.oldPeers.size) this.replaceOldPeer(socketId, userId);
       },
-      onWatch: (on, decoders) => this.onWatchRequest(socketId, on, decoders),
+      onWatch: (on, decoders, quality) => this.onWatchRequest(socketId, on, decoders, quality),
+      onQuality: (q) => this.onQualityRequest(socketId, q),
       onDataChannel: (dc) => this.onScreenChannel(socketId, dc),
       onStable: () => this.applyEncodings(peer),
       log: (msg) => this.dbg(`[${socketId.slice(0, 6)}] ${msg}`),
@@ -454,6 +479,7 @@ class VoiceEngine {
     this.peers.get(socketId)?.close();
     this.peers.delete(socketId);
     this.screenWatchers.delete(socketId);
+    this.peerWant.delete(socketId);
     const m = this.meters.get(socketId);
     if (m) {
       m.source.disconnect();
@@ -464,8 +490,14 @@ class VoiceEngine {
       delete remotes[socketId];
       const watching = { ...s.watching };
       delete watching[socketId];
+      const streamQuality = { ...s.streamQuality };
+      delete streamQuality[socketId];
+      const streamInfo = { ...s.streamInfo };
+      delete streamInfo[socketId];
+      const streamHint = { ...s.streamHint };
+      delete streamHint[socketId];
       const focus = s.focus?.startsWith(socketId) ? null : s.focus;
-      return { remotes, watching, focus };
+      return { remotes, watching, streamQuality, streamInfo, streamHint, focus };
     });
   }
 
@@ -603,6 +635,7 @@ class VoiceEngine {
     this.turbo?.stop();
     this.turbo = turboCanSend() && settings.turbo !== false ? new TurboSender(videoTrack, this.turboTarget(), (m) => this.dbg(m)) : null;
     this.startTurboStats();
+    this.sendAudience();
     setV({ screen: true, localScreen: stream, screenLight: false });
     getSocket()?.emit('voice:update', { screen: true });
     desktop?.setStreaming?.(true);
@@ -649,6 +682,8 @@ class VoiceEngine {
     if (dc.label !== TURBO_LABEL) return dc.close();
     this.turboRecv.get(socketId)?.close();
     const recv = new TurboReceiver(dc, (m) => this.dbg(m));
+    recv.onInfo = (info) => setV((s) => ({ streamInfo: { ...s.streamInfo, [socketId]: info } }));
+    recv.onHint = (height) => setV((s) => ({ streamHint: { ...s.streamHint, [socketId]: height } }));
     this.turboRecv.set(socketId, recv);
     this.patchRemote(socketId, (r) => ({ screenTurbo: recv.stream, v: r.v + 1 }));
     dc.addEventListener('close', () => {
@@ -656,6 +691,11 @@ class VoiceEngine {
       recv.close();
       this.turboRecv.delete(socketId);
       this.patchRemote(socketId, (r) => ({ screenTurbo: undefined, v: r.v + 1 }));
+      setV((s) => {
+        const streamInfo = { ...s.streamInfo };
+        delete streamInfo[socketId];
+        return { streamInfo };
+      });
     });
   }
 
@@ -799,6 +839,12 @@ class VoiceEngine {
     const save = peer.relayed && settings.turnSaver;
     if (peer.isSending('screenVideo')) {
       const height = this.screenStream?.getVideoTracks()[0]?.getSettings().height ?? 0;
+      // quem assiste escolheu 720p/480p: só ela recebe menor (cada pessoa tem o próprio envio aqui)
+      const want = this.peerWant.get(peer.id);
+      const wantH = want === '720' || want === '480' ? Number(want) : 0;
+      const lightH = this.lightLevel ? (this.lightLevel >= 2 ? 540 : 720) : 0;
+      const capH = [wantH, lightH].filter(Boolean).reduce((a, b) => Math.min(a, b), Infinity);
+      const capBitrate = wantH ? (wantH >= 720 ? (preset.fps >= 50 ? 4_000_000 : 2_500_000) : preset.fps >= 50 ? 2_000_000 : 1_200_000) : Infinity;
       void peer.setEncoding('screenVideo', save
         ? {
             maxBitrate: Math.min(TURN_LIMITS.screen.maxBitrate, effectiveBitrate(settings)),
@@ -806,12 +852,12 @@ class VoiceEngine {
             scaleDown: height > TURN_LIMITS.screen.maxHeight ? height / TURN_LIMITS.screen.maxHeight : 1,
             degradation: 'balanced',
           }
-        : this.lightLevel
+        : this.lightLevel || wantH
           ? {
-              // versão leve (modo desempenho): menos pixels para codificar, mesmo FPS
-              maxBitrate: Math.min(effectiveBitrate(settings), this.lightLevel >= 2 ? 3_000_000 : 5_000_000),
+              // versão leve (modo desempenho) ou qualidade menor escolhida por quem assiste: menos pixels, mesmo FPS
+              maxBitrate: Math.min(effectiveBitrate(settings), this.lightLevel ? (this.lightLevel >= 2 ? 3_000_000 : 5_000_000) : Infinity, capBitrate),
               maxFramerate: preset.fps,
-              scaleDown: height > (this.lightLevel >= 2 ? 540 : 720) ? height / (this.lightLevel >= 2 ? 540 : 720) : 1,
+              scaleDown: height > capH ? height / capH : 1,
               degradation: 'maintain-framerate',
               codecMime: CODECS.find((c) => c.id === screenCodecFor(settings))?.mime,
             }
@@ -882,9 +928,71 @@ class VoiceEngine {
     return [...this.screenWatchers].filter((id) => this.peers.get(id)?.relayed).length;
   }
 
-  private onWatchRequest(socketId: string, on: boolean, decoders?: string[]) {
+  /** qualidade que cada pessoa escolheu para assistir a minha tela (socketId -> qualidade) */
+  private peerWant = new Map<string, StreamQuality>();
+
+  /** Quem assiste trocou a qualidade: turbo troca de versão; no modo normal, muda o envio só para ela. */
+  private qualityTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private onQualityRequest(socketId: string, q: StreamQuality) {
+    this.peerWant.set(socketId, q);
+    // no máximo uma troca por segundo por pessoa: ninguém consegue fazer o meu PC abrir e fechar
+    // codificadores sem parar trocando de qualidade (vale a última escolha)
+    if (this.qualityTimers.has(socketId)) return;
+    const apply = () => {
+      const want = this.peerWant.get(socketId) ?? 'auto';
+      if (this.turbo?.has(socketId)) this.turbo.setWant(socketId, want);
+      else {
+        const peer = this.peers.get(socketId);
+        if (peer) this.applyEncodings(peer);
+      }
+    };
+    apply();
+    this.qualityTimers.set(
+      socketId,
+      setTimeout(() => {
+        this.qualityTimers.delete(socketId);
+        // mudou de novo durante a espera: aplica a última
+        if ((this.peerWant.get(socketId) ?? 'auto') !== q) apply();
+      }, 1000),
+    );
+  }
+
+  /** Esta pessoa pode assistir a minha tela? (o servidor confere antes; aqui é a última palavra) */
+  private canWatchMe(userId: string) {
+    const a = getV().settings.screenAudience ?? { mode: 'all', userIds: [] };
+    if (a.mode === 'all' || userId === useApp.getState().me?.id) return true;
+    if (a.mode === 'only') return a.userIds.includes(userId);
+    if (a.mode === 'except') return !a.userIds.includes(userId);
+    return useApp.getState().friends.some((f) => f.user.id === userId && f.status === 'friend');
+  }
+
+  /** Conta ao servidor quem pode assistir a minha tela. */
+  private sendAudience() {
+    if (getV().status === 'idle') return;
+    getSocket()?.emit('screen:audience', getV().settings.screenAudience ?? { mode: 'all', userIds: [] });
+  }
+
+  /** Muda quem pode assistir: vale na hora (quem saiu da lista para de receber a imagem). */
+  setScreenAudience(a: ScreenAudience) {
+    updateSettings({ screenAudience: { mode: a.mode, userIds: [...new Set(a.userIds)].slice(0, 100) } });
+    this.sendAudience();
+    for (const id of [...this.screenWatchers]) {
+      const p = this.peers.get(id);
+      if (p && !this.canWatchMe(p.userId)) {
+        this.dbg(`audiência: ${id.slice(0, 6)} não pode mais assistir`);
+        this.onWatchRequest(id, false);
+      }
+    }
+  }
+
+  private onWatchRequest(socketId: string, on: boolean, decoders?: string[], quality?: StreamQuality) {
     const peer = this.peers.get(socketId);
     if (!peer) return;
+    if (quality) this.peerWant.set(socketId, quality);
+    if (on && !this.canWatchMe(peer.userId)) {
+      this.dbg(`pedido para assistir de ${socketId.slice(0, 6)} recusado (fora de quem pode assistir)`);
+      return;
+    }
     if (on) {
       this.screenWatchers.add(socketId);
       const { settings } = getV();
@@ -922,7 +1030,7 @@ class VoiceEngine {
     const timer = setTimeout(fallback, 10_000);
     dc.onopen = async () => {
       clearTimeout(timer);
-      if (!(await turbo.addViewer(peer.id, dc, decoders))) fallback();
+      if (!(await turbo.addViewer(peer.id, dc, decoders, this.peerWant.get(peer.id) ?? 'auto'))) fallback();
       else this.applyEncodings(peer);
     };
   }
@@ -940,9 +1048,32 @@ class VoiceEngine {
     this.sendWatch(socketId, on);
   }
 
+  /** Quem assiste: escolhe a qualidade da transmissão de alguém (só para si). */
+  setStreamQuality(socketId: string, q: StreamQuality) {
+    setV((s) => {
+      const streamHint = { ...s.streamHint };
+      delete streamHint[socketId];
+      return { streamQuality: { ...s.streamQuality, [socketId]: q }, streamHint };
+    });
+    getSocket()?.emit('rtc:signal', { to: socketId, data: { type: 'quality', q } satisfies RtcSignal });
+  }
+
+  /** Quem assiste: ignora a sugestão de baixar a qualidade desta transmissão. */
+  dismissStreamHint(socketId: string) {
+    setV((s) => {
+      const streamHint = { ...s.streamHint };
+      delete streamHint[socketId];
+      return { streamHint };
+    });
+  }
+
   private sendWatch(socketId: string, on: boolean) {
+    const quality = getV().streamQuality[socketId];
     const send = (decoders?: string[]) =>
-      getSocket()?.emit('rtc:signal', { to: socketId, data: { type: 'watch', on, ...(decoders?.length ? { decoders } : {}) } satisfies RtcSignal });
+      getSocket()?.emit('rtc:signal', {
+        to: socketId,
+        data: { type: 'watch', on, ...(decoders?.length ? { decoders } : {}), ...(on && quality ? { quality } : {}) } satisfies RtcSignal,
+      });
     // aceito a transmissão turbo se este aparelho decodifica (e a pessoa não desligou)
     if (on && turboCanReceive() && getV().settings.turbo !== false) void decodableCodecs().then(send, () => send());
     else send();

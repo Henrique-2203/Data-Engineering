@@ -356,6 +356,24 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 
 ---
 
+## Transmissão do seu jeito (11/11)
+- [ ] **Janela "Transmitir tela"**: três blocos (Quem pode assistir, Qualidade, Opções) e "Avançado" fechado.
+      Cada opção tem um **"i"** que abre uma explicação curta; Esc ou clicar fora fecha só o balão.
+- [ ] **Qualidade para cada um** (quem assiste): botão de qualidade no canto da transmissão (aparece ao passar o mouse).
+  - [ ] Automático (padrão), Original, 720p, 480p. Muda só para quem escolheu; os outros continuam como estavam.
+  - [ ] Automático: com a internet ruim (ex.: celular no 4G fraco), desce para 720p/480p sozinho; quando melhora, sobe
+        com calma (espera ~30 s sem problema).
+  - [ ] Escolheu "Original" e a internet não dá conta: aparece a sugestão "Assistir em 720p / Automático / Manter".
+  - [ ] Quem transmite: as versões menores só são feitas enquanto alguém assiste nelas; se o PC apertar, elas são as
+        primeiras a perder quadros (a original fica intacta).
+- [ ] **Quem pode assistir** (quem transmite): Todos da call, Só amigos, Só quem eu escolher, Todos menos…
+  - [ ] Quem não pode vê "🔒 Fulano está transmitindo para outras pessoas" (sem botão de assistir).
+  - [ ] Mudar no meio (botão no canto da sua tela "Todos da call"/"Só amigos"…): quem saiu da lista perde a imagem na
+        hora; quem entrou passa a ter o botão de assistir.
+  - [ ] A voz continua para todos da call (só a tela e o som dela ficam restritos).
+
+---
+
 ## Se algo der errado
 
 Anote **o que fez**, **o que esperava** e **o que aconteceu** (um print ajuda muito) e me mande.

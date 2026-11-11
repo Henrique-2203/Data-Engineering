@@ -1,3 +1,5 @@
+import type { ScreenAudience } from '../../../shared/types';
+
 export interface ScreenPreset {
   id: string;
   label: string;
@@ -45,6 +47,8 @@ export interface VoiceSettings {
   contentType: ContentType;
   codec: CodecChoice;
   screenAudio: boolean;
+  /** quem pode assistir a minha transmissão (o servidor também confere) */
+  screenAudience: ScreenAudience;
   /** Bitrate escolhido manualmente (Mbps). null = padrão do preset. */
   bitrateMbps: number | null;
   micDeviceId: string | null;
@@ -91,6 +95,7 @@ export const DEFAULT_SETTINGS: VoiceSettings = {
   contentType: 'motion',
   codec: 'h264',
   screenAudio: true,
+  screenAudience: { mode: 'all', userIds: [] },
   bitrateMbps: null,
   micDeviceId: null,
   noiseMode: 'gtcrn',

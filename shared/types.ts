@@ -297,12 +297,33 @@ export interface InvitePreview {
 }
 
 /** Mensagens trocadas entre pares WebRTC, retransmitidas pelo servidor. */
+/**
+ * Qualidade que cada pessoa escolhe para assistir uma transmissão. 'auto' (padrão): o Resenha desce
+ * para 720p/480p quando a internet dela não dá conta e sobe de novo quando melhora.
+ */
+export type StreamQuality = 'auto' | 'source' | '720' | '480';
+export const STREAM_QUALITIES: StreamQuality[] = ['auto', 'source', '720', '480'];
+
+/**
+ * Quem pode assistir a minha transmissão: todos da call, só amigos, só quem eu escolher ou todos
+ * menos quem eu escolher. Quem não pode vê "🔒 transmitindo para outras pessoas". A voz continua
+ * para todos da call (é a mesma call); só a imagem (e o som) da transmissão fica restrita.
+ */
+export type ScreenAudienceMode = 'all' | 'friends' | 'only' | 'except';
+export interface ScreenAudience {
+  mode: ScreenAudienceMode;
+  /** 'only': quem pode; 'except': quem não pode */
+  userIds: string[];
+}
+
 export type RtcSignal =
   | { type: 'description'; description: { type: 'offer' | 'answer'; sdp: string } }
   | { type: 'candidate'; candidate: unknown }
   | { type: 'meta'; streams: Record<string, 'mic' | 'camera' | 'screen'> }
   /** `decoders`: quem assiste aceita a transmissão turbo (codecs que consegue decodificar) */
-  | { type: 'watch'; on: boolean; decoders?: string[] };
+  | { type: 'watch'; on: boolean; decoders?: string[]; quality?: StreamQuality }
+  /** quem assiste trocou a qualidade */
+  | { type: 'quality'; q: StreamQuality };
 
 /** Ações que entram no registro de auditoria do servidor. */
 export type AuditAction =

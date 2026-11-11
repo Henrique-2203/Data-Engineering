@@ -11,6 +11,16 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-11a',
+    title: 'Transmissão do seu jeito',
+    items: [
+      ['📶', 'Qualidade para cada um: na transmissão que você está assistindo, toque no botão de qualidade e escolha Automático, Original, 720p ou 480p. Muda só para você. No Automático, o Resenha baixa a qualidade sozinho se a sua internet não der conta e sobe de novo quando melhorar.'],
+      ['💡', 'Se você escolheu "Original" e a sua internet está sofrendo, o Resenha sugere uma qualidade menor (você decide).'],
+      ['🔒', 'Quem pode assistir: ao transmitir, escolha Todos da call, Só amigos, Só quem eu escolher ou Todos menos… Dá para mudar no meio da transmissão. Quem não pode assistir vê "transmitindo para outras pessoas".'],
+      ['🧭', 'A janela de transmitir ficou mais simples: o essencial à vista, o resto em "Avançado", e um botão "i" explicando cada opção.'],
+    ],
+  },
+  {
     id: '2026-11-10f',
     title: 'Assistir juntos melhorado',
     items: [
