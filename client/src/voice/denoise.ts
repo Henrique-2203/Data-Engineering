@@ -21,8 +21,11 @@ export interface Denoiser {
 }
 
 let ctx: AudioContext | null = null;
-/** +8 dB depois do filtro */
-const MAKEUP_GAIN = 2.5;
+/**
+ * +6 dB depois do filtro. Com o limitador em -10 dB a voz fica no mesmo volume de antes (+8 dB com
+ * limitador em -3), mas os picos de voz alta não estouram mais (medido: distorção ~230x menor).
+ */
+const MAKEUP_GAIN = 2.0;
 const loaded = new Map<AiNoiseMode, Promise<ArrayBuffer>>();
 
 function context() {
@@ -48,6 +51,31 @@ function load(mode: AiNoiseMode, c: AudioContext): Promise<ArrayBuffer> {
   return p;
 }
 
+/**
+ * Arredonda picos acima de -1 dBFS em vez de cortar (o corte vira estalo). Aceita picos de até +6 dB
+ * acima do máximo (o WaveShaper só enxerga -1..1, por isso entra com metade do volume).
+ */
+export function softClipCurve(n = 4096) {
+  const curve = new Float32Array(n);
+  const knee = 0.89; // -1 dBFS
+  const room = 0.98 - knee;
+  for (let i = 0; i < n; i++) {
+    const v = ((i / (n - 1)) * 2 - 1) * 2;
+    const a = Math.abs(v);
+    curve[i] = a <= knee ? v : Math.sign(v) * (knee + room * Math.tanh((a - knee) / room));
+  }
+  return curve;
+}
+function softClipper(c: BaseAudioContext) {
+  const input = c.createGain();
+  input.gain.value = 0.5;
+  const output = c.createWaveShaper();
+  output.curve = softClipCurve();
+  output.oversample = '2x';
+  input.connect(output);
+  return { input, output };
+}
+
 export const aiNoiseSupported = () => typeof AudioWorkletNode !== 'undefined' && typeof WebAssembly !== 'undefined';
 
 /** Passa o microfone pelo filtro de IA. Lança erro se o aparelho não suportar (aí usamos o filtro do navegador). */
@@ -65,15 +93,19 @@ export async function createDenoiser(raw: MediaStreamTrack, mode: AiNoiseMode): 
   const makeup = c.createGain();
   makeup.gain.value = MAKEUP_GAIN;
   const limiter = c.createDynamicsCompressor();
-  limiter.threshold.value = -3;
+  limiter.threshold.value = -10;
   limiter.knee.value = 0;
   limiter.ratio.value = 20;
   limiter.attack.value = 0.002;
   limiter.release.value = 0.08;
+  // o limitador do navegador deixa passar picos rápidos (voz alta, risada): sem isto eles estouram
+  // e viram estalos na call. Proteção final: abaixo de -1 dB nada muda; acima, o pico é arredondado.
+  const guard = softClipper(c);
   source.connect(node);
   node.connect(makeup);
   makeup.connect(limiter);
-  limiter.connect(dest);
+  limiter.connect(guard.input);
+  guard.output.connect(dest);
   const track = dest.stream.getAudioTracks()[0];
   return {
     track,
@@ -83,6 +115,8 @@ export async function createDenoiser(raw: MediaStreamTrack, mode: AiNoiseMode): 
         node.disconnect();
         makeup.disconnect();
         limiter.disconnect();
+        guard.input.disconnect();
+        guard.output.disconnect();
         node.destroy?.();
       } catch {
         /* já desligado */
