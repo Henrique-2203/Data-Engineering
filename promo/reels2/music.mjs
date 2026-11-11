@@ -164,11 +164,11 @@ export function makeReelsAudio() {
   for (let b = 0; b < beats; b++) {
     const t = b * BEAT;
     const c = chordAt(t);
-    const groove = t >= 2 && t < 24;
-    const build = t >= 14 && t < 15;
-    const drop = t >= 15 && t < 19;
+    const groove = t >= 2 && t < 28;
+    const build = t >= 18 && t < 19;
+    const drop = t >= 19 && t < 23;
     if (!groove) continue;
-    if (!(t >= 14.5 && t < 15)) kick(t, drop ? 1.1 : 1);
+    if (!(t >= 18.5 && t < 19)) kick(t, drop ? 1.1 : 1);
     if (b % 2 === 1 && !build) clap(t, drop ? 1.1 : 0.9);
     hat(t + BEAT / 2, drop ? 1 : 0.8, b % 4 === 3);
     if (drop) {
@@ -176,7 +176,7 @@ export function makeReelsAudio() {
       hat(t + (3 * BEAT) / 4, 0.5);
     }
     // baixo em colcheias
-    if (!build || t < 14.5) {
+    if (!build || t < 18.5) {
       bass(t, c.root, BEAT / 2 - 0.01, drop ? 1.1 : 0.9);
       bass(t + BEAT / 2, c.root + (b % 4 === 3 ? 7 : 0), BEAT / 2 - 0.01, drop ? 1.1 : 0.9);
     }
@@ -192,23 +192,23 @@ export function makeReelsAudio() {
       if (b % 2 === 0) pluck(t, melody[(b / 2) % 8], 0.9, 0.35, 0);
     }
     // segunda metade mais "cheia"
-    if (t >= 10 && t < 14 && b % 4 === 0) pad(t, c.notes, 4 * BEAT, 0.5);
+    if (t >= 14 && t < 18 && b % 4 === 0) pad(t, c.notes, 4 * BEAT, 0.5);
   }
   // virada para a montagem: caixa acelerando + subida, respiro e DROP
-  for (let i = 0; i < 16; i++) snare(14 + (i / 16) * 0.95, 0.3 + (i / 16) * 0.7);
-  riser(13.6, 15, 1);
-  impact(15, 1.1);
+  for (let i = 0; i < 16; i++) snare(18 + (i / 16) * 0.95, 0.3 + (i / 16) * 0.7);
+  riser(17.6, 19, 1);
+  impact(19, 1.1);
   impact(2, 0.7);
-  impact(10, 0.6);
+  impact(14, 0.6);
   // final no logo
-  riser(23.2, 24, 0.8);
-  impact(24, 1.2);
-  stab(24, CHORDS[0].notes, 1.2, 1.1);
-  pad(24, CHORDS[0].notes.map((m) => m + 12), 2, 1);
-  shimmer(24.05);
+  riser(27.2, 28, 0.8);
+  impact(28, 1.2);
+  stab(28, CHORDS[0].notes, 1.2, 1.1);
+  pad(28, CHORDS[0].notes.map((m) => m + 12), 2, 1);
+  shimmer(28.05);
 
   // efeitos sincronizados
-  for (const c of CUTS) if (![2, 10, 15, 24].includes(c)) whoosh(c, 0.55);
+  for (const c of CUTS) if (![2, 14, 19, 28].includes(c)) whoosh(c, 0.55);
   for (const t of TICKS) tick(t);
   for (const t of CLICKS) click(t);
 
@@ -251,7 +251,7 @@ export function makeReelsAudio() {
   }
   // volume da gravação pelo volume MÉDIO da música no groove (voz tem picos altos e média baixa)
   let acc = 0, cnt = 0;
-  for (let j = Math.floor(10.5 * RATE); j < 14 * RATE; j++) {
+  for (let j = Math.floor(14.5 * RATE); j < 18 * RATE; j++) {
     acc += L[j] * L[j];
     cnt++;
   }
@@ -295,8 +295,10 @@ function readWav(file) {
 const demo = JSON.parse(readFileSync(path.join(AUDIO, 'demo.json'), 'utf8'));
 /** põe os trechos da gravação na hora certa; o "depois" com o mesmo volume do "antes" */
 function addVoice(L, R, N, target, byRms = false) {
-  const src = { antes: readWav('antes.wav'), depois: readWav('depois.wav') };
-  const level = { antes: 1, depois: demo.rmsAntes / demo.rmsDepois };
+  const src = { antes: readWav('antes.wav'), depois: readWav('depois.wav'), tecAntes: readWav('tec-antes.wav'), tecDepois: readWav('tec-depois.wav') };
+  // o filtrado sai mais alto (reforço do app): toca no MESMO nível do original, nas duas cenas
+  const lv = demo.rmsAntes / demo.rmsDepois;
+  const level = { antes: 1, depois: lv, tecAntes: 1, tecDepois: lv };
   // volume: o pico do trecho "antes" fica no nível dos picos da música
   const [s0, s1] = demo.seg;
   let vp = 0, va = 0, vn = 0;

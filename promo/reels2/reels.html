@@ -92,6 +92,8 @@
 import { SHOTS, CAPTIONS, PARTS, CUTS, BEAT, DURATION } from './timeline.mjs';
 
 const W = 2560, H = 1600, PW = 980;
+// o final (logo) começa 2 s antes do fim
+const END = DURATION - 2;
 const $ = (id) => document.getElementById(id);
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const easeIO = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
@@ -115,8 +117,10 @@ const demo = await (await fetch('../out/reels2/audio/demo.json')).json();
 const LEVEL = demo.rmsAntes / demo.rmsDepois; // o "depois" com o mesmo volume do "antes"
 const NOISE = {
   hook: { env: demo.hookEnv, clicks: demo.hookClicks, color: '#ff4d5e', label: '' },
-  antes: { env: demo.antes, clicks: demo.clicks, color: '#ff4d5e', label: 'SEM FILTRO' },
-  depois: { env: demo.depois.map((v) => v * LEVEL), clicks: demo.clicks, color: '#3ddc97', label: 'COM O RESENHA' },
+  antes: { env: demo.antes, clicks: demo.clicks, color: '#ff4d5e', label: '🔴 FALANDO · SEM FILTRO', off: false },
+  depois: { env: demo.depois.map((v) => v * LEVEL), clicks: demo.clicks, color: '#3ddc97', label: '🟢 FALANDO · COM O RESENHA', off: true },
+  tecAntes: { env: demo.tecAntes, clicks: demo.tecClicks, color: '#ff4d5e', label: '🔴 CALADO · SEM FILTRO', off: false },
+  tecDepois: { env: demo.tecDepois.map((v) => v * LEVEL), clicks: demo.tecClicks, color: '#3ddc97', label: '🟢 CALADO · COM O RESENHA', off: true },
 };
 const iconSvg = (id) => icons.find((i) => i.id === id).svg;
 $('endicon').innerHTML = iconSvg('classic');
@@ -176,7 +180,7 @@ window.seek = function seek(t) {
   $('b3').style.transform = `translate(${60 + Math.sin(t * 0.6 + 1) * 160}px, ${1350 + Math.cos(t * 0.5) * 120}px)`;
   $('grid').style.transform = `translateY(${(t * 24) % 72}px)`;
   // o fundo "respira" na batida (depois do gancho)
-  const pulse = t >= 2 && t < 24 ? Math.exp(-((t % BEAT) / BEAT) * 5) : 0;
+  const pulse = t >= 2 && t < END ? Math.exp(-((t % BEAT) / BEAT) * 5) : 0;
   for (const id of ['b1', 'b2', 'b3']) $(id).style.opacity = 0.42 + 0.22 * pulse;
   drawFx(t);
 
@@ -190,7 +194,7 @@ window.seek = function seek(t) {
   ['cursor', 'ripple', 'burst', 'wipe', 'pillA', 'pillB', 'pillN', 'wave'].forEach((id) => ($(id).style.opacity = 0));
   $('keys').replaceChildren();
   $('bigicon').style.opacity = 0;
-  if (shot && t < 24) {
+  if (shot && t < END) {
     const ph = shot.ph;
     const top = 830 - ph / 2;
     const since = t - shot.t0;
@@ -259,20 +263,21 @@ window.seek = function seek(t) {
           const k = clamp((since - c) / 0.7);
           const d = document.createElement('div');
           const x = 140 + ((i * 263) % 640), y = ph * 0.25 + ((i * 131) % 200);
-          d.textContent = shot.noise === 'depois' ? '🚫' : '⌨️';
-          Object.assign(d.style, { position: 'absolute', left: `${x}px`, top: `${y - k * 80}px`, fontSize: `${shot.noise === 'depois' ? 90 : 120}px`, opacity: 1 - k, transform: `scale(${back(clamp(k / 0.25))}) rotate(${(i % 2 ? 1 : -1) * 12}deg)` });
+          d.textContent = N.off ? '🚫' : '⌨️';
+          Object.assign(d.style, { position: 'absolute', left: `${x}px`, top: `${y - k * 80}px`, fontSize: `${N.off ? 90 : 120}px`, opacity: 1 - k, transform: `scale(${back(clamp(k / 0.25))}) rotate(${(i % 2 ? 1 : -1) * 12}deg)` });
           $('keys').append(d);
         });
         // tremida a cada clique (sem filtro)
-        if (shot.noise !== 'depois') {
+        if (!N.off) {
           const last = N.clicks.filter((c) => c <= since).pop();
           if (last !== undefined) panel.style.transform += ` translate(${Math.exp(-(since - last) * 25) * 14 * Math.sin((since - last) * 120)}px, 0)`;
         }
         if (N.label) {
           const pn = $('pillN');
-          pn.textContent = N.label === 'SEM FILTRO' ? '🔴 SEM FILTRO' : '🟢 COM O RESENHA';
-          pn.style.background = N.label === 'SEM FILTRO' ? '#e5384b' : '#3ddc97';
-          pn.style.color = N.label === 'SEM FILTRO' ? '#fff' : '#06281a';
+          pn.textContent = N.label;
+          pn.style.fontSize = '32px';
+          pn.style.background = N.off ? '#3ddc97' : '#e5384b';
+          pn.style.color = N.off ? '#06281a' : '#fff';
           pn.style.opacity = 1;
           pn.style.transform = `scale(${back(clamp(since / 0.2))}) rotate(-3deg)`;
         }
@@ -328,10 +333,10 @@ window.seek = function seek(t) {
       }
     }
   } else {
-    panel.style.opacity = t >= 24 ? 1 - clamp((t - 24) / 0.25) : 0;
+    panel.style.opacity = t >= END ? 1 - clamp((t - END) / 0.25) : 0;
   }
 
-  $('sound').style.opacity = t >= 3.4 && t < 10 ? clamp((t - 3.4) / 0.2) : 0;
+  $('sound').style.opacity = t >= 3.4 && t < 14 ? clamp((t - 3.4) / 0.2) : 0;
   $('sound').style.transform = `scale(${1 + 0.06 * Math.sin(t * 8)})`;
   // selo "NOVO" no gancho
   const sk = clamp((t - 0.25) / 0.25);
@@ -353,7 +358,7 @@ window.seek = function seek(t) {
   if (!cap) box.replaceChildren();
   else {
     const out = 1 - clamp((t - (cap.end - 0.07)) / 0.07);
-    box.style.top = `${t >= 24 ? 1290 : 1380}px`;
+    box.style.top = `${t >= END ? 1290 : 1380}px`;
     box.replaceChildren(
       ...cap.words.map((w, i) => {
         const s = document.createElement('span');
@@ -363,7 +368,7 @@ window.seek = function seek(t) {
         s.style.opacity = k > 0 ? 1 : 0;
         s.style.transform = `scale(${back(k) * out}) translateY(${(1 - k) * 30}px) rotate(${w.key ? Math.sin(t * 8) * 1.5 : 0}deg)`;
         // na montagem a palavra de destaque troca de cor na batida
-        if (w.key && t >= 15 && t < 19) s.style.color = Object.values(GLOW)[Math.floor((t - 14) / BEAT) % 6];
+        if (w.key && t >= 19 && t < 23) s.style.color = Object.values(GLOW)[Math.floor((t - 14) / BEAT) % 6];
         return s;
       }),
     );
@@ -374,18 +379,18 @@ window.seek = function seek(t) {
   $('flash').style.opacity = 0.35 * Math.exp(-(t - lastCut) * 14) * (lastCut > 0 ? 1 : 0);
 
   // ---------- final ----------
-  const ek = clamp((t - 24) / 0.3);
+  const ek = clamp((t - END) / 0.3);
   $('end').style.opacity = ek;
-  $('endicon').style.transform = `scale(${back(clamp((t - 24) / 0.35))}) rotate(${Math.sin(t * 2) * 3}deg)`;
+  $('endicon').style.transform = `scale(${back(clamp((t - END) / 0.35))}) rotate(${Math.sin(t * 2) * 3}deg)`;
   for (const [id, d] of [['r1', 0], ['r2', 0.25]]) {
-    const rk = clamp((t - 24 - d) / 0.9);
+    const rk = clamp((t - END - d) / 0.9);
     const size = 300 + rk * 900;
-    Object.assign($(id).style, { width: `${size}px`, height: `${size}px`, left: `${540 - size / 2}px`, top: `${650 - size / 2}px`, opacity: (1 - rk) * (t >= 24 + d ? 1 : 0) });
+    Object.assign($(id).style, { width: `${size}px`, height: `${size}px`, left: `${540 - size / 2}px`, top: `${650 - size / 2}px`, opacity: (1 - rk) * (t >= END + d ? 1 : 0) });
   }
-  $('word').style.transform = `translateY(${(1 - easeOut(clamp((t - 24.2) / 0.3))) * 60}px)`;
-  $('word').style.opacity = clamp((t - 24.2) / 0.2);
-  $('free').style.opacity = clamp((t - 24.5) / 0.2);
-  $('free').style.transform = `scale(${back(clamp((t - 24.5) / 0.25))})`;
+  $('word').style.transform = `translateY(${(1 - easeOut(clamp((t - END - 0.2) / 0.3))) * 60}px)`;
+  $('word').style.opacity = clamp((t - END - 0.2) / 0.2);
+  $('free').style.opacity = clamp((t - END - 0.5) / 0.2);
+  $('free').style.transform = `scale(${back(clamp((t - END - 0.5) / 0.25))})`;
 };
 
 window.DURATION = DURATION;
