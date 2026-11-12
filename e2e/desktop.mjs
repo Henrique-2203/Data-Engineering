@@ -53,6 +53,7 @@ try {
   const fakeGame = spawn('sleep', ['300'], { stdio: 'ignore' });
   // "Spotify" de teste: o título da janela vem de um arquivo (no Windows, da janela do Spotify)
   const spotifyTitle = path.join(tempDir('resenha-spotify-'), 'title.txt');
+  const sysAudioLog = path.join(tempDir('resenha-sysaudio-'), 'log.txt');
   writeFileSync(spotifyTitle, 'Artista Teste - Música Teste');
   process.on('exit', () => fakeGame.kill());
 
@@ -65,7 +66,7 @@ try {
       '--no-sandbox', // só porque este ambiente de teste roda como root
       '--use-fake-device-for-media-stream',
     ],
-    env: { ...process.env, ELECTRON_ENABLE_LOGGING: '0', RESENHA_EXTRA_GAMES: 'sleep=Jogo de Teste', RESENHA_GAME_INTERVAL_MS: '1000', RESENHA_FAKE_SPOTIFY_TITLE_FILE: spotifyTitle, RESENHA_MUSIC_INTERVAL_MS: '1000' },
+    env: { ...process.env, ELECTRON_ENABLE_LOGGING: '0', RESENHA_EXTRA_GAMES: 'sleep=Jogo de Teste', RESENHA_GAME_INTERVAL_MS: '1000', RESENHA_FAKE_SPOTIFY_TITLE_FILE: spotifyTitle, RESENHA_MUSIC_INTERVAL_MS: '1000', RESENHA_SYSAUDIO_HELPER: `${process.execPath}|${path.resolve('e2e/fixtures/fake-sysaudio.mjs')}`, RESENHA_FAKE_SYSAUDIO_LOG: sysAudioLog },
   });
   // registros do processo principal do app (ex.: avisos do hook de teclado)
   const appLog = [];
@@ -306,6 +307,33 @@ try {
   });
   await win.screenshot({ path: `${shots}/18-desktop-transmitindo.png` });
   step(`seletor de tela do app funciona e a transmissão começou (${size})`);
+  // som do PC SEM o Resenha: vem do programa nativo (aqui, o falso), que recebe o pid do app para excluir
+  const mainPid = await app.evaluate(() => process.pid);
+  const sys = await win.evaluate(async () => {
+    const v = document.querySelector('.tile.screen video');
+    const track = v?.srcObject?.getAudioTracks?.()[0];
+    if (!track) return { track: false, log: window.__resenhaVoice?.debugLog?.filter((l) => /som/.test(l)) };
+    const ctx = new AudioContext();
+    const an = ctx.createAnalyser();
+    an.fftSize = 2048;
+    ctx.createMediaStreamSource(new MediaStream([track])).connect(an);
+    await new Promise((r) => setTimeout(r, 800));
+    const d = new Float32Array(an.fftSize);
+    an.getFloatTimeDomainData(d);
+    const rms = Math.sqrt(d.reduce((a, x) => a + x * x, 0) / d.length);
+    // frequência pelo maior pico do espectro
+    const f = new Float32Array(an.frequencyBinCount);
+    an.getFloatFrequencyData(f);
+    let best = 0;
+    for (let i = 1; i < f.length; i++) if (f[i] > f[best]) best = i;
+    const hz = (best * ctx.sampleRate) / an.fftSize;
+    await ctx.close();
+    return { track: true, rms, hz, log: window.__resenhaVoice?.debugLog?.filter((l) => /som da transmiss/.test(l)) };
+  });
+  const sysLog = existsSync(sysAudioLog) ? readFileSync(sysAudioLog, 'utf8') : '';
+  assert(sys.track && sys.rms > 0.05 && Math.abs(sys.hz - 440) < 40, `som do PC chegando na transmissão: ${JSON.stringify(sys)}`);
+  assert(sysLog.includes(`start pid=${mainPid}`), `o programa de áudio recebeu o pid do app para excluir (${sysLog.trim()} / pid ${mainPid})`);
+  step(`som do PC na transmissão vem do programa nativo excluindo o próprio Resenha (pid ${mainPid}): tom de ${Math.round(sys.hz)} Hz chegando, nível ${sys.rms.toFixed(2)}`);
   // transmitindo: a página (codificação) e a placa de vídeo ficam acima do normal; o principal fica normal
   let streamPrio = [];
   for (let i = 0; i < 10; i++) {
@@ -322,6 +350,8 @@ try {
     await sleep(300);
   }
   assert(after.every((p) => p === 0), `prioridade volta ao normal ao parar de transmitir (${after.join(',')})`);
+  for (let i = 0; i < 20 && !readFileSync(sysAudioLog, 'utf8').includes('stop'); i++) await sleep(200);
+  assert(readFileSync(sysAudioLog, 'utf8').includes('stop'), 'o programa de áudio para junto com a transmissão');
   step('transmitindo: captura e codificação com prioridade acima do normal (e placa de vídeo alta no Windows); volta ao normal ao parar');
 
   // cancelar o seletor não quebra nada

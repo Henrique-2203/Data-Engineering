@@ -19,6 +19,7 @@ const { watchMusic } = require('./music');
 const appIcon = require('./appIcon');
 const overlay = require('./overlay');
 const { setGpuPriority } = require('./gpuPriority');
+const sysaudio = require('./sysaudio');
 
 const DEFAULT_URL = 'https://resenha-m2bt.onrender.com';
 const argUrl = process.argv.find((a) => a.startsWith('--url='))?.slice(6);
@@ -189,8 +190,15 @@ function setupSession() {
       const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
       const source = sources.find((s) => s.id === choice.id);
       if (!source) return callback({});
-      // 'loopback' = áudio do sistema (só no Windows)
-      callback({ video: source, ...(choice.audio && process.platform === 'win32' ? { audio: 'loopback' } : {}) });
+      if (choice.audio && (process.platform === 'win32' || process.env.RESENHA_SYSAUDIO_HELPER)) {
+        // som do PC SEM o Resenha (a voz da call não volta para quem assiste): a página monta a faixa
+        // com o que o programa nativo manda. Num Windows antigo, cai no som do sistema inteiro.
+        const target = win?.webContents;
+        const ok = await sysaudio.start((chunk) => target && !target.isDestroyed() && target.send('resenha:sysaudio', chunk));
+        if (ok) return callback({ video: source });
+        if (process.platform === 'win32') return callback({ video: source, audio: 'loopback' });
+      }
+      callback({ video: source });
     } catch (err) {
       console.error('[picker]', err);
       callback({});
@@ -592,6 +600,10 @@ ipcMain.on('resenha:streaming', (e, on) => {
   streaming = !!on;
   applyPriority();
 });
+// som do PC na transmissão: a página pergunta se está vindo do programa nativo e avisa quando parar
+ipcMain.handle('resenha:sysaudio-status', (e) => (fromMainWindow(e) ? sysaudio.status() : { active: false, lastError: null }));
+ipcMain.on('resenha:sysaudio-stop', (e) => fromMainWindow(e) && sysaudio.stop());
+app.on('will-quit', () => sysaudio.stop());
 
 app.whenReady().then(() => {
   setupSession();

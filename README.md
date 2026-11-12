@@ -232,7 +232,11 @@ app na hora, sem reinstalar**. Ele acrescenta o que o navegador não consegue:
   primeiro plano. Por privacidade, o app só observa a tecla do push-to-talk e esses atalhos.
 - **Transmissão sem freios**: sem a redução de ritmo de janelas em segundo plano e usando a placa de
   vídeo dedicada em notebooks com duas placas.
-- **Seletor de tela ou janela** com áudio do computador.
+- **Seletor de tela ou janela** com áudio do computador **sem o próprio Resenha** (a partir do 0.3.9): a voz
+  dos amigos da call não volta para quem assiste. Usa a captura de áudio de aplicativo do Windows
+  (programa nativo `desktop/native/sysaudio.cpp`, compilado no GitHub Actions e empacotado junto), que pega
+  todo o som do PC menos o processo do Resenha. Precisa do Windows 10 versão 2004 ou mais novo; num Windows
+  mais antigo o app manda o som do sistema inteiro e avisa.
 - **Ícone na bandeja**: fechar a janela não derruba a chamada; dá para silenciar pelo menu e abrir com o Windows.
 - **"Jogando agora"**: reconhece jogos abertos pela lista de processos e mostra no seu perfil (só o
   nome do jogo sai do computador; dá para desligar nas Configurações). Jogos extras:

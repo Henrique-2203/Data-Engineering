@@ -1,7 +1,7 @@
 {
   "name": "resenha-desktop",
   "productName": "Resenha",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "private": true,
   "description": "App de desktop do Resenha: chat, voz e transmissão de tela com push-to-talk global.",
   "author": "Resenha",
@@ -35,6 +35,15 @@
       "!**/node_modules/koffi/build/koffi/{darwin,freebsd,linux,musl,openbsd}_*/**",
       "!**/node_modules/koffi/build/koffi/win32_{arm64,ia32}/**",
       "!**/node_modules/koffi/{src,doc,vendor}/**"
+    ],
+    "extraResources": [
+      {
+        "from": "native/bin",
+        "to": "native",
+        "filter": [
+          "resenha-sysaudio.exe"
+        ]
+      }
     ],
     "asarUnpack": [
       "**/node_modules/koffi/build/**/*.node"

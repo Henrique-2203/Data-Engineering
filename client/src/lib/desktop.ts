@@ -61,6 +61,12 @@ interface DesktopBridge {
   /** existem a partir do app 0.3.0 (overlay no jogo) */
   setOverlayState?(state: OverlayState): void;
   overlayEvent?(event: { type: 'sound'; id: string; name: string; sound: string; emoji: string | null }): void;
+  /** som do PC na transmissão sem o próprio Resenha (app 0.3.9+) */
+  sysAudio?: {
+    status(): Promise<{ active: boolean; lastError: string | null }>;
+    onData(cb: (chunk: Uint8Array) => void): () => void;
+    stop(): void;
+  };
 }
 
 export const desktop: DesktopBridge | null =

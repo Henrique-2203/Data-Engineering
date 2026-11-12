@@ -40,4 +40,13 @@ contextBridge.exposeInMainWorld('resenhaDesktop', {
   overlayEvent: (event) => ipcRenderer.send('resenha:overlay-event', event),
   /** estou transmitindo a tela (a partir do app 0.3.5: prioridade de processador e placa de vídeo) */
   setStreaming: (on) => ipcRenderer.send('resenha:streaming', !!on),
+  /**
+   * som do PC na transmissão SEM o Resenha (a partir do 0.3.9): PCM 16 bits, 48 kHz, estéreo.
+   * status() -> { active, lastError }; onData(cb) recebe os pedaços (Uint8Array); stop() para.
+   */
+  sysAudio: {
+    status: () => ipcRenderer.invoke('resenha:sysaudio-status'),
+    onData: (cb) => listen('resenha:sysaudio', cb),
+    stop: () => ipcRenderer.send('resenha:sysaudio-stop'),
+  },
 });

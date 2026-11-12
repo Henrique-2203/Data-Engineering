@@ -73,6 +73,17 @@ jobs:
             echo "publish=yes" >> "$GITHUB_OUTPUT"
           fi
 
+      # Programa nativo do "som do PC sem o Resenha" (captura de áudio de aplicativo do Windows), compilado
+      # com o Visual Studio que já vem na máquina do GitHub e empacotado junto (extraResources).
+      - name: Compilar o som do PC sem o Resenha
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          New-Item -ItemType Directory -Force native\bin | Out-Null
+          cmd /c "call `"$vs\VC\Auxiliary\Build\vcvars64.bat`" && cl /nologo /O2 /EHsc /std:c++17 /W3 /MT native\sysaudio.cpp /Fe:native\bin\resenha-sysaudio.exe /Fo:native\bin\ ole32.lib mmdevapi.lib"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-Item native\bin\resenha-sysaudio.exe
+
       # O empacotador só gera os arquivos (inclusive latest.yml, usado pela atualização automática).
       # A Release é criada depois com UM comando, já com todos os arquivos: publicar pelo empacotador
       # fazia envios em paralelo criarem Releases duplicadas.

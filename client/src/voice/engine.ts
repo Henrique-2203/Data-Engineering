@@ -10,6 +10,7 @@ import { preferCodec } from './sdp';
 import { CODECS, type NoiseMode, effectiveBitrate, screenCodecFor, screenPresetFor } from './settings';
 import { type AiNoiseMode, type Denoiser, aiNoiseSupported, createDenoiser } from './denoise';
 import { desktop } from '../lib/desktop';
+import { desktopSystemAudio, type SystemAudioTrack } from './systemAudio';
 import { together } from './together';
 import { callChat } from './callChat';
 import { healthPeerClosed, healthPeerCreated, healthPeerState, healthResume, startHealthSampler, stopHealthSampler } from '../lib/health';
@@ -95,6 +96,9 @@ class VoiceEngine {
   private joining = false;
   /** qualidade de voz do canal atual (kbps) */
   private opusKbps = 128;
+  /** som do PC sem o Resenha (app de Windows 0.3.9+) */
+  private sysAudio: SystemAudioTrack | null = null;
+  private warnedSysAudio = false;
   /** últimos eventos internos (diagnóstico: __resenhaVoice.debugLog no console) */
   readonly debugLog: string[] = [];
   private dbg(msg: string) {
@@ -620,8 +624,31 @@ class VoiceEngine {
       return false;
     }
 
+    // app de Windows 0.3.9+: o som do PC vem do programa nativo, sem o Resenha (sem a voz da call
+    // voltando para quem assiste). Num Windows antigo, o app manda o som do sistema inteiro e avisa.
+    let sysAudio: SystemAudioTrack | null = null;
+    if (desktop?.sysAudio && !stream.getAudioTracks().length) {
+      sysAudio = await desktopSystemAudio();
+      if (sysAudio && settings.screenAudio) stream.addTrack(sysAudio.track);
+      else if (sysAudio) {
+        sysAudio.stop();
+        sysAudio = null;
+      }
+    } else if (desktop?.sysAudio && stream.getAudioTracks().length) {
+      const st = await desktop.sysAudio.status().catch(() => null);
+      if (st?.lastError) {
+        this.dbg(`som do pc sem o resenha indisponível: ${st.lastError}`);
+        if (!this.warnedSysAudio) {
+          this.warnedSysAudio = true;
+          toast('Seu Windows não deixa separar o som do Resenha: quem assiste pode ouvir a call de volta. Atualize o Windows (10 versão 2004 ou mais novo).');
+        }
+      }
+    }
+    this.dbg(`som da transmissão: ${sysAudio ? 'sem o resenha (programa nativo)' : stream.getAudioTracks().length ? 'sistema inteiro' : 'sem som'}`);
+
     this.stopScreenTracks();
     this.screenStream = stream;
+    this.sysAudio = sysAudio;
     const videoTrack = stream.getVideoTracks()[0];
     videoTrack.contentHint = settings.contentType === 'motion' ? 'motion' : 'detail';
     videoTrack.onended = () => this.stopScreen();
@@ -815,6 +842,8 @@ class VoiceEngine {
       t.stop();
     });
     this.screenStream = null;
+    this.sysAudio?.stop();
+    this.sysAudio = null;
   }
 
   private async addScreen(peer: Peer) {
