@@ -53,10 +53,15 @@ para a qualidade e não custa nada de servidor, mas cada pessoa envia uma cópia
 
 ## 4. TURN (quem não tem conexão direta: 4G/5G, CGNAT)
 
-- Painel da equipe → Saúde mostra quantos minutos passaram pelo TURN e quantos MB no mês.
-- Coloque a cota do seu plano do Metered na variável `TURN_QUOTA_MB` (no Render) para ver a barra em Sistema e receber
-  aviso quando passar de 80%.
-- Transmissões via TURN já vão em qualidade reduzida para economizar a cota.
+- **Provedor principal: Cloudflare Realtime** (TURN Server): **1.000 GB por mês grátis**, depois US$ 0,05 por GB.
+  Variáveis no Render: `CLOUDFLARE_TURN_KEY_ID` e `CLOUDFLARE_TURN_API_TOKEN` (Cloudflare → Realtime → TURN Server →
+  criar chave). Com a Cloudflare funcionando, o Metered **não** é entregue aos navegadores (só entra se a Cloudflare falhar).
+- **Reserva: Metered** (`METERED_TURN_DOMAIN`, `METERED_TURN_API_KEY`), cota pequena no plano grátis.
+- Painel da equipe → Saúde mostra quantos minutos passaram pelo TURN e quantos MB no mês. A conta é uma estimativa do
+  Resenha (só conta o aparelho que usa o TURN pelo próprio lado); o número oficial é o do painel do provedor.
+- Coloque a cota em `TURN_QUOTA_MB` (no Render) para ver a barra em Sistema e receber aviso quando passar de 80%:
+  com a Cloudflare, `1000000` (1.000 GB).
+- Transmissões via TURN já vão em qualidade reduzida para economizar.
 
 ## 5. Avisos automáticos
 
@@ -72,7 +77,7 @@ limite). Variáveis (no Render, se o plano mudar): `CPU_LIMIT` (núcleos, padrã
 | Processador passando de 80% nos horários de pico, ou mais de ~150 pessoas online juntas com chat agitado | Render Starter (~US$ 7/mês). De quebra, o site não dorme e dá para ligar o site de teste (`docs/LANCAMENTOS.md`) |
 | Banco passando de 80% | Plano pago do Neon (cobrado pelo uso) ou apagar mensagens antigas de servidores abandonados |
 | Arquivos passando de 80% (R2, 10 GB grátis) | O R2 cobra pouco por GB acima do grátis; antes disso dá para baixar as cotas por pessoa/servidor |
-| TURN perto da cota | Plano maior do Metered ou outro provedor de TURN |
+| TURN perto da cota | Com a Cloudflare: passar de 1.000 GB/mês custa US$ 0,05 por GB a mais (ligue um alerta de cobrança na Cloudflare) |
 | Querem transmitir para mais de ~5 pessoas, ou calls com mais de 10 | Servidor de mídia (SFU): é uma mudança de arquitetura, vale planejar junto |
 
 Hoje, com um grupo de amigos, **tudo cabe no grátis com bastante folga**. O primeiro limite que deve aparecer, se o

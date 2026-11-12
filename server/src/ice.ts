@@ -42,7 +42,7 @@ async function cloudflareServers(): Promise<IceServer[]> {
   if (cache && cache.expires > Date.now()) return cache.servers;
   try {
     const res = await fetch(
-      `https://rtc.live.cloudflare.com/v1/turn/keys/${keyId}/credentials/generate-ice-servers`,
+      `${process.env.CLOUDFLARE_TURN_API_BASE || 'https://rtc.live.cloudflare.com'}/v1/turn/keys/${keyId}/credentials/generate-ice-servers`,
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
@@ -75,8 +75,14 @@ if (!hasTurn()) {
   );
 }
 
+/**
+ * TURN preferido: Cloudflare (1.000 GB grátis por mês). O Metered (cota pequena) só entra se a
+ * Cloudflare não estiver configurada ou falhar: se os dois fossem juntos, o navegador poderia escolher
+ * o Metered e gastar a cota dele à toa.
+ */
 export async function getIceServers(): Promise<IceServer[]> {
-  const [cloudflare, metered] = await Promise.all([cloudflareServers(), meteredServers()]);
+  const cloudflare = await cloudflareServers();
+  const metered = cloudflare.length ? [] : await meteredServers();
   const servers = [...STUN, ...cloudflare, ...metered];
   const { urls, username, credential } = config.turn;
   if (urls.length) servers.push({ urls, username, credential });

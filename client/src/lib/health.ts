@@ -117,6 +117,19 @@ export const healthResume = () => add('resume');
 // ---------- amostras de 1 minuto durante a call ----------
 
 let sampler: ReturnType<typeof setInterval> | null = null;
+/** a conexão escolhida usa um servidor TURN do MEU lado (candidato local do tipo "relay")? */
+export function usesOwnRelay(snap: Snap) {
+  let own: boolean | null = null;
+  snap.forEach((r) => {
+    if (r.type !== 'transport' || !r.selectedCandidatePairId) return;
+    const pair = snap.get(r.selectedCandidatePairId);
+    const local = pair && snap.get(pair.localCandidateId);
+    if (local?.candidateType) own = local.candidateType === 'relay';
+  });
+  // sem as informações da conexão (navegador antigo): conta, como antes
+  return own ?? true;
+}
+
 let prev = new Map<string, { snap: Snap; at: number }>();
 
 async function sample() {
@@ -139,14 +152,18 @@ async function sample() {
     }
     if (p.relayed) {
       add('relayed_samples');
-      // tráfego que passou pelo TURN neste minuto (cota do Metered)
-      let bytes = 0;
-      snap.forEach((r) => {
-        if (r.type !== 'transport') return;
-        const a = before.snap.get(r.id) ?? {};
-        bytes += (r.bytesSent ?? 0) - (a.bytesSent ?? 0) + (r.bytesReceived ?? 0) - (a.bytesReceived ?? 0);
-      });
-      add('turn_mb', Math.max(0, bytes) / 1e6, 0);
+      // tráfego que passou pelo TURN neste minuto (cota do provedor de TURN). Só conta quem usa o TURN
+      // pelo próprio lado: se só o outro aparelho precisa do TURN, o tráfego é o mesmo e já é contado
+      // por ele (antes os dois lados contavam e o total saía em dobro).
+      if (usesOwnRelay(snap)) {
+        let bytes = 0;
+        snap.forEach((r) => {
+          if (r.type !== 'transport') return;
+          const a = before.snap.get(r.id) ?? {};
+          bytes += (r.bytesSent ?? 0) - (a.bytesSent ?? 0) + (r.bytesReceived ?? 0) - (a.bytesReceived ?? 0);
+        });
+        add('turn_mb', Math.max(0, bytes) / 1e6, 0);
+      }
     }
     // transmissão que estou assistindo desta pessoa
     if (v.watching[p.socketId]) {
