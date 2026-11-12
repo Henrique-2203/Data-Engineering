@@ -132,7 +132,13 @@ try {
   await pe.goto(`${BASE}/invite/abc123`);
   await pe.getByRole('tab', { name: 'Criar conta' }).waitFor();
   await pe.getByText('Você recebeu um convite!').waitFor();
-  step('site de apresentação aberto também para quem está logado ("Abrir o Resenha" leva ao app em /app); "/entrar" abre o login; link de convite abre o cadastro');
+  // "Não tem código? Entre na lista de espera" da tela de cadastro abre /#lista: rola até a lista
+  await pe.goto(`${BASE}/#lista`);
+  await pe.waitForFunction(() => {
+    const r = document.getElementById('lista')?.getBoundingClientRect();
+    return r && r.top < innerHeight && r.bottom > 0 && (document.querySelector('.lp')?.scrollTop ?? 0) > 200;
+  }, null, { timeout: 5000 });
+  step('site de apresentação aberto também para quem está logado ("Abrir o Resenha" leva ao app em /app); "/entrar" abre o login; link de convite abre o cadastro; "Entre na lista de espera" leva direto à lista');
 
   // ---------- celular ----------
   const phone = await (await browser.newContext({ ...devices['Pixel 7'] })).newPage();

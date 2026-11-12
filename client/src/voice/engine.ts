@@ -372,9 +372,37 @@ class VoiceEngine {
   /** filtro de ruído por IA ligado no microfone (null = sem filtro de IA) */
   private denoiser: Denoiser | null = null;
   private denoiseWarned = false;
+  /**
+   * Este aparelho não deu conta do filtro (o áudio ficou atrasado = voz picotada/robótica para os
+   * outros): até recarregar a página usamos um mais leve. 'rnnoise' = no lugar do Forte; 'browser' = sem IA.
+   */
+  private noiseCap: 'rnnoise' | 'browser' | null = null;
+  /** do microfone em uso, para o diagnóstico (nunca o nome do aparelho, só se parece Bluetooth) */
+  micInfo: { sampleRate: number | null; bluetooth: boolean } | null = null;
+  /** % de atraso do processamento de áudio (filtro de IA); null sem filtro */
+  denoiseSlowPct = () => this.denoiser?.slowPct() ?? null;
+
+  /** o filtro de ruído escolhido, já descontando o que este aparelho mostrou que não aguenta */
+  private effectiveNoise(): NoiseMode {
+    const want = getV().settings.noiseMode;
+    if (this.noiseCap === 'browser' && (want === 'gtcrn' || want === 'rnnoise')) return 'browser';
+    if (this.noiseCap === 'rnnoise' && want === 'gtcrn') return 'rnnoise';
+    return want;
+  }
+
+  private onDenoiseSlow(mode: AiNoiseMode) {
+    this.noiseCap = mode === 'gtcrn' ? 'rnnoise' : 'browser';
+    this.dbg(`denoise ${mode} atrasado ${this.denoiser?.slowPct()}% -> ${this.noiseCap}`);
+    toast(
+      mode === 'gtcrn'
+        ? 'Seu aparelho não está dando conta da supressão de ruído Forte (a sua voz picotaria). Mudamos para a Leve.'
+        : 'Seu aparelho não está dando conta da supressão de ruído por IA. Mudamos para a do navegador.',
+    );
+    void this.restartMic();
+  }
 
   private async acquireMic() {
-    const { settings } = getV();
+    const settings = { ...getV().settings, noiseMode: this.effectiveNoise() };
     const ai = (settings.noiseMode === 'rnnoise' || settings.noiseMode === 'gtcrn') && aiNoiseSupported();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -388,10 +416,14 @@ class VoiceEngine {
       });
       const raw = stream.getAudioTracks()[0];
       this.micTrack = raw;
+      // AirPods e outros fones Bluetooth: com o microfone do fone ligado, o Bluetooth cai para um modo
+      // de baixa qualidade e a voz fica robótica (é do Bluetooth, não da call)
+      this.micInfo = { sampleRate: raw.getSettings().sampleRate ?? null, bluetooth: /airpods|bluetooth|hands-?free|headset|buds|bt\b/i.test(raw.label) };
       let active: NoiseMode = settings.noiseMode === 'off' ? 'off' : 'browser';
       if (ai) {
         try {
-          this.denoiser = await createDenoiser(raw, settings.noiseMode as AiNoiseMode);
+          const mode = settings.noiseMode as AiNoiseMode;
+          this.denoiser = await createDenoiser(raw, mode, () => this.onDenoiseSlow(mode));
           this.micTrack = this.denoiser.track;
           active = settings.noiseMode;
         } catch (err) {

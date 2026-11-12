@@ -122,6 +122,51 @@ try {
     }
   }
   step('supressão de ruído: o teclado some e a voz continua');
+
+  // aparelho que não dá conta do Forte (Mac antigo no Safari, por exemplo): o relógio do áudio anda
+  // mais devagar que o normal. Primeiro, num aparelho normal, ele NÃO pode trocar à toa.
+  {
+    const b = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${files.voz ?? wav}`, '--autoplay-policy=no-user-gesture-required'] });
+    try {
+      const ctx = await b.newContext({ viewport: { width: 1280, height: 860 }, permissions: ['microphone'] });
+      await ctx.addInitScript((t) => {
+        localStorage.setItem('resenha.token', t);
+        localStorage.setItem('resenha.voiceSettings', JSON.stringify({ noiseMode: 'gtcrn' }));
+        // guarda os AudioContext criados para o teste poder "deixar o aparelho lento"
+        const Orig = window.AudioContext;
+        window.__ctxs = [];
+        window.AudioContext = class extends Orig {
+          constructor(...a) {
+            super(...a);
+            window.__ctxs.push(this);
+          }
+        };
+      }, ana.token);
+      const page = await ctx.newPage();
+      await page.goto(`${BASE}/app`);
+      await page.getByRole('button', { name: 'Sala de voz' }).first().click();
+      await page.getByText('Voz conectada').waitFor({ timeout: 15000 });
+      await sleep(10_000);
+      const normal = await page.evaluate(() => ({ slow: window.__resenhaVoice.denoiseSlowPct(), noise: window.__resenhaVoice && document.title }));
+      await page.getByRole('button', { name: 'Configurações', exact: true }).click();
+      await page.getByRole('button', { name: 'Voz e vídeo' }).click();
+      assert((await page.locator('.noise-status strong').textContent()) === 'Forte (IA)', 'aparelho normal continua no Forte');
+      assert(normal.slow !== null && normal.slow < 3, `atraso medido baixo num aparelho normal (${normal.slow}%)`);
+      // agora o áudio passa a andar 10% mais devagar que o relógio
+      await page.evaluate(() => {
+        for (const c of window.__ctxs) {
+          const get = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, 'currentTime').get;
+          const t0 = get.call(c);
+          Object.defineProperty(c, 'currentTime', { get: () => t0 + (get.call(c) - t0) * 0.9 });
+        }
+      });
+      await page.getByText('não está dando conta da supressão de ruído Forte').waitFor({ timeout: 15000 });
+      await page.locator('.noise-status strong', { hasText: 'Leve (IA)' }).waitFor({ timeout: 10000 });
+      step(`aparelho lento demais para o Forte: troca sozinho para o Leve e avisa (aparelho normal: ${normal.slow}% de atraso, não troca)`);
+    } finally {
+      await b.close();
+    }
+  }
   console.log('\nTUDO CERTO (supressão de ruído)');
 } catch (err) {
   console.error(err);

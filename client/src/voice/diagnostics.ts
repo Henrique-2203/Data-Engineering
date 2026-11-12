@@ -33,6 +33,11 @@ export interface CallDiagnostics {
     inputMode: string;
     noise: string | null;
     vadThresholdDb: number;
+    /** taxa do microfone (Hz) e se o nome parece de fone Bluetooth (o nome em si não vai) */
+    micRate?: number | null;
+    bluetoothMic?: boolean;
+    /** quanto o filtro de ruído ficou atrás do tempo real (%): alto = voz picotada para os outros */
+    denoiseSlowPct?: number | null;
   };
   peers: PeerDiag[];
   /** minha transmissão (se estou transmitindo) */
@@ -249,6 +254,9 @@ export async function collectDiagnostics(ms = 5000): Promise<CallDiagnostics> {
       inputMode: v.settings.inputMode === 'ptt' ? 'aperte para falar' : 'ativação por voz',
       noise: v.noiseActive,
       vadThresholdDb: v.settings.vadThresholdDb,
+      micRate: voice.micInfo?.sampleRate ?? null,
+      bluetoothMic: voice.micInfo?.bluetooth ?? false,
+      denoiseSlowPct: voice.denoiseSlowPct(),
     },
     peers: peerDiags,
     stream,
@@ -304,6 +312,16 @@ export function explain(d: CallDiagnostics): Finding[] {
         text: `A transmissão de ${w.name} manda o som do PC inteiro, com a voz da call junto (por isso o eco). Se ${w.name} usa o app de Windows 0.3.9, o Windows dele é antigo demais para separar: precisa do Windows 10 versão 2004 ou mais novo. No navegador, transmita uma aba em vez da tela inteira, ou use o app.`,
       });
   }
+  if ((d.call.denoiseSlowPct ?? 0) >= 3)
+    out.push({
+      level: 'bad',
+      text: `O aparelho não está dando conta da supressão de ruído (o áudio está ${d.call.denoiseSlowPct}% atrasado): é isso que deixa a SUA voz picotada ou robótica para os outros. Em Configurações → Voz e vídeo, escolha a supressão "Leve (IA)" ou "Básica" e feche abas e programas pesados.`,
+    });
+  if (d.call.bluetoothMic)
+    out.push({
+      level: 'warn',
+      text: 'O microfone é de um fone Bluetooth (AirPods ou parecido). Quando o microfone do fone liga, o Bluetooth troca para um modo de baixa qualidade e a voz fica robótica, para você e para os outros. Use o microfone do computador (Configurações → Voz e vídeo → Microfone) e deixe o fone só para ouvir.',
+    });
   if (d.call.noise === 'off') out.push({ level: 'warn', text: 'A supressão de ruído está desligada: teclado e ventilador vão para a call.' });
   if (!out.length) out.push({ level: 'ok', text: 'Nada fora do normal nos números deste momento. Conte na mensagem o que aconteceu (e quando) para a equipe olhar.' });
   return out;

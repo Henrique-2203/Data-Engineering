@@ -396,7 +396,13 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
                       maxLength={24}
                       placeholder="Ex.: LARI-7K3P"
                     />
-                    <span className="muted small">Peça para um amigo que já usa o Resenha.</span>
+                    <span className="muted small">
+                      Não tem código?{' '}
+                      <a href="/#lista" target="_blank" rel="noopener">
+                        Entre na lista de espera
+                      </a>{' '}
+                      e ele chega no seu e-mail (ou peça para um amigo que já usa o Resenha).
+                    </span>
                   </label>
                 )}
                 <label className="check terms-check">

@@ -35,6 +35,14 @@ export function Landing() {
       /* navegador sem sessionStorage: não conta */
     }
   }, []);
+  useEffect(() => {
+    // link "Entre na lista de espera" da tela de cadastro (/#lista): a página é montada pelo React,
+    // então o navegador não acha a seção sozinho; rola até ela depois de montar
+    const id = location.hash.slice(1);
+    if (!id) return;
+    const t = setTimeout(() => scrollTo(id), 150);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div className="lp">

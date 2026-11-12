@@ -144,6 +144,9 @@ export function DiagnosticsView({ diag }: { diag: CallDiagnostics }) {
             <th>Call</th>
             <td>
               {d.call.kind} · {d.call.people} pessoa(s) · microfone {d.call.muted ? 'silenciado' : 'ligado'} · {d.call.inputMode} · ruído: {d.call.noise ? (NOISE[d.call.noise] ?? d.call.noise) : '—'}
+              {d.call.micRate ? ` · microfone ${Math.round(d.call.micRate / 100) / 10} kHz` : ''}
+              {d.call.bluetoothMic ? ' (Bluetooth)' : ''}
+              {typeof d.call.denoiseSlowPct === 'number' ? ` · filtro ${d.call.denoiseSlowPct}% atrasado` : ''}
             </td>
           </tr>
         </tbody>
