@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Resenha × Discord</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #07080b; font-family: Inter, 'Noto Color Emoji', sans-serif; color: #fff; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(150px); opacity: .5; }
+  #grid { position: absolute; inset: 0; opacity: .5;
+    background-image: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size: 72px 72px; }
+  #fx { position: absolute; inset: 0; }
+  #panel { position: absolute; left: 50px; width: 980px; border-radius: 34px; overflow: hidden; background: #111318;
+    box-shadow: 0 40px 120px rgba(0,0,0,.65), 0 0 0 2px rgba(255,255,255,.08), 0 0 90px var(--glow, rgba(61,220,151,.35)); }
+  #panel img { position: absolute; left: 0; top: 0; transform-origin: 0 0; display: none; }
+  .hl { position: absolute; border-radius: 10px; border: 5px solid; opacity: 0; }
+  .tag { position: absolute; padding: 10px 24px; border-radius: 999px; font-weight: 900; font-size: 34px; white-space: nowrap; opacity: 0; box-shadow: 0 12px 30px rgba(0,0,0,.45); }
+  #big { position: absolute; left: 0; right: 0; text-align: center; font-weight: 900; font-size: 190px; letter-spacing: -6px; -webkit-text-stroke: 16px #000; paint-order: stroke fill; opacity: 0; }
+  #hud { position: absolute; left: 70px; right: 70px; display: flex; gap: 16px; justify-content: center; opacity: 0; }
+  #hud b { padding: 12px 24px; border-radius: 18px; background: rgba(0,0,0,.72); border: 2px solid rgba(61,220,151,.6); font-size: 36px; font-weight: 900; white-space: nowrap; }
+  /* gráfico */
+  #chart { position: absolute; left: 90px; right: 90px; top: 300px; height: 900px; opacity: 0; }
+  .bar { position: absolute; bottom: 120px; width: 330px; border-radius: 28px 28px 10px 10px; }
+  .bar .v { white-space: nowrap; position: absolute; left: 0; right: 0; top: -100px; text-align: center; font-size: 72px; font-weight: 900; letter-spacing: -2px; }
+  .bar .n { position: absolute; left: -20px; right: -20px; bottom: -112px; text-align: center; font-size: 40px; font-weight: 900; line-height: 1.05; }
+  .bar .n small { display: block; font-size: 28px; font-weight: 700; color: rgba(255,255,255,.65); }
+  #less { position: absolute; right: -10px; top: 40px; padding: 18px 34px; border-radius: 26px; background: #3ddc97; color: #06281a; font-size: 90px; font-weight: 900; transform-origin: 50% 50%; box-shadow: 0 20px 60px rgba(61,220,151,.45); opacity: 0; }
+  #note { position: absolute; left: 70px; right: 70px; bottom: 120px; text-align: center; font-size: 27px; line-height: 1.35; color: rgba(255,255,255,.62); font-weight: 600; opacity: 0; }
+  /* legendas */
+  #cap { position: absolute; left: 60px; width: 900px; top: 1380px; display: flex; justify-content: center; flex-wrap: wrap; text-align: center; }
+  .w { display: inline-block; margin: 0 .2em; font-weight: 900; font-size: 100px; line-height: 1.08; letter-spacing: -2px;
+    -webkit-text-stroke: 14px #000; paint-order: stroke fill; text-shadow: 0 10px 0 rgba(0,0,0,.55); transform-origin: 50% 80%; }
+  .w.key { color: #3ddc97; }
+  .w.bad { color: #ff5d6c; }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  .vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.6)); pointer-events: none; }
+  #end { position: absolute; inset: 0; opacity: 0; }
+  #endicon { position: absolute; left: 310px; top: 420px; width: 460px; height: 460px; filter: drop-shadow(0 40px 80px rgba(61,220,151,.45)); }
+  #endicon svg { width: 100%; height: 100%; }
+  .ring { position: absolute; border-radius: 50%; border: 12px solid #3ddc97; }
+  #word { position: absolute; left: 0; right: 0; top: 920px; text-align: center; font-weight: 900; font-size: 170px; letter-spacing: -6px; }
+  #free { position: absolute; left: 0; right: 0; top: 1140px; text-align: center; }
+  #free b { display: inline-block; padding: 14px 34px; border-radius: 999px; background: #3ddc97; color: #06281a; font-size: 44px; font-weight: 900; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="blob" id="b1" style="width:900px;height:900px;background:#3ddc97"></div>
+  <div class="blob" id="b2" style="width:800px;height:800px;background:#7c3aed"></div>
+  <div class="blob" id="b3" style="width:700px;height:700px;background:#ff3d7f"></div>
+  <div id="grid"></div>
+  <canvas id="fx" width="1080" height="1920"></canvas>
+
+  <div id="panel"><div id="layer"></div><div class="hl" id="hl"></div><div class="hl" id="hlm"></div></div>
+  <div class="tag" id="tag"></div>
+  <div id="big"></div>
+  <div id="hud"><b>🧠 421 MB</b><b>🎧 4 na call</b><b>🎮 ~45 FPS</b></div>
+
+  <div id="chart">
+    <div id="less"></div>
+    <div class="bar" id="barD" style="left:30px;background:linear-gradient(#ff6b78,#c92a3a)"><div class="v" id="vD"></div><div class="n">Discord<small>só aberto, sem call</small></div></div>
+    <div class="bar" id="barR" style="right:30px;background:linear-gradient(#5ff0b0,#20a86d)"><div class="v" id="vR"></div><div class="n">Resenha<small>em call + transmissão</small></div></div>
+  </div>
+  <div id="note">Memória no Gerenciador de Tarefas do Windows, no mesmo PC e no mesmo momento (11/11/2026). Discord aberto sem call; Resenha em call com 4 pessoas assistindo uma transmissão.</div>
+
+  <div id="cap"></div>
+  <div id="end">
+    <div class="ring" id="r1"></div><div class="ring" id="r2"></div>
+    <div id="endicon"></div>
+    <div id="word">Resenha</div>
+    <div id="free"><b>grátis · link na bio</b></div>
+  </div>
+  <div class="vignette"></div>
+  <div class="flash" id="flash"></div>
+</div>
+<script type="module">
+import { SCENES, CAPTIONS, CUTS, BEAT, DURATION, END, MEM, LESS, ROWS } from './timeline.mjs';
+
+const PW = 980;
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const easeIO = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const back = (x) => { const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const lerp = (a, b, k) => a + (b - a) * k;
+const fmt = (v) => v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+const load = (src) => { const i = new Image(); i.src = src; return i; };
+const print = load('../out/vs-discord/shots/gerenciador.png');
+const clip = {};
+for (const s of SCENES.filter((x) => x.kind === 'clip')) {
+  const n = Math.round((s.t1 - s.t0) * 30);
+  for (let i = 0; i < n; i++) {
+    const f = s.first + i;
+    clip[f] = load(`../out/vs-discord/shots/clip/${String(f).padStart(3, '0')}.jpg`);
+  }
+}
+const icons = await (await fetch('../out/reels/icons.json')).json();
+$('endicon').innerHTML = icons.find((i) => i.id === 'classic').svg;
+
+const capWords = CAPTIONS.map((c) => {
+  const out = [];
+  for (const m of c.text.matchAll(/\*([^*]+)\*(\S*)|(\S+)/g)) {
+    if (m[1]) {
+      m[1].split(' ').forEach((w) => out.push({ w, key: true }));
+      out[out.length - 1].w += m[2];
+    } else out.push({ w: m[3], key: false });
+  }
+  return { ...c, words: out };
+});
+
+function place(el, r, ph) {
+  const W = el.naturalWidth, H = el.naturalHeight;
+  const s = Math.max(PW / (r[2] * W), ph / (r[3] * H));
+  const x = PW / 2 - (r[0] + r[2] / 2) * W * s;
+  const y = ph / 2 - (r[1] + r[3] / 2) * H * s;
+  Object.assign(el.style, { display: 'block', width: `${W}px`, height: `${H}px`, transform: `translate(${x}px, ${y}px) scale(${s})` });
+  return { map: (px, py) => [x + px * W * s, y + py * H * s], sw: W * s, sh: H * s };
+}
+
+function drawFx(t) {
+  const g = $('fx').getContext('2d');
+  g.clearRect(0, 0, 1080, 1920);
+  for (let i = 0; i < 70; i++) {
+    const sp = 20 + (i % 7) * 9;
+    const x = (i * 157.3) % 1080 + Math.sin(t * 0.7 + i) * 14;
+    const y = 1920 - ((i * 263.1 + t * sp) % 2000);
+    const a = 0.15 + 0.35 * ((i * 37) % 10) / 10;
+    g.fillStyle = i % 3 === 0 ? `rgba(61,220,151,${a})` : i % 3 === 1 ? `rgba(167,139,250,${a})` : `rgba(255,255,255,${a * 0.8})`;
+    g.beginPath();
+    g.arc(x, y, 2 + (i % 4), 0, Math.PI * 2);
+    g.fill();
+  }
+}
+
+window.seek = function seek(t) {
+  $('b1').style.transform = `translate(${-200 + Math.sin(t * 0.5) * 140}px, ${200 + Math.cos(t * 0.4) * 120}px)`;
+  $('b2').style.transform = `translate(${480 + Math.cos(t * 0.45) * 160}px, ${900 + Math.sin(t * 0.55) * 140}px)`;
+  $('b3').style.transform = `translate(${60 + Math.sin(t * 0.6 + 1) * 160}px, ${1350 + Math.cos(t * 0.5) * 120}px)`;
+  $('grid').style.transform = `translateY(${(t * 24) % 72}px)`;
+  const pulse = t >= 2 && t < END ? Math.exp(-((t % BEAT) / BEAT) * 5) : 0;
+  for (const id of ['b1', 'b2', 'b3']) $(id).style.opacity = 0.42 + 0.22 * pulse;
+  drawFx(t);
+
+  const sc = SCENES.find((s) => t >= s.t0 && t < s.t1);
+  const panel = $('panel');
+  const layer = $('layer');
+  layer.replaceChildren();
+  for (const id of ['hl', 'hlm', 'tag', 'big', 'hud', 'chart', 'note']) $(id).style.opacity = 0;
+  panel.style.opacity = 0;
+  if (sc) {
+    const since = t - sc.t0;
+    const punch = 1 + 0.07 * Math.exp(-since * 12);
+    const shake = Math.exp(-since * 18) * 10 * Math.sin(since * 90);
+    const intro = t < 0.35 ? easeOut(t / 0.35) : 1;
+    if (sc.kind === 'print') {
+      // o print de verdade do Gerenciador de Tarefas, com a linha em destaque
+      const ph = Math.round((PW * 264) / 669);
+      const top = 640 - ph / 2;
+      Object.assign(panel.style, { opacity: intro, height: `${ph}px`, top: `${top}px`, transform: `translate(${shake}px, ${(1 - intro) * 120}px) scale(${punch})` });
+      const red = sc.row === 'discord';
+      panel.style.setProperty('--glow', red ? '#ff4d5e66' : '#3ddc9766');
+      layer.append(print);
+      const k = easeIO(clamp(since / 3));
+      const R = ROWS[sc.row];
+      // câmera chegando perto da linha (sem cortar as colunas)
+      const cy = R[1] + R[3] / 2;
+      const z = 1 - 0.14 * k;
+      const r = [(1 - z) / 2, clamp(cy - z / 2, 0, 1 - z), z, z];
+      const P = place(print, r, ph);
+      const pop = back(clamp((since - 0.25) / 0.2));
+      const color = red ? '#ff4d5e' : '#3ddc97';
+      const [x, y] = P.map(R[0], R[1]);
+      Object.assign($('hl').style, { left: `${x}px`, top: `${y}px`, width: `${R[2] * P.sw}px`, height: `${R[3] * P.sh}px`, borderColor: color, boxShadow: `0 0 30px ${color}`, opacity: since > 0.25 ? 1 : 0, transform: `scale(${0.96 + 0.04 * pop})` });
+      const [mx, my] = P.map(ROWS.mem[0], R[1] - 0.012);
+      Object.assign($('hlm').style, { left: `${mx}px`, top: `${my}px`, width: `${ROWS.mem[2] * P.sw}px`, height: `${(R[3] + 0.024) * P.sh}px`, borderColor: '#fff', boxShadow: `0 0 30px ${color}`, opacity: since > 0.9 ? 1 : 0 });
+      // número grande contando
+      const v = MEM[sc.row] * easeOut(clamp((since - 0.9) / 0.8));
+      Object.assign($('big').style, { top: `${top + ph + 40}px`, color, opacity: since > 0.9 ? 1 : 0, transform: `scale(${back(clamp((since - 0.9) / 0.25))})` });
+      $('big').textContent = `${fmt(v)} MB`;
+      const tag = $('tag');
+      tag.textContent = red ? '⏸️ só aberto · sem call' : '🎧 em call · assistindo transmissão';
+      Object.assign(tag.style, { left: '50%', top: `${top - 90}px`, background: color, color: red ? '#fff' : '#06281a', opacity: since > 0.4 ? 1 : 0, transform: `translateX(-50%) rotate(-2deg) scale(${back(clamp((since - 0.4) / 0.2))})` });
+    } else if (sc.kind === 'clip') {
+      // a gravação: o Resenha em call, recebendo a transmissão
+      const ph = 1000;
+      const top = 760 - ph / 2;
+      const f = sc.first + Math.min(Math.round((sc.t1 - sc.t0) * 30) - 1, Math.floor(since * 30));
+      const el = clip[f];
+      layer.append(el);
+      Object.assign(panel.style, { opacity: 1, height: `${ph}px`, top: `${top}px`, transform: `translate(${shake}px, 0) scale(${punch})` });
+      panel.style.setProperty('--glow', '#3ddc9766');
+      // abre na call inteira e entra na transmissão
+      const k = easeIO(clamp(since / 2.2));
+      const k2 = easeIO(clamp((since - 4.6) / 2.2));
+      const wide = [0, 0, 1, 1], mid = [0.16, 0.04, 0.66, 0.78], tight = [0.165, 0.065, 0.56, 0.66];
+      const r = wide.map((v, i) => lerp(lerp(v, mid[i], k), tight[i], k2));
+      place(el, r, ph);
+      Object.assign($('hud').style, { top: `${top - 100}px`, opacity: clamp((since - 0.3) / 0.2), transform: `scale(${back(clamp((since - 0.3) / 0.25))})` });
+    } else if (sc.kind === 'chart') {
+      const c = $('chart');
+      c.style.opacity = clamp(since / 0.2);
+      const maxH = 600;
+      const kD = easeOut(clamp((since - 0.1) / 0.6)), kR = easeOut(clamp((since - 0.5) / 0.6));
+      $('barD').style.height = `${maxH * kD}px`;
+      $('barR').style.height = `${maxH * (MEM.resenha / MEM.discord) * kR}px`;
+      $('vD').textContent = kD > 0 ? `${fmt(MEM.discord * kD)} MB` : '';
+      $('vR').textContent = kR > 0 ? `${fmt(MEM.resenha * kR)} MB` : '';
+      const lk = clamp((since - 1.2) / 0.25);
+      $('less').textContent = `−${LESS}%`;
+      Object.assign($('less').style, { opacity: lk > 0 ? 1 : 0, transform: `rotate(-6deg) scale(${back(lk) * (1 + 0.04 * Math.sin(t * 8))})` });
+      $('note').style.opacity = clamp((since - 0.4) / 0.3);
+    }
+  } else if (t >= END) {
+    $('note').style.opacity = 1 - clamp((t - END) / 0.25);
+  }
+
+  // legendas
+  const cap = capWords.find((c) => t >= c.t && t < c.end);
+  const box = $('cap');
+  if (!cap) box.replaceChildren();
+  else {
+    const out = 1 - clamp((t - (cap.end - 0.07)) / 0.07);
+    const bad = t < 3;
+    box.style.top = `${t >= END ? 1290 : sc?.kind === 'chart' ? 1300 : 1400}px`;
+    box.replaceChildren(
+      ...cap.words.map((w, i) => {
+        const s = document.createElement('span');
+        s.className = `w${w.key ? (bad ? ' bad' : ' key') : ''}`;
+        s.textContent = w.w;
+        const k = clamp((t - cap.t - i * 0.06) / 0.18);
+        s.style.opacity = k > 0 ? 1 : 0;
+        s.style.transform = `scale(${back(k) * out}) translateY(${(1 - k) * 30}px) rotate(${w.key ? Math.sin(t * 8) * 1.5 : 0}deg)`;
+        return s;
+      }),
+    );
+  }
+
+  const lastCut = CUTS.filter((c) => c <= t).pop() ?? -9;
+  $('flash').style.opacity = 0.35 * Math.exp(-(t - lastCut) * 14) * (lastCut > 0 ? 1 : 0);
+
+  const ek = clamp((t - END) / 0.3);
+  $('end').style.opacity = ek;
+  $('endicon').style.transform = `scale(${back(clamp((t - END) / 0.35))}) rotate(${Math.sin(t * 2) * 3}deg)`;
+  for (const [id, d] of [['r1', 0], ['r2', 0.25]]) {
+    const rk = clamp((t - END - d) / 0.9);
+    const size = 300 + rk * 900;
+    Object.assign($(id).style, { width: `${size}px`, height: `${size}px`, left: `${540 - size / 2}px`, top: `${650 - size / 2}px`, opacity: (1 - rk) * (t >= END + d ? 1 : 0) });
+  }
+  $('word').style.transform = `translateY(${(1 - easeOut(clamp((t - END - 0.2) / 0.3))) * 60}px)`;
+  $('word').style.opacity = clamp((t - END - 0.2) / 0.2);
+  $('free').style.opacity = clamp((t - END - 0.5) / 0.2);
+  $('free').style.transform = `scale(${back(clamp((t - END - 0.5) / 0.25))})`;
+};
+
+window.DURATION = DURATION;
+window.COVER = 14.8;
+window.ready = Promise.all([print, ...Object.values(clip)].map((i) => i.decode().catch(() => {}))).then(() => document.fonts.ready);
+window.seek(0);
+</script>
+</body>
+</html>
