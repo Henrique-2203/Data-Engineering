@@ -4365,6 +4365,101 @@ input.switch:disabled {
   border-left-color: var(--bg-4);
 }
 
+/* ---------- códigos de convite ---------- */
+.invite-admin {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.invite-create {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--bg-2);
+}
+.invite-create-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+.invite-create label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+.invite-create .btn {
+  align-self: flex-start;
+}
+.invite-ranking ol {
+  margin: 6px 0 0 20px;
+  font-size: 14px;
+}
+.invite-item {
+  border-left-color: var(--accent);
+}
+.invite-item.off {
+  opacity: 0.6;
+  border-left-color: var(--bg-4);
+}
+.invite-code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.invite-usage {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  margin: 6px 0;
+}
+.invite-bar {
+  flex: 1;
+  max-width: 220px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--bg-4);
+  overflow: hidden;
+}
+.invite-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+}
+.invite-bar.full i {
+  background: var(--warn, #f0b232);
+}
+.invite-users {
+  margin: 8px 0 0 18px;
+  font-size: 13px;
+}
+.my-invites {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.my-invites > strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.my-invite {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+.my-invite .invite-code {
+  font-size: 18px;
+}
+
 /* ---------- painel de números ---------- */
 .stats {
   display: flex;

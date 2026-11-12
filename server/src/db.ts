@@ -450,6 +450,21 @@ create table if not exists client_errors (
   last_at timestamptz not null default now(),
   primary key (day, hash)
 );
+-- v40: códigos de convite pessoais (cada um com limite de contas e quem trouxe quem)
+create table if not exists signup_codes (
+  code text primary key,
+  label text not null default '',
+  owner_id text references users(id) on delete set null,
+  max_uses integer,
+  uses integer not null default 0,
+  active boolean not null default true,
+  is_general boolean not null default false,
+  created_by text,
+  created_at timestamptz not null default now()
+);
+create index if not exists signup_codes_owner_idx on signup_codes(owner_id);
+alter table users add column if not exists signup_code text;
+alter table pending_signups add column if not exists signup_code text;
 create table if not exists backups (
   id text primary key,
   started_at timestamptz not null default now(),

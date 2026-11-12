@@ -208,6 +208,7 @@ Sem e-mail configurado, tudo continua funcionando e a recuperação é feita com
   recebe um código de 6 dígitos e a conta só é criada com ele. Um e-mail por conta. O nome de usuário é conferido enquanto se digita.
 - **Login com usuário ou e-mail.** Contas antigas sem e-mail recebem um convite (no máximo 1 vez por dia) para adicionar.
 - Para abrir o cadastro para todo mundo, apague a variável `REGISTRATION_CODE` no Render (ela faz o campo "Código de cadastro" aparecer).
+- **Códigos de convite pessoais** (Painel da equipe → Convites): crie um código para cada pessoa (ex.: `LARI-7K3P`) com limite de contas (ex.: 5 amigos). O painel mostra quantas contas cada código criou, quem entrou por ele e um ranking de quem mais trouxe amigos. A pessoa vê os códigos dela em Configurações → Minha conta → "Seus convites", com o link `/app?convite=CÓDIGO` que já abre o cadastro preenchido. O uso só é gasto quando a conta nasce (com e-mail, na confirmação), e dois cadastros ao mesmo tempo nunca passam do limite. O código geral (`REGISTRATION_CODE`) continua valendo sem limite e aparece na lista: desative ele no painel para que só os códigos pessoais funcionem. Os códigos só são pedidos enquanto `REGISTRATION_CODE` existir.
 
 - Login guardado em cookie protegido (HttpOnly, Secure, SameSite=Lax): scripts da página não conseguem lê-lo.
   Quem estava logado na versão antiga é migrado sozinho. Pedidos vindos de outros sites são recusados (CSRF).

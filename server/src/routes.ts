@@ -47,6 +47,7 @@ import { registerProfileRoutes } from './profile.ts';
 import { registerExpressionRoutes, usableExpression } from './expressions.ts';
 import { isPlatformAdmin, registerReportRoutes } from './reports.ts';
 import { registerWaitlistRoutes } from './waitlist.ts';
+import { checkSignupCode, consumeSignupCode, registerSignupCodeRoutes, registrationNeedsCode, releaseSignupCode } from './signupCodes.ts';
 import { bump, registerStatsRoutes } from './stats.ts';
 import { checkSecondFactor, clearLimit, hits, limit, limited, registerSecurityRoutes } from './security.ts';
 import { POLL_SELECT, checkAutomod, checkSlowmode, pollSchema, registerCommunityRoutes } from './community.ts';
@@ -203,7 +204,7 @@ export function createRoutes(db: Db, rt: Realtime) {
     res.json({
       turnstileSiteKey: turnstileEnabled() ? config.turnstile.siteKey : null,
       emailEnabled: emailEnabled(),
-      registrationRequiresCode: !!config.registrationCode,
+      registrationRequiresCode: registrationNeedsCode(),
       env: config.appEnv,
       officialUrl: config.appEnv === 'staging' ? config.officialUrl : null,
       privacyContact: config.privacyContact,
@@ -231,9 +232,7 @@ export function createRoutes(db: Db, rt: Realtime) {
       if (emailEnabled()) throw new HttpError(400, 'Atualize a página: o cadastro agora confirma o seu e-mail.');
       await requireHuman(req, body.captcha);
       const checked = await requireSafePassword(body.password, body.username);
-      if (config.registrationCode && body.registrationCode?.trim() !== config.registrationCode) {
-        throw new HttpError(403, 'Código de convite para cadastro inválido.');
-      }
+      const signupCode = await checkSignupCode(db, body.registrationCode, req.ip ?? '');
       const exists = await db.query('select 1 from users where username = $1', [body.username]);
       if (exists.length) throw new HttpError(409, 'Esse nome de usuário já está em uso.');
       const user: PublicUser = {
@@ -242,11 +241,18 @@ export function createRoutes(db: Db, rt: Realtime) {
         displayName: body.displayName || body.username,
         avatarColor: randomColor(),
       };
-      await db.query(
-        `insert into users (id, username, display_name, password_hash, avatar_color, terms_accepted_at, password_checked_at)
-         values ($1, $2, $3, $4, $5, case when $6 then now() else null end, case when $7 then now() else null end)`,
-        [user.id, user.username, user.displayName, await hashPassword(body.password), user.avatarColor, !!body.acceptTerms, checked],
-      );
+      const hash = await hashPassword(body.password);
+      await consumeSignupCode(db, signupCode);
+      try {
+        await db.query(
+          `insert into users (id, username, display_name, password_hash, avatar_color, terms_accepted_at, password_checked_at, signup_code)
+           values ($1, $2, $3, $4, $5, case when $6 then now() else null end, case when $7 then now() else null end, $8)`,
+          [user.id, user.username, user.displayName, hash, user.avatarColor, !!body.acceptTerms, checked, signupCode],
+        );
+      } catch (err) {
+        await releaseSignupCode(db, signupCode);
+        throw err;
+      }
       bump('signup');
       const session = await issueSession(db, req, res, user.id);
       await recordLogin(db, req, user.id, 'register');
@@ -285,9 +291,7 @@ export function createRoutes(db: Db, rt: Realtime) {
         req.body,
       );
       await requireHuman(req, body.captcha);
-      if (config.registrationCode && body.registrationCode?.trim() !== config.registrationCode) {
-        throw new HttpError(403, 'Código de convite para cadastro inválido.');
-      }
+      const signupCode = await checkSignupCode(db, body.registrationCode, req.ip ?? '');
       if ((await db.query('select 1 from users where username = $1', [body.username])).length) throw new HttpError(409, 'Esse nome de usuário já está em uso.');
       if ((await db.query('select 1 from users where lower(email) = $1', [body.email])).length) {
         throw new HttpError(409, 'Este e-mail já tem uma conta no Resenha. Entre com ele ou use "Esqueci minha senha".');
@@ -298,9 +302,9 @@ export function createRoutes(db: Db, rt: Realtime) {
       const code = sixDigits();
       await db.query('delete from pending_signups where email = $1', [body.email]);
       await db.query(
-        `insert into pending_signups (id, email, username, display_name, password_hash, password_checked, terms, code_hash, expires_at)
-         values ($1, $2, $3, $4, $5, $6, true, $7, now() + interval '15 minutes')`,
-        [id, body.email, body.username, body.displayName || body.username, await hashPassword(body.password), checked, signupCodeHash(id, code)],
+        `insert into pending_signups (id, email, username, display_name, password_hash, password_checked, terms, code_hash, expires_at, signup_code)
+         values ($1, $2, $3, $4, $5, $6, true, $7, now() + interval '15 minutes', $8)`,
+        [id, body.email, body.username, body.displayName || body.username, await hashPassword(body.password), checked, signupCodeHash(id, code), signupCode],
       );
       if (!(await sendSignupCode(body.email, body.username, code))) {
         await db.query('delete from pending_signups where id = $1', [id]);
@@ -338,8 +342,8 @@ export function createRoutes(db: Db, rt: Realtime) {
     wrap(async (req, res) => {
       limit(`reg-confirm:${req.ip}`, 30, 15 * 60_000);
       const body = parse(z.object({ pendingId: z.string().max(64), code: z.string().trim().max(12) }), req.body);
-      const [p] = await db.query<{ email: string; username: string; display_name: string; password_hash: string; password_checked: boolean; attempts: number; code_hash: string }>(
-        `select email, username, display_name, password_hash, password_checked, attempts, code_hash from pending_signups where id = $1 and expires_at > now()`,
+      const [p] = await db.query<{ email: string; username: string; display_name: string; password_hash: string; password_checked: boolean; attempts: number; code_hash: string; signup_code: string | null }>(
+        `select email, username, display_name, password_hash, password_checked, attempts, code_hash, signup_code from pending_signups where id = $1 and expires_at > now()`,
         [body.pendingId],
       );
       if (!p) throw new HttpError(410, 'Esse código expirou. Peça um novo ou preencha de novo.');
@@ -351,11 +355,18 @@ export function createRoutes(db: Db, rt: Realtime) {
       if ((await db.query('select 1 from users where username = $1', [p.username])).length) throw new HttpError(409, 'Esse nome de usuário foi pego enquanto isso. Escolha outro.');
       if ((await db.query('select 1 from users where lower(email) = $1', [p.email])).length) throw new HttpError(409, 'Este e-mail já tem uma conta no Resenha.');
       const user: PublicUser = { id: randomUUID(), username: p.username, displayName: p.display_name, avatarColor: randomColor() };
-      await db.query(
-        `insert into users (id, username, display_name, password_hash, avatar_color, terms_accepted_at, password_checked_at, email, email_verified_at)
-         values ($1, $2, $3, $4, $5, now(), case when $6 then now() else null end, $7, now())`,
-        [user.id, user.username, user.displayName, p.password_hash, user.avatarColor, p.password_checked, p.email],
-      );
+      // o código de convite só gasta um uso agora, quando a conta nasce
+      await consumeSignupCode(db, p.signup_code);
+      try {
+        await db.query(
+          `insert into users (id, username, display_name, password_hash, avatar_color, terms_accepted_at, password_checked_at, email, email_verified_at, signup_code)
+           values ($1, $2, $3, $4, $5, now(), case when $6 then now() else null end, $7, now(), $8)`,
+          [user.id, user.username, user.displayName, p.password_hash, user.avatarColor, p.password_checked, p.email, p.signup_code],
+        );
+      } catch (err) {
+        await releaseSignupCode(db, p.signup_code);
+        throw err;
+      }
       await db.query('delete from pending_signups where id = $1', [body.pendingId]);
       bump('signup');
       const session = await issueSession(db, req, res, user.id);
@@ -493,6 +504,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerAuditRoutes(r, db, auth);
   registerReportRoutes(r, db, rt, auth);
   registerWaitlistRoutes(r, db, rt, auth);
+  registerSignupCodeRoutes(r, db, auth);
   registerStatsRoutes(r, db, auth);
   registerSystemRoutes(r, db, auth);
 

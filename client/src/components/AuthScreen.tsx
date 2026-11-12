@@ -48,14 +48,23 @@ export function StrengthMeter({ password, id }: { password: string; id?: string 
   );
 }
 
+/** link de convite com código: /app?convite=LARI-7K3P (já abre o cadastro com o código preenchido) */
+const codeFromUrl = (() => {
+  try {
+    return (new URLSearchParams(location.search).get('convite') ?? '').trim().slice(0, 24);
+  } catch {
+    return '';
+  }
+})();
+
 export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
-  const [mode, setMode] = useState<Mode>(hasInvite ? 'register' : 'login');
+  const [mode, setMode] = useState<Mode>(hasInvite || codeFromUrl ? 'register' : 'login');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(codeFromUrl);
   const [otp, setOtp] = useState('');
   const [needs2fa, setNeeds2fa] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState('');
@@ -377,8 +386,17 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
                 {passwordField('Senha', 'new-password')}
                 {needsCode && (
                   <label>
-                    Código de cadastro
-                    <input value={code} onChange={(e) => setCode(e.target.value)} required placeholder="Peça para quem criou o site" />
+                    Código de convite
+                    <input
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.toUpperCase())}
+                      required
+                      autoCapitalize="characters"
+                      spellCheck={false}
+                      maxLength={24}
+                      placeholder="Ex.: LARI-7K3P"
+                    />
+                    <span className="muted small">Peça para um amigo que já usa o Resenha.</span>
                   </label>
                 )}
                 <label className="check terms-check">

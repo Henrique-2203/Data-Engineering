@@ -17,7 +17,7 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | Captcha invisível | ✅ configurado |
 | `EMAIL_PROVIDER=brevo`, `EMAIL_API_KEY`, `EMAIL_FROM` | E-mails de segurança | ✅ configurado (IP liberado na Brevo) |
 | `PLATFORM_ADMINS` | Seu usuário: vê o Painel da equipe | ✅ |
-| `REGISTRATION_CODE` | Código para criar conta. **Apague para abrir o cadastro para todos** | decidir |
+| `REGISTRATION_CODE` | Liga o cadastro só com convite (este é o código geral, sem limite; os códigos pessoais com limite ficam no Painel da equipe → Convites). **Apague para abrir o cadastro para todos** | decidir |
 | (nenhuma) | Notificações no celular: as chaves são criadas sozinhas e guardadas no banco | ✅ automático |
 
 ---

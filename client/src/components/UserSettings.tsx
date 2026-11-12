@@ -11,6 +11,7 @@ import { Avatar } from './Avatar';
 import { ProfileEditor } from './ProfileEditor';
 import { SecuritySettings } from './SecuritySettings';
 import { MyFiles } from './MyFiles';
+import { MyInviteCodes } from './InviteCodes';
 import { healthEnabled, setHealthEnabled } from '../lib/health';
 import { DesktopSettingsSection, InputModeSettings, SoundSettings } from './Modals';
 
@@ -239,6 +240,8 @@ function AccountOverview({ go, onLogout }: { go(s: SettingsSection): void; onLog
           <ChevronRight size={18} />
         </button>
       )}
+
+      <MyInviteCodes />
 
       <div className="settings-card">
         <button className="btn danger ghost" onClick={onLogout}>

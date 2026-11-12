@@ -5,6 +5,7 @@ import { Flag, ShieldAlert, X } from 'lucide-react';
 import { api, authHeaders } from '../lib/api';
 import { StatsPanel } from './StatsPanel';
 import { SystemPanel } from './SystemPanel';
+import { InviteCodesAdmin } from './InviteCodes';
 import { closeModal, toast, useApp } from '../store/app';
 import { fileUrl } from '../lib/expressions';
 
@@ -152,7 +153,7 @@ interface AdminReport {
 const reasonLabel = (id: string) => REASONS.find((r) => r.id === id)?.label ?? id;
 
 export function AdminReports() {
-  const [tab, setTab] = useState<'stats' | 'health' | 'open' | 'closed' | 'support' | 'waitlist' | 'system'>(
+  const [tab, setTab] = useState<'stats' | 'health' | 'open' | 'closed' | 'support' | 'waitlist' | 'invites' | 'system'>(
     useApp.getState().openReports > 0 ? 'open' : useApp.getState().openSupport > 0 ? 'support' : 'stats',
   );
   const supportCount = useApp((s) => s.openSupport);
@@ -207,11 +208,15 @@ export function AdminReports() {
             <button role="tab" aria-selected={tab === 'waitlist'} onClick={() => setTab('waitlist')}>
               Lista de espera
             </button>
+            <button role="tab" aria-selected={tab === 'invites'} onClick={() => setTab('invites')}>
+              Convites
+            </button>
             <button role="tab" aria-selected={tab === 'system'} onClick={() => setTab('system')}>
               Sistema
             </button>
           </div>
           {tab === 'waitlist' && <WaitlistAdmin />}
+          {tab === 'invites' && <InviteCodesAdmin />}
           {tab === 'support' && <AdminSupport />}
           {tab === 'health' && <HealthPanel />}
           {tab === 'stats' && <StatsPanel />}
