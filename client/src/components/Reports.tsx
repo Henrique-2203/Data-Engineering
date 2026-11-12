@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AdminSupport } from './Support';
 import { HealthPanel } from './HealthPanel';
-import { Flag, ShieldAlert, X } from 'lucide-react';
+import { Activity, Archive, BarChart3, ClipboardList, Flag, LayoutDashboard, LifeBuoy, Server, ShieldAlert, Ticket, X } from 'lucide-react';
+import { AdminOverview, type AdminTab } from './AdminOverview';
 import { api, authHeaders } from '../lib/api';
 import { askText } from '../lib/ask';
 import { StatsPanel } from './StatsPanel';
@@ -153,10 +154,45 @@ interface AdminReport {
 
 const reasonLabel = (id: string) => REASONS.find((r) => r.id === id)?.label ?? id;
 
+/** seções do painel, em grupos (o menu lateral mostra o contador do que está pendente) */
+const ADMIN_GROUPS: { title?: string; items: { id: AdminTab; label: string; icon: ReactNode; description: string }[] }[] = [
+  { items: [{ id: 'overview', label: 'Visão geral', icon: <LayoutDashboard size={18} />, description: 'O que importa num olhar só. Clique em um cartão para ver os detalhes.' }] },
+  {
+    title: 'Comunidade',
+    items: [
+      { id: 'open', label: 'Denúncias', icon: <Flag size={18} />, description: 'Denúncias abertas, com a cópia do que foi denunciado e o histórico da conta.' },
+      { id: 'closed', label: 'Encerradas', icon: <Archive size={18} />, description: 'Denúncias já resolvidas ou descartadas, e o que foi feito.' },
+      { id: 'support', label: 'Suporte', icon: <LifeBuoy size={18} />, description: 'Pedidos de ajuda das pessoas. Responda por aqui.' },
+    ],
+  },
+  {
+    title: 'Crescimento',
+    items: [
+      { id: 'stats', label: 'Números', icon: <BarChart3 size={18} />, description: 'Visitas, inscrições, contas e uso por dia (somados, sem identificar ninguém).' },
+      { id: 'waitlist', label: 'Lista de espera', icon: <ClipboardList size={18} />, description: 'Quem pediu convite. Mande o código por e-mail ou deixe o convite automático ligado.' },
+      { id: 'invites', label: 'Convites', icon: <Ticket size={18} />, description: 'Códigos de convite, limites e quem trouxe quem.' },
+    ],
+  },
+  {
+    title: 'Plataforma',
+    items: [
+      { id: 'health', label: 'Saúde', icon: <Activity size={18} />, description: 'Conexões, voz e transmissões das calls (somados por dia).' },
+      { id: 'system', label: 'Sistema', icon: <Server size={18} />, description: 'Limites do plano, espaço, backups e e-mails.' },
+    ],
+  },
+];
+
 export function AdminReports() {
-  const [tab, setTab] = useState<'stats' | 'health' | 'open' | 'closed' | 'support' | 'waitlist' | 'invites' | 'system'>(
-    useApp.getState().openReports > 0 ? 'open' : useApp.getState().openSupport > 0 ? 'support' : 'stats',
-  );
+  const [tab, setTab] = useState<AdminTab>(useApp.getState().openReports > 0 ? 'open' : useApp.getState().openSupport > 0 ? 'support' : 'overview');
+  const [waiting, setWaiting] = useState(0);
+  useEffect(() => {
+    void api<{ entries: { invitedAt: string | null }[] }>('/admin/waitlist').then((r) => setWaiting(r.entries.filter((e) => !e.invitedAt).length), () => {});
+  }, [tab]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('.ask-backdrop') && closeModal();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const supportCount = useApp((s) => s.openSupport);
   const [reports, setReports] = useState<AdminReport[] | null>(null);
   const openCount = useApp((s) => s.openReports);
@@ -181,44 +217,37 @@ export function AdminReports() {
     }
   }
 
+  const badge: Partial<Record<AdminTab, number>> = { open: openCount, support: supportCount, waitlist: waiting };
+  const current = ADMIN_GROUPS.flatMap((g) => g.items).find((x) => x.id === tab)!;
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeModal()}>
-      <div className="modal wide" role="dialog" aria-modal="true" aria-label="Painel da equipe">
-        <div className="modal-head">
-          <h2>
-            <ShieldAlert size={20} /> Painel da equipe
-          </h2>
-          <button className="icon-btn" aria-label="Fechar" onClick={closeModal}>
-            <X size={20} />
-          </button>
+    <div className="settings-page admin-panel" role="dialog" aria-modal="true" aria-label="Painel da equipe">
+      <nav className="settings-nav" aria-label="Seções do painel" role="tablist">
+        <div className="settings-nav-title">
+          <ShieldAlert size={14} /> Painel da equipe
         </div>
-        <div className="modal-body">
-          <div className="tabs" role="tablist">
-            <button role="tab" aria-selected={tab === 'stats'} onClick={() => setTab('stats')}>
-              Números
-            </button>
-            <button role="tab" aria-selected={tab === 'health'} onClick={() => setTab('health')}>
-              Saúde
-            </button>
-            <button role="tab" aria-selected={tab === 'open'} onClick={() => setTab('open')}>
-              Denúncias {openCount > 0 && `(${openCount})`}
-            </button>
-            <button role="tab" aria-selected={tab === 'closed'} onClick={() => setTab('closed')}>
-              Encerradas
-            </button>
-            <button role="tab" aria-selected={tab === 'support'} onClick={() => setTab('support')}>
-              Suporte {supportCount > 0 && `(${supportCount})`}
-            </button>
-            <button role="tab" aria-selected={tab === 'waitlist'} onClick={() => setTab('waitlist')}>
-              Lista de espera
-            </button>
-            <button role="tab" aria-selected={tab === 'invites'} onClick={() => setTab('invites')}>
-              Convites
-            </button>
-            <button role="tab" aria-selected={tab === 'system'} onClick={() => setTab('system')}>
-              Sistema
-            </button>
+        {ADMIN_GROUPS.map((g, gi) => (
+          <div key={gi} className="admin-nav-group">
+            {g.title && <div className="admin-nav-label">{g.title}</div>}
+            {g.items.map((it) => (
+              <button key={it.id} role="tab" aria-selected={tab === it.id} className={tab === it.id ? 'active' : ''} onClick={() => setTab(it.id)}>
+                {it.icon}
+                <span>{it.label}</span>
+                {!!badge[it.id] && <b className={`nav-count${it.id === 'open' ? ' bad' : ''}`}>{badge[it.id]}</b>}
+              </button>
+            ))}
           </div>
+        ))}
+      </nav>
+      <section className="settings-body">
+        <button className="icon-btn settings-close" aria-label="Fechar" title="Fechar (Esc)" onClick={closeModal}>
+          <X size={22} />
+        </button>
+        <div className="settings-section admin-section">
+          <header className="settings-head">
+            <h2>{current.label}</h2>
+            <p className="muted">{current.description}</p>
+          </header>
+          {tab === 'overview' && <AdminOverview go={setTab} />}
           {tab === 'waitlist' && <WaitlistAdmin />}
           {tab === 'invites' && <InviteCodesAdmin />}
           {tab === 'support' && <AdminSupport />}
@@ -296,7 +325,7 @@ export function AdminReports() {
             ))}
           </ul>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

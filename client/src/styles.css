@@ -7432,3 +7432,175 @@ html.env-staging body {
 .app-icon-tile img {
   border-radius: 14px;
 }
+
+/* ---------- painel da equipe (tela cheia, como as configurações) ---------- */
+.admin-panel .settings-nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.admin-panel .settings-nav button svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.admin-panel .settings-nav button.active svg {
+  color: var(--accent);
+  opacity: 1;
+}
+.admin-panel .settings-nav-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+.admin-nav-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-3);
+  padding: 6px 10px 2px;
+}
+.admin-panel .nav-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--warn);
+  color: #1d1400;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+.admin-panel .nav-count.bad {
+  background: var(--danger, #f23f43);
+  color: #fff;
+}
+.admin-section {
+  max-width: 1040px;
+}
+
+/* visão geral */
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.ov-title {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-3);
+  margin: 0 0 10px;
+}
+.ov-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+.ov-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 112px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--text-3);
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+button.ov-card {
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+button.ov-card:hover {
+  transform: translateY(-2px);
+  background: var(--bg-3);
+}
+.ov-card.ok {
+  border-left-color: var(--accent);
+}
+.ov-card.warn {
+  border-left-color: var(--warn);
+}
+.ov-card.bad {
+  border-left-color: var(--danger, #f23f43);
+  background: color-mix(in srgb, var(--danger, #f23f43) 8%, var(--bg-2));
+}
+.ov-label {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.ov-value {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.ov-card.ok .ov-value {
+  color: var(--accent);
+}
+.ov-card.warn .ov-value {
+  color: var(--warn);
+}
+.ov-hint {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.35;
+}
+.ov-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 26px;
+  margin: 2px 0;
+}
+.ov-spark i {
+  flex: 1;
+  border-radius: 3px 3px 1px 1px;
+  background: color-mix(in srgb, var(--accent) 65%, transparent);
+}
+.ov-spark i:last-child {
+  background: var(--accent);
+}
+.ov-allgood {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+@media (max-width: 900px) {
+  .admin-panel .settings-nav-title {
+    display: none;
+  }
+  .admin-panel .settings-nav {
+    margin-right: 52px;
+    padding-right: 12px;
+  }
+  .admin-nav-group {
+    flex-direction: row;
+    margin: 0;
+  }
+  .admin-nav-label {
+    display: none;
+  }
+  .admin-panel .settings-nav button span {
+    white-space: nowrap;
+  }
+  .ov-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ov-value {
+    font-size: 24px;
+  }
+}
