@@ -64,6 +64,11 @@ function context() {
   return ctx;
 }
 
+/** retoma o áudio do filtro (o Safari "interrompe" o AudioContext quando a página sai da tela) */
+export function resumeDenoise() {
+  if (ctx && ctx.state !== 'closed' && ctx.state !== 'running') void ctx.resume().catch(() => {});
+}
+
 function load(mode: AiNoiseMode, c: AudioContext): Promise<ArrayBuffer> {
   let p = loaded.get(mode);
   if (!p) {

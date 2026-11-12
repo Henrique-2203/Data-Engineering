@@ -8,7 +8,7 @@ import { updateSettings, useVoice, type MediaKind, type RemoteMedia } from '../s
 import { Peer, type SenderSlot } from './peer';
 import { preferCodec } from './sdp';
 import { CODECS, type NoiseMode, effectiveBitrate, screenCodecFor, screenPresetFor } from './settings';
-import { type AiNoiseMode, type Denoiser, aiNoiseSupported, createDenoiser } from './denoise';
+import { type AiNoiseMode, type Denoiser, aiNoiseSupported, createDenoiser, resumeDenoise } from './denoise';
 import { desktop } from '../lib/desktop';
 import { desktopSystemAudio, type SystemAudioTrack } from './systemAudio';
 import { together } from './together';
@@ -75,6 +75,9 @@ async function safetyCode(a: string, b: string) {
   return groups.join(' ');
 }
 
+/** iPhone/iPad (o iPadOS se apresenta como Mac, mas tem tela de toque) */
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+
 class VoiceEngine {
   private peers = new Map<string, Peer>();
   private iceServers: RTCIceServer[] | null = null;
@@ -109,6 +112,7 @@ class VoiceEngine {
   }
 
   constructor() {
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => this.onVisibility());
     onSocketReady((socket) => {
       this.dbg(`ready socket=${socket.id} status=${getV().status} channel=${getV().channelId} joining=${this.joining}`);
       this.bind(socket);
@@ -369,6 +373,47 @@ class VoiceEngine {
     }
   }
 
+  // ---------------- iPhone: sair do Safari pausa o microfone ----------------
+
+  /** o microfone "de verdade" (antes do filtro de ruído), para saber se o sistema o pausou ou encerrou */
+  private rawMic: MediaStreamTrack | null = null;
+  private backgroundSince: number | null = null;
+
+  /**
+   * No iPhone/iPad, uma página não pode usar o microfone em segundo plano: ao sair do Safari (ou
+   * bloquear a tela) o iOS pausa o microfone, mas o som dos outros continua tocando. Antes os amigos
+   * achavam que a pessoa tinha sumido e, ao voltar, às vezes o microfone continuava mudo. Agora:
+   * enquanto está fora, os amigos veem o microfone dela desligado; ao voltar, o áudio é retomado
+   * (e o microfone é reaberto se o iOS o encerrou) e ela recebe um aviso explicando.
+   */
+  private onVisibility() {
+    if (getV().status === 'idle' || !isIOS()) return;
+    if (document.visibilityState === 'hidden') {
+      this.backgroundSince = Date.now();
+      this.dbg('iOS: foi para segundo plano (o iPhone pausa o microfone)');
+      if (!getV().muted) getSocket()?.emit('voice:update', { muted: true });
+      return;
+    }
+    if (this.backgroundSince === null) return;
+    const secs = Math.round((Date.now() - this.backgroundSince) / 1000);
+    this.backgroundSince = null;
+    void this.audioCtx?.resume();
+    resumeDenoise();
+    const raw = this.rawMic;
+    const dead = !raw || raw.readyState === 'ended' || raw.muted;
+    this.dbg(`iOS: voltou depois de ${secs}s (microfone ${raw ? (raw.readyState === 'ended' ? 'encerrado' : raw.muted ? 'pausado' : 'ok') : 'sem'})`);
+    const done = () => {
+      getSocket()?.emit('voice:update', { muted: getV().muted });
+      if (secs >= 2) toast('No iPhone, o microfone pausa quando você sai do Safari. Enquanto isso, seus amigos viram seu microfone desligado. Já voltou!');
+    };
+    // o iOS às vezes devolve o microfone sozinho; se não devolveu em 1 s, reabrimos
+    setTimeout(() => {
+      if (getV().status === 'idle') return;
+      if (dead && (this.rawMic === raw) && (!raw || raw.readyState === 'ended' || raw.muted)) void this.restartMic().then(done);
+      else done();
+    }, 1000);
+  }
+
   /** filtro de ruído por IA ligado no microfone (null = sem filtro de IA) */
   private denoiser: Denoiser | null = null;
   private denoiseWarned = false;
@@ -416,6 +461,7 @@ class VoiceEngine {
       });
       const raw = stream.getAudioTracks()[0];
       this.micTrack = raw;
+      this.rawMic = raw;
       // AirPods e outros fones Bluetooth: com o microfone do fone ligado, o Bluetooth cai para um modo
       // de baixa qualidade e a voz fica robótica (é do Bluetooth, não da call)
       this.micInfo = { sampleRate: raw.getSettings().sampleRate ?? null, bluetooth: /airpods|bluetooth|hands-?free|headset|buds|bt\b/i.test(raw.label) };
