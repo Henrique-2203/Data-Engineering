@@ -26,10 +26,25 @@ export interface Mail {
   code?: string;
   /** aviso final em destaque ("Não foi você? ...") */
   warning?: string;
+  /**
+   * Botão (só para CRIAR conta, ex.: convite). Nunca para "entrar": o rodapé promete que o Resenha não
+   * manda link de login. Só aceita o endereço oficial do Resenha.
+   */
+  button?: { label: string; url: string };
 }
 
-function render(m: Mail) {
-  const text = [...m.lines, ...(m.code ? ['', `Código: ${m.code}`, ''] : []), ...(m.warning ? ['', m.warning] : []), '', '— Resenha', 'O Resenha nunca pede sua senha por e-mail.'].join('\n');
+/** monta o texto e o HTML do e-mail (exportado só para a prévia em promo/ e testes) */
+export function render(m: Mail) {
+  const button = m.button && m.button.url.startsWith(config.officialUrl) ? m.button : null;
+  const text = [
+    ...m.lines,
+    ...(m.code ? ['', `Código: ${m.code}`, ''] : []),
+    ...(button ? [`${button.label}: ${button.url}`, ''] : []),
+    ...(m.warning ? ['', m.warning] : []),
+    '',
+    '— Resenha',
+    'O Resenha nunca pede sua senha por e-mail.',
+  ].join('\n');
   const html = `<!doctype html><html lang="pt-BR"><body style="margin:0;background:#0b0d11;font-family:Arial,Helvetica,sans-serif;color:#e7e9ee">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 12px">
 <table role="presentation" width="100%" style="max-width:520px;background:#12151b;border:1px solid #232836;border-radius:14px" cellspacing="0" cellpadding="0">
@@ -37,6 +52,7 @@ function render(m: Mail) {
 <tr><td style="padding:6px 26px 4px;font-size:18px;font-weight:bold">${esc(m.subject)}</td></tr>
 ${m.lines.map((l) => `<tr><td style="padding:6px 26px;font-size:15px;line-height:1.5;color:#c9cdd6">${esc(l)}</td></tr>`).join('')}
 ${m.code ? `<tr><td align="center" style="padding:16px 26px"><div style="display:inline-block;padding:14px 26px;border-radius:10px;background:#0b0d11;border:2px solid #3ddc97;font-size:${m.code.length > 8 ? 24 : 32}px;letter-spacing:${m.code.length > 8 ? 3 : 8}px;font-weight:bold;color:#3ddc97;font-family:monospace">${esc(m.code)}</div></td></tr>` : ''}
+${button ? `<tr><td align="center" style="padding:4px 26px 14px"><a href="${esc(button.url)}" style="display:inline-block;padding:14px 30px;border-radius:10px;background:#3ddc97;color:#06281a;font-size:16px;font-weight:bold;text-decoration:none">${esc(button.label)}</a></td></tr>` : ''}
 ${m.warning ? `<tr><td style="padding:10px 26px"><div style="padding:12px 14px;border-radius:10px;background:#2a1a10;border:1px solid #f5b942;color:#f5d48a;font-size:14px;line-height:1.5">${esc(m.warning)}</div></td></tr>` : ''}
 <tr><td style="padding:16px 26px 22px;font-size:12px;color:#7d8494">O Resenha nunca pede sua senha por e-mail nem manda link para entrar. Na dúvida, abra o Resenha você mesmo.</td></tr>
 </table></td></tr></table></body></html>`;

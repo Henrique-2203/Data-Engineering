@@ -239,19 +239,19 @@ export async function inviteEntry(db: Db, id: string, opts: { code?: string; max
   }
   const [c] = await db.query<{ max_uses: number | null }>('select max_uses from signup_codes where code = $1', [code]);
   const max = c?.max_uses ?? opts.maxUses;
-  const site = config.officialUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const extra = max - 1;
   const emailed = await sendEmail({
     to: w.email,
     subject: 'Seu convite para o Resenha chegou! 🎉',
     lines: [
       `Oi, ${first}! Você entrou na lista de espera do Resenha e agora chegou a sua vez.`,
-      `Para criar sua conta, abra ${site}/app no navegador (ou o app do Windows), toque em "Criar conta" e digite este código de convite:`,
+      'Este é o seu código de convite. Toque em "Criar sua conta" logo abaixo: o código já vai preenchido. (No app do Windows, é só escolher "Criar conta" e digitar o código.)',
       ...(extra > 0
         ? [`Ele vale para ${max} contas: a sua e mais ${extra} ${extra === 1 ? 'amigo' : 'amigos'}. Depois de entrar, você encontra o código em Configurações → Minha conta → "Seus convites".`]
         : []),
     ],
     code: code!,
+    button: { label: 'Criar sua conta', url: `${config.officialUrl.replace(/\/$/, '')}/app?convite=${encodeURIComponent(code!)}` },
     warning: 'O Resenha nunca pede sua senha por e-mail. Não estava esperando este convite? É só ignorar.',
   });
   if (emailed) await db.query('update waitlist set invited_at = now(), invited_by = $2 where id = $1', [id, opts.by]);
