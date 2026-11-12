@@ -7,7 +7,7 @@ import { useApp } from '../store/app';
  * da semana, qualidade das calls e sistema). Cada cartão leva para a seção com os detalhes.
  * Só junta o que as outras seções já mostram (mesmas rotas), nada de dado novo sobre ninguém.
  */
-export type AdminTab = 'overview' | 'stats' | 'health' | 'open' | 'closed' | 'support' | 'waitlist' | 'invites' | 'system';
+export type AdminTab = 'overview' | 'stats' | 'health' | 'open' | 'closed' | 'support' | 'waitlist' | 'invites' | 'apoio' | 'system';
 
 type Agg = Record<string, { sum: number; count: number }>;
 interface Data {
@@ -17,6 +17,7 @@ interface Data {
   waitlist: { entries: { invitedAt: string | null }[] } | null;
   auto: { enabled: boolean; today: number; dailyCap: number } | null;
   codes: { totals: { withCode: number; total: number } } | null;
+  apoio: { totals: { pending: number } } | null;
   system: {
     storage: { databaseBytes: number; databaseLimitBytes: number; filesBytes: number; filesLimitBytes: number };
     backups: { startedAt: string; ok: boolean | null }[];
@@ -64,7 +65,7 @@ export function AdminOverview({ go }: { go(t: AdminTab): void }) {
     let alive = true;
     const get = <T,>(p: string) => api<T>(p).catch(() => null);
     const load = async () => {
-      const [cap, stats, health, waitlist, auto, codes, system] = await Promise.all([
+      const [cap, stats, health, waitlist, auto, codes, system, apoio] = await Promise.all([
         get<Data['cap']>('/admin/capacity'),
         get<Data['stats']>('/admin/stats?days=7'),
         get<Data['health']>('/admin/call-health?days=7'),
@@ -72,8 +73,9 @@ export function AdminOverview({ go }: { go(t: AdminTab): void }) {
         get<Data['auto']>('/admin/waitlist/auto'),
         get<Data['codes']>('/admin/signup-codes'),
         get<Data['system']>('/admin/system'),
+        get<Data['apoio']>('/admin/apoio'),
       ]);
-      if (alive) setD({ cap, stats, health, waitlist, auto, codes, system });
+      if (alive) setD({ cap, stats, health, waitlist, auto, codes, system, apoio });
     };
     void load();
     const t = setInterval(load, 30_000); // "agora" atualiza sozinho
@@ -103,7 +105,8 @@ export function AdminOverview({ go }: { go(t: AdminTab): void }) {
   const dbUse = db ? db.databaseBytes / db.databaseLimitBytes : null;
   const email = d.system?.email;
   const use = (v: number | null): Tone => (v === null ? 'info' : v >= 0.8 ? 'bad' : v >= 0.6 ? 'warn' : 'ok');
-  const attention = openReports + openSupport + (d.cap?.warnings.length ?? 0) + (email?.lastError ? 1 : 0);
+  const apoioPending = d.apoio?.totals.pending ?? 0;
+  const attention = openReports + openSupport + apoioPending + (d.cap?.warnings.length ?? 0) + (email?.lastError ? 1 : 0);
 
   return (
     <div className="overview">
@@ -132,6 +135,7 @@ export function AdminOverview({ go }: { go(t: AdminTab): void }) {
               tone={waiting ? 'warn' : 'ok'}
               hint={d.auto?.enabled ? `convite automático ligado (${d.auto.today}/${d.auto.dailyCap} hoje)` : 'convite automático desligado'}
             />
+            {apoioPending > 0 && <Card go={go} to="apoio" label="Apoios para conferir" value={apoioPending} tone="warn" hint="confira o Pix no extrato e confirme" />}
             {(d.cap?.warnings ?? []).map((w) => (
               <Card key={w} go={go} to="system" label="Limite do plano" value="⚠️" hint={w} tone="bad" />
             ))}

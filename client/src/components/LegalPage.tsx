@@ -3,7 +3,7 @@ import { ArrowLeft, Lock, ShieldCheck } from 'lucide-react';
 import { api } from '../lib/api';
 
 export const SOURCE_URL = 'https://github.com/Henrique-2203/Data-Engineering';
-const UPDATED = '9 de novembro de 2026';
+const UPDATED = '12 de novembro de 2026';
 
 export type LegalKind = 'privacidade' | 'termos' | 'seguranca' | 'suporte';
 
@@ -152,6 +152,10 @@ function Privacy({ contact }: { contact: ReactNode }) {
           <tr>
             <td>"Jogando agora" e "Ouvindo agora" (só o nome do jogo, ou da música e do artista tocando no Spotify do PC, se você usa o app de desktop)</td>
             <td>Mostrar no seu perfil. Fica só na memória enquanto você está online e pode ser desligado</td>
+          </tr>
+          <tr>
+            <td>Apoio ao Resenha (só se você apoiar): seu código de apoio, quando avisou que fez o Pix, se foi confirmado e se o selo aparece</td>
+            <td>Entregar o selo de Apoiador Fundador. O Pix vai direto para a conta do responsável pelo Resenha: os dados do pagamento (como o seu nome) ficam no banco dele, como em qualquer Pix. Só a equipe vê quem apoiou; ninguém mais vê quem deu nem quanto</td>
           </tr>
         </tbody>
       </table>
@@ -304,6 +308,7 @@ function Terms({ contact }: { contact: ReactNode }) {
           ['🤝', 'Respeite as pessoas. Nada de conteúdo ilegal, ódio, assédio ou spam.'],
           ['🛡️', 'Quem cria um servidor cuida dele: cargos, regras e moderação.'],
           ['⚠️', 'Conteúdo ilegal é removido e a conta pode ser encerrada.'],
+          ['💚', 'O que é grátis hoje continua grátis para sempre. Apoiar é opcional e não libera funções.'],
         ]}
       />
 
@@ -350,14 +355,32 @@ function Terms({ contact }: { contact: ReactNode }) {
         comunicado às autoridades. Se alguém corre risco de vida, ligue para o <strong>CVV (188)</strong> ou, em emergência, 190 ou 192.
       </p>
 
-      <h2>7. O serviço</h2>
+      <h2>7. Grátis para sempre e apoio voluntário</h2>
+      <ul>
+        <li>
+          <strong>Tudo que é grátis hoje continua grátis para sempre:</strong> chamadas, voz, transmissão de tela, chat, servidores, e tudo que
+          você personaliza com as suas próprias imagens (foto de perfil, inclusive GIF; banner do perfil; banner da call; papel de parede), cores
+          e ícones do app. Nada disso vai virar pago.
+        </li>
+        <li>
+          <strong>Apoio voluntário:</strong> você pode apoiar o Resenha com um Pix, por vontade própria, para ajudar a pagar os servidores. O apoio
+          não libera nenhuma função; quem apoia durante a campanha de fundadores ganha só o selo "Apoiador Fundador", oferecido apenas até a data
+          informada na tela de apoio. Fez por engano? Fale com o Suporte em até 7 dias que devolvemos.
+        </li>
+        <li>
+          No futuro poderemos oferecer itens visuais <strong>novos</strong>, criados pelo Resenha e opcionais (como efeitos animados). Eles nunca
+          vão tirar nada do que já é grátis.
+        </li>
+      </ul>
+
+      <h2>8. O serviço</h2>
       <ul>
         <li>O Resenha é oferecido de graça e "como está". Fazemos o possível para ele funcionar bem, mas pode haver instabilidade e manutenção.</li>
-        <li>Recursos podem mudar com o tempo. Mudanças importantes nestes termos serão avisadas no app.</li>
+        <li>Recursos podem mudar com o tempo, sem tirar o que é grátis (item 7). Mudanças importantes nestes termos serão avisadas no app.</li>
         <li>Você pode parar de usar quando quiser e excluir sua conta nas Configurações.</li>
       </ul>
 
-      <h2>8. Contato e lei aplicável</h2>
+      <h2>9. Contato e lei aplicável</h2>
       <p>
         Dúvidas, denúncias ou pedidos: fale conosco {contact}. Estes termos seguem as leis do Brasil, incluindo o Código de Defesa do
         Consumidor quando aplicável.

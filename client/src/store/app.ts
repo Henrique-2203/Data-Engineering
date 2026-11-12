@@ -56,6 +56,8 @@ export interface AppState {
   supportUnread: number;
   /** equipe: chamados de suporte esperando resposta */
   openSupport: number;
+  /** apoios esperando a equipe conferir o Pix (só a equipe) */
+  pendingApoio: number;
   /** novidades do Resenha que esta conta ainda não confirmou ("Entendi") */
   pendingChangelog: { id: string; title: string; items: [string, string][] }[];
   /** denúncias abertas (só para a equipe) */
@@ -68,6 +70,7 @@ export type SidePanel =
 
 export type ModalState =
   | { kind: 'support' }
+  | { kind: 'apoio' }
   | { kind: 'callReport' }
   | { kind: 'changelog' }
   | { kind: 'createPoll'; channelId: string }
@@ -129,6 +132,7 @@ export const useApp = create<AppState>(() => ({
   openReports: 0,
   supportUnread: 0,
   openSupport: 0,
+  pendingApoio: 0,
   pendingChangelog: [],
 }));
 

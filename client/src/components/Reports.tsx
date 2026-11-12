@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AdminSupport } from './Support';
 import { HealthPanel } from './HealthPanel';
-import { Activity, Archive, BarChart3, ClipboardList, Flag, LayoutDashboard, LifeBuoy, Server, ShieldAlert, Ticket, X } from 'lucide-react';
+import { Activity, Archive, BarChart3, ClipboardList, Flag, Heart, LayoutDashboard, LifeBuoy, Server, ShieldAlert, Ticket, X } from 'lucide-react';
+import { ApoioAdmin } from './Apoio';
 import { AdminOverview, type AdminTab } from './AdminOverview';
 import { api, authHeaders } from '../lib/api';
 import { askText } from '../lib/ask';
@@ -171,6 +172,7 @@ const ADMIN_GROUPS: { title?: string; items: { id: AdminTab; label: string; icon
       { id: 'stats', label: 'Números', icon: <BarChart3 size={18} />, description: 'Visitas, inscrições, contas e uso por dia (somados, sem identificar ninguém).' },
       { id: 'waitlist', label: 'Lista de espera', icon: <ClipboardList size={18} />, description: 'Quem pediu convite. Mande o código por e-mail ou deixe o convite automático ligado.' },
       { id: 'invites', label: 'Convites', icon: <Ticket size={18} />, description: 'Códigos de convite, limites e quem trouxe quem.' },
+      { id: 'apoio', label: 'Apoios', icon: <Heart size={18} />, description: 'Apoie o Resenha: confira os Pix, entregue o selo de Apoiador Fundador e acompanhe a meta (só a equipe vê valores).' },
     ],
   },
   {
@@ -187,6 +189,7 @@ export function AdminReports() {
   const [waiting, setWaiting] = useState(0);
   useEffect(() => {
     void api<{ entries: { invitedAt: string | null }[] }>('/admin/waitlist').then((r) => setWaiting(r.entries.filter((e) => !e.invitedAt).length), () => {});
+    void api<{ totals: { pending: number } }>('/admin/apoio').then((r) => useApp.setState({ pendingApoio: r.totals.pending }), () => {});
   }, [tab]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('.ask-backdrop') && closeModal();
@@ -194,6 +197,7 @@ export function AdminReports() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   const supportCount = useApp((s) => s.openSupport);
+  const apoioCount = useApp((s) => s.pendingApoio);
   const [reports, setReports] = useState<AdminReport[] | null>(null);
   const openCount = useApp((s) => s.openReports);
   const load = () => {
@@ -217,7 +221,7 @@ export function AdminReports() {
     }
   }
 
-  const badge: Partial<Record<AdminTab, number>> = { open: openCount, support: supportCount, waitlist: waiting };
+  const badge: Partial<Record<AdminTab, number>> = { open: openCount, support: supportCount, waitlist: waiting, apoio: apoioCount };
   const current = ADMIN_GROUPS.flatMap((g) => g.items).find((x) => x.id === tab)!;
   return (
     <div className="settings-page admin-panel" role="dialog" aria-modal="true" aria-label="Painel da equipe">
@@ -251,6 +255,7 @@ export function AdminReports() {
           {tab === 'waitlist' && <WaitlistAdmin />}
           {tab === 'invites' && <InviteCodesAdmin />}
           {tab === 'support' && <AdminSupport />}
+          {tab === 'apoio' && <ApoioAdmin />}
           {tab === 'health' && <HealthPanel />}
           {tab === 'stats' && <StatsPanel />}
           {tab === 'system' && <SystemPanel />}

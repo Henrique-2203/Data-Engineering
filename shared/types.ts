@@ -50,6 +50,8 @@ export interface Profile {
   createdAt: string;
   mutualGuilds: { id: string; name: string; iconId: string | null }[];
   mutualFriends: PublicUser[];
+  /** selo "Apoiador Fundador" (apoiou o Resenha na campanha de fundadores e não escondeu o selo) */
+  supporter?: boolean;
 }
 
 export type ChannelType = 'text' | 'voice' | 'dm';

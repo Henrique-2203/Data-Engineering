@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isSupporter } from './apoio.ts';
 import express, { type Router } from 'express';
 import { z } from 'zod';
 import type { Db } from './db.ts';
@@ -216,7 +217,7 @@ export function registerProfileRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
                ) order by u.display_name`,
               [me, id],
             );
-      const profile: Profile = { user, ...extra, links: extra.links ?? [], mutualGuilds, mutualFriends };
+      const profile: Profile = { user, ...extra, links: extra.links ?? [], mutualGuilds, mutualFriends, supporter: await isSupporter(db, id) };
       return { profile };
     }),
   );

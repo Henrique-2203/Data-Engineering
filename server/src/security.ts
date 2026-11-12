@@ -482,6 +482,10 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
          from support_tickets t where t.user_id = $1 order by t.created_at`,
         [id],
       );
+      const support2 = await db.query(
+        `select code, status, claimed_at as "claimedAt", confirmed_at as "confirmedAt", show_badge as "showBadge" from supporters where user_id = $1`,
+        [id],
+      );
       const data = {
         about: 'Todos os dados que o Resenha guarda sobre você (LGPD, art. 18). Sua senha não aparece porque só guardamos uma versão embaralhada (hash) dela.',
         exportedAt: new Date().toISOString(),
@@ -495,6 +499,7 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
         events,
         pushDevices,
         support,
+        apoio: support2[0] ?? null,
       };
       await logEvent(db, id, 'data_export', req);
       (data as Record<string, unknown>).securityHistory = (

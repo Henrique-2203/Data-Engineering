@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FounderBadge } from './Apoio';
 import { MessageCircle, Pencil, UserCheck, UserPlus, Flag } from 'lucide-react';
 import type { Profile } from '../../../shared/types';
 import { api } from '../lib/api';
@@ -73,6 +74,11 @@ export function ProfileCard({ userId, guildId, onAction }: { userId: string; gui
           {member?.nick && profile && profile.user.displayName !== member.nick ? ` · ${profile.user.displayName}` : ''}
           {profile?.pronouns ? ` · ${profile.pronouns}` : ''}
         </div>
+        {profile?.supporter && (
+          <div className="profile-badges">
+            <FounderBadge small />
+          </div>
+        )}
 
         {activity?.kind === 'music' ? (
           <div className="profile-activity music">

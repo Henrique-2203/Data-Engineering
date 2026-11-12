@@ -475,6 +475,18 @@ create table if not exists app_settings (
   value jsonb not null,
   updated_at timestamptz not null default now()
 );
+-- v43: "Apoie o Resenha" (apoio voluntário por Pix; selo de Apoiador Fundador)
+create table if not exists supporters (
+  user_id text primary key references users(id) on delete cascade,
+  code text unique not null,
+  status text not null default 'none',
+  claimed_at timestamptz,
+  confirmed_at timestamptz,
+  confirmed_by text,
+  amount_cents integer,
+  show_badge boolean not null default true,
+  created_at timestamptz not null default now()
+);
 create table if not exists backups (
   id text primary key,
   started_at timestamptz not null default now(),

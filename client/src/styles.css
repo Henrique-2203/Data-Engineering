@@ -7604,3 +7604,49 @@ button.ov-card:hover {
     font-size: 24px;
   }
 }
+
+/* ---------- Apoie o Resenha ---------- */
+.rail-apoio .rail-icon { color: #3ddc97; }
+.founder-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-weight: 800; font-size: 14px;
+  color: #06281a; background: linear-gradient(90deg, #3ddc97, #8ef0c4); box-shadow: 0 0 0 1px rgba(61, 220, 151, .5); white-space: nowrap; }
+.founder-badge.small { font-size: 12px; padding: 3px 9px; }
+.profile-badges { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.apoio { display: flex; flex-direction: column; gap: 16px; }
+.apoio-text p { margin: 0 0 8px; line-height: 1.5; }
+.apoio-reward { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px 16px; border-radius: 12px;
+  background: rgba(61, 220, 151, .08); border: 1px solid rgba(61, 220, 151, .35); }
+.apoio-pay { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.apoio-qr { flex: 0 0 auto; width: 220px; height: 220px; padding: 8px; border-radius: 12px; background: #fff; }
+.apoio-qr svg { display: block; width: 100%; height: 100%; }
+.apoio-steps { flex: 1 1 260px; min-width: 0; }
+.apoio-steps ol { margin: 0 0 12px; padding-left: 20px; line-height: 1.6; }
+.apoio-code { white-space: nowrap; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: var(--bg-3, rgba(255, 255, 255, .08)); margin-right: 6px; }
+.apoio-copia { display: flex; flex-direction: column; gap: 6px; font-weight: 700; font-size: 13px; }
+.apoio-copia-row { display: flex; gap: 8px; }
+.apoio-copia-row input { flex: 1; min-width: 0; font-family: ui-monospace, monospace; font-size: 12px; }
+.apoio-status { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.apoio-pending { color: #3ddc97; font-weight: 700; margin: 0; }
+.apoio-rejected { color: #f0b232; margin: 0; }
+.apoio-thanks { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.apoio-big { font-size: 22px; font-weight: 900; margin: 0; }
+.apoio-badge-row { margin: 6px 0; }
+.apoio-admin { display: flex; flex-direction: column; gap: 26px; max-width: 860px; }
+.apoio-admin h3 { margin: 0 0 10px; }
+.apoio-goal-row { margin-bottom: 10px; }
+.apoio-bar { height: 10px; border-radius: 99px; background: rgba(255, 255, 255, .1); overflow: hidden; margin-top: 4px; }
+.apoio-bar i { display: block; height: 100%; background: #3ddc97; border-radius: 99px; }
+.apoio-list { display: flex; flex-direction: column; gap: 8px; }
+.apoio-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px;
+  background: var(--bg-2, rgba(255, 255, 255, .04)); border: 1px solid rgba(255, 255, 255, .08); }
+.apoio-item.pending { border-color: rgba(240, 178, 50, .6); }
+.apoio-item.confirmed { border-color: rgba(61, 220, 151, .5); }
+.apoio-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.apoio-actions input { width: 140px; }
+.apoio-settings { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.apoio-settings > label:not(.check) { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 520px; font-weight: 700; font-size: 13px; }
+.apoio-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; width: 100%; }
+.apoio-grid label { display: flex; flex-direction: column; gap: 6px; font-weight: 700; font-size: 13px; }
+.apoio-warn { color: #f0b232; margin: 0; max-width: 620px; }
+@media (max-width: 600px) {
+  .apoio-qr { width: 100%; max-width: 260px; height: auto; aspect-ratio: 1; margin: 0 auto; }
+}

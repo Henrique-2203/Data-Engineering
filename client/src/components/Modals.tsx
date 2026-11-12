@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { ApoioModal } from './Apoio';
 import { Copy, Share2, X } from 'lucide-react';
 import type { Channel, Guild, InvitePreview, PublicUser } from '../../../shared/types';
 import { api } from '../lib/api';
@@ -98,6 +99,8 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       return <CreatePollModal channelId={modal.channelId} />;
     case 'support':
       return <SupportModal />;
+    case 'apoio':
+      return <ApoioModal />;
     case 'callReport':
       return <CallReportModal />;
     case 'changelog':

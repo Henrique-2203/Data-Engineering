@@ -186,6 +186,14 @@ export function connectSocket() {
 
   s.on('reports:count', ({ open }: { open: number }) => set({ openReports: open }));
   s.on('support:count', ({ open }: { open: number }) => set({ openSupport: open }));
+  s.on('apoio:count', ({ pending }: { pending: number }) => set({ pendingApoio: pending }));
+  s.on('apoio:update', ({ status }: { status: string }) => {
+    window.dispatchEvent(new Event('resenha:apoio-update'));
+    if (status === 'confirmed') {
+      toast('💚 Seu selo de Apoiador Fundador chegou! Obrigado por apoiar o Resenha.');
+      playSound('mention');
+    }
+  });
   s.on('support:update', () => {
     set((st) => ({ supportUnread: st.supportUnread + 1 }));
     window.dispatchEvent(new Event('resenha:support-update'));

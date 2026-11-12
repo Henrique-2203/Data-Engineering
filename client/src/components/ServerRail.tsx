@@ -1,4 +1,5 @@
 import { LifeBuoy, Link2, Plus } from 'lucide-react';
+import { ApoioButton } from './Apoio';
 import { goHome, openModal, selectGuild, useApp } from '../store/app';
 import { useVoice } from '../store/voice';
 
@@ -72,6 +73,7 @@ export function ServerRail() {
           <Link2 size={20} />
         </span>
       </button>
+      <ApoioButton />
       <SupportButton />
     </div>
   );
