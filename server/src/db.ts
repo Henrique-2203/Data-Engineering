@@ -465,6 +465,9 @@ create table if not exists signup_codes (
 create index if not exists signup_codes_owner_idx on signup_codes(owner_id);
 alter table users add column if not exists signup_code text;
 alter table pending_signups add column if not exists signup_code text;
+-- v41: convite pela lista de espera (o código vira da pessoa quando ela cria a conta)
+alter table signup_codes add column if not exists waitlist_id text;
+alter table waitlist add column if not exists invite_code text;
 create table if not exists backups (
   id text primary key,
   started_at timestamptz not null default now(),

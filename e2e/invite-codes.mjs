@@ -212,6 +212,52 @@ try {
     const uv = list2.codes.find((c) => c.code === 'UMA-VAGA');
     expect(uv.uses === 1 && uv.users[0].username === 'bia', `uso gasto na confirmação: ${JSON.stringify(uv)}`);
     step('com e-mail: começar o cadastro não gasta o convite; só quem confirma primeiro usa a última vaga');
+
+    // ---------- convite pela lista de espera ----------
+    const { readFileSync } = require('node:fs');
+    const outbox = () => readFileSync(OUTBOX, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    await call('/waitlist', { name: 'Marina Souza', email: 'marina@exemplo.com', platforms: ['windows'], consent: true, source: 'instagram' });
+    await call('/waitlist', { name: 'Davi', email: 'davi@exemplo.com', platforms: ['navegador'], consent: true });
+    let wl = await call('/admin/waitlist', null, eq.token);
+    const marina = wl.entries.find((e) => e.email === 'marina@exemplo.com');
+    const inv = await call(`/admin/waitlist/${marina.id}/invite`, { maxUses: 3 }, eq.token);
+    expect(inv.emailed && /^MARINA-[A-Z2-9]{4}$/.test(inv.code), `convite da lista: ${JSON.stringify(inv)}`);
+    const mail = outbox().filter((m) => m.to === 'marina@exemplo.com').at(-1);
+    expect(mail.code === inv.code && /Oi, Marina!/.test(mail.text) && /a sua e mais 2 amigos/.test(mail.text) && /\/app/.test(mail.text), `e-mail do convite: ${mail.text}`);
+    const again = await call(`/admin/waitlist/${marina.id}/invite`, { maxUses: 3 }, eq.token);
+    expect(again.code === inv.code && outbox().filter((m) => m.to === 'marina@exemplo.com').length === 2, 'reenviar manda o MESMO código');
+    step(`lista de espera → "Enviar convite": código ${inv.code} (limite 3) chega no e-mail da Marina; reenviar repete o mesmo código`);
+    // ela cria a conta com o código e ele vira dela
+    const mar = await confirm(await start('marina', inv.code), 'marina');
+    expect(mar.token, `Marina entrou: ${JSON.stringify(mar)}`);
+    const hers = await call('/me/invite-codes', null, mar.token);
+    expect(hers.codes?.[0]?.code === inv.code && hers.codes[0].uses === 1 && hers.codes[0].maxUses === 3, `o código virou da Marina: ${JSON.stringify(hers)}`);
+    wl = await call('/admin/waitlist', null, eq.token);
+    const m2 = wl.entries.find((e) => e.email === 'marina@exemplo.com');
+    expect(m2.joined === 'marina' && m2.invitedAt && m2.codeUses === 1, `lista mostra que ela entrou: ${JSON.stringify(m2)}`);
+    step('a Marina cria a conta com o código: ele vira dela ("Seus convites", 1 de 3) e a lista mostra "entrou como @marina"');
+
+    // pelo painel: botão "Enviar convite por e-mail" do Davi
+    const b2 = await chromium.launch();
+    try {
+      const pg = await (await b2.newContext({ viewport: { width: 1366, height: 900 } })).newPage();
+      await pg.addInitScript((t) => localStorage.setItem('resenha.token', t), eq.token);
+      await pg.goto(`http://localhost:${PORT + 1}/app`);
+      await pg.getByRole('dialog', { name: 'Novidades do Resenha' }).getByRole('button', { name: 'Entendi' }).click({ timeout: 5000 }).catch(() => {});
+      await pg.getByRole('button', { name: 'Denúncias' }).click();
+      await pg.getByRole('tab', { name: 'Lista de espera' }).click();
+      await pg.getByLabel('Código de convite para Davi').fill('davi-vip');
+      await pg.getByLabel('Limite de contas para Davi').fill('2');
+      await pg.getByRole('button', { name: 'Enviar convite por e-mail' }).click();
+      await pg.locator('.wait-invite').getByText('DAVI-VIP').waitFor();
+      await pg.getByText('entrou como @marina').waitFor();
+      await pg.screenshot({ path: `${shots}/83-lista-de-espera-convite.png` });
+      const dm = outbox().filter((m) => m.to === 'davi@exemplo.com').at(-1);
+      expect(dm?.code === 'DAVI-VIP' && /a sua e mais 1 amigo\./.test(dm.text), `e-mail do Davi: ${dm?.text}`);
+      step('no painel: digita o código DAVI-VIP e o limite 2, clica em "Enviar convite por e-mail" e o e-mail sai');
+    } finally {
+      await b2.close();
+    }
   } finally {
     s2.kill();
   }

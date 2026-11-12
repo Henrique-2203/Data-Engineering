@@ -8,6 +8,9 @@ import { limit } from './security.ts';
 import { isPlatformAdmin } from './reports.ts';
 import { bump } from './stats.ts';
 import type { requireAuth } from './auth.ts';
+import { config } from './config.ts';
+import { emailEnabled, maskEmail, sendEmail } from './email.ts';
+import { createSignupCode, normalizeCode } from './signupCodes.ts';
 
 /**
  * Lista de espera (página inicial): nome, e-mail, WhatsApp opcional e plataformas.
@@ -77,8 +80,11 @@ export function registerWaitlistRoutes(r: Router, db: Db, _rt: Realtime, auth: R
     auth,
     wrap(async (req, res) => {
       requireAdmin(req.user!.username);
-      const rows = await db.query<{ id: string; name: string; email: string; whatsapp: string | null; platforms: string[]; source: string | null; createdAt: string; invitedAt: string | null }>(
-        `select id, name, email, whatsapp, platforms, source, created_at as "createdAt", invited_at as "invitedAt" from waitlist order by created_at`,
+      const rows = await db.query<{ id: string; name: string; email: string; whatsapp: string | null; platforms: string[]; source: string | null; createdAt: string; invitedAt: string | null; inviteCode: string | null; codeUses: number | null; codeMax: number | null; joined: string | null }>(
+        `select w.id, w.name, w.email, w.whatsapp, w.platforms, w.source, w.created_at as "createdAt", w.invited_at as "invitedAt",
+                w.invite_code as "inviteCode", c.uses as "codeUses", c.max_uses as "codeMax", o.username as joined
+         from waitlist w left join signup_codes c on c.code = w.invite_code left join users o on o.id = c.owner_id
+         order by w.created_at`,
       );
       if (req.query.format === 'csv') {
         const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -95,7 +101,7 @@ export function registerWaitlistRoutes(r: Router, db: Db, _rt: Realtime, auth: R
         res.end('﻿' + lines.join('\r\n'));
         return;
       }
-      return { entries: rows };
+      return { entries: rows, emailEnabled: emailEnabled() };
     }),
   );
 
@@ -106,6 +112,59 @@ export function registerWaitlistRoutes(r: Router, db: Db, _rt: Realtime, auth: R
       requireAdmin(req.user!.username);
       const { invited } = parse(z.object({ invited: z.boolean() }), req.body);
       await db.query('update waitlist set invited_at = case when $2 then now() else null end where id = $1', [String(req.params.id), invited]);
+    }),
+  );
+
+  /**
+   * Convite pela lista de espera: cria um código (escolhido ou gerado com o nome da pessoa) com o limite
+   * dado e manda por e-mail. De novo na mesma pessoa = reenvia o mesmo código (e pode aumentar o limite).
+   * Quando ela cria a conta com o código, ele passa a ser dela ("Seus convites" e ranking).
+   */
+  r.post(
+    '/admin/waitlist/:id/invite',
+    auth,
+    wrap(async (req) => {
+      requireAdmin(req.user!.username);
+      const body = parse(
+        z.object({
+          code: z.string().trim().max(24).optional(),
+          maxUses: z.number().int().min(1, 'O limite é de pelo menos 1 conta.').max(1000).default(1),
+        }),
+        req.body,
+      );
+      const id = String(req.params.id);
+      const [w] = await db.query<{ name: string; email: string; invite_code: string | null }>('select name, email, invite_code from waitlist where id = $1', [id]);
+      if (!w) throw new HttpError(404, 'Inscrição não encontrada.');
+      let code = w.invite_code;
+      const [existing] = code ? await db.query<{ uses: number; max_uses: number | null }>('select uses, max_uses from signup_codes where code = $1', [code]) : [];
+      if (existing) {
+        if (body.code && normalizeCode(body.code) !== code) throw new HttpError(400, `Essa pessoa já recebeu o código ${code}. Use "Reenviar" ou desative ele na aba Convites.`);
+        if (existing.max_uses !== null && body.maxUses > existing.max_uses) await db.query('update signup_codes set max_uses = $2 where code = $1', [code, body.maxUses]);
+      } else {
+        const first = w.name.trim().split(/\s+/)[0];
+        code = await createSignupCode(db, { code: body.code, base: first, label: `Lista de espera: ${w.name}`, maxUses: body.maxUses, createdBy: req.user!.username, waitlistId: id });
+        await db.query('update waitlist set invite_code = $2 where id = $1', [id, code]);
+      }
+      const [c] = await db.query<{ max_uses: number | null }>('select max_uses from signup_codes where code = $1', [code]);
+      const max = c?.max_uses ?? body.maxUses;
+      const first = w.name.trim().split(/\s+/)[0];
+      const site = config.officialUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      const extra = max - 1;
+      const emailed = await sendEmail({
+        to: w.email,
+        subject: 'Seu convite para o Resenha chegou! 🎉',
+        lines: [
+          `Oi, ${first}! Você entrou na lista de espera do Resenha e agora chegou a sua vez.`,
+          `Para criar sua conta, abra ${site}/app no navegador (ou o app do Windows), toque em "Criar conta" e digite este código de convite:`,
+          ...(extra > 0
+            ? [`Ele vale para ${max} contas: a sua e mais ${extra} ${extra === 1 ? 'amigo' : 'amigos'}. Depois de entrar, você encontra o código em Configurações → Minha conta → "Seus convites".`]
+            : []),
+        ],
+        code: code!,
+        warning: 'O Resenha nunca pede sua senha por e-mail. Não estava esperando este convite? É só ignorar.',
+      });
+      if (emailed) await db.query('update waitlist set invited_at = now() where id = $1', [id]);
+      return { code, emailed, sentTo: maskEmail(w.email) };
     }),
   );
 

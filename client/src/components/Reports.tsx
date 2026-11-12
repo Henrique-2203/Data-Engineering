@@ -352,12 +352,82 @@ interface WaitEntry {
   source: string | null;
   createdAt: string;
   invitedAt: string | null;
+  inviteCode: string | null;
+  codeUses: number | null;
+  codeMax: number | null;
+  /** usuário que ela criou com o código (quando já entrou) */
+  joined: string | null;
+}
+
+/** Convite de uma pessoa da lista: código (opcional) + limite → e-mail com o código. */
+function WaitInvite({ entry: e, emailOn, onDone }: { entry: WaitEntry; emailOn: boolean; onDone(): void }) {
+  const [code, setCode] = useState('');
+  const [max, setMax] = useState(3);
+  const [busy, setBusy] = useState(false);
+  async function send() {
+    setBusy(true);
+    try {
+      const r = await api<{ code: string; emailed: boolean; sentTo: string }>(`/admin/waitlist/${e.id}/invite`, { body: { code: code.trim() || undefined, maxUses: e.inviteCode ? (e.codeMax ?? max) : max } });
+      if (r.emailed) toast(`Convite ${r.code} enviado para ${r.sentTo}.`);
+      else {
+        await navigator.clipboard?.writeText(r.code).catch(() => {});
+        toast(`Código ${r.code} criado e copiado, mas o e-mail não saiu: veja Sistema → E-mail.`);
+      }
+      onDone();
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (e.inviteCode)
+    return (
+      <div className="wait-invite">
+        <span className="small">
+          Código <strong className="invite-code">{e.inviteCode}</strong> · {e.codeUses ?? 0} de {e.codeMax ?? '∞'} {(e.codeMax ?? 2) === 1 ? 'conta' : 'contas'}
+          {e.joined ? (
+            <>
+              {' · '}
+              <span className="pill ok">entrou como @{e.joined}</span>
+            </>
+          ) : (
+            ' · ainda não criou a conta'
+          )}
+        </span>
+        {emailOn && !e.joined && (
+          <button className="btn small ghost" disabled={busy} onClick={() => void send()}>
+            Reenviar e-mail
+          </button>
+        )}
+      </div>
+    );
+  return (
+    <div className="wait-invite">
+      <input value={code} onChange={(ev) => setCode(ev.target.value.toUpperCase())} placeholder="Código (gerado sozinho)" maxLength={24} aria-label={`Código de convite para ${e.name}`} spellCheck={false} />
+      <label className="small">
+        Limite
+        <input type="number" min={1} max={1000} value={max} onChange={(ev) => setMax(Math.max(1, Math.min(1000, Number(ev.target.value) || 1)))} aria-label={`Limite de contas para ${e.name}`} />
+      </label>
+      <button className="btn small primary" disabled={busy} onClick={() => void send()}>
+        {emailOn ? 'Enviar convite por e-mail' : 'Criar código'}
+      </button>
+      <span className="muted small">O limite conta a própria pessoa (3 = ela + 2 amigos).</span>
+    </div>
+  );
 }
 
 /** Lista de espera da página inicial: quem pediu convite, com exportação para planilha. */
 function WaitlistAdmin() {
   const [entries, setEntries] = useState<WaitEntry[] | null>(null);
-  const load = () => void api<{ entries: WaitEntry[] }>('/admin/waitlist').then((r) => setEntries(r.entries), (e) => toast(e.message));
+  const [emailOn, setEmailOn] = useState(true);
+  const load = () =>
+    void api<{ entries: WaitEntry[]; emailEnabled: boolean }>('/admin/waitlist').then(
+      (r) => {
+        setEntries(r.entries);
+        setEmailOn(r.emailEnabled);
+      },
+      (e) => toast(e.message),
+    );
   useEffect(load, []);
 
   async function exportCsv() {
@@ -369,6 +439,27 @@ function WaitlistAdmin() {
   }
 
   const pending = entries?.filter((e) => !e.invitedAt).length ?? 0;
+  const [bulkMax, setBulkMax] = useState(3);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  /** convida todo mundo que ainda espera (um e-mail por pessoa, cada uma com o seu código) */
+  async function inviteAll() {
+    const waiting = entries?.filter((e) => !e.invitedAt) ?? [];
+    if (!waiting.length || !confirm(`Mandar o convite por e-mail para ${waiting.length} ${waiting.length === 1 ? 'pessoa' : 'pessoas'}, cada uma com o seu código (limite de ${bulkMax} ${bulkMax === 1 ? 'conta' : 'contas'})?`)) return;
+    setBulkBusy(true);
+    let ok = 0;
+    for (const e of waiting) {
+      try {
+        const r = await api<{ emailed: boolean }>(`/admin/waitlist/${e.id}/invite`, { body: { maxUses: bulkMax } });
+        if (r.emailed) ok++;
+      } catch (err) {
+        toast(`${e.name}: ${(err as Error).message}`);
+      }
+    }
+    setBulkBusy(false);
+    toast(`${ok} de ${waiting.length} convites enviados por e-mail.`);
+    load();
+  }
   return (
     <div className="waitlist-admin">
       <div className="row spread">
@@ -379,6 +470,23 @@ function WaitlistAdmin() {
           Exportar planilha (.csv)
         </button>
       </div>
+      {!emailOn && (
+        <p className="notice warn small">
+          O envio de e-mails está desligado no servidor: o código é criado e copiado, mas você precisa mandar para a pessoa por conta própria.
+        </p>
+      )}
+      {emailOn && pending > 0 && (
+        <div className="wait-bulk">
+          <span className="small">
+            Convidar os {pending} que esperam, cada um com o seu código, com limite de
+          </span>
+          <input type="number" min={1} max={50} value={bulkMax} aria-label="Limite de contas por código" onChange={(e) => setBulkMax(Math.max(1, Math.min(50, Number(e.target.value) || 1)))} />
+          <span className="small">{bulkMax === 1 ? 'conta' : 'contas'}</span>
+          <button className="btn small primary" disabled={bulkBusy} onClick={() => void inviteAll()}>
+            {bulkBusy ? 'Enviando…' : 'Enviar para todos'}
+          </button>
+        </div>
+      )}
       <ul className="report-list">
         {entries?.map((e, i) => (
           <li key={e.id} className={`report-item wait-item${e.invitedAt ? ' invited' : ''}`}>
@@ -404,6 +512,7 @@ function WaitlistAdmin() {
               {' · '}
               {e.platforms.join(', ')}
             </p>
+            <WaitInvite entry={e} emailOn={emailOn} onDone={load} />
             <div className="report-actions">
               <label className="check small">
                 <input

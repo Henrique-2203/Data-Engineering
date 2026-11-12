@@ -4360,6 +4360,34 @@ input.switch:disabled {
 .wait-item {
   border-left-color: var(--accent);
 }
+.wait-invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+.wait-invite input {
+  width: 190px;
+}
+.wait-invite input[type='number'],
+.wait-bulk input[type='number'] {
+  width: 70px;
+  margin-left: 6px;
+}
+.wait-invite label {
+  display: flex;
+  align-items: center;
+}
+.wait-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-2);
+}
 .wait-item.invited {
   opacity: 0.6;
   border-left-color: var(--bg-4);

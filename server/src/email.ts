@@ -36,7 +36,7 @@ function render(m: Mail) {
 <tr><td style="padding:22px 26px 8px;font-size:22px;font-weight:bold;color:#3ddc97">Resenha</td></tr>
 <tr><td style="padding:6px 26px 4px;font-size:18px;font-weight:bold">${esc(m.subject)}</td></tr>
 ${m.lines.map((l) => `<tr><td style="padding:6px 26px;font-size:15px;line-height:1.5;color:#c9cdd6">${esc(l)}</td></tr>`).join('')}
-${m.code ? `<tr><td align="center" style="padding:16px 26px"><div style="display:inline-block;padding:14px 26px;border-radius:10px;background:#0b0d11;border:2px solid #3ddc97;font-size:32px;letter-spacing:8px;font-weight:bold;color:#3ddc97;font-family:monospace">${esc(m.code)}</div></td></tr>` : ''}
+${m.code ? `<tr><td align="center" style="padding:16px 26px"><div style="display:inline-block;padding:14px 26px;border-radius:10px;background:#0b0d11;border:2px solid #3ddc97;font-size:${m.code.length > 8 ? 24 : 32}px;letter-spacing:${m.code.length > 8 ? 3 : 8}px;font-weight:bold;color:#3ddc97;font-family:monospace">${esc(m.code)}</div></td></tr>` : ''}
 ${m.warning ? `<tr><td style="padding:10px 26px"><div style="padding:12px 14px;border-radius:10px;background:#2a1a10;border:1px solid #f5b942;color:#f5d48a;font-size:14px;line-height:1.5">${esc(m.warning)}</div></td></tr>` : ''}
 <tr><td style="padding:16px 26px 22px;font-size:12px;color:#7d8494">O Resenha nunca pede sua senha por e-mail nem manda link para entrar. Na dúvida, abra o Resenha você mesmo.</td></tr>
 </table></td></tr></table></body></html>`;

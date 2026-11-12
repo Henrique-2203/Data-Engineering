@@ -47,7 +47,7 @@ import { registerProfileRoutes } from './profile.ts';
 import { registerExpressionRoutes, usableExpression } from './expressions.ts';
 import { isPlatformAdmin, registerReportRoutes } from './reports.ts';
 import { registerWaitlistRoutes } from './waitlist.ts';
-import { checkSignupCode, consumeSignupCode, registerSignupCodeRoutes, registrationNeedsCode, releaseSignupCode } from './signupCodes.ts';
+import { checkSignupCode, claimSignupCode, consumeSignupCode, registerSignupCodeRoutes, registrationNeedsCode, releaseSignupCode } from './signupCodes.ts';
 import { bump, registerStatsRoutes } from './stats.ts';
 import { checkSecondFactor, clearLimit, hits, limit, limited, registerSecurityRoutes } from './security.ts';
 import { POLL_SELECT, checkAutomod, checkSlowmode, pollSchema, registerCommunityRoutes } from './community.ts';
@@ -253,6 +253,7 @@ export function createRoutes(db: Db, rt: Realtime) {
         await releaseSignupCode(db, signupCode);
         throw err;
       }
+      await claimSignupCode(db, signupCode, user.id);
       bump('signup');
       const session = await issueSession(db, req, res, user.id);
       await recordLogin(db, req, user.id, 'register');
@@ -367,6 +368,7 @@ export function createRoutes(db: Db, rt: Realtime) {
         await releaseSignupCode(db, p.signup_code);
         throw err;
       }
+      await claimSignupCode(db, p.signup_code, user.id);
       await db.query('delete from pending_signups where id = $1', [body.pendingId]);
       bump('signup');
       const session = await issueSession(db, req, res, user.id);

@@ -90,6 +90,33 @@ export async function releaseSignupCode(db: Db, code: string | null) {
   if (code) await db.query('update signup_codes set uses = greatest(0, uses - 1) where code = $1', [code]).catch(() => {});
 }
 
+/** Cria um código (escolhido ou gerado a partir do nome, ex.: LARI-7K3P). Devolve o código. */
+export async function createSignupCode(
+  db: Db,
+  opts: { code?: string; base?: string; label: string; ownerId?: string | null; maxUses: number; createdBy: string; waitlistId?: string | null },
+) {
+  let code = normalizeCode(opts.code);
+  if (opts.code && !/^[A-Z0-9][A-Z0-9-]{3,23}$/.test(code)) throw new HttpError(400, 'O código precisa ter de 4 a 24 letras, números ou hífen.');
+  if (!code) {
+    const base = normalizeCode(opts.base || opts.label).replace(/-/g, '').slice(0, 8) || 'RESENHA';
+    for (let i = 0; i < 5 && !code; i++) {
+      const c = `${base}-${randomPart(4)}`;
+      if (!(await db.query('select 1 from signup_codes where code = $1', [c])).length) code = c;
+    }
+  }
+  if ((await db.query('select 1 from signup_codes where code = $1', [code])).length) throw new HttpError(409, 'Já existe um código igual. Escolha outro.');
+  await db.query(
+    `insert into signup_codes (code, label, owner_id, max_uses, created_by, waitlist_id) values ($1, $2, $3, $4, $5, $6)`,
+    [code, opts.label, opts.ownerId ?? null, opts.maxUses, opts.createdBy, opts.waitlistId ?? null],
+  );
+  return code;
+}
+
+/** Quem entrou com o código que recebeu pela lista de espera vira dono dele (vê em "Seus convites" e entra no ranking). */
+export async function claimSignupCode(db: Db, code: string | null, userId: string) {
+  if (code) await db.query('update signup_codes set owner_id = $2 where code = $1 and owner_id is null and waitlist_id is not null', [code, userId]).catch(() => {});
+}
+
 export function registerSignupCodeRoutes(r: Router, db: Db, auth: ReturnType<typeof requireAuth>) {
   const requireAdmin = (username: string | undefined) => {
     if (!isPlatformAdmin(username)) throw new HttpError(404, 'Rota não encontrada.');
@@ -138,21 +165,7 @@ export function registerSignupCodeRoutes(r: Router, db: Db, auth: ReturnType<typ
         if (!u) throw new HttpError(404, `Não achamos ninguém com o usuário @${ownerName}.`);
         ownerId = u.id;
       }
-      let code = normalizeCode(body.code);
-      if (body.code && !/^[A-Z0-9][A-Z0-9-]{3,23}$/.test(code)) throw new HttpError(400, 'O código precisa ter de 4 a 24 letras, números ou hífen.');
-      if (!code) {
-        // ex.: LARI-7K3P (com o nome de quem recebe, fica fácil de lembrar)
-        const base = normalizeCode(ownerName || body.label).replace(/-/g, '').slice(0, 8) || 'RESENHA';
-        for (let i = 0; i < 5 && !code; i++) {
-          const c = `${base}-${randomPart(4)}`;
-          if (!(await db.query('select 1 from signup_codes where code = $1', [c])).length) code = c;
-        }
-      }
-      if ((await db.query('select 1 from signup_codes where code = $1', [code])).length) throw new HttpError(409, 'Já existe um código igual. Escolha outro.');
-      await db.query(
-        `insert into signup_codes (code, label, owner_id, max_uses, created_by) values ($1, $2, $3, $4, $5)`,
-        [code, body.label, ownerId, body.maxUses, req.user!.username],
-      );
+      const code = await createSignupCode(db, { code: body.code, base: ownerName || body.label, label: body.label, ownerId, maxUses: body.maxUses, createdBy: req.user!.username });
       return { code };
     }),
   );
