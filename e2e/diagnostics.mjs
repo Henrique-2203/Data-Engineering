@@ -122,6 +122,7 @@ try {
   assert(d?.v === 1 && d.peers.length === 1 && d.peers[0].name === 'Bia' && d.peers[0].state === 'connected', `conexão com a Bia (${JSON.stringify(d?.peers)})`);
   assert(typeof d.peers[0].rttMs === 'number' && d.peers[0].voiceIn && typeof d.peers[0].voiceIn.lossPct === 'number', 'atraso e perda da voz medidos');
   assert(d.watching.length === 1 && d.watching[0].turbo && d.watching[0].fps > 20, `transmissão assistida (${JSON.stringify(d.watching)})`);
+  assert(d.watching[0].audio && d.watching[0].audio !== 'old', `quem assiste sabe como o som da transmissão é capturado (${d.watching[0].audio})`);
   assert(d.app.browser && d.app.os && d.log.length > 0, 'aparelho e eventos');
   const s = fromBia.diagnostics.stream;
   assert(s && s.turbo && s.captureFps > 20 && s.sentFps > 20 && s.viewers === 1, `transmissão de quem relata (${JSON.stringify(s)})`);

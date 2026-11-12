@@ -99,6 +99,8 @@ class VoiceEngine {
   /** som do PC sem o Resenha (app de Windows 0.3.9+) */
   private sysAudio: SystemAudioTrack | null = null;
   private warnedSysAudio = false;
+  /** como o som da minha transmissão está sendo capturado (vai no estado da call) */
+  private screenAudioMode: 'clean' | 'system' | 'tab' | 'none' = 'none';
   /** últimos eventos internos (diagnóstico: __resenhaVoice.debugLog no console) */
   readonly debugLog: string[] = [];
   private dbg(msg: string) {
@@ -611,7 +613,8 @@ class VoiceEngine {
       stream = await navigator.mediaDevices.getDisplayMedia({
         video,
         audio: settings.screenAudio
-          ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+          ? // restrictOwnAudio: o navegador (onde suporta) tira o som do próprio Resenha da captura
+            ({ echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } as MediaTrackConstraints)
           : false,
         // opções extras do Chrome/Edge
         selfBrowserSurface: 'exclude',
@@ -644,7 +647,12 @@ class VoiceEngine {
         }
       }
     }
-    this.dbg(`som da transmissão: ${sysAudio ? 'sem o resenha (programa nativo)' : stream.getAudioTracks().length ? 'sistema inteiro' : 'sem som'}`);
+    // como o som está indo (quem assiste vê no "Relatar problema" e entende de onde vem um eco)
+    const audioTrack = stream.getAudioTracks()[0];
+    const surface = (stream.getVideoTracks()[0]?.getSettings() as { displaySurface?: string }).displaySurface;
+    const restricted = !!(audioTrack?.getSettings() as { restrictOwnAudio?: boolean } | undefined)?.restrictOwnAudio;
+    this.screenAudioMode = !audioTrack ? 'none' : sysAudio || restricted ? 'clean' : surface === 'browser' ? 'tab' : 'system';
+    this.dbg(`som da transmissão: ${this.screenAudioMode}${sysAudio ? ' (programa nativo do app)' : restricted ? ' (o navegador separou)' : ''}`);
 
     this.stopScreenTracks();
     this.screenStream = stream;
@@ -664,7 +672,7 @@ class VoiceEngine {
     this.startTurboStats();
     this.sendAudience();
     setV({ screen: true, localScreen: stream, screenLight: false });
-    getSocket()?.emit('voice:update', { screen: true });
+    getSocket()?.emit('voice:update', { screen: true, screenAudioMode: this.screenAudioMode });
     desktop?.setStreaming?.(true);
     this.startPerfGuard();
     return true;

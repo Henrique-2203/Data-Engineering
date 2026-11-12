@@ -91,6 +91,15 @@ export function CallReportModal() {
   );
 }
 
+const AUDIO_LABEL: Record<string, string> = {
+  clean: 'do PC, sem a call ✅',
+  system: 'do PC inteiro (com a call)',
+  tab: 'de uma aba',
+  none: 'sem som',
+  off: 'desligado por quem transmite',
+  old: 'app antigo (com a call)',
+};
+
 export function FindingsList({ findings }: { findings: Finding[] }) {
   return (
     <div className="diag-findings" aria-label="O que encontramos">
@@ -191,6 +200,7 @@ export function DiagnosticsView({ diag }: { diag: CallDiagnostics }) {
                 {w.mbps !== null ? ` · ${w.mbps} Mbps` : ''}
                 {w.lossPct !== null ? ` · perda ${w.lossPct}%` : ''}
                 {w.freezes ? ` · ${w.freezes} travada(s)` : ''}
+                {w.audio ? ` · som: ${AUDIO_LABEL[w.audio]}` : ''}
               </td>
             </tr>
           </tbody>

@@ -307,6 +307,7 @@ export class Realtime {
           camera: z.boolean().optional(),
           screen: z.boolean().optional(),
           screenAudioOff: z.boolean().optional(),
+          screenAudioMode: z.enum(['clean', 'system', 'tab', 'none']).optional(),
         })
         .safeParse(payload);
       if (!state || !p.success) return;

@@ -332,6 +332,7 @@ try {
   });
   const sysLog = existsSync(sysAudioLog) ? readFileSync(sysAudioLog, 'utf8') : '';
   assert(sys.track && sys.rms > 0.05 && Math.abs(sys.hz - 440) < 40, `som do PC chegando na transmissão: ${JSON.stringify(sys)}`);
+  assert(sys.log?.some((l) => /som da transmissão: clean/.test(l)), `a transmissão avisa que o som vai sem o Resenha: ${JSON.stringify(sys.log)}`);
   assert(sysLog.includes(`start pid=${mainPid}`), `o programa de áudio recebeu o pid do app para excluir (${sysLog.trim()} / pid ${mainPid})`);
   step(`som do PC na transmissão vem do programa nativo excluindo o próprio Resenha (pid ${mainPid}): tom de ${Math.round(sys.hz)} Hz chegando, nível ${sys.rms.toFixed(2)}`);
   // transmitindo: a página (codificação) e a placa de vídeo ficam acima do normal; o principal fica normal

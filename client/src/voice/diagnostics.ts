@@ -53,7 +53,18 @@ export interface CallDiagnostics {
     mbps: number | null;
   };
   /** transmissões que estou assistindo */
-  watching: { name: string; turbo: boolean; fps: number; width: number; height: number; lossPct: number | null; freezes: number | null; mbps: number | null }[];
+  watching: {
+    name: string;
+    turbo: boolean;
+    fps: number;
+    width: number;
+    height: number;
+    lossPct: number | null;
+    freezes: number | null;
+    mbps: number | null;
+    /** como o som da transmissão é capturado no PC de quem transmite ('old' = app antigo, não informa) */
+    audio?: 'clean' | 'system' | 'tab' | 'none' | 'old' | 'off';
+  }[];
   /** últimos eventos da conexão (sem dados pessoais) */
   log: string[];
 }
@@ -162,9 +173,11 @@ export async function collectDiagnostics(ms = 5000): Promise<CallDiagnostics> {
   const watching: CallDiagnostics['watching'] = [];
   for (const [i, p] of peers.entries()) {
     if (!v.watching[p.socketId]) continue;
+    const vs = app.voiceStates[p.socketId];
+    const audio = vs?.screenAudioOff ? 'off' : (vs?.screenAudioMode ?? 'old');
     const t = voice.turboRecvStats(p.socketId);
     if (t) {
-      watching.push({ name: nameOf(p.userId), turbo: true, fps: t.fps, width: t.width, height: t.height, lossPct: null, freezes: null, mbps: round(t.mbps) });
+      watching.push({ name: nameOf(p.userId), turbo: true, fps: t.fps, width: t.width, height: t.height, lossPct: null, freezes: null, mbps: round(t.mbps), audio });
       continue;
     }
     second[i].forEach((r) => {
@@ -181,6 +194,7 @@ export async function collectDiagnostics(ms = 5000): Promise<CallDiagnostics> {
         lossPct: recv + lost > 0 ? round((lost / (recv + lost)) * 100) : 0,
         freezes: (r.freezeCount ?? 0) - (a.freezeCount ?? 0),
         mbps: round((((r.bytesReceived ?? 0) - (a.bytesReceived ?? 0)) * 8) / secs / 1e6),
+        audio,
       });
     });
   }
@@ -279,6 +293,16 @@ export function explain(d: CallDiagnostics): Finding[] {
   for (const w of d.watching) {
     if (w.fps > 0 && w.fps < 30) out.push({ level: 'warn', text: `A transmissão de ${w.name} está chegando em ${w.fps} FPS para você.` });
     if (w.lossPct !== null && w.lossPct >= 3) out.push({ level: 'warn', text: `A tela de ${w.name} chega com ${w.lossPct}% de perda (internet instável).` });
+    if (w.audio === 'old')
+      out.push({
+        level: 'warn',
+        text: `${w.name} está transmitindo com um app antigo (ou um navegador que não separa o som): o "som do computador" leva junto a voz da call, e por isso você ouve a sua própria voz de volta. Peça para ${w.name} atualizar o app de Windows para a versão 0.3.9 ou mais nova (Configurações → Atalhos e app → Procurar atualizações).`,
+      });
+    if (w.audio === 'system')
+      out.push({
+        level: 'warn',
+        text: `A transmissão de ${w.name} manda o som do PC inteiro, com a voz da call junto (por isso o eco). Se ${w.name} usa o app de Windows 0.3.9, o Windows dele é antigo demais para separar: precisa do Windows 10 versão 2004 ou mais novo. No navegador, transmita uma aba em vez da tela inteira, ou use o app.`,
+      });
   }
   if (d.call.noise === 'off') out.push({ level: 'warn', text: 'A supressão de ruído está desligada: teclado e ventilador vão para a call.' });
   if (!out.length) out.push({ level: 'ok', text: 'Nada fora do normal nos números deste momento. Conte na mensagem o que aconteceu (e quando) para a equipe olhar.' });

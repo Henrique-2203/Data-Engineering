@@ -285,9 +285,16 @@ export interface VoiceState {
   screen: boolean;
   /** quem transmite desligou o áudio da transmissão (a imagem continua) */
   screenAudioOff?: boolean;
+  /**
+   * como o som da transmissão é capturado (para o diagnóstico de quem assiste):
+   * clean = som do PC SEM o Resenha (app 0.3.9+, ou navegador que separa); system = o PC inteiro,
+   * com a voz da call junto; tab = só uma aba do navegador; none = sem som. Sem o campo: app antigo.
+   */
+  screenAudioMode?: ScreenAudioMode;
 }
+export type ScreenAudioMode = 'clean' | 'system' | 'tab' | 'none';
 
-export type VoiceStatePatch = Partial<Pick<VoiceState, 'muted' | 'deafened' | 'camera' | 'screen' | 'screenAudioOff'>>;
+export type VoiceStatePatch = Partial<Pick<VoiceState, 'muted' | 'deafened' | 'camera' | 'screen' | 'screenAudioOff' | 'screenAudioMode'>>;
 
 export interface InvitePreview {
   code: string;
