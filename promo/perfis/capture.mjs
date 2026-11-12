@@ -3,7 +3,7 @@
 // Dados de mentira (Henrique, Lari, Theo, Júlia); avatares e banner desenhados aqui (arte nossa).
 // Uso: npm run build && node promo/perfis/capture.mjs
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { tempDir } from '../../e2e/_tmp.mjs';
@@ -72,6 +72,15 @@ try {
   await art.setViewportSize({ width: 960, height: 340 });
   await art.setContent(`<body style="margin:0"><canvas id=c width=960 height=340></canvas><script>${GAME}; drawGame(document.getElementById('c'), 7.5, { boost: 0.4 });</script></body>`);
   png.banner = await art.locator('canvas').screenshot();
+  // "antes": o mesmo perfil cinza em todo servidor (ilustração genérica, sem imitar app nenhum)
+  await art.setViewportSize({ width: 1600, height: 1000 });
+  const col = (srv) => `<div style="flex:1;background:#1b1d22;border-radius:28px;padding:40px 30px;display:flex;flex-direction:column;align-items:center;gap:22px">
+    <div style="font:700 34px Inter,sans-serif;color:#8a8f99">${srv}</div>
+    <div style="width:190px;height:190px;border-radius:50%;background:#4a4e57;display:flex;align-items:center;justify-content:center;font:800 96px Inter,sans-serif;color:#6c717c">H</div>
+    <div style="font:800 48px Inter,sans-serif;color:#b9bdc6">Henrique</div>
+    <div style="width:70%;height:18px;border-radius:9px;background:#2a2d34"></div><div style="width:50%;height:18px;border-radius:9px;background:#2a2d34"></div></div>`;
+  await art.setContent(`<body style="margin:0;background:#101114;width:1600px;height:1000px;display:flex;gap:40px;padding:80px;box-sizing:border-box;filter:grayscale(1)">${col('servidor do RPG')}${col('servidor da faculdade')}${col('servidor do CS')}</body>`);
+  await art.screenshot({ path: path.join(OUT, 'antes.png') });
   await art.close();
 
   const reg = (u, d) => api('/auth/register', { username: u, password: 'Pao-de-Queijo-77', displayName: d, acceptTerms: true });
@@ -124,39 +133,50 @@ try {
   ph.on('pageerror', (e) => console.error('[pageerror]', e.message));
   await ph.goto(`${BASE}/app`);
   await ph.getByRole('dialog', { name: 'Novidades do Resenha' }).getByRole('button', { name: 'Entendi' }).click({ timeout: 5000 }).catch(() => {});
-  const shot = async (name) => {
+  // posição dos elementos em cada tela (frações), para a montagem destacar o que a narração fala
+  const boxes = {};
+  const shot = async (name, marks = {}) => {
     await sleep(700);
     await ph.screenshot({ path: path.join(OUT, `${name}.png`) });
+    boxes[name] = {};
+    for (const [k, loc] of Object.entries(marks)) {
+      const b = await loc.boundingBox().catch(() => null);
+      if (b) boxes[name][k] = [b.x / 1280, b.y / 800, b.width / 1280, b.height / 800].map((v) => +v.toFixed(4));
+    }
     console.log('✓', name);
   };
+  const me = (n) => ph.locator('.members').getByText(n, { exact: true }).first();
+  const msg = (t) => ph.locator('.message-body').filter({ hasText: t }).last();
   const open = async (g, lastMsg) => {
     await ph.getByRole('button', { name: g.name, exact: true }).first().click();
     await ph.getByRole('button', { name: 'geral' }).first().click();
     await ph.getByText(lastMsg).waitFor();
   };
   await open(fac, 'levo o resumo de física');
-  await shot('fac-chat');
+  await shot('fac-chat', { member: me('Henrique'), msg: msg('bora! 19h na sala de estudo'), members: ph.locator('.members') });
   // cartão do perfil (o de sempre)
   await ph.locator('.members').getByText('Henrique').first().click();
   await sleep(600);
-  await shot('fac-perfil');
+  await shot('fac-perfil', { card: ph.locator('.profile-card').last() });
   await ph.keyboard.press('Escape');
 
   await open(rpg, 'Rolem iniciativa!');
-  await shot('rpg-chat');
+  await shot('rpg-chat', { member: me('Sir Kael, o Paladino'), msg: msg('Ergo o escudo e vou na frente'), members: ph.locator('.members') });
   await ph.locator('.members').getByText('Sir Kael, o Paladino').first().click();
   await sleep(600);
-  await shot('rpg-perfil');
+  await shot('rpg-perfil', { card: ph.locator('.profile-card').last() });
   await ph.keyboard.press('Escape');
   // "Meu perfil neste servidor"
   await ph.locator('.guild-name').click();
   await ph.getByRole('button', { name: 'Meu perfil neste servidor' }).click();
   await ph.getByRole('dialog', { name: 'Meu perfil neste servidor' }).waitFor();
-  await shot('rpg-meu-perfil');
+  const dlgP = ph.getByRole('dialog', { name: 'Meu perfil neste servidor' });
+  await shot('rpg-meu-perfil', { dialog: dlgP, nick: dlgP.getByRole('textbox').first(), photo: dlgP.getByRole('button', { name: /Foto só deste servidor/ }) });
   await ph.keyboard.press('Escape');
 
   await open(mas, 'Grok corre gritando');
-  await shot('mas-chat');
+  await shot('mas-chat', { member: me('Zéfiro, o Mago'), msg: msg('Zéfiro conjura uma bola de fogo'), members: ph.locator('.members') });
+  writeFileSync(path.join(OUT, 'boxes.json'), JSON.stringify(boxes, null, 1));
   console.log('\nTelas em promo/out/perfis/shots');
 } catch (err) {
   console.error(err);
