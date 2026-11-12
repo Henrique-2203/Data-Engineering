@@ -13,7 +13,7 @@ import { isPlatformAdmin } from './reports.ts';
 import type { SupportCategory, SupportTicket } from '../../shared/types.ts';
 
 /**
- * Suporte: a pessoa abre um chamado pelo app (Configurações → Suporte ou o botão "?") e a equipe
+ * Suporte: a pessoa abre um chamado pelo app (a boia 🛟 no pé da coluna de servidores) e a equipe
  * (PLATFORM_ADMINS) responde pelo Painel da equipe. Quem abriu é avisado da resposta no app, no
  * celular (se ligou as notificações) e por e-mail (se tem e-mail confirmado).
  */
@@ -103,7 +103,7 @@ export function registerSupportRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
         await sendPush(db, [t.user.id], { title: 'Suporte do Resenha respondeu', body: t.subject, tag: `support:${t.id}` }, { onlyAway: rt });
         await alertUser(db, t.user.id, 'O suporte do Resenha respondeu', [
           `A equipe respondeu o seu chamado "${t.subject}".`,
-          'Abra o Resenha e vá em Configurações → Suporte para ler e responder.',
+          'Para ler e responder, abra o Resenha e clique na boia 🛟 (Suporte), no pé da coluna de servidores, à esquerda. Ela fica com um número enquanto tiver resposta nova.',
         ], '');
       }
       await notifyAdmins();
