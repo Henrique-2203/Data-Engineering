@@ -468,6 +468,13 @@ alter table pending_signups add column if not exists signup_code text;
 -- v41: convite pela lista de espera (o código vira da pessoa quando ela cria a conta)
 alter table signup_codes add column if not exists waitlist_id text;
 alter table waitlist add column if not exists invite_code text;
+-- v42: convite automático da lista de espera (liga/desliga no painel)
+alter table waitlist add column if not exists invited_by text;
+create table if not exists app_settings (
+  name text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
 create table if not exists backups (
   id text primary key,
   started_at timestamptz not null default now(),

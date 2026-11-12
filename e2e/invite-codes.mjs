@@ -262,6 +262,51 @@ try {
       const dm = outbox().filter((m) => m.to === 'davi@exemplo.com').at(-1);
       expect(dm?.code === 'DAVI-VIP' && /a sua e mais 1 amigo\./.test(dm.text), `e-mail do Davi: ${dm?.text}`);
       step('no painel: digita o código DAVI-VIP e o limite 2, clica em "Enviar convite por e-mail" e o e-mail sai');
+
+      // ---------- convite automático: quem entra na lista recebe o código na hora ----------
+      await pg.getByLabel('Limite de contas de cada código automático').fill('2');
+      await pg.getByLabel('Máximo de convites automáticos por dia').fill('2');
+      await pg.locator('.wait-auto').getByRole('checkbox').check();
+      await pg.locator('.wait-auto.on').waitFor();
+      await pg.locator('.wait-auto').screenshot({ path: `${shots}/84-convite-automatico.png` });
+      const auto = await call('/admin/waitlist/auto', null, eq.token);
+      expect(auto.enabled && auto.maxUses === 2 && auto.dailyCap === 2 && auto.today === 0, `configuração: ${JSON.stringify(auto)}`);
+      step('painel: "Convite automático" ligado (limite 2 por código, máximo 2 por dia)');
+
+      // pela página inicial, como uma pessoa de verdade
+      const lp = await (await b2.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+      await lp.goto(`http://localhost:${PORT + 1}/`);
+      await lp.getByRole('button', { name: 'Entrar na lista de espera' }).first().click();
+      const form = lp.locator('.lp-form');
+      await form.getByLabel('Nome').fill('Rafa Lima');
+      await form.getByLabel('E-mail').fill('rafa@exemplo.com');
+      await form.getByLabel(/Quero receber o convite/).check();
+      await form.getByRole('button', { name: 'Quero meu convite' }).click();
+      await lp.getByText('Seu convite já foi para o seu e-mail!').waitFor();
+      await lp.locator('.lp-done').screenshot({ path: `${shots}/85-lista-convite-na-hora.png` });
+      const rm = outbox().filter((m) => m.to === 'rafa@exemplo.com').at(-1);
+      expect(rm && /^RAFA-[A-Z2-9]{4}$/.test(rm.code) && /a sua e mais 1 amigo\./.test(rm.text), `e-mail automático: ${JSON.stringify(rm)}`);
+      const rafa = await confirm(await start('rafa', rm.code), 'rafa');
+      expect(rafa.token, `Rafa criou a conta com o código automático: ${JSON.stringify(rafa)}`);
+      step(`página inicial: a Rafa entra na lista, vê "seu convite já foi para o seu e-mail", recebe ${rm.code} e cria a conta`);
+
+      // teto do dia: o 2º recebe, o 3º fica na lista
+      const g2 = await call('/waitlist', { name: 'Gui', email: 'gui@exemplo.com', platforms: ['windows'], consent: true });
+      const g3 = await call('/waitlist', { name: 'Nina', email: 'nina@exemplo.com', platforms: ['windows'], consent: true });
+      expect(g2.invited === true && g3.invited === false, `teto do dia: ${JSON.stringify([g2, g3])}`);
+      // quem já tem conta com o e-mail não ganha código
+      const dup = await call('/waitlist', { name: 'Bia', email: 'bia@exemplo.com', platforms: ['windows'], consent: true });
+      expect(dup.invited === false, 'quem já tem conta não recebe convite');
+      wl = await call('/admin/waitlist', null, eq.token);
+      const gui = wl.entries.find((e) => e.email === 'gui@exemplo.com');
+      expect(gui.invitedBy === 'automático' && gui.inviteCode && !wl.entries.find((e) => e.email === 'nina@exemplo.com').inviteCode, `lista: ${JSON.stringify(gui)}`);
+      step('máximo de 2 por dia: o Gui recebe na hora, a Nina fica na lista para depois; quem já tem conta não recebe');
+
+      // desligado: ninguém recebe sozinho
+      await call('/admin/waitlist/auto', { enabled: false, maxUses: 2, dailyCap: 2 }, eq.token, 'PUT');
+      const off = await call('/waitlist', { name: 'Leo', email: 'leo@exemplo.com', platforms: ['windows'], consent: true });
+      expect(off.invited === false, 'desligado não manda');
+      step('desligado: quem entra na lista espera o convite manual, como antes');
     } finally {
       await b2.close();
     }

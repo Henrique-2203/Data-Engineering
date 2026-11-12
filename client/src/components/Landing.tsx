@@ -413,7 +413,7 @@ function WaitlistForm() {
   const [website, setWebsite] = useState(''); // armadilha para robôs
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ position: number; already: boolean } | null>(null);
+  const [done, setDone] = useState<{ position: number; already: boolean; invited?: boolean } | null>(null);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -435,7 +435,14 @@ function WaitlistForm() {
         <p>
           Sua posição: <strong className="lp-pos">nº {done.position}</strong>
         </p>
-        <p className="lp-small">Vamos mandar o convite por e-mail{whatsapp ? ' ou WhatsApp' : ''}. Chama os amigos para entrarem também:</p>
+        {done.invited ? (
+          <p className="lp-invited">
+            📩 <strong>Seu convite já foi para o seu e-mail!</strong> Abra o e-mail, copie o código e crie sua conta em <a href="/app">{location.host}/app</a>. Não chegou em alguns
+            minutos? Olhe o spam.
+          </p>
+        ) : (
+          <p className="lp-small">Vamos mandar o convite por e-mail{whatsapp ? ' ou WhatsApp' : ''}. Chama os amigos para entrarem também:</p>
+        )}
         <button
           className="lp-btn"
           onClick={() => {

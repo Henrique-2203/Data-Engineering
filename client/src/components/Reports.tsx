@@ -357,10 +357,66 @@ interface WaitEntry {
   createdAt: string;
   invitedAt: string | null;
   inviteCode: string | null;
+  invitedBy: string | null;
   codeUses: number | null;
   codeMax: number | null;
   /** usuário que ela criou com o código (quando já entrou) */
   joined: string | null;
+}
+
+/** Convite automático: quem entra na lista recebe o código na hora (com teto por dia). */
+function AutoInvite({ onChange }: { onChange(): void }) {
+  const [cfg, setCfg] = useState<{ enabled: boolean; maxUses: number; dailyCap: number; today: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void api<NonNullable<typeof cfg>>('/admin/waitlist/auto').then(setCfg, (e) => toast(e.message));
+  }, []);
+  if (!cfg) return null;
+  async function save(next: typeof cfg, before?: typeof cfg) {
+    setBusy(true);
+    try {
+      setCfg(await api<NonNullable<typeof cfg>>('/admin/waitlist/auto', { method: 'PUT', body: { enabled: next!.enabled, maxUses: next!.maxUses, dailyCap: next!.dailyCap } }));
+      toast(next!.enabled ? 'Convite automático ligado: quem entrar na lista recebe o código na hora.' : 'Convite automático desligado.');
+      onChange();
+    } catch (err) {
+      if (before) setCfg(before);
+      toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className={`wait-auto${cfg.enabled ? ' on' : ''}`}>
+      <label className="check">
+        <input type="checkbox" checked={cfg.enabled} onChange={(e) => {
+          const next = { ...cfg, enabled: e.target.checked };
+          setCfg(next); // muda na hora; volta se o servidor recusar
+          void save(next, cfg);
+        }} />
+        <strong>Convite automático</strong>
+      </label>
+      <p className="muted small">
+        Quem entrar na lista recebe na hora, por e-mail, o próprio código de convite. Funciona sozinho, mesmo de madrugada. Quem já tem conta com o e-mail não recebe.
+      </p>
+      <div className="wait-auto-row">
+        <label className="small">
+          Limite de cada código
+          <input type="number" min={1} max={50} value={cfg.maxUses} aria-label="Limite de contas de cada código automático" onChange={(e) => setCfg({ ...cfg, maxUses: Math.max(1, Math.min(50, Number(e.target.value) || 1)) })} />
+        </label>
+        <label className="small">
+          Máximo por dia
+          <input type="number" min={1} max={250} value={cfg.dailyCap} aria-label="Máximo de convites automáticos por dia" onChange={(e) => setCfg({ ...cfg, dailyCap: Math.max(1, Math.min(250, Number(e.target.value) || 1)) })} />
+        </label>
+        <button className="btn small" disabled={busy} onClick={() => void save(cfg)}>
+          Salvar
+        </button>
+      </div>
+      <p className="muted small">
+        Hoje: <strong>{cfg.today}</strong> de {cfg.dailyCap} enviados automaticamente. Passou do máximo, a pessoa fica na lista e você convida depois. (A Brevo grátis manda 300 e-mails por dia, e
+        cada pessoa nova gasta 2: o convite e o código do cadastro.)
+      </p>
+    </div>
+  );
 }
 
 /** Convite de uma pessoa da lista: código (opcional) + limite → e-mail com o código. */
@@ -389,6 +445,7 @@ function WaitInvite({ entry: e, emailOn, onDone }: { entry: WaitEntry; emailOn: 
       <div className="wait-invite">
         <span className="small">
           Código <strong className="invite-code">{e.inviteCode}</strong> · {e.codeUses ?? 0} de {e.codeMax ?? '∞'} {(e.codeMax ?? 2) === 1 ? 'conta' : 'contas'}
+          {e.invitedBy === 'automático' && ' · enviado automaticamente'}
           {e.joined ? (
             <>
               {' · '}
@@ -474,6 +531,7 @@ function WaitlistAdmin() {
           Exportar planilha (.csv)
         </button>
       </div>
+      {emailOn && <AutoInvite onChange={load} />}
       {!emailOn && (
         <p className="notice warn small">
           O envio de e-mails está desligado no servidor: o código é criado e copiado, mas você precisa mandar para a pessoa por conta própria.

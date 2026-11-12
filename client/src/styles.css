@@ -3815,6 +3815,18 @@ input.switch:disabled {
   margin: 0 0 34px;
   font-size: 18px;
 }
+.lp-invited {
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(61, 220, 151, 0.12);
+  border: 1px solid rgba(61, 220, 151, 0.45);
+  line-height: 1.45;
+}
+.lp-invited a {
+  color: inherit;
+  font-weight: 700;
+}
 .lp-small {
   font-size: 14px;
   color: #8d93a1;
@@ -4374,6 +4386,33 @@ input.switch:disabled {
 }
 .wait-item {
   border-left-color: var(--accent);
+}
+.wait-auto {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.wait-auto.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.wait-auto-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+.wait-auto-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wait-auto-row input {
+  width: 90px;
 }
 .wait-invite {
   display: flex;
