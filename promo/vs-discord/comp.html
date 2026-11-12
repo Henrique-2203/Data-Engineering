@@ -76,7 +76,7 @@
   <div class="flash" id="flash"></div>
 </div>
 <script type="module">
-import { SCENES, CAPTIONS, CUTS, BEAT, DURATION, END, MEM, LESS, ROWS } from './timeline.mjs';
+import { SCENES, CAPTIONS, CUTS, BEAT, DURATION, END, MEM, LESS, ROWS, COVER } from './timeline.mjs';
 
 const PW = 980;
 const $ = (id) => document.getElementById(id);
@@ -163,26 +163,28 @@ window.seek = function seek(t) {
       const red = sc.row === 'discord';
       panel.style.setProperty('--glow', red ? '#ff4d5e66' : '#3ddc9766');
       layer.append(print);
-      const k = easeIO(clamp(since / 3));
+      const k = easeIO(clamp(since / (sc.t1 - sc.t0)));
       const R = ROWS[sc.row];
+      const hs = t - sc.hl, cs = t - sc.count[0], cd = sc.count[1] - sc.count[0];
       // câmera chegando perto da linha (sem cortar as colunas)
       const cy = R[1] + R[3] / 2;
       const z = 1 - 0.14 * k;
       const r = [(1 - z) / 2, clamp(cy - z / 2, 0, 1 - z), z, z];
       const P = place(print, r, ph);
-      const pop = back(clamp((since - 0.25) / 0.2));
+      const pop = back(clamp(hs / 0.2));
       const color = red ? '#ff4d5e' : '#3ddc97';
       const [x, y] = P.map(R[0], R[1]);
-      Object.assign($('hl').style, { left: `${x}px`, top: `${y}px`, width: `${R[2] * P.sw}px`, height: `${R[3] * P.sh}px`, borderColor: color, boxShadow: `0 0 30px ${color}`, opacity: since > 0.25 ? 1 : 0, transform: `scale(${0.96 + 0.04 * pop})` });
+      Object.assign($('hl').style, { left: `${x}px`, top: `${y}px`, width: `${R[2] * P.sw}px`, height: `${R[3] * P.sh}px`, borderColor: color, boxShadow: `0 0 30px ${color}`, opacity: hs > 0 ? 1 : 0, transform: `scale(${0.96 + 0.04 * pop})` });
       const [mx, my] = P.map(ROWS.mem[0], R[1] - 0.012);
-      Object.assign($('hlm').style, { left: `${mx}px`, top: `${my}px`, width: `${ROWS.mem[2] * P.sw}px`, height: `${(R[3] + 0.024) * P.sh}px`, borderColor: '#fff', boxShadow: `0 0 30px ${color}`, opacity: since > 0.9 ? 1 : 0 });
+      Object.assign($('hlm').style, { left: `${mx}px`, top: `${my}px`, width: `${ROWS.mem[2] * P.sw}px`, height: `${(R[3] + 0.024) * P.sh}px`, borderColor: '#fff', boxShadow: `0 0 30px ${color}`, opacity: cs > 0 ? 1 : 0 });
       // número grande contando
-      const v = MEM[sc.row] * easeOut(clamp((since - 0.9) / 0.8));
-      Object.assign($('big').style, { top: `${top + ph + 40}px`, color, opacity: since > 0.9 ? 1 : 0, transform: `scale(${back(clamp((since - 0.9) / 0.25))})` });
+      // número grande contando enquanto a narração fala o número
+      const v = MEM[sc.row] * easeOut(clamp(cs / cd));
+      Object.assign($('big').style, { top: `${top + ph + 40}px`, color, opacity: cs > 0 ? 1 : 0, transform: `scale(${back(clamp(cs / 0.25))})` });
       $('big').textContent = `${fmt(v)} MB`;
       const tag = $('tag');
       tag.textContent = red ? '⏸️ só aberto · sem call' : '🎧 em call · assistindo transmissão';
-      Object.assign(tag.style, { left: '50%', top: `${top - 90}px`, background: color, color: red ? '#fff' : '#06281a', opacity: since > 0.4 ? 1 : 0, transform: `translateX(-50%) rotate(-2deg) scale(${back(clamp((since - 0.4) / 0.2))})` });
+      Object.assign(tag.style, { left: '50%', top: `${top - 90}px`, background: color, color: red ? '#fff' : '#06281a', opacity: hs > 0.15 ? 1 : 0, transform: `translateX(-50%) rotate(-2deg) scale(${back(clamp((hs - 0.15) / 0.2))})` });
     } else if (sc.kind === 'clip') {
       // a gravação: o Resenha em call, recebendo a transmissão
       const ph = 1000;
@@ -192,12 +194,13 @@ window.seek = function seek(t) {
       layer.append(el);
       Object.assign(panel.style, { opacity: 1, height: `${ph}px`, top: `${top}px`, transform: `translate(${shake}px, 0) scale(${punch})` });
       panel.style.setProperty('--glow', '#3ddc9766');
-      // abre na call inteira e entra na transmissão
-      const k = easeIO(clamp(since / 2.2));
-      const k2 = easeIO(clamp((since - 4.6) / 2.2));
-      const wide = [0, 0, 1, 1], mid = [0.16, 0.04, 0.66, 0.78], tight = [0.165, 0.065, 0.56, 0.66];
-      const r = wide.map((v, i) => lerp(lerp(v, mid[i], k), tight[i], k2));
-      place(el, r, ph);
+      // câmera: da call inteira para a transmissão
+      const k = easeIO(clamp(since / (sc.t1 - sc.t0)));
+      place(el, sc.from.map((v, i) => lerp(v, sc.to[i], k)), ph);
+      if ($('hud').dataset.s !== String(sc.t0)) {
+        $('hud').innerHTML = sc.hud.map((h) => `<b>${h}</b>`).join('');
+        $('hud').dataset.s = String(sc.t0);
+      }
       Object.assign($('hud').style, { top: `${top - 100}px`, opacity: clamp((since - 0.3) / 0.2), transform: `scale(${back(clamp((since - 0.3) / 0.25))})` });
     } else if (sc.kind === 'chart') {
       const c = $('chart');
@@ -223,16 +226,19 @@ window.seek = function seek(t) {
   if (!cap) box.replaceChildren();
   else {
     const out = 1 - clamp((t - (cap.end - 0.07)) / 0.07);
-    const bad = t < 3;
+    const bad = cap.bad;
     box.style.top = `${t >= END ? 1290 : sc?.kind === 'chart' ? 1300 : 1400}px`;
     box.replaceChildren(
       ...cap.words.map((w, i) => {
         const s = document.createElement('span');
         s.className = `w${w.key ? (bad ? ' bad' : ' key') : ''}`;
         s.textContent = w.w;
-        const k = clamp((t - cap.t - i * 0.06) / 0.18);
-        s.style.opacity = k > 0 ? 1 : 0;
-        s.style.transform = `scale(${back(k) * out}) translateY(${(1 - k) * 30}px) rotate(${w.key ? Math.sin(t * 8) * 1.5 : 0}deg)`;
+        // o bloco aparece inteiro, apagado; cada palavra acende quando é falada
+        const k = clamp((t - cap.times[Math.min(i, cap.times.length - 1)]) / 0.16);
+        const enter = back(clamp((t - cap.t) / 0.16));
+        s.style.opacity = k > 0 ? 1 : 0.38;
+        if (k <= 0) s.style.color = '#fff';
+        s.style.transform = `scale(${(0.9 + 0.1 * (k > 0 ? back(k) : 0)) * enter * out}) translateY(${k > 0 ? -8 * Math.sin(Math.PI * k) : 0}px) rotate(${w.key && k > 0 ? Math.sin(t * 8) * 1.5 : 0}deg)`;
         return s;
       }),
     );
@@ -256,7 +262,7 @@ window.seek = function seek(t) {
 };
 
 window.DURATION = DURATION;
-window.COVER = 14.8;
+window.COVER = COVER;
 window.ready = Promise.all([print, ...Object.values(clip)].map((i) => i.decode().catch(() => {}))).then(() => document.fonts.ready);
 window.seek(0);
 </script>

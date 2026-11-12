@@ -1,5 +1,5 @@
-// Renderiza o vídeo Resenha × Discord (1080x1920, 30 FPS) com a trilha original, uma versão sem som
-// (para colocar um áudio do Instagram/TikTok) e a capa.
+// Renderiza o vídeo Resenha × Discord narrado (1080x1920, 30 FPS): narração + trilha original, uma
+// versão só com a narração (para pôr um áudio do Instagram/TikTok por baixo) e a capa.
 // Uso: bash promo/vs-discord/prep.sh <gravacao.mp4> && node promo/vs-discord/render.mjs [--preview 1,4,9]
 import { createServer } from 'node:http';
 import { readFile, mkdir, rm, writeFile } from 'node:fs/promises';
@@ -70,11 +70,12 @@ if (!audioOnly) {
 server.close();
 if (!preview) {
   await writeFile(path.join(OUT, 'trilha.wav'), makeReelsAudio());
+  await writeFile(path.join(OUT, 'so-narracao.wav'), makeReelsAudio({ withMusic: false }));
   const input = ['-framerate', String(FPS), '-i', path.join(frames, '%05d.jpg')];
   const video = ['-c:v', 'libx264', '-preset', 'slow', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', String(FPS), '-movflags', '+faststart'];
   run([...input, '-i', path.join(OUT, 'trilha.wav'), '-af', 'loudnorm=I=-14:TP=-2:LRA=11,alimiter=limit=0.71:level=false:attack=1:release=60,aresample=48000', '-ar', '48000', ...video, '-c:a', 'aac', '-b:a', '192k', '-shortest', path.join(OUT, 'resenha-vs-discord.mp4')]);
-  // sem som: para usar um áudio em alta do app por cima
-  run([...input, ...video, '-an', path.join(OUT, 'resenha-vs-discord-sem-som.mp4')]);
+  // só a narração (sem música): coloque um áudio em alta do app em volume baixo
+  run([...input, '-i', path.join(OUT, 'so-narracao.wav'), '-af', 'loudnorm=I=-16:TP=-2:LRA=11,alimiter=limit=0.71:level=false:attack=1:release=60,aresample=48000', '-ar', '48000', ...video, '-c:a', 'aac', '-b:a', '192k', '-shortest', path.join(OUT, 'resenha-vs-discord-so-narracao.mp4')]);
   run(['-i', path.join(OUT, 'capa.png'), '-q:v', '3', path.join(OUT, 'resenha-vs-discord-capa.jpg')]);
-  console.log('pronto: promo/out/vs-discord/resenha-vs-discord.mp4 (+ sem som e capa)');
+  console.log('pronto: promo/out/vs-discord/resenha-vs-discord.mp4 (+ só a narração e capa)');
 }
