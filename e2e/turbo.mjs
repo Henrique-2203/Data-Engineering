@@ -124,8 +124,37 @@ try {
     for (const v of viewers) fps.push(await viewerFps(v));
     const sendStats = await ana.locator('.send-stats').textContent().catch(() => '');
     if (turbo) await viewers[0].screenshot({ path: path.join(shots, 'transmissao-turbo.png') });
+    let recovery = null;
+    if (turbo) {
+      // o canal turbo cai no meio (oscilação de internet): a imagem tem que voltar sozinha, sem clicar
+      // em "Assistir" de novo. Antes ela simplesmente sumia ("caí da transmissão").
+      const v = viewers[0];
+      const drop = () => v.evaluate(() => [...window.__resenhaVoice.turboRecv.values()][0].dc.close());
+      const back = (wantTurbo) =>
+        v.waitForFunction((t) => {
+          const turboOn = window.__resenhaVoice.turboRecv.size > 0;
+          const vid = document.querySelector('.tile.screen video');
+          return turboOn === t && vid && vid.readyState >= 2 && !vid.paused;
+        }, wantTurbo, { timeout: 20000 });
+      await drop();
+      await sleep(300);
+      await back(true);
+      await sleep(2500);
+      const once = await viewerFps(v);
+      // caiu 3 vezes em 2 minutos: desiste do turbo e volta pela transmissão normal
+      await drop();
+      await sleep(300);
+      await back(true);
+      await sleep(1500);
+      await drop();
+      await sleep(300);
+      await back(false);
+      await sleep(3000);
+      const normalAfter = await viewerFps(v);
+      recovery = { once, normalAfter };
+    }
     for (const s of sessions) await s.ctx.close();
-    return { fps, stats, sendStats };
+    return { fps, stats, sendStats, recovery };
   }
 
   const normal = await round(false);
@@ -136,6 +165,9 @@ try {
   console.log(`  quem transmite vê: ${turbo.sendStats}`);
   assert(/Turbo/.test(turbo.stats) && /Turbo/.test(turbo.sendStats), 'a transmissão foi pelo modo turbo');
   assert(Math.min(...turbo.fps) >= 40, `turbo: todos os amigos com 40+ FPS (${turbo.fps.join(', ')})`);
+  assert(turbo.recovery.once >= 20, `a transmissão volta sozinha depois que o canal cai (${turbo.recovery.once} FPS)`);
+  assert(turbo.recovery.normalAfter >= 15, `caindo 3 vezes, volta pela transmissão normal (${turbo.recovery.normalAfter} FPS)`);
+  step(`canal turbo caiu no meio: a imagem volta sozinha (${turbo.recovery.once} FPS); caindo 3 vezes, segue pela transmissão normal (${turbo.recovery.normalAfter} FPS)`);
   step(`turbo: os 3 amigos recebem ${Math.min(...turbo.fps)}+ FPS (normal: ${Math.min(...normal.fps)}+)`);
   console.log('\nTUDO CERTO (transmissão turbo)');
 } catch (err) {

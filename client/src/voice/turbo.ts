@@ -560,7 +560,15 @@ export class TurboSender {
         v.needCfg = false;
       }
       packets ??= this.packetize(data, seq, parts, key, chunk.timestamp);
-      for (const p of packets) v.dc.send(p);
+      try {
+        for (const p of packets) v.dc.send(p);
+      } catch (err) {
+        // o canal desse espectador está fechando: não pode atrapalhar o quadro dos outros
+        // (quem assiste pede a transmissão de novo sozinho)
+        this.log(`turbo: falha ao enviar para ${[...this.viewers].find(([, x]) => x === v)?.[0].slice(0, 6)}: ${(err as Error).message}`);
+        v.waitKey = true;
+        continue;
+      }
       v.waitKey = false;
       v.sentFrames++;
       v.bytes += data.byteLength;

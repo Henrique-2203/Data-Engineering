@@ -763,7 +763,32 @@ class VoiceEngine {
         delete streamInfo[socketId];
         return { streamInfo };
       });
+      this.recoverWatch(socketId);
     });
+  }
+
+  /** quantas vezes o canal turbo de cada transmissão caiu (para desistir do turbo se cair toda hora) */
+  private turboDrops = new Map<string, { n: number; since: number }>();
+
+  /**
+   * O canal da transmissão turbo fechou sem eu pedir (oscilação na internet de um dos dois, erro no
+   * codificador de quem transmite): antes a imagem simplesmente sumia e só voltava clicando em
+   * "Assistir" de novo. Agora, se a pessoa ainda está transmitindo e eu ainda estou assistindo, peço
+   * a transmissão de novo sozinho. Caiu 3 vezes em 2 minutos: volta pela transmissão normal (mais
+   * resistente a internet instável).
+   */
+  private recoverWatch(socketId: string) {
+    const now = Date.now();
+    const prev = this.turboDrops.get(socketId);
+    const d = prev && now - prev.since < 120_000 ? { n: prev.n + 1, since: prev.since } : { n: 1, since: now };
+    this.turboDrops.set(socketId, d);
+    setTimeout(() => {
+      const streaming = useApp.getState().voiceStates[socketId]?.screen;
+      if (!getV().watching[socketId] || !this.peers.has(socketId) || !streaming || this.turboRecv.has(socketId)) return;
+      const turbo = d.n < 3;
+      this.dbg(`turbo: a transmissão de ${socketId.slice(0, 6)} caiu (${d.n}x): pedindo de novo${turbo ? '' : ' pela transmissão normal'}`);
+      this.sendWatch(socketId, true, turbo);
+    }, 1000);
   }
 
   /** Estatísticas do que estou recebendo em modo turbo (null = não é turbo). */
@@ -1136,7 +1161,7 @@ class VoiceEngine {
     });
   }
 
-  private sendWatch(socketId: string, on: boolean) {
+  private sendWatch(socketId: string, on: boolean, turbo = true) {
     const quality = getV().streamQuality[socketId];
     const send = (decoders?: string[]) =>
       getSocket()?.emit('rtc:signal', {
@@ -1144,7 +1169,7 @@ class VoiceEngine {
         data: { type: 'watch', on, ...(decoders?.length ? { decoders } : {}), ...(on && quality ? { quality } : {}) } satisfies RtcSignal,
       });
     // aceito a transmissão turbo se este aparelho decodifica (e a pessoa não desligou)
-    if (on && turboCanReceive() && getV().settings.turbo !== false) void decodableCodecs().then(send, () => send());
+    if (on && turbo && turboCanReceive() && getV().settings.turbo !== false) void decodableCodecs().then(send, () => send());
     else send();
   }
 
