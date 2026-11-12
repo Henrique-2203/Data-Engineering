@@ -4,7 +4,7 @@
 // Uso: npm run build && node promo/privacidade/capture.mjs
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { tempDir } from '../../e2e/_tmp.mjs';
@@ -120,9 +120,17 @@ try {
     await page.getByRole('dialog', { name: 'Novidades do Resenha' }).getByRole('button', { name: 'Entendi' }).click({ timeout: 5000 }).catch(() => {});
     return page;
   };
-  const shot = async (page, name) => {
+  // posição dos elementos em cada tela (frações), para a montagem destacar a opção certa
+  const boxes = {};
+  const shot = async (page, name, marks = {}) => {
     await sleep(500);
     await page.screenshot({ path: path.join(OUT, `${name}.png`) });
+    const vp = page.viewportSize();
+    boxes[name] = {};
+    for (const [k, loc] of Object.entries(marks)) {
+      const b = await loc.boundingBox().catch(() => null);
+      if (b) boxes[name][k] = [b.x / vp.width, b.y / vp.height, b.width / vp.width, b.height / vp.height].map((v) => +v.toFixed(4));
+    }
     console.log('✓', name);
   };
   const join = async (page) => {
@@ -139,23 +147,24 @@ try {
   const pj = await open(ju.token);
   for (const p of [ph, pl, pt, pj]) await join(p);
   await sleep(2500);
-  await shot(ph, 'call-4');
+  await shot(ph, 'call-4', { tiles: ph.locator('.voice-stage, .stage').first() });
 
   // janela de transmitir: as 4 opções
   await ph.getByRole('button', { name: 'Transmitir tela' }).click();
   const dlg = ph.getByRole('dialog', { name: 'Transmitir tela' });
   await dlg.getByRole('radio', { name: 'Todos da call' }).click();
-  await shot(ph, 'modal-todos');
+  const M = () => ({ dialog: dlg, modes: dlg.getByRole('radiogroup', { name: 'Quem pode assistir' }), todos: dlg.getByRole('radio', { name: 'Todos da call' }), amigos: dlg.getByRole('radio', { name: 'Só amigos' }), escolher: dlg.getByRole('radio', { name: /Só quem eu/ }), menos: dlg.getByRole('radio', { name: /Todos menos/ }), people: dlg.locator('.audience-people') });
+  await shot(ph, 'modal-todos', M());
   await dlg.getByRole('radio', { name: 'Só amigos' }).click();
-  await shot(ph, 'modal-amigos');
+  await shot(ph, 'modal-amigos', M());
   await dlg.getByRole('radio', { name: /Só quem eu/ }).click();
   await dlg.getByRole('checkbox', { name: 'Lari' }).check();
   await dlg.getByRole('checkbox', { name: 'Theo' }).check();
-  await shot(ph, 'modal-escolher');
+  await shot(ph, 'modal-escolher', M());
   await dlg.getByRole('radio', { name: /Todos menos/ }).click();
   for (const n of ['Lari', 'Theo']) await dlg.getByRole('checkbox', { name: n }).uncheck().catch(() => {});
   await dlg.getByRole('checkbox', { name: 'Júlia' }).check();
-  await shot(ph, 'modal-menos');
+  await shot(ph, 'modal-menos', M());
   await dlg.getByRole('button', { name: 'Escolher tela e transmitir' }).click();
   await ph.getByText('Sua tela').waitFor({ timeout: 15000 });
   await sleep(1500);
@@ -164,12 +173,13 @@ try {
   await pl.getByRole('button', { name: 'Assistir transmissão' }).click();
   await pl.locator('.tile.screen video').waitFor({ timeout: 15000 });
   await sleep(4000);
-  await shot(pl, 'lari-assistindo');
+  await shot(pl, 'lari-assistindo', { screen: pl.locator('.tile.screen').first() });
   await pj.getByText('Henrique está transmitindo para outras pessoas').waitFor({ timeout: 10000 });
   await sleep(800);
-  await shot(pj, 'julia-cadeado');
+  await shot(pj, 'julia-cadeado', { lock: pj.getByText('Henrique está transmitindo para outras pessoas'), tile: pj.locator('.tile').filter({ hasText: 'Henrique está transmitindo' }).first() });
   await ph.locator('.tile.screen').first().hover().catch(() => {});
-  await shot(ph, 'henrique-transmitindo');
+  await shot(ph, 'henrique-transmitindo', { screen: ph.locator('.tile.screen').first(), chip: ph.getByText('Todos menos alguns').first() });
+  writeFileSync(path.join(OUT, 'boxes.json'), JSON.stringify(boxes, null, 1));
   console.log('\nTelas em promo/out/privacidade/shots');
 } catch (err) {
   console.error(err);
