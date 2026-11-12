@@ -70,7 +70,8 @@ async function api(p, body, token) {
 const FAKE_PLAYER = `<!doctype html><body style="margin:0;background:#300;color:#fff;font:20px sans-serif"><div id=v></div><script>
 const q = new URL(location.href).searchParams;
 let vid = location.pathname.split('/').pop(), t = Number(q.get('start') || 0), playing = q.get('autoplay') === '1', state = playing ? 1 : 5, last = performance.now();
-const tick = () => { const n = performance.now(); if (playing) t += (n - last) / 1000; last = n; };
+let rate = 1;
+const tick = () => { const n = performance.now(); if (playing) t += ((n - last) / 1000) * rate; last = n; };
 const send = (o) => parent.postMessage(JSON.stringify(o), '*');
 setInterval(() => { tick(); document.getElementById('v').textContent = vid + ' ' + t.toFixed(1); send({ event: 'infoDelivery', info: { currentTime: t, playerState: state, duration: 600 } }); }, 250);
 addEventListener('message', (e) => {
@@ -80,13 +81,17 @@ addEventListener('message', (e) => {
   tick(); const a = d.args || [];
   if (d.func === 'playVideo') { playing = true; state = 1; }
   if (d.func === 'pauseVideo') { playing = false; state = 2; }
-  if (d.func === 'seekTo') t = a[0];
+  if (d.func === 'seekTo') { t = a[0]; window.__seekedAt = Date.now(); }
   if (d.func === 'loadVideoById') { vid = a[0].videoId; t = a[0].startSeconds || 0; playing = true; state = 1; }
   if (d.func === 'setVolume') window.__volume = a[0];
   if (d.func === 'loadModule' && a[0] === 'captions') window.__cc = true;
   if (d.func === 'unloadModule' && a[0] === 'captions') window.__cc = false;
 });
 window.__pauseLocal = () => { tick(); playing = false; state = 2; };
+// pulo pela barra do YouTube: passa por "carregando" antes de voltar a tocar (como o player de verdade)
+window.__seekLocal = (to) => { tick(); t = to; const was = playing; state = 3; setTimeout(() => { tick(); state = was ? 1 : 2; }, 600); };
+// o player fica para trás aos poucos (internet lenta): o Resenha vai corrigir com seekTo
+window.__slow = (r) => { tick(); rate = r; };
 window.__fake = () => ({ vid, t, playing, state, volume: window.__volume, cc: window.__cc });
 window.__end = () => { playing = false; state = 0; };
 </script>`;
@@ -249,6 +254,47 @@ try {
   await pa.getByRole('button', { name: 'Tocar para todos' }).waitFor({ timeout: 6000 });
   await sleep(1500);
   assert(!(await fake(pa)).playing, 'pausar pelos controles do YouTube pausou para a Ana também');
+  await wake(pa);
+  await pa.getByRole('button', { name: 'Tocar para todos' }).click();
+  await sleep(2500);
+
+  // BUG 1: pausar logo depois de o Resenha corrigir a posição despausava sozinho (e não pausava os outros)
+  await fb().evaluate(() => {
+    window.__seekedAt = 0;
+    window.__slow(0.2);
+  });
+  await fb().waitForFunction(() => window.__seekedAt > 0, null, { timeout: 8000 }); // o Resenha corrigiu
+  await fb().evaluate(() => {
+    window.__slow(1);
+    window.__pauseLocal(); // logo em seguida, a pessoa pausa
+  });
+  await sleep(3500);
+  b = await fake(pb);
+  a = await fake(pa);
+  assert(!b.playing && !a.playing, `pausar logo depois de uma correção fica pausado e vale para todos (${JSON.stringify({ b: b.playing, a: a.playing })})`);
+  step('pausar pelo YouTube logo depois de uma correção automática: fica pausado e pausa para todos');
+  await wake(pa);
+  await pa.getByRole('button', { name: 'Tocar para todos' }).click();
+  await sleep(2500);
+
+  // BUG 2: pular pela barra do YouTube (passa por "carregando") voltava para o ponto de antes
+  const before = (await fake(pb)).t;
+  await fb().evaluate(() => window.__seekLocal(270));
+  await sleep(3500);
+  a = await fake(pa);
+  b = await fake(pb);
+  assert(b.t > 270 && a.t > 270 && b.playing && a.playing, `pular de ${before.toFixed(0)} s para 4:30 pela barra fica lá e vale para todos (${a.t.toFixed(1)} x ${b.t.toFixed(1)})`);
+  step(`pular pela barra do YouTube (de ${Math.floor(before / 60)}:${String(Math.floor(before % 60)).padStart(2, '0')} para 4:30, passando por "carregando"): fica lá e vale para todos`);
+
+  // pular com o vídeo pausado também vale (e continua pausado)
+  await fb().evaluate(() => window.__pauseLocal());
+  await sleep(1500);
+  await fb().evaluate(() => window.__seekLocal(60));
+  await sleep(3000);
+  a = await fake(pa);
+  b = await fake(pb);
+  assert(!a.playing && !b.playing && Math.abs(a.t - 60) < 1.5 && Math.abs(b.t - 60) < 1.5, `pulo com o vídeo pausado (${JSON.stringify({ a: [a.t, a.playing], b: [b.t, b.playing] })})`);
+  step('pular com o vídeo pausado: vai para o ponto certo para todos e continua pausado');
   await wake(pa);
   await pa.getByRole('button', { name: 'Tocar para todos' }).click();
   await wake(pb);

@@ -122,79 +122,129 @@ export function TogetherTile({ big }: { big?: boolean }) {
     return findMember(g, state.by)?.displayName ?? 'alguém';
   });
 
-  // monta o controlador uma vez por iframe
+  // ---------- sincronia ----------
+  // O que o MEU player fez sem eu (o Resenha) pedir = a pessoa mexeu nele: pausou, tocou ou pulou pela
+  // barra/teclas do YouTube ou clicando no vídeo. Isso vale para todos NA HORA. O que o Resenha pediu
+  // (seguindo os outros ou corrigindo a posição) não conta. E enquanto o servidor confirma, o meu player
+  // segue a MINHA ação: antes, a correção automática desfazia o pause e puxava o pulo de volta.
+  const mine = useRef({ play: Date.now(), seek: Date.now() }); // quando o Resenha pediu play/pause e seek/load
+  const loadAt = useRef(Date.now()); // player (re)carregando: espera ele se acertar antes de ler ações
+  const intent = useRef<{ playing: boolean; position: number; at: number } | null>(null);
+  const sample = useRef<{ time: number; at: number; state: number } | null>(null);
+  const sharedAt = useRef(0);
+  /** o que o meu player deve fazer agora: a minha ação ainda não confirmada, ou o estado de todos */
+  const target = (s: TogetherState) => {
+    const i = intent.current;
+    if (i && Date.now() - i.at < 4000) return { playing: i.playing, want: i.playing ? i.position + (Date.now() - i.at) / 1000 : i.position };
+    intent.current = null;
+    return { playing: s.playing, want: together.expected(s) };
+  };
+  /** pausar, tocar ou pular para todos (pelos botões do Resenha ou pelo próprio player) */
+  const act = (kind: 'pause' | 'resume' | 'seek', position: number) => {
+    const cur = target(stateRef.current);
+    intent.current = { playing: kind === 'pause' ? false : kind === 'resume' ? true : cur.playing, position, at: Date.now() };
+    if (kind === 'pause') together.pause(position);
+    else if (kind === 'resume') together.resume(position);
+    else together.seek(position);
+  };
+  useEffect(() => {
+    sharedAt.current = Date.now();
+    // o servidor confirmou a minha ação: volta a seguir o estado de todos
+    const i = intent.current;
+    if (i && i.playing === state.playing) {
+      const mineNow = i.playing ? i.position + (Date.now() - i.at) / 1000 : i.position;
+      if (Math.abs(together.expected(state) - mineNow) < 3) intent.current = null;
+    }
+  }, [state.at, state.playing, state.videoId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // monta o controlador uma vez por iframe; cada mensagem do player passa por observe()
   useEffect(() => {
     if (!frame.current) return;
     const c = new YtController(frame.current);
     ctl.current = c;
-    c.onChange = () => redraw((n) => n + 1);
+    loadAt.current = Date.now();
+    sample.current = null;
+    const observe = () => {
+      const s = stateRef.current;
+      if (!c.ready || !s) return;
+      const now = Date.now();
+      const prev = sample.current;
+      sample.current = { time: c.time, at: now, state: c.state };
+      // só com leituras seguidas, o vídeo certo e a tela visível (um PC que dormiu não puxa os outros)
+      if (!prev || loaded.current !== s.videoId || document.visibilityState !== 'visible') return;
+      if (now - loadAt.current < 4000) return;
+      const t = target(s);
+      if (now - mine.current.play > 1200) {
+        if (c.state === 2 && prev.state !== 2 && t.playing) return act('pause', c.time);
+        if (c.state === 1 && prev.state !== 1 && !t.playing) return act('resume', c.time);
+      }
+      // pulo: o tempo andou bem diferente do relógio (vale mesmo passando por "carregando")
+      if (now - mine.current.seek > 2500) {
+        const expectedLocal = prev.state === 1 ? prev.time + (now - prev.at) / 1000 : prev.time;
+        if (Math.abs(c.time - expectedLocal) > 2 && Math.abs(c.time - t.want) > 2) return act('seek', c.time);
+      }
+    };
+    c.onChange = () => {
+      observe();
+      redraw((n) => n + 1);
+    };
     const hello = setInterval(() => !c.ready && c.listen(), 500);
     return () => {
       clearInterval(hello);
       c.destroy();
       ctl.current = null;
     };
-  }, [native]);
+  }, [native]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // sincronia: a cada segundo confere vídeo, play/pause e posição
-  const cmdAt = useRef(0);
-  const last = useRef<{ time: number; at: number; state: number } | null>(null);
-  // quando chegou a última mudança dos outros (o meu player ainda está indo atrás dela)
-  const sharedAt = useRef(0);
-  useEffect(() => {
-    sharedAt.current = Date.now();
-  }, [state.at, state.playing, state.videoId]);
+  // a cada segundo: confere vídeo, play/pause e posição (seguindo os outros ou a minha última ação)
   useEffect(() => {
     const t = setInterval(() => {
       const c = ctl.current;
       const s = stateRef.current;
       if (!c?.ready || !s) return;
       const now = Date.now();
-      const cmd = (func: string, args?: unknown[]) => {
-        cmdAt.current = now;
-        c.cmd(func, args);
-      };
-      const want = together.expected(s);
       if (loaded.current !== s.videoId) {
         loaded.current = s.videoId;
-        last.current = null;
-        cmd('loadVideoById', [{ videoId: s.videoId, startSeconds: Math.floor(want) }]);
+        sample.current = null;
+        intent.current = null;
+        loadAt.current = now;
+        mine.current = { play: now, seek: now };
+        c.cmd('loadVideoById', [{ videoId: s.videoId, startSeconds: Math.floor(together.expected(s)) }]);
         return;
       }
-      const prev = last.current;
-      last.current = { time: c.time, at: now, state: c.state };
       if (c.state === 0 && s.playing) {
         together.ended(s.videoId, c.time, c.duration);
         return;
       }
-      // alguém mexeu pelo próprio player (controles do YouTube, teclas de mídia): vale para todos.
-      // Só com leituras seguidas e a tela visível: um PC que dormiu e acordou não puxa os outros.
-      const quiet =
-        now - cmdAt.current > 2500 && now - sharedAt.current > 2500 && !!prev && now - prev.at < 2500 && document.visibilityState === 'visible';
-      // só quando o MEU player mudou de estado sozinho (não quando está indo atrás de uma mudança dos outros)
-      if (quiet && s.playing && c.state === 2 && prev.state === 1) {
-        cmdAt.current = now;
-        together.pause(c.time);
-        return;
+      const tg = target(s);
+      if (tg.playing && c.state !== 1 && c.state !== 3) {
+        mine.current.play = now;
+        c.cmd('playVideo');
       }
-      if (quiet && !s.playing && c.state === 1 && prev.state === 2) {
-        cmdAt.current = now;
-        together.resume(c.time);
-        return;
+      if (!tg.playing && c.state === 1) {
+        mine.current.play = now;
+        c.cmd('pauseVideo');
       }
-      // pulou pela barra do YouTube: o tempo andou bem diferente do relógio
-      if (native && quiet && c.state === 1 && prev.state === 1 && Math.abs(c.time - prev.time - (now - prev.at) / 1000) > 3 && Math.abs(c.time - want) > 3) {
-        cmdAt.current = now;
-        together.seek(c.time);
-        return;
-      }
-      if (s.playing && c.state !== 1 && c.state !== 3) cmd('playVideo');
-      if (!s.playing && c.state === 1) cmd('pauseVideo');
       // fora de sincronia por mais de 2 s: corrige
-      if (c.state !== 3 && Math.abs(c.time - want) > 2) cmd('seekTo', [want, true]);
+      if (c.state !== 3 && Math.abs(c.time - tg.want) > 2) {
+        mine.current.seek = now;
+        c.cmd('seekTo', [tg.want, true]);
+      }
     }, 1000);
     return () => clearInterval(t);
-  }, [native]);
+  }, [native]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // barra de tempo do Resenha: mostra onde a pessoa está arrastando e só manda o pulo quando ela solta
+  const [drag, setDrag] = useState<number | null>(null);
+  const dragTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragTo = (v: number) => {
+    setDrag(v);
+    if (dragTimer.current) clearTimeout(dragTimer.current);
+    dragTimer.current = setTimeout(() => {
+      act('seek', v);
+      setDrag(null);
+    }, 350);
+  };
 
   // volume e legendas só aqui (não mudam para os outros)
   const ready = !!ctl.current?.ready;
@@ -215,7 +265,9 @@ export function TogetherTile({ big }: { big?: boolean }) {
   }, [captions, ready, state.videoId]);
 
   const c = ctl.current;
-  const now = together.expected(state);
+  // o que mostrar: a minha ação ainda não confirmada, ou o estado de todos
+  const view = target(state);
+  const now = view.want;
   const duration = c?.duration ?? 0;
   // com os controles do YouTube a faixa fica fora do vídeo: não precisa sumir
   const showBars = native || awake || !state.playing || showQueue;
@@ -315,11 +367,11 @@ export function TogetherTile({ big }: { big?: boolean }) {
         <div className="together-controls">
           <button
             className="icon-btn overlay"
-            aria-label={state.playing ? 'Pausar para todos' : 'Tocar para todos'}
-            title={state.playing ? 'Pausar para todos' : 'Tocar para todos'}
-            onClick={() => (state.playing ? together.pause(now) : together.resume(now))}
+            aria-label={view.playing ? 'Pausar para todos' : 'Tocar para todos'}
+            title={view.playing ? 'Pausar para todos' : 'Tocar para todos'}
+            onClick={() => (view.playing ? act('pause', now) : act('resume', now))}
           >
-            {state.playing ? <Pause size={16} /> : <Play size={16} />}
+            {view.playing ? <Pause size={16} /> : <Play size={16} />}
           </button>
           <span className="small together-time">
             {fmt(now)}
@@ -330,9 +382,9 @@ export function TogetherTile({ big }: { big?: boolean }) {
             className="together-seek"
             min={0}
             max={Math.max(1, Math.floor(duration || now + 1))}
-            value={Math.floor(now)}
+            value={Math.floor(drag ?? now)}
             aria-label="Posição do vídeo (para todos)"
-            onChange={(e) => together.seek(Number(e.target.value))}
+            onChange={(e) => dragTo(Number(e.target.value))}
           />
           {nextBtn}
           {queueBtn}
