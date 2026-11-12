@@ -138,8 +138,9 @@ try {
   await win.locator('.members').getByText('🎵 Ouvindo Música Teste · Artista Teste').waitFor();
   writeFileSync(spotifyTitle, 'Spotify Premium'); // pausou
   await win.locator('.user-panel').getByText('🎵 Ouvindo').waitFor({ state: 'detached', timeout: 15000 });
-  writeFileSync(spotifyTitle, 'Outra Banda - Outra Música');
-  await win.locator('.user-panel').getByText('🎵 Ouvindo Outra Música · Outra Banda').waitFor({ timeout: 15000 });
+  // acentos e emoji chegam certos (antes "Paredões" virava "Pared�es")
+  writeFileSync(spotifyTitle, 'Grelo - Paredões 🔥🎶');
+  await win.locator('.user-panel').getByText('🎵 Ouvindo Paredões 🔥🎶 · Grelo').waitFor({ timeout: 15000 });
   // dá para desligar
   await win.getByRole('button', { name: 'Configurações', exact: true }).click();
   await win.getByRole('button', { name: 'Atalhos e app' }).click();
@@ -152,7 +153,7 @@ try {
   await win.getByRole('button', { name: 'Atalhos e app' }).click();
   await win.getByLabel(/a música que estou ouvindo no Spotify/).check();
   await win.keyboard.press('Escape');
-  await win.locator('.user-panel').getByText('🎵 Ouvindo Outra Música').waitFor({ timeout: 5000 });
+  await win.locator('.user-panel').getByText('🎵 Ouvindo Paredões 🔥🎶').waitFor({ timeout: 5000 });
   step('"Ouvindo agora": a música do Spotify do PC aparece no perfil, some quando pausa, troca com a música e dá para desligar');
 
   // ---- ícone do app (Configurações → Aparência) ----
