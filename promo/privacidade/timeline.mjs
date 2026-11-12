@@ -19,6 +19,12 @@ const grow = (r, k, ky = k) => [r[0] - (r[2] * (k - 1)) / 2, r[1] - (r[3] * (ky 
 const M = (name) => BOX[name];
 /** retângulo com a mesma proporção do painel (980 × ph), para nada ser cortado dos lados */
 const fit = (x, y, wFrac, ph, W = 2560, H = 1600) => [x, y, wFrac, (wFrac * W * (ph / 980)) / H];
+/** zoom em volta de r (k × a largura dele), sempre na proporção do painel: o texto não é cortado dos lados */
+const fitAround = (r, k, ph, W = 2560, H = 1600) => {
+  const w = r[2] * k;
+  const h = (w * W * (ph / 980)) / H;
+  return [r[0] + r[2] / 2 - w / 2, r[1] + r[3] / 2 - h / 2, w, h];
+};
 const modal = (name, opt, t0, t1, extra = {}) => {
   const m = M(name);
   const ph = 560;
@@ -51,10 +57,10 @@ export const SCENES = [
   // "Quem pode, assiste normal."
   { t0: b(16.5), t1: b(18.75), img: 'lari-assistindo', from: grow(M('lari-assistindo').screen, 1.05), to: grow(M('lari-assistindo').screen, 0.8), ph: 620, tag: '👀 a Lari assiste' },
   // "E quem ficou de fora vê só um cadeado." (a print real; no "cadeado", a Júlia de perto)
-  { t0: b(18.75), t1: b(20.5), img: 'print-cadeado', from: grow(PC.tile, 1.05), to: grow(PC.lock, 1.25, 2.2), ph: 620, tag: '📸 print real' },
-  { t0: b(20.5), t1: b(22.25), img: 'julia-cadeado', from: grow(M('julia-cadeado').tile, 1.1), to: grow(M('julia-cadeado').lock, 1.6, 3.2), ph: 620, tag: '🔒 a Júlia ficou de fora', marks: [{ t: w(4, 8), t1: b(22.25), r: grow(M('julia-cadeado').lock, 1.1, 1.4) }] },
+  { t0: b(18.75), t1: b(20.5), img: 'print-cadeado', from: grow(PC.tile, 1.05), to: fitAround(PC.lock, 1.25, 620, 1919, 1030), ph: 620, tag: '📸 print real' },
+  { t0: b(20.5), t1: b(22.25), img: 'julia-cadeado', from: grow(M('julia-cadeado').tile, 1.1), to: fitAround(M('julia-cadeado').lock, 1.3, 620), ph: 620, tag: '🔒 a Júlia ficou de fora', marks: [{ t: w(4, 8), t1: b(22.25), r: grow(M('julia-cadeado').lock, 1.1, 1.4) }] },
   // "Sua tela, suas regras."
-  { t0: b(22.25), t1: END, img: 'henrique-transmitindo', from: grow(M('henrique-transmitindo').screen, 1.1), to: grow(M('henrique-transmitindo').chip, 2.6, 4.5), ph: 620, marks: [{ t: w(5, 2), t1: END, r: grow(M('henrique-transmitindo').chip, 1.15, 1.3) }] },
+  { t0: b(22.25), t1: END, img: 'henrique-transmitindo', from: grow(M('henrique-transmitindo').screen, 1.1), to: fitAround(M('henrique-transmitindo').chip, 2.4, 620), ph: 620, marks: [{ t: w(5, 2), t1: END, r: grow(M('henrique-transmitindo').chip, 1.15, 1.3) }] },
 ];
 
 export const NARRATION = [{ at: OFF, from: 0, to: 21.84 }];
