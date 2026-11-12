@@ -3,6 +3,7 @@ import { AdminSupport } from './Support';
 import { HealthPanel } from './HealthPanel';
 import { Flag, ShieldAlert, X } from 'lucide-react';
 import { api, authHeaders } from '../lib/api';
+import { askText } from '../lib/ask';
 import { StatsPanel } from './StatsPanel';
 import { SystemPanel } from './SystemPanel';
 import { InviteCodesAdmin } from './InviteCodes';
@@ -166,7 +167,10 @@ export function AdminReports() {
 
   async function act(r: AdminReport, action: string, confirmText?: string) {
     if (confirmText && !confirm(confirmText)) return;
-    const note = action === 'suspend_user' ? (prompt('Motivo da suspensão (a pessoa vai ver ao tentar entrar):', reasonLabel(r.reason)) ?? null) : '';
+    const note =
+      action === 'suspend_user'
+        ? await askText({ title: 'Suspender conta', message: 'Motivo da suspensão (a pessoa vai ver ao tentar entrar):', initial: reasonLabel(r.reason), maxLength: 300, confirmLabel: 'Suspender', danger: true })
+        : '';
     if (note === null) return;
     try {
       await api(`/admin/reports/${r.id}/action`, { body: { action, note } });

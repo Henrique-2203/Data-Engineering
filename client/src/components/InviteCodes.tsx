@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Copy, Gift, Plus, Share2 } from 'lucide-react';
 import { api } from '../lib/api';
+import { askText } from '../lib/ask';
 import { toast } from '../store/app';
 
 /**
@@ -176,9 +177,9 @@ export function InviteCodesAdmin() {
               {!c.isGeneral && (
                 <button
                   className="btn small ghost"
-                  onClick={() => {
-                    const v = prompt(`Novo limite de contas para ${c.code} (já usadas: ${c.uses}):`, String((c.maxUses ?? 0) + 5));
-                    if (v !== null) void patch(c, { maxUses: Number(v) });
+                  onClick={async () => {
+                    const v = await askText({ title: `Limite de ${c.code}`, message: `Quantas contas esse código pode criar? Já foram usadas ${c.uses}.`, initial: String((c.maxUses ?? 0) + 5), number: true, confirmLabel: 'Salvar limite' });
+                    if (v !== null && v.trim()) void patch(c, { maxUses: Number(v) });
                   }}
                 >
                   Mudar limite

@@ -163,6 +163,13 @@ try {
   await ep.getByRole('button', { name: /Quem entrou \(3\)/ }).click();
   await ep.getByText('@amigo1').waitFor();
   await ep.screenshot({ path: `${shots}/82-painel-convites.png` });
+  // "Mudar limite" abre a janela do Resenha (o prompt() do navegador não existe no app de Windows)
+  await ep.locator('.invite-item', { hasText: 'LARI-AMIGOS' }).getByRole('button', { name: 'Mudar limite' }).click();
+  const lim = ep.getByRole('dialog', { name: 'Limite de LARI-AMIGOS' });
+  await lim.getByRole('spinbutton').fill('8');
+  await lim.getByRole('button', { name: 'Salvar limite' }).click();
+  await ep.locator('.invite-item', { hasText: 'LARI-AMIGOS' }).getByText('de 8').waitFor();
+  step('"Mudar limite" abre a janela do próprio Resenha e salva (funciona também no app de Windows)');
   step('painel da equipe → Convites: criar código, ranking de quem mais trouxe e lista de quem entrou');
   await ectx.close();
   if (errors.length) throw new Error(`erros na página: ${errors.join(' | ')}`);

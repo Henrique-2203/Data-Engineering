@@ -1224,6 +1224,21 @@ input[type='radio'] {
   padding: 16px;
   animation: fade 0.12s ease-out;
 }
+.ask-backdrop {
+  z-index: 80; /* por cima das outras janelas do app */
+}
+.ask-modal {
+  max-width: 420px;
+  padding: 20px;
+}
+.ask-modal h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+.ask-message {
+  white-space: pre-line;
+  margin-bottom: 4px;
+}
 @keyframes fade {
   from {
     opacity: 0;

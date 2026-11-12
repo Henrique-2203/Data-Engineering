@@ -115,6 +115,10 @@ try {
 
   // suspender a conta: cai na hora e não entra mais
   await item.getByRole('button', { name: 'Suspender conta' }).click();
+  // o motivo é digitado na janela do próprio Resenha (o app de Windows não tem o prompt() do navegador)
+  const ask = pe.getByRole('dialog', { name: 'Suspender conta' });
+  await ask.getByRole('textbox').fill('Ameaças a outro membro');
+  await ask.getByRole('button', { name: 'Suspender' }).click();
   await pb.getByRole('tab', { name: 'Entrar' }).waitFor({ timeout: 5000 });
   const blocked = await api('/auth/login', { username: 'bia', password: 'segredo123' });
   if (blocked.status !== 403 || !/suspensa/.test(blocked.error)) throw new Error(`conta suspensa entrou: ${blocked.status}`);

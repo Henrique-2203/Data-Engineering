@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, ImagePlus, Trash2, X } from 'lucide-react';
 import type { Ban, Guild, Member } from '../../../shared/types';
 import { PERMISSION_INFO, outranks, type Role } from '../../../shared/permissions';
 import { api } from '../lib/api';
+import { askText } from '../lib/ask';
 import { Perm, has, imageUrl, memberColor, myTopPosition, timeoutUntil, usePerms } from '../lib/perms';
 import { refreshGuild } from '../lib/socket';
 import { formatBytes, uploadGuildImage } from '../lib/upload';
@@ -192,7 +193,14 @@ function DangerZone({ guild }: { guild: Guild }) {
       <button
         className="btn danger"
         onClick={async () => {
-          const typed = prompt('Isto apaga o servidor, canais e mensagens para sempre.\nDigite o nome do servidor para confirmar:');
+          const typed = await askText({
+            title: 'Excluir servidor',
+            message: `Isto apaga o servidor, canais e mensagens para sempre. Digite "${guild.name}" para confirmar:`,
+            placeholder: guild.name,
+            confirmLabel: 'Excluir para sempre',
+            danger: true,
+            mustMatch: guild.name,
+          });
           if (typed?.trim() !== guild.name) return;
           await run(() => api(`/guilds/${guild.id}`, { method: 'DELETE' }));
           closeModal();
@@ -419,8 +427,8 @@ export function MemberModeration({ guild, member, compact }: { guild: Guild; mem
       <button
         key="nick"
         className="btn small ghost"
-        onClick={() => {
-          const nick = prompt(`Apelido de ${member.username} neste servidor (vazio = tirar):`, member.nick ?? '');
+        onClick={async () => {
+          const nick = await askText({ title: `Apelido de ${member.username}`, message: 'Só neste servidor. Deixe vazio para tirar o apelido.', initial: member.nick ?? '', maxLength: 32, confirmLabel: 'Salvar apelido' });
           if (nick !== null) void run(() => api(`/guilds/${guild.id}/members/${member.id}/nick`, { method: 'PATCH', body: { nick: nick.trim() || null } }), 'Apelido atualizado.');
         }}
       >
@@ -451,8 +459,8 @@ export function MemberModeration({ guild, member, compact }: { guild: Guild; mem
       <button
         key="ban"
         className="btn small danger"
-        onClick={() => {
-          const reason = prompt(`Banir ${member.displayName}? Ela não poderá voltar pelo convite.\nMotivo (opcional):`);
+        onClick={async () => {
+          const reason = await askText({ title: `Banir ${member.displayName}?`, message: 'Essa pessoa não poderá voltar pelo convite. Motivo (opcional):', maxLength: 200, confirmLabel: 'Banir', danger: true });
           if (reason !== null) void run(() => api(`/guilds/${guild.id}/bans`, { body: { userId: member.id, reason } }), 'Membro banido.');
         }}
       >
