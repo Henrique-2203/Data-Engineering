@@ -1,18 +1,20 @@
-// Trilha original do vídeo Resenha × Discord (sem direitos autorais): a mesma do Reels 2, em Mi menor
-// (Em–C–G–D): groove, subida antes do gráfico, DROP no "45% menos" e impacto no logo.
-import { readFileSync } from 'node:fs';
+// Trilha original do vídeo Resenha × Discord (sem direitos autorais), DIFERENTE da dos outros vídeos:
+// trap em meio-tempo, 140 BPM, Ré menor (Dm–B♭–Gm–A). 808 com deslize, palmas no 3, chimbal com
+// viradas em tercina e sinos escuros. Abre só com sinos, a batida entra no Resenha, quebra antes do
+// gráfico e volta cheia no "45% menos". Abaixa quando a narração fala.
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { BEAT, CLICKS, CUTS, DUCK, DURATION, END, MUSIC, NARRATION, SEGS, TICKS, VOICE } from './timeline.mjs';
+import { BEAT, CUTS, DURATION, END, MUSIC, NARRATION } from './timeline.mjs';
 
 const RATE = 44100;
 const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+export const NARR_WAV = path.resolve('promo/out/vs-discord/audio/narracao.wav');
 
-export function makeReelsAudio() {
+export function makeReelsAudio({ withMusic = true, withVoice = true } = {}) {
   const N = Math.ceil(DURATION * RATE);
   const L = new Float32Array(N), R = new Float32Array(N), verb = new Float32Array(N);
-  // ducking (sidechain) a partir do bumbo: multiplica baixo e acordes
-  const duck = new Float32Array(N).fill(1);
-  let seed = 42;
+  const duck = new Float32Array(N).fill(1); // sidechain pelo 808
+  let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
   const put = (t, len, fn, { pan = 0, gain = 1, rev = 0, side = false } = {}) => {
     const s0 = Math.floor(t * RATE);
@@ -30,199 +32,181 @@ export function makeReelsAudio() {
     }
   };
   const env = (t, a, d) => (t < a ? t / a : Math.exp(-(t - a) / d));
-  const saw = (x) => 2 * (x - Math.floor(x + 0.5));
   const sat = (x, k) => Math.tanh(x * k);
+  const BAR = 4 * BEAT;
 
-  // ---------- acordes (1 compasso = 4 batidas = 2 s) ----------
+  // ---------- harmonia: Dm – B♭ – Gm – A (1 acorde por compasso) ----------
   const CHORDS = [
-    { root: 40, notes: [55, 59, 64] }, // Em
-    { root: 36, notes: [55, 60, 64] }, // C
-    { root: 43, notes: [55, 59, 62] }, // G
-    { root: 38, notes: [54, 57, 62] }, // D
+    { root: 38, notes: [62, 65, 69] }, // Dm
+    { root: 34, notes: [62, 65, 70] }, // B♭
+    { root: 31, notes: [62, 67, 70] }, // Gm
+    { root: 33, notes: [61, 64, 69] }, // A
   ];
-  const chordAt = (t) => CHORDS[Math.floor(t / (4 * BEAT)) % 4];
+  const chordAt = (t) => CHORDS[Math.floor(t / BAR + 1e-6) % 4];
 
   // ---------- instrumentos ----------
-  const kick = (t, g = 1) => {
+  /** 808: seno grave com ataque, deslize opcional e saturação */
+  const b808 = (t, m, len, g = 1, glideTo = null) => {
     const s0 = Math.floor(t * RATE);
-    for (let i = 0; i < 0.3 * RATE && s0 + i < N; i++) duck[s0 + i] = Math.min(duck[s0 + i], 1 - 0.65 * Math.exp(-i / RATE / 0.11));
-    put(t, 0.45, (x) => sat(Math.sin(2 * Math.PI * (48 * x + (140 / 30) * (1 - Math.exp(-x * 30)))) * env(x, 0.002, 0.16) * 1.6, 2) * 0.75 + (x < 0.004 ? rnd() * 0.35 : 0), { gain: g });
+    for (let i = 0; i < 0.25 * RATE && s0 + i < N; i++) duck[s0 + i] = Math.min(duck[s0 + i], 1 - 0.5 * Math.exp(-i / RATE / 0.09));
+    let ph = 0;
+    put(t, len, (x) => {
+      const f0 = hz(m), f1 = glideTo == null ? f0 : hz(glideTo);
+      const k = glideTo == null ? 0 : Math.min(1, Math.max(0, (x - len * 0.55) / (len * 0.3)));
+      const f = (f0 + (f1 - f0) * k) * (1 + 1.6 * Math.exp(-x * 38));
+      ph += (2 * Math.PI * f) / RATE;
+      const a = Math.min(1, x / 0.003) * (x > len - 0.04 ? (len - x) / 0.04 : 1) * Math.exp(-x * 0.9);
+      return sat(Math.sin(ph) * 1.8, 1.4) * a * 0.55 + (x < 0.006 ? rnd() * 0.25 * (1 - x / 0.006) : 0);
+    }, { gain: g });
   };
   const clap = (t, g = 1) => {
     let bp = 0, bp2 = 0;
-    put(t, 0.35, (x) => {
+    put(t, 0.4, (x) => {
       const n = rnd();
-      bp += 0.35 * (n - bp);
-      bp2 += 0.35 * (bp - bp2);
-      const hits = [0, 0.011, 0.022].reduce((a, d) => a + (x >= d ? Math.exp(-(x - d) / 0.012) : 0), 0) * 0.5 + Math.exp(-x / 0.13);
-      return (n - bp2) * hits * 0.32;
-    }, { gain: g, rev: 0.25 });
+      bp += 0.4 * (n - bp);
+      bp2 += 0.4 * (bp - bp2);
+      const hits = [0, 0.009, 0.019, 0.03].reduce((a, d) => a + (x >= d ? Math.exp(-(x - d) / 0.01) : 0), 0) * 0.45 + Math.exp(-x / 0.11);
+      return (n - bp2) * hits * 0.26;
+    }, { gain: g, rev: 0.35 });
   };
+  const rim = (t, g = 1) => put(t, 0.08, (x) => (Math.sin(2 * Math.PI * 1700 * x) * 0.5 + rnd() * 0.3) * env(x, 0.0005, 0.012) * 0.3, { gain: g, pan: -0.3, rev: 0.2 });
   const hat = (t, g = 1, open = false) => {
     let hp = 0;
-    put(t, open ? 0.25 : 0.06, (x) => {
+    put(t, open ? 0.3 : 0.05, (x) => {
       const n = rnd();
-      hp += 0.6 * (n - hp);
-      return (n - hp) * env(x, 0.001, open ? 0.08 : 0.018) * 0.22;
-    }, { gain: g, pan: 0.25 });
+      hp += 0.75 * (n - hp);
+      return (n - hp) * env(x, 0.0008, open ? 0.1 : 0.012) * 0.24;
+    }, { gain: g, pan: 0.3 });
   };
-  const bass = (t, m, len, g = 1) => {
-    let lp = 0;
-    put(t, len, (x) => {
+  /** sino FM escuro */
+  const bell = (t, m, g = 1, pan = 0) =>
+    put(t, 1.6, (x) => {
       const f = hz(m);
-      const v = saw(f * x) * 0.6 + Math.sin(2 * Math.PI * f * 0.5 * x) * 0.8;
-      lp += 0.06 * (v - lp);
-      return sat(lp * 1.6, 1.5) * Math.min(1, x / 0.005) * (x > len - 0.02 ? (len - x) / 0.02 : 1) * 0.42;
-    }, { gain: g, side: true });
-  };
-  const pluck = (t, m, g = 1, bright = 0.25, pan = 0) => {
-    let lp = 0;
-    put(t, 0.5, (x) => {
-      const f = hz(m);
-      const v = saw(f * x) * 0.6 + saw(f * 1.005 * x) * 0.4;
-      lp += (0.02 + bright * Math.exp(-x * 14)) * (v - lp);
-      return lp * env(x, 0.002, 0.16) * 0.28;
-    }, { gain: g, pan, rev: 0.3 });
-  };
-  /** acorde "supersaw" (o som do drop) */
-  const stab = (t, notes, len, g = 1) => {
-    for (const m of notes)
-      for (const det of [0.992, 1, 1.008]) {
-        let lp = 0;
-        put(t, len + 0.15, (x) => {
-          const v = saw(hz(m + 12) * det * x);
-          lp += 0.18 * (v - lp);
-          return lp * Math.min(1, x / 0.004) * (x > len ? Math.exp(-(x - len) / 0.05) : 1) * 0.055;
-        }, { gain: g, pan: (det - 1) * 50, rev: 0.25, side: true });
-      }
-  };
+      const I = 2.2 * Math.exp(-x * 4);
+      return Math.sin(2 * Math.PI * f * x + I * Math.sin(2 * Math.PI * f * 3.5 * x)) * env(x, 0.002, 0.45) * 0.11;
+    }, { gain: g, pan, rev: 0.55 });
+  /** pad escuro (seno + triângulo, filtrado) */
   const pad = (t, notes, len, g = 1) => {
     for (const m of notes) {
       let lp = 0;
       put(t, len, (x) => {
-        const v = saw(hz(m) * x) + saw(hz(m) * 1.003 * x);
-        lp += 0.012 * (v - lp);
-        return lp * Math.min(1, x / 0.4) * Math.min(1, (len - x) / 0.4) * 0.06;
-      }, { gain: g, rev: 0.4 });
+        const f = hz(m - 12);
+        const v = Math.sin(2 * Math.PI * f * x) + 0.5 * Math.asin(Math.sin(2 * Math.PI * f * 1.004 * x));
+        lp += 0.03 * (v - lp);
+        return lp * Math.min(1, x / 0.5) * Math.min(1, (len - x) / 0.4) * 0.07;
+      }, { gain: g, rev: 0.5, side: true });
     }
   };
   const riser = (a, b, g = 1) => {
     let lp = 0;
     put(a, b - a, (x) => {
       const k = x / (b - a);
-      lp += (0.02 + 0.3 * k * k) * (rnd() - lp);
-      return (lp * 0.9 + Math.sin(2 * Math.PI * (200 * x + 900 * x * k)) * 0.05) * k * k * 0.45;
+      lp += (0.02 + 0.35 * k * k) * (rnd() - lp);
+      return lp * k * k * 0.5;
     }, { gain: g, rev: 0.3 });
   };
   const impact = (t, g = 1) => {
-    put(t, 1.4, (x) => Math.sin(2 * Math.PI * (36 * x + 60 * (1 - Math.exp(-x * 9)) / 9)) * env(x, 0.003, 0.5) * 0.9, { gain: g });
+    put(t, 1.6, (x) => Math.sin(2 * Math.PI * (32 * x + (50 * (1 - Math.exp(-x * 8))) / 8)) * env(x, 0.003, 0.6) * 0.9, { gain: g });
     let lp = 0;
     put(t, 1.2, (x) => {
-      lp += 0.08 * (rnd() - lp);
-      return lp * env(x, 0.002, 0.25) * 0.9;
+      lp += 0.06 * (rnd() - lp);
+      return lp * env(x, 0.002, 0.3) * 0.8;
     }, { gain: g, rev: 0.6 });
   };
-  const snare = (t, g = 1) => {
-    let bp = 0;
-    put(t, 0.2, (x) => {
-      const n = rnd();
-      bp += 0.5 * (n - bp);
-      return ((n - bp) * env(x, 0.001, 0.05) * 0.5 + Math.sin(2 * Math.PI * 190 * x) * env(x, 0.001, 0.03) * 0.4) * 0.6;
+  /** "rebobinada" (som de fita voltando) antes do drop */
+  const rewind = (t, len, g = 1) => {
+    let ph = 0;
+    put(t, len, (x) => {
+      const k = x / len;
+      ph += (2 * Math.PI * (900 - 700 * k)) / RATE;
+      return (Math.sin(ph) * 0.15 + rnd() * 0.08) * k * (1 - k) * 4;
     }, { gain: g, rev: 0.2 });
   };
-  const shimmer = (t) => [69, 72, 76, 81, 84].forEach((m, i) => put(t + i * 0.06, 2, (x) => Math.sin(2 * Math.PI * hz(m) * x) * env(x, 0.004, 0.55) * 0.08, { rev: 0.7, pan: (i - 2) * 0.25 }));
-  // efeitos
   const whoosh = (at, g = 1) => {
     let lp = 0, lp2 = 0;
-    const len = 0.42;
+    const len = 0.4;
     put(at - len * 0.7, len, (x) => {
       const k = x / len;
       const cut = 0.01 + 0.16 * Math.sin(Math.PI * k);
       lp += cut * (rnd() - lp);
       lp2 += cut * (lp - lp2);
       return lp2 * Math.pow(Math.sin(Math.PI * k), 2) * 0.9;
-    }, { gain: g, pan: 0.2 });
-  };
-  const tick = (at) => put(at, 0.06, (x) => Math.sin(2 * Math.PI * 2400 * x) * env(x, 0.001, 0.012) * 0.18);
-  const click = (at) => {
-    put(at, 0.05, (x) => rnd() * env(x, 0.0005, 0.006) * 0.5 + Math.sin(2 * Math.PI * 1800 * x) * env(x, 0.0005, 0.01) * 0.25);
-    put(at + 0.07, 0.04, (x) => rnd() * env(x, 0.0005, 0.005) * 0.3);
+    }, { gain: g, pan: -0.2 });
   };
 
   // ---------- arranjo ----------
-  const beats = Math.round(DURATION / BEAT);
-  // intro (0–2 s): arpejo abrindo o filtro + subida
-  for (let i = 0; i < 16; i++) {
-    const t = i * BEAT / 2;
-    const c = chordAt(0);
-    pluck(t, c.notes[i % 3] + (i % 6 >= 3 ? 12 : 0), 0.7, 0.05 + 0.25 * (i / 16), (i % 2 ? 0.3 : -0.3));
+  const [b0, b1] = MUSIC.build; // quebra antes do gráfico
+  const [d0, d1] = MUSIC.drop;
+  const beatIn = MUSIC.beatIn; // a batida entra aqui
+  // sinos o tempo todo (melodia de 2 compassos, pentatônica de Ré menor)
+  const MEL = [74, 77, 81, 79, 77, 74, 72, 74, 69, 72, 74, 77, 76, 74, 72, 69];
+  const steps = Math.floor(DURATION / (BEAT / 2));
+  for (let s = 0; s < steps; s++) {
+    const t = s * (BEAT / 2);
+    if (t >= END) break;
+    if (s % 2 === 0 || (t >= d0 && t < d1)) {
+      const k = Math.floor(s / 2) % MEL.length;
+      if (k % 4 !== 3) bell(t, MEL[k], t < beatIn ? 1.4 : t >= d0 && t < d1 ? 1 : 0.75, ((k % 3) - 1) * 0.35);
+    }
   }
-  pad(0, CHORDS[0].notes, 2, 0.8);
-  riser(0.9, 2.0, 0.7);
-
+  // pad por compasso
+  for (let t = 0; t < END; t += BAR) pad(t, chordAt(t).notes, Math.min(BAR, END - t) + 0.3, t < beatIn ? 1.6 : 0.8);
+  // bateria e 808
+  const beats = Math.ceil(END / BEAT);
   for (let b = 0; b < beats; b++) {
     const t = b * BEAT;
+    if (t < beatIn - 1e-6 || t >= END) continue;
+    const inBreak = t >= b0 && t < b1;
+    const drop = t >= d0 && t < d1;
+    const pos = b % 4; // posição no compasso
     const c = chordAt(t);
-    const groove = t >= 2 && t < END;
-    const build = t >= MUSIC.build[0] && t < MUSIC.build[1];
-    const drop = t >= MUSIC.drop[0] && t < MUSIC.drop[1];
-    const breath = t >= MUSIC.build[1] - 0.5 && t < MUSIC.build[1];
-    if (!groove) continue;
-    if (!breath) kick(t, drop ? 1.1 : 1);
-    if (b % 2 === 1 && !build) clap(t, drop ? 1.1 : 0.9);
-    hat(t + BEAT / 2, drop ? 1 : 0.8, b % 4 === 3);
-    if (drop) {
-      hat(t + BEAT / 4, 0.5);
-      hat(t + (3 * BEAT) / 4, 0.5);
+    // chimbal: colcheias; no drop, semicolcheias; virada em tercina no fim de cada 2º compasso
+    const rollBar = Math.floor(t / BAR) % 2 === 1 && pos === 3;
+    if (!inBreak) {
+      if (rollBar) for (let i = 0; i < 6; i++) hat(t + (i * BEAT) / 6, 0.5 + i * 0.08);
+      else {
+        hat(t, 0.8);
+        hat(t + BEAT / 2, 0.6);
+        if (drop) {
+          hat(t + BEAT / 4, 0.4);
+          hat(t + (3 * BEAT) / 4, 0.4);
+        }
+      }
+      if (pos === 2) clap(t, drop ? 0.85 : 0.7);
+      if (pos === 3 && b % 8 === 7) hat(t + BEAT / 2, 0.6, true);
+      if (pos === 1 && drop) rim(t + BEAT / 2, 0.8);
+      // 808: tempo 1 e "e" do 3 (meio-tempo), com deslize para o próximo acorde no fim do compasso
+      if (pos === 0) b808(t, c.root, BEAT * 2.4, drop ? 1.1 : 1);
+      if (pos === 2) {
+        const next = chordAt(t + 2 * BEAT);
+        b808(t + BEAT / 2, c.root, BEAT * 1.4, drop ? 1.1 : 0.95, next.root !== c.root ? next.root : null);
+      }
+    } else {
+      // na quebra: só palmas acelerando
+      for (let i = 0; i < 4; i++) clap(t + (i * BEAT) / 4, 0.25 + 0.6 * ((t - b0) / (b1 - b0)));
     }
-    // baixo em colcheias
-    if (!breath) {
-      bass(t, c.root, BEAT / 2 - 0.01, drop ? 1.1 : 0.9);
-      bass(t + BEAT / 2, c.root + (b % 4 === 3 ? 7 : 0), BEAT / 2 - 0.01, drop ? 1.1 : 0.9);
-    }
-    // arpejo em semicolcheias (fora do drop) / melodia por cima no drop
-    for (let s = 0; s < 4; s++) {
-      const ts = t + (s * BEAT) / 4;
-      const m = c.notes[(b * 4 + s) % 3] + 12;
-      if (!drop) pluck(ts, m, 0.55, 0.22, s % 2 ? 0.35 : -0.35);
-    }
-    if (drop) {
-      stab(t + BEAT / 2, c.notes, BEAT / 2 - 0.04, 1);
-      const melody = [76, 74, 71, 74, 76, 79, 78, 74];
-      if (b % 2 === 0) pluck(t, melody[(b / 2) % 8], 0.9, 0.35, 0);
-    }
-    // segunda metade mais "cheia"
-    if (t >= 10 && t < MUSIC.build[0] && b % 4 === 0) pad(t, c.notes, 4 * BEAT, 0.5);
   }
-  // virada para a montagem: caixa acelerando + subida, respiro e DROP
-  const [b0, b1] = MUSIC.build;
-  for (let i = 0; i < 16; i++) snare(b0 + (i / 16) * (b1 - b0 - 0.05), 0.3 + (i / 16) * 0.7);
-  riser(b0 - 0.4, b1, 1);
+  rewind(b1 - 0.45, 0.45, 0.8);
+  riser(b0 - BEAT, b1, 0.9);
   for (const [t, g] of MUSIC.impacts) impact(t, g);
-  // final no logo (a narração termina por cima)
-  riser(END - 0.8, END, 0.8);
+  // final no logo
   impact(END, 1.2);
-  stab(END, CHORDS[0].notes, 1.2, 1.1);
-  pad(END, CHORDS[0].notes.map((m) => m + 12), DURATION - END, 1);
-  pad(END, CHORDS[0].notes, DURATION - END, 0.6);
-  shimmer(END + 0.05);
-
-  // efeitos sincronizados
+  b808(END, 38, 2.5, 1.2);
+  pad(END, [62, 65, 69, 74], DURATION - END, 1.2);
+  [74, 77, 81, 86].forEach((m, i) => bell(END + i * 0.09, m, 1, (i - 1.5) * 0.3));
   const hits = [...MUSIC.impacts.map((i) => i[0]), END];
-  for (const c of CUTS) if (!hits.includes(c)) whoosh(c, 0.55);
-  for (const t of TICKS) tick(t);
-  for (const t of CLICKS) click(t);
+  for (const c of CUTS) if (!hits.includes(c)) whoosh(c, 0.5);
 
   // ---------- reverb (Schroeder) ----------
-  const combs = [1557, 1617, 1491, 1422].map((d) => ({ d, buf: new Float32Array(d), i: 0, lp: 0 }));
-  const aps = [225, 556].map((d) => ({ d, buf: new Float32Array(d), i: 0 }));
+  const combs = [1687, 1601, 2053, 2251].map((d) => ({ d, buf: new Float32Array(d), i: 0, lp: 0 }));
+  const aps = [347, 113].map((d) => ({ d, buf: new Float32Array(d), i: 0 }));
   for (let j = 0; j < N; j++) {
     const x = verb[j] * 0.3;
     let y = 0;
     for (const c of combs) {
       const o = c.buf[c.i];
-      c.lp += 0.45 * (o - c.lp);
-      c.buf[c.i] = x + c.lp * 0.82;
+      c.lp += 0.4 * (o - c.lp);
+      c.buf[c.i] = x + c.lp * 0.84;
       c.i = (c.i + 1) % c.d;
       y += o;
     }
@@ -237,33 +221,43 @@ export function makeReelsAudio() {
     L[j] += y * 0.7;
     R[j] += y * 0.7;
   }
-
-  // volume da narração/gravação pelo volume MÉDIO da música no groove, medido antes de abaixar
+  // volume médio da música com a batida (para pôr a narração acima dela)
   let acc = 0, cnt = 0;
-  for (let j = Math.floor(10.5 * RATE); j < 18 * RATE; j++) {
-    acc += L[j] * L[j];
-    cnt++;
-  }
-  const grooveRms = Math.sqrt(acc / cnt);
-
-  // ---------- música mais baixa na narração e na gravação ----------
-  for (let j = 0; j < N; j++) {
-    const t = j / RATE;
-    let g = 1;
-    for (const d of DUCK) {
-      const ramp = 0.12;
-      const k = t < d.t0 - ramp || t > d.t1 + ramp ? 0 : t < d.t0 ? (t - (d.t0 - ramp)) / ramp : t > d.t1 ? 1 - (t - d.t1) / ramp : 1;
-      g = Math.min(g, 1 - (1 - d.level) * Math.max(0, Math.min(1, k)));
-    }
-    L[j] *= g;
-    R[j] *= g;
-  }
-  if (VOICE.length || NARRATION.length) addVoice(L, R, N, grooveRms * 0.85, true);
-
-  // ---------- master ----------
+  for (let j = Math.floor((MUSIC.beatIn + 0.5) * RATE); j < Math.min(N, b0 * RATE); j++, cnt++) acc += L[j] * L[j];
+  const musicRms = Math.sqrt(acc / Math.max(1, cnt));
   let peak = 0;
   for (let j = 0; j < N; j++) peak = Math.max(peak, Math.abs(L[j]), Math.abs(R[j]));
-  const norm = 1 / peak;
+  // normaliza a música e passa pelo "tanh" (cola os picos)
+  for (let j = 0; j < N; j++) {
+    L[j] = withMusic ? Math.tanh((L[j] / peak) * 1.5) * 0.92 : 0;
+    R[j] = withMusic ? Math.tanh((R[j] / peak) * 1.5) * 0.92 : 0;
+  }
+  const musicLevel = Math.tanh((musicRms / peak) * 1.5) * 0.92;
+
+  // ---------- narração ----------
+  if (withVoice && NARRATION.length && existsSync(NARR_WAV)) {
+    const narr = readWav(NARR_WAV);
+    // música mais baixa enquanto ela fala
+    for (let j = 0; j < N; j++) {
+      const t = j / RATE;
+      let g = 1;
+      for (const n of NARRATION) {
+        const t0 = n.at, t1 = n.at + (n.to - n.from), ramp = 0.15;
+        const k = t < t0 - ramp || t > t1 + ramp ? 0 : t < t0 ? (t - (t0 - ramp)) / ramp : t > t1 ? 1 - (t - t1) / ramp : 1;
+        g = Math.min(g, 1 - (1 - MUSIC.duck) * Math.max(0, Math.min(1, k)));
+      }
+      L[j] *= g;
+      R[j] *= g;
+    }
+    // a voz fica ~1 dB acima do volume cheio da música (e ~11 dB acima dela abaixada)
+    const kn = withMusic ? (musicLevel * 1.12) / activeRms(narr) : 0.18 / activeRms(narr);
+    for (const n of NARRATION) mixIn(L, R, N, narr, n.from, n.to, n.at, kn);
+  }
+
+  // ---------- master ----------
+  let pk = 0;
+  for (let j = 0; j < N; j++) pk = Math.max(pk, Math.abs(L[j]), Math.abs(R[j]));
+  const norm = pk > 0.98 ? 0.98 / pk : 1;
   const out = Buffer.alloc(44 + N * 4);
   out.write('RIFF', 0);
   out.writeUInt32LE(36 + N * 4, 4);
@@ -280,14 +274,12 @@ export function makeReelsAudio() {
   const fadeOut = Math.floor((DURATION - 0.9) * RATE);
   for (let j = 0; j < N; j++) {
     const f = j > fadeOut ? 1 - (j - fadeOut) / (N - fadeOut) : 1;
-    out.writeInt16LE(Math.round(Math.tanh(L[j] * norm * 1.5) * 0.92 * f * 32767), 44 + j * 4);
-    out.writeInt16LE(Math.round(Math.tanh(R[j] * norm * 1.5) * 0.92 * f * 32767), 46 + j * 4);
+    out.writeInt16LE(Math.round(L[j] * norm * f * 32767), 44 + j * 4);
+    out.writeInt16LE(Math.round(R[j] * norm * f * 32767), 46 + j * 4);
   }
   return out;
 }
 
-// ---------- a gravação do Henrique + a narração ----------
-const AUDIO = path.resolve('promo/out/reels2/audio');
 function readWav(file) {
   const b = readFileSync(file);
   const n = (b.length - 44) / 2;
@@ -295,26 +287,24 @@ function readWav(file) {
   for (let i = 0; i < n; i++) out[i] = b.readInt16LE(44 + i * 2) / 32768;
   return out; // 48 kHz mono
 }
-const demo = VOICE.length ? JSON.parse(readFileSync(path.resolve('promo/out/reels2n/audio/demo.json'), 'utf8')) : {};
 /** copia x[a..b] (s, 48 kHz) para o vídeo em `at` (44,1 kHz), com fade de 20 ms nas pontas */
 function mixIn(L, R, N, x, a, b, at, gain) {
   const len = b - a;
   for (let i = 0; i < len * RATE; i++) {
     const j = Math.floor(at * RATE) + i;
-    if (j >= N) break;
+    if (j >= N || j < 0) continue;
     const pos = (a + i / RATE) * 48000;
     const p0 = Math.floor(pos);
     const val = x[p0] + (x[p0 + 1] - x[p0]) * (pos - p0) || 0;
     const fade = Math.min(1, i / (0.02 * RATE), (len * RATE - i) / (0.02 * RATE));
-    const y = val * gain * fade;
-    L[j] += y;
-    R[j] += y;
+    L[j] += val * gain * fade;
+    R[j] += val * gain * fade;
   }
 }
 /** volume médio só onde tem fala (ignora as pausas) */
-function activeRms(x, a, b) {
+function activeRms(x) {
   const W = 960, fr = [];
-  for (let i = Math.floor(a * 48000); i + W < b * 48000; i += W) {
+  for (let i = 0; i + W < x.length; i += W) {
     let s = 0;
     for (let j = i; j < i + W; j++) s += x[j] * x[j];
     fr.push(s / W);
@@ -323,28 +313,3 @@ function activeRms(x, a, b) {
   const on = fr.filter((v) => v > top / 1000);
   return Math.sqrt(on.reduce((p, q) => p + q, 0) / on.length);
 }
-/** põe os trechos da gravação e da narração na hora certa; o "depois" no mesmo volume do "antes" */
-function addVoice(L, R, N, target, byRms = false) {
-  const src = {
-    antes: readWav(path.join(AUDIO, 'antes.wav')),
-    depois: readWav(path.join(AUDIO, 'depois.wav')),
-    tecAntes: readWav(path.join(AUDIO, 'tec-antes.wav')),
-    tecDepois: readWav(path.join(AUDIO, 'tec-depois.wav')),
-  };
-  const lv = demo.rmsAntes / demo.rmsDepois;
-  const level = { antes: 1, depois: lv, tecAntes: 1, tecDepois: lv };
-  const [s0, s1] = SEGS.fala;
-  let vp = 0, va = 0, vn = 0;
-  for (let i = Math.floor(s0 * 48000); i < s1 * 48000; i++) {
-    vp = Math.max(vp, Math.abs(src.antes[i]));
-    va += src.antes[i] * src.antes[i];
-    vn++;
-  }
-  const k = byRms ? target / Math.sqrt(va / vn) : target / vp;
-  for (const v of VOICE) mixIn(L, R, N, src[v.from], ...SEGS[v.seg], v.at, k * level[v.from] * v.gain);
-  // narração (voz do ElevenLabs, sem efeito): um pouco acima da fala da gravação
-  const narr = readWav(path.resolve('promo/out/reels2n/audio/narracao.wav'));
-  const kn = (k * activeRms(src.antes, s0, s1) * 1.12) / activeRms(narr, 0, narr.length / 48000);
-  for (const n of NARRATION) mixIn(L, R, N, narr, n.from, n.to, n.at, kn);
-}
-
