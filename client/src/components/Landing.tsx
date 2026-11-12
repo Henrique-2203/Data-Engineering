@@ -437,8 +437,8 @@ function WaitlistForm() {
         </p>
         {done.invited ? (
           <p className="lp-invited">
-            📩 <strong>Seu convite já foi para o seu e-mail!</strong> Abra o e-mail, copie o código e crie sua conta em <a href="/app">{location.host}/app</a>. Não chegou em alguns
-            minutos? Olhe o spam.
+            📩 <strong>Seu convite já foi para o seu e-mail!</strong> Abra o e-mail, copie o código e <a href="/app">crie sua conta</a>. Não chegou em alguns minutos? Olhe o
+            spam.
           </p>
         ) : (
           <p className="lp-small">Vamos mandar o convite por e-mail{whatsapp ? ' ou WhatsApp' : ''}. Chama os amigos para entrarem também:</p>
