@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import { officialGuildId } from './official.ts';
 import express, { type Router } from 'express';
 import { z } from 'zod';
 import type { Db } from './db.ts';
@@ -44,6 +45,7 @@ const toChannel = (c: ChannelRow): Channel => ({
   bitrate: c.bitrate,
   userLimit: c.userLimit,
   slowmode: c.slowmode,
+  announce: c.announce || undefined,
 });
 
 /** Servidor do jeito que ESTA pessoa vê: só canais permitidos, convite só se puder convidar. */
@@ -59,9 +61,11 @@ export async function loadGuild(db: Db, userId: string, guildId: string): Promis
     iconId: string | null;
     bannerId: string | null;
     everyonePermissions: number;
+    rules: string;
+    rulesRequired: boolean;
   }>(
     `select id, name, owner_id as "ownerId", invite_code as "inviteCode", description, icon_id as "iconId",
-       banner_id as "bannerId", everyone_permissions as "everyonePermissions"
+       banner_id as "bannerId", everyone_permissions as "everyonePermissions", rules, rules_required as "rulesRequired"
      from guilds where id = $1`,
     [guildId],
   );
@@ -96,6 +100,8 @@ export async function loadGuild(db: Db, userId: string, guildId: string): Promis
     })),
     expressions: await loadExpressions(db, guildId),
     events: (await loadEvents(db, guildId)).filter((e) => !e.channelId || channels.some((c) => c.id === e.channelId && canSee(access, c))),
+    rulesPending: access.rulesPending || undefined,
+    official: (await officialGuildId(db)) === guildId || undefined,
   };
 }
 
@@ -147,6 +153,18 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
 
   r.get('/guilds/:id', auth, wrap(async (req) => guildResponse(req.user!.id, String(req.params.id))));
 
+  /** "Aceito": a pessoa leu as regras do servidor e pode participar. */
+  r.post(
+    '/guilds/:id/rules/accept',
+    auth,
+    wrap(async (req) => {
+      const id = String(req.params.id);
+      await requireMember(db, id, req.user!.id);
+      await db.query('update members set rules_accepted_at = now() where guild_id = $1 and user_id = $2', [id, req.user!.id]);
+      return guildResponse(req.user!.id, id);
+    }),
+  );
+
   r.patch(
     '/guilds/:id',
     auth,
@@ -157,10 +175,27 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
           name: z.string().trim().min(1).max(50).optional(),
           description: z.string().trim().max(300, 'Descrição muito longa.').optional(),
           everyonePermissions: z.number().int().min(0).max(ALL_PERMISSIONS).optional(),
+          rules: z.string().trim().max(4000, 'Regras muito longas (até 4000 letras).').optional(),
+          rulesRequired: z.boolean().optional(),
         }),
         req.body,
       );
-      if (body.name !== undefined || body.description !== undefined) await requirePerm(db, id, req.user!.id, Perm.MANAGE_GUILD);
+      if (body.name !== undefined || body.description !== undefined || body.rules !== undefined || body.rulesRequired !== undefined) {
+        await requirePerm(db, id, req.user!.id, Perm.MANAGE_GUILD);
+      }
+      if (body.rulesRequired && !(body.rules ?? (await db.query<{ rules: string }>('select rules from guilds where id = $1', [id]))[0]?.rules)?.trim()) {
+        throw new HttpError(400, 'Escreva as regras antes de pedir para aceitar.');
+      }
+      if (body.rules !== undefined || body.rulesRequired !== undefined) {
+        const [prev] = await db.query<{ rules: string }>('select rules from guilds where id = $1', [id]);
+        await db.query('update guilds set rules = coalesce($2, rules), rules_required = coalesce($3, rules_required) where id = $1', [
+          id,
+          body.rules ?? null,
+          body.rulesRequired ?? null,
+        ]);
+        // regras mudaram de verdade: todo mundo aceita de novo (quem gerencia o servidor não precisa)
+        if (body.rules !== undefined && body.rules !== prev?.rules) await db.query('update members set rules_accepted_at = null where guild_id = $1', [id]);
+      }
       if (body.everyonePermissions !== undefined) {
         const a = await requirePerm(db, id, req.user!.id, Perm.MANAGE_ROLES);
         if (has(body.everyonePermissions, Perm.ADMIN) && !a.isOwner) {
@@ -632,6 +667,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       .int()
       .refine((s) => SLOWMODE_VALUES.includes(s), 'Tempo do modo lento inválido.')
       .optional(),
+    announce: z.boolean().optional(),
   });
 
   async function validateChannelRefs(guildId: string, body: z.infer<typeof channelSettings>) {
@@ -658,8 +694,8 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       ]);
       const channelId = randomUUID();
       await db.query(
-        `insert into channels (id, guild_id, name, type, position, category_id, allowed_role_ids, bitrate, user_limit)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        `insert into channels (id, guild_id, name, type, position, category_id, allowed_role_ids, bitrate, user_limit, announce)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           channelId,
           guildId,
@@ -670,6 +706,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
           body.allowedRoleIds ?? null,
           body.bitrate ?? 128,
           body.userLimit ?? 0,
+          body.type === 'text' && !!body.announce,
         ],
       );
       const created = (await loadChannel(db, channelId))!;
@@ -704,7 +741,8 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
            allowed_role_ids = case when $5::boolean then $6::text[] else allowed_role_ids end,
            bitrate = coalesce($7, bitrate),
            user_limit = coalesce($8, user_limit),
-           slowmode = coalesce($9, slowmode)
+           slowmode = coalesce($9, slowmode),
+           announce = coalesce($10, announce)
          where id = $1`,
         [
           c.id,
@@ -716,6 +754,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
           body.bitrate ?? null,
           body.userLimit ?? null,
           body.slowmode ?? null,
+          c.type === 'text' && body.announce !== undefined ? body.announce : null,
         ],
       );
       const after = (await loadChannel(db, c.id))!;
@@ -728,6 +767,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       if (body.userLimit !== undefined && after.userLimit !== c.userLimit) diff.userLimit = [c.userLimit, after.userLimit];
       if (body.categoryId !== undefined && after.categoryId !== c.categoryId) diff.category = true;
       if (body.slowmode !== undefined && after.slowmode !== c.slowmode) diff.slowmode = [c.slowmode, after.slowmode];
+      if (body.announce !== undefined && after.announce !== c.announce) diff.announce = after.announce;
       if (Object.keys(diff).length) await audit(db, c.guildId, req.user!.id, 'channel_update', { type: 'channel', id: c.id, label: after.name }, diff);
       await changed(c.guildId, body.allowedRoleIds !== undefined);
     }),

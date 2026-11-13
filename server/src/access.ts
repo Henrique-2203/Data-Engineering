@@ -24,6 +24,8 @@ export interface MemberAccess {
   perms: number;
   isOwner: boolean;
   timeoutUntil: Date | null;
+  /** o servidor pede para aceitar as regras e esta pessoa ainda não aceitou (moderação não precisa) */
+  rulesPending: boolean;
 }
 
 export interface ChannelRow {
@@ -37,10 +39,12 @@ export interface ChannelRow {
   bitrate: number;
   userLimit: number;
   slowmode: number;
+  /** canal de avisos: todos leem, só a equipe do servidor publica */
+  announce: boolean;
 }
 
 export const CHANNEL_COLUMNS = `c.id, c.guild_id as "guildId", c.name, c.type, c.position, c.category_id as "categoryId",
-  c.allowed_role_ids as "allowedRoleIds", c.bitrate, c.user_limit as "userLimit", c.slowmode`;
+  c.allowed_role_ids as "allowedRoleIds", c.bitrate, c.user_limit as "userLimit", c.slowmode, c.announce`;
 
 export async function guildContext(db: Db, guildId: string): Promise<PermissionContext | null> {
   const [g] = await db.query<{ ownerId: string; everyonePermissions: number }>(
@@ -65,21 +69,24 @@ export async function memberRoleIds(db: Db, guildId: string, userId: string): Pr
 
 /** Acesso de um membro ao servidor (ou null se não for membro). */
 export async function memberAccess(db: Db, guildId: string, userId: string): Promise<MemberAccess | null> {
-  const [m] = await db.query<{ timeoutUntil: Date | null }>(
-    'select timeout_until as "timeoutUntil" from members where guild_id = $1 and user_id = $2',
+  const [m] = await db.query<{ timeoutUntil: Date | null; rulesPending: boolean }>(
+    `select m.timeout_until as "timeoutUntil", (g.rules_required and m.rules_accepted_at is null) as "rulesPending"
+     from members m join guilds g on g.id = m.guild_id where m.guild_id = $1 and m.user_id = $2`,
     [guildId, userId],
   );
   if (!m) return null;
   const ctx = await guildContext(db, guildId);
   if (!ctx) return null;
   const roleIds = await memberRoleIds(db, guildId, userId);
+  const perms = memberPermissions(ctx, userId, roleIds);
   return {
     ctx,
     userId,
     roleIds,
-    perms: memberPermissions(ctx, userId, roleIds),
+    perms,
     isOwner: ctx.ownerId === userId,
     timeoutUntil: m.timeoutUntil ? new Date(m.timeoutUntil) : null,
+    rulesPending: !!m.rulesPending && !has(perms, Perm.MANAGE_GUILD),
   };
 }
 
@@ -109,7 +116,9 @@ export async function requirePerm(db: Db, guildId: string, userId: string, bit: 
 
 export const isTimedOut = (a: Pick<MemberAccess, 'timeoutUntil'>) => !!a.timeoutUntil && a.timeoutUntil.getTime() > Date.now();
 
+/** Pode participar (escrever, reagir, votar): sem castigo e com as regras aceitas, se o servidor pede. */
 export function requireNotTimedOut(a: MemberAccess) {
+  if (a.rulesPending) throw new HttpError(403, 'Aceite as regras do servidor para participar (o botão "Aceito" fica no topo do servidor).');
   if (isTimedOut(a)) {
     const until = a.timeoutUntil!.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
     throw new HttpError(403, `Você está de castigo neste servidor até ${until}.`);

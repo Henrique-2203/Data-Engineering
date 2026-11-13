@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { RulesSettings } from './Official';
 import { ArrowDown, ArrowUp, ImagePlus, Trash2, X } from 'lucide-react';
 import type { Ban, Guild, Member } from '../../../shared/types';
 import { PERMISSION_INFO, outranks, type Role } from '../../../shared/permissions';
@@ -13,7 +14,7 @@ import { ExpressionSettings } from './ExpressionSettings';
 import { AuditLog } from './AuditLog';
 import { AutomodPanel } from './Community';
 
-type Tab = 'overview' | 'roles' | 'members' | 'bans' | 'expressions' | 'automod' | 'audit';
+type Tab = 'overview' | 'rules' | 'roles' | 'members' | 'bans' | 'expressions' | 'automod' | 'audit';
 
 const ROLE_COLORS = ['#ed4245', '#f97316', '#faa61a', '#3ba55d', '#14b8a6', '#5865f2', '#9b59b6', '#eb459e', '#99aab5'];
 
@@ -32,6 +33,7 @@ export function GuildSettings({ guildId, initialTab }: { guildId: string; initia
   const perms = usePerms(guildId);
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: 'overview', label: 'Visão geral', show: has(perms, Perm.MANAGE_GUILD) },
+    { id: 'rules', label: 'Regras', show: has(perms, Perm.MANAGE_GUILD) },
     { id: 'roles', label: 'Cargos', show: has(perms, Perm.MANAGE_ROLES) },
     { id: 'expressions', label: 'Emojis e sons', show: has(perms, Perm.MANAGE_EXPRESSIONS) },
     { id: 'members', label: 'Membros', show: [Perm.MANAGE_ROLES, Perm.KICK, Perm.BAN, Perm.TIMEOUT, Perm.MANAGE_NICKNAMES].some((p) => has(perms, p)) },
@@ -64,6 +66,7 @@ export function GuildSettings({ guildId, initialTab }: { guildId: string; initia
           <X size={22} />
         </button>
         {tab === 'overview' && <Overview guild={guild} />}
+        {tab === 'rules' && <RulesSettings guild={guild} />}
         {tab === 'roles' && <Roles guild={guild} />}
         {tab === 'members' && <Members guild={guild} />}
         {tab === 'bans' && <Bans guild={guild} />}

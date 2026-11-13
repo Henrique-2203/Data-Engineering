@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AdminSupport } from './Support';
 import { HealthPanel } from './HealthPanel';
-import { Activity, Archive, BarChart3, ClipboardList, Flag, Heart, LayoutDashboard, LifeBuoy, Server, ShieldAlert, Ticket, X } from 'lucide-react';
+import { Activity, Archive, BarChart3, ClipboardList, Crown, Flag, Heart, LayoutDashboard, LifeBuoy, Server, ShieldAlert, Ticket, X } from 'lucide-react';
 import { ApoioAdmin } from './Apoio';
+import { OfficialAdmin } from './Official';
 import { AdminOverview, type AdminTab } from './AdminOverview';
 import { api, authHeaders } from '../lib/api';
 import { askText } from '../lib/ask';
@@ -164,6 +165,7 @@ const ADMIN_GROUPS: { title?: string; items: { id: AdminTab; label: string; icon
       { id: 'open', label: 'Denúncias', icon: <Flag size={18} />, description: 'Denúncias abertas, com a cópia do que foi denunciado e o histórico da conta.' },
       { id: 'closed', label: 'Encerradas', icon: <Archive size={18} />, description: 'Denúncias já resolvidas ou descartadas, e o que foi feito.' },
       { id: 'support', label: 'Suporte', icon: <LifeBuoy size={18} />, description: 'Pedidos de ajuda das pessoas. Responda por aqui.' },
+      { id: 'official', label: 'Servidor oficial', icon: <Crown size={18} />, description: 'A comunidade oficial do Resenha: quem tem conta entra sozinho (uma vez).' },
     ],
   },
   {
@@ -256,6 +258,7 @@ export function AdminReports() {
           {tab === 'invites' && <InviteCodesAdmin />}
           {tab === 'support' && <AdminSupport />}
           {tab === 'apoio' && <ApoioAdmin />}
+          {tab === 'official' && <OfficialAdmin />}
           {tab === 'health' && <HealthPanel />}
           {tab === 'stats' && <StatsPanel />}
           {tab === 'system' && <SystemPanel />}

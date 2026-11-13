@@ -54,6 +54,7 @@ import { POLL_SELECT, checkAutomod, checkSlowmode, pollSchema, registerCommunity
 import { registerPushRoutes, sendPush } from './push.ts';
 import { registerSupportRoutes } from './support.ts';
 import { registerApoioRoutes } from './apoio.ts';
+import { ensureOfficialMember, registerOfficialRoutes } from './official.ts';
 import { registerHealthRoutes } from './health.ts';
 import { registerEmbedRoutes } from './embeds.ts';
 import { mentionedUsernames } from './mentions.ts';
@@ -475,9 +476,15 @@ export function createRoutes(db: Db, rt: Realtime) {
          from users where id = $1`,
         [req.user!.id],
       );
+      // servidor oficial: entra uma vez (cadastro novo ou primeira visita depois de ele existir)
+      const joinedOfficial = await ensureOfficialMember(db, rt, req.user!.id).catch((err) => {
+        console.warn('[oficial] falha ao colocar no servidor oficial', err);
+        return null;
+      });
       return {
         user: req.user,
         guilds: await loadGuilds(db, req.user!.id),
+        joinedOfficial,
         isPlatformAdmin: isPlatformAdmin(req.user!.username),
         // contas antigas sem e-mail recebem o convite para adicionar um (recuperação e alertas)
         account: { emailVerified: !!acc?.emailVerified, emailEnabled: emailEnabled() },
@@ -549,6 +556,10 @@ export function createRoutes(db: Db, rt: Realtime) {
         req.body,
       );
       if (!body.content && body.attachmentIds.length === 0 && !body.stickerId && !body.poll) throw new HttpError(400, 'Mensagem vazia.');
+      // canal de avisos: só a equipe do servidor publica
+      if (c.announce && c.access && !has(c.access.perms, Perm.MANAGE_GUILD) && !has(c.access.perms, Perm.MANAGE_MESSAGES)) {
+        throw new HttpError(403, 'Este é um canal de avisos: só a equipe do servidor publica aqui.');
+      }
       if (c.access) {
         await checkSlowmode(db, c, c.access, req.user!.id);
         await checkAutomod(db, {
@@ -718,6 +729,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerPushRoutes(r, db, auth);
   registerSupportRoutes(r, db, rt, auth);
   registerApoioRoutes(r, db, rt, auth);
+  registerOfficialRoutes(r, db, rt, auth);
   registerHealthRoutes(r, db, rt, auth);
   registerEmbedRoutes(r, auth);
 

@@ -7,7 +7,7 @@ import { useApp } from '../store/app';
  * da semana, qualidade das calls e sistema). Cada cartão leva para a seção com os detalhes.
  * Só junta o que as outras seções já mostram (mesmas rotas), nada de dado novo sobre ninguém.
  */
-export type AdminTab = 'overview' | 'stats' | 'health' | 'open' | 'closed' | 'support' | 'waitlist' | 'invites' | 'apoio' | 'system';
+export type AdminTab = 'overview' | 'stats' | 'health' | 'open' | 'closed' | 'support' | 'waitlist' | 'invites' | 'apoio' | 'official' | 'system';
 
 type Agg = Record<string, { sum: number; count: number }>;
 interface Data {

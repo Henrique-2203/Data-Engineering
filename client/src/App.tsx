@@ -102,6 +102,7 @@ function MainApp() {
         account?: { emailVerified: boolean; emailEnabled: boolean };
         changelog?: { seen: string | null; accountCreatedAt: string | null };
         supportUnread?: number;
+        joinedOfficial?: { guildId: string; name: string } | null;
       }>('/bootstrap'),
       api<{ dms: DmChannel[] }>('/dms'),
       api<{ friends: Friend[] }>('/friends'),
@@ -133,6 +134,8 @@ function MainApp() {
       pendingChannel.id = null;
     }
     connectSocket();
+    // acabou de entrar no servidor oficial: avisa (uma vez)
+    if (data.joinedOfficial) openModal({ kind: 'officialWelcome', guildId: data.joinedOfficial.guildId, name: data.joinedOfficial.name });
     initPush(openChannelFromNotification);
     initHealthOnce();
     if (pendingInvite.code) {

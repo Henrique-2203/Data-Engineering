@@ -71,6 +71,8 @@ export type SidePanel =
 export type ModalState =
   | { kind: 'support' }
   | { kind: 'apoio' }
+  | { kind: 'rules'; guildId: string }
+  | { kind: 'officialWelcome'; guildId: string; name: string }
   | { kind: 'callReport' }
   | { kind: 'changelog' }
   | { kind: 'createPoll'; channelId: string }

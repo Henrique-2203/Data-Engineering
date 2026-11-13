@@ -509,6 +509,7 @@ export class Realtime {
       const access = full?.guildId ? await memberAccess(this.db, full.guildId, user.id) : null;
       if (!full || !access || !canSee(access, full)) return { ok: false, error: 'Canal de voz não encontrado.' };
       if (isTimedOut(access)) return { ok: false, error: 'Você está de castigo neste servidor e não pode entrar em voz agora.' };
+      if (access.rulesPending) return { ok: false, error: 'Aceite as regras do servidor para entrar nas calls (o botão "Aceito" fica no topo do servidor).' };
       const inChannel = [...this.voice.values()].filter((s) => s.channelId === full.id && s.userId !== user.id).length;
       const ticket = this.moveTickets.get(socket.id);
       const moved = !!ticket && ticket.channelId === full.id && ticket.until > Date.now();

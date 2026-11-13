@@ -72,6 +72,8 @@ export interface Channel {
   userLimit?: number;
   /** modo lento: segundos entre mensagens de cada pessoa (0 = desligado) */
   slowmode?: number;
+  /** canal de avisos: todos leem, só a equipe do servidor (gerenciar servidor ou mensagens) publica */
+  announce?: boolean;
 }
 
 export interface Category {
@@ -130,6 +132,13 @@ export interface Guild {
   expressions: Expression[];
   /** eventos agendados que ainda não acabaram */
   events?: GuildEvent[];
+  /** regras do servidor (texto) e se é preciso aceitar para participar */
+  rules?: string;
+  rulesRequired?: boolean;
+  /** eu ainda não aceitei as regras (só leio até aceitar) */
+  rulesPending?: boolean;
+  /** o servidor oficial do Resenha */
+  official?: boolean;
 }
 
 /** Evento agendado do servidor (jogatina, call marcada...). */

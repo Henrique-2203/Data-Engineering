@@ -23,6 +23,7 @@ import {
   VideoOff,
   Volume2,
   MoreHorizontal,
+  Megaphone,
 } from 'lucide-react';
 import type { Channel, VoiceState } from '../../../shared/types';
 import { api } from '../lib/api';
@@ -314,7 +315,7 @@ function TextChannelItem({ channel, canEdit, drag }: { channel: Channel; canEdit
       {...dragAttrs(drag)}
     >
       <button className="channel-main" onClick={() => selectChannel(channel.id)}>
-        {channel.allowedRoleIds ? <HashLock /> : <Hash size={18} className="channel-icon" />}
+        {channel.announce ? <Megaphone size={18} className="channel-icon" /> : channel.allowedRoleIds ? <HashLock /> : <Hash size={18} className="channel-icon" />}
         <span className="ellipsis">{channel.name}</span>
         {mentions > 0 && (
           <span className="count-badge" aria-label={`${mentions} menções`}>

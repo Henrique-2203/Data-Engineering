@@ -13,6 +13,8 @@ import { MobileHeader } from './MobileHeader';
 import { MessageItem } from './chat/MessageItem';
 import { Composer, type ComposerHandle } from './chat/Composer';
 import { formatDay } from './chat/format';
+import { AnnounceGate, RulesGate } from './Official';
+import { Perm, has, myPermissions } from '../lib/perms';
 
 const GROUP_WINDOW_MS = 5 * 60_000;
 
@@ -48,6 +50,10 @@ export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?:
   const inThisCall = useVoice((s) => !!dm && s.channelId === dm.id && s.status !== 'idle');
   const listRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<ComposerHandle>(null);
+  // servidor com regras a aceitar, e canal de avisos (só a equipe publica)
+  const guild = useApp((s) => (channel.guildId ? s.guilds[channel.guildId] : undefined));
+  const myPerms = useApp((s) => (channel.guildId ? myPermissions(s.guilds[channel.guildId], s.me?.id) : 0));
+  const canAnnounce = has(myPerms, Perm.MANAGE_GUILD) || has(myPerms, Perm.MANAGE_MESSAGES);
   const stickToBottom = useRef(true);
   const prevHeight = useRef(0);
   const prevFirstId = useRef<string | undefined>(undefined);
@@ -229,13 +235,19 @@ export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?:
         })}
       </div>
       <TypingIndicator channel={channel} />
-      <Composer
-        ref={composerRef}
-        channel={channel}
-        replyTo={replyTo}
-        onCancelReply={() => setReplyTo(null)}
-        onSent={() => (stickToBottom.current = true)}
-      />
+      {guild?.rulesPending ? (
+        <RulesGate guild={guild} />
+      ) : channel.announce && !canAnnounce ? (
+        <AnnounceGate />
+      ) : (
+        <Composer
+          ref={composerRef}
+          channel={channel}
+          replyTo={replyTo}
+          onCancelReply={() => setReplyTo(null)}
+          onSent={() => (stickToBottom.current = true)}
+        />
+      )}
       {dragging && (
         <div className="drop-overlay">
           <ImagePlus size={40} />

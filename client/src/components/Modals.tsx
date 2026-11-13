@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ApoioModal } from './Apoio';
+import { OfficialWelcomeModal, RulesModal } from './Official';
 import { Copy, Share2, X } from 'lucide-react';
 import type { Channel, Guild, InvitePreview, PublicUser } from '../../../shared/types';
 import { api } from '../lib/api';
@@ -101,6 +102,10 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       return <SupportModal />;
     case 'apoio':
       return <ApoioModal />;
+    case 'rules':
+      return <RulesModal guildId={modal.guildId} />;
+    case 'officialWelcome':
+      return <OfficialWelcomeModal guildId={modal.guildId} name={modal.name} />;
     case 'callReport':
       return <CallReportModal />;
     case 'changelog':
@@ -354,7 +359,7 @@ function ChannelFields({
 }: {
   guildId: string;
   type: 'text' | 'voice';
-  value: { categoryId: string | null; allowedRoleIds: string[] | null; bitrate: number; userLimit: number; slowmode?: number };
+  value: { categoryId: string | null; allowedRoleIds: string[] | null; bitrate: number; userLimit: number; slowmode?: number; announce?: boolean };
   onChange(v: Partial<typeof value>): void;
 }) {
   const guild = useApp((s) => s.guilds[guildId]);
@@ -427,6 +432,11 @@ function ChannelFields({
           </label>
         </>
       )}
+      {type === 'text' && value.announce !== undefined && (
+        <label className="check">
+          <input type="checkbox" checked={value.announce} onChange={(e) => onChange({ announce: e.target.checked })} /> 📢 Canal de avisos (todos leem, só quem gerencia o servidor ou as mensagens publica)
+        </label>
+      )}
       {value.slowmode !== undefined && (
         <label>
           Modo lento
@@ -495,6 +505,7 @@ function ChannelSettings({ channelId }: { channelId: string }) {
     bitrate: channel?.bitrate ?? 128,
     userLimit: channel?.userLimit ?? 0,
     slowmode: channel?.slowmode ?? 0,
+    announce: !!channel?.announce,
   });
   const { busy, error, submit } = useSubmit(async () => {
     await api(`/channels/${channelId}`, {
