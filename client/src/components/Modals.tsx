@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ApoioModal } from './Apoio';
+import { ExploreModal } from './Explore';
+import { CATEGORY_LABEL, GUILD_CATEGORIES } from '../../../shared/explore';
 import { OfficialWelcomeModal, RulesModal } from './Official';
 import { Copy, Share2, X } from 'lucide-react';
 import type { Channel, Guild, InvitePreview, PublicUser } from '../../../shared/types';
@@ -102,6 +104,8 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       return <SupportModal />;
     case 'apoio':
       return <ApoioModal />;
+    case 'explore':
+      return <ExploreModal />;
     case 'rules':
       return <RulesModal guildId={modal.guildId} />;
     case 'officialWelcome':
@@ -205,12 +209,15 @@ export function useSubmit<T>(fn: () => Promise<T>) {
 function CreateGuild() {
   const me = useApp((s) => s.me)!;
   const [name, setName] = useState(`Servidor de ${me.displayName}`);
+  const [isPublic, setPublic] = useState(false);
+  const [category, setCategory] = useState('');
   const { busy, error, submit } = useSubmit(async () => {
-    const { guild } = await api<{ guild: Guild }>('/guilds', { body: { name } });
+    const { guild } = await api<{ guild: Guild }>('/guilds', { body: { name, public: isPublic, category } });
     upsertGuild(guild);
     selectGuild(guild.id);
     closeModal();
-    useApp.setState({ modal: { kind: 'invite', guildId: guild.id } });
+    // público: leva direto para o que falta para aparecer no Explorar
+    useApp.setState({ modal: isPublic ? { kind: 'guildSettings', guildId: guild.id, tab: 'community' } : { kind: 'invite', guildId: guild.id } });
   });
   return (
     <Modal title="Criar servidor">
@@ -220,6 +227,31 @@ function CreateGuild() {
           Nome do servidor
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={50} required autoFocus />
         </label>
+        <div className="visibility-choice" role="radiogroup" aria-label="Quem pode entrar">
+          <label className={!isPublic ? 'on' : ''}>
+            <input type="radio" name="vis" checked={!isPublic} onChange={() => setPublic(false)} />
+            <strong>🔒 Privado</strong>
+            <span className="muted small">Só entra quem tiver o convite. Bom para os amigos.</span>
+          </label>
+          <label className={isPublic ? 'on' : ''}>
+            <input type="radio" name="vis" checked={isPublic} onChange={() => setPublic(true)} />
+            <strong>🌎 Público</strong>
+            <span className="muted small">Aparece em Explorar e qualquer pessoa entra. Precisa de descrição, ícone e regras.</span>
+          </label>
+        </div>
+        {isPublic && (
+          <label>
+            Categoria
+            <select value={category} onChange={(e) => setCategory(e.target.value)} required>
+              <option value="">Escolha…</option>
+              {GUILD_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {CATEGORY_LABEL[c]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {error && <p className="error">{error}</p>}
         <div className="modal-actions">
           <button type="button" className="btn ghost" onClick={closeModal}>Cancelar</button>

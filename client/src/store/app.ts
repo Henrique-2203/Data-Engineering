@@ -71,6 +71,7 @@ export type SidePanel =
 export type ModalState =
   | { kind: 'support' }
   | { kind: 'apoio' }
+  | { kind: 'explore' }
   | { kind: 'rules'; guildId: string }
   | { kind: 'officialWelcome'; guildId: string; name: string }
   | { kind: 'callReport' }
@@ -81,7 +82,7 @@ export type ModalState =
   | { kind: 'joinGuild'; code?: string }
   | { kind: 'invite'; guildId: string }
   | { kind: 'createChannel'; guildId: string; type: 'text' | 'voice'; categoryId?: string | null }
-  | { kind: 'guildSettings'; guildId: string; tab?: 'overview' | 'roles' | 'members' | 'bans' | 'expressions' | 'automod' }
+  | { kind: 'guildSettings'; guildId: string; tab?: 'overview' | 'community' | 'rules' | 'roles' | 'members' | 'bans' | 'expressions' | 'automod' }
   | { kind: 'channelSettings'; channelId: string }
   | { kind: 'createCategory'; guildId: string }
   | { kind: 'categorySettings'; guildId: string; categoryId: string }

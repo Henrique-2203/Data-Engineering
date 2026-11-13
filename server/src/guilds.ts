@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { officialGuildId } from './official.ts';
+import { GUILD_CATEGORIES } from '../../shared/explore.ts';
+import { officialGuildId } from './listing.ts';
 import express, { type Router } from 'express';
 import { z } from 'zod';
 import type { Db } from './db.ts';
@@ -63,9 +64,13 @@ export async function loadGuild(db: Db, userId: string, guildId: string): Promis
     everyonePermissions: number;
     rules: string;
     rulesRequired: boolean;
+    public: boolean;
+    category: string;
+    unlisted: boolean;
   }>(
     `select id, name, owner_id as "ownerId", invite_code as "inviteCode", description, icon_id as "iconId",
-       banner_id as "bannerId", everyone_permissions as "everyonePermissions", rules, rules_required as "rulesRequired"
+       banner_id as "bannerId", everyone_permissions as "everyonePermissions", rules, rules_required as "rulesRequired",
+       public, category, unlisted
      from guilds where id = $1`,
     [guildId],
   );
@@ -136,10 +141,24 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     '/guilds',
     auth,
     wrap(async (req) => {
-      const body = parse(z.object({ name: z.string().trim().min(1, 'Dê um nome ao servidor.').max(50) }), req.body);
+      const body = parse(
+        z.object({
+          name: z.string().trim().min(1, 'Dê um nome ao servidor.').max(50),
+          public: z.boolean().default(false),
+          category: z.enum(GUILD_CATEGORIES).or(z.literal('')).default(''),
+        }),
+        req.body,
+      );
       const id = randomUUID();
       const me = req.user!.id;
-      await db.query('insert into guilds (id, name, owner_id, invite_code) values ($1, $2, $3, $4)', [id, body.name, me, inviteCode()]);
+      await db.query('insert into guilds (id, name, owner_id, invite_code, public, category) values ($1, $2, $3, $4, $5, $6)', [
+        id,
+        body.name,
+        me,
+        inviteCode(),
+        body.public,
+        body.category,
+      ]);
       await db.query('insert into members (guild_id, user_id) values ($1, $2)', [id, me]);
       await db.query(
         `insert into channels (id, guild_id, name, type, position) values
@@ -177,9 +196,15 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
           everyonePermissions: z.number().int().min(0).max(ALL_PERMISSIONS).optional(),
           rules: z.string().trim().max(4000, 'Regras muito longas (até 4000 letras).').optional(),
           rulesRequired: z.boolean().optional(),
+          public: z.boolean().optional(),
+          category: z.enum(GUILD_CATEGORIES).or(z.literal('')).optional(),
         }),
         req.body,
       );
+      if (body.public !== undefined || body.category !== undefined) {
+        await requirePerm(db, id, req.user!.id, Perm.MANAGE_GUILD);
+        await db.query('update guilds set public = coalesce($2, public), category = coalesce($3, category) where id = $1', [id, body.public ?? null, body.category ?? null]);
+      }
       if (body.name !== undefined || body.description !== undefined || body.rules !== undefined || body.rulesRequired !== undefined) {
         await requirePerm(db, id, req.user!.id, Perm.MANAGE_GUILD);
       }

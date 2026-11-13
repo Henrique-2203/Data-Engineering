@@ -1,5 +1,6 @@
 import { LifeBuoy, Link2, Plus } from 'lucide-react';
 import { ApoioButton } from './Apoio';
+import { Compass } from 'lucide-react';
 import { goHome, openModal, selectGuild, useApp } from '../store/app';
 import { useVoice } from '../store/voice';
 
@@ -71,6 +72,11 @@ export function ServerRail() {
       <button className="rail-item action" title="Entrar com convite" aria-label="Entrar com convite" onClick={() => openModal({ kind: 'joinGuild' })}>
         <span className="rail-icon">
           <Link2 size={20} />
+        </span>
+      </button>
+      <button className="rail-item action" title="Explorar servidores" aria-label="Explorar servidores" onClick={() => openModal({ kind: 'explore' })}>
+        <span className="rail-icon">
+          <Compass size={20} />
         </span>
       </button>
       <ApoioButton />

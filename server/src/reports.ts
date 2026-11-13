@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isListed } from './listing.ts';
 import type { Router } from 'express';
 import { z } from 'zod';
 import type { Db } from './db.ts';
@@ -113,7 +114,8 @@ export function registerReportRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
           'select id, name, description, owner_id, icon_id from guilds where id = $1',
           [body.id],
         );
-        if (!g || !(await memberAccess(db, g.id, me.id))) throw new HttpError(404, 'Servidor não encontrado.');
+        // dá para denunciar o servidor do qual você participa ou um que aparece no Explorar
+        if (!g || (!(await memberAccess(db, g.id, me.id)) && !(await isListed(db, g.id)))) throw new HttpError(404, 'Servidor não encontrado.');
         if (g.owner_id === me.id) throw new HttpError(400, 'Você é o dono deste servidor.');
         const [owner] = await db.query<{ username: string }>('select username from users where id = $1', [g.owner_id]);
         guildId = g.id;
@@ -187,7 +189,7 @@ export function registerReportRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
       requireAdmin(req.user!.username);
       const body = parse(
         z.object({
-          action: z.enum(['delete_message', 'suspend_user', 'delete_guild', 'resolve', 'dismiss']),
+          action: z.enum(['delete_message', 'suspend_user', 'delete_guild', 'unlist_guild', 'resolve', 'dismiss']),
           note: z.string().trim().max(500).default(''),
         }),
         req.body,
@@ -201,6 +203,7 @@ export function registerReportRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
         delete_message: 'Mensagem apagada',
         suspend_user: 'Conta suspensa',
         delete_guild: 'Servidor excluído',
+        unlist_guild: 'Servidor tirado da lista do Explorar',
         resolve: 'Resolvida',
         dismiss: 'Descartada (não viola os termos)',
       };
@@ -226,6 +229,10 @@ export function registerReportRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
         const ended = await db.query<{ token_hash: string }>('delete from sessions where user_id = $1 returning token_hash', [rep.target_user_id]);
         rt.endSessions(ended.map((s) => s.token_hash));
         rt.endUser(rep.target_user_id);
+      } else if (body.action === 'unlist_guild') {
+        if (!rep.guild_id || rep.target_type !== 'guild') throw new HttpError(400, 'Essa denúncia não é de servidor.');
+        await db.query('update guilds set unlisted = true where id = $1', [rep.guild_id]);
+        rt.guildChanged(rep.guild_id);
       } else if (body.action === 'delete_guild') {
         if (!rep.guild_id || rep.target_type !== 'guild') throw new HttpError(400, 'Essa denúncia não é de servidor.');
         const [g] = await db.query<{ icon_id: string | null; banner_id: string | null }>('select icon_id, banner_id from guilds where id = $1', [rep.guild_id]);

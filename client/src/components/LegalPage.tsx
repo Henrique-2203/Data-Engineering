@@ -3,7 +3,7 @@ import { ArrowLeft, Lock, ShieldCheck } from 'lucide-react';
 import { api } from '../lib/api';
 
 export const SOURCE_URL = 'https://github.com/Henrique-2203/Data-Engineering';
-const UPDATED = '12 de novembro de 2026';
+const UPDATED = '13 de novembro de 2026';
 
 export type LegalKind = 'privacidade' | 'termos' | 'seguranca' | 'suporte';
 
@@ -147,7 +147,10 @@ function Privacy({ contact }: { contact: ReactNode }) {
           </tr>
           <tr>
             <td>Denúncias que você envia ou recebe: motivo, detalhes e uma cópia do conteúdo denunciado</td>
-            <td>Analisar abusos e cumprir a lei. Quem é denunciado não sabe quem denunciou</td>
+            <td>
+              Analisar abusos e cumprir a lei. Quem é denunciado não sabe quem denunciou. Para entender a denúncia de uma mensagem, a equipe pode ver
+              algumas mensagens antes e depois dela no mesmo canal (sem entrar no servidor); cada vez que alguém da equipe vê esse trecho fica registrado
+            </td>
           </tr>
           <tr>
             <td>"Jogando agora" e "Ouvindo agora" (só o nome do jogo, ou da música e do artista tocando no Spotify do PC, se você usa o app de desktop)</td>
@@ -346,6 +349,12 @@ function Terms({ contact }: { contact: ReactNode }) {
         Quem cria um servidor define as regras dele e pode moderar (castigar, expulsar, banir) dentro das permissões do Resenha. Podemos
         remover conteúdo ou encerrar contas e servidores que violem estes termos ou a lei, e cumprir ordens judiciais, como prevê o Marco
         Civil da Internet (Lei 12.965/2014).
+      </p>
+
+      <p>
+        <strong>Servidores públicos:</strong> quem cria um servidor pode deixá-lo público. Aí ele aparece em <strong>Explorar</strong> (com nome, ícone,
+        descrição e número de membros) e qualquer pessoa entra sem convite. Para isso, precisa de descrição, ícone, categoria e regras. A equipe do
+        Resenha pode tirar um servidor da lista do Explorar se ele não seguir estes termos, sem apagar o servidor.
       </p>
 
       <h2>6. Denúncias</h2>

@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AdminSupport } from './Support';
 import { HealthPanel } from './HealthPanel';
-import { Activity, Archive, BarChart3, ClipboardList, Crown, Flag, Heart, LayoutDashboard, LifeBuoy, Server, ShieldAlert, Ticket, X } from 'lucide-react';
+import { Activity, Archive, BarChart3, ClipboardList, Compass, Crown, Flag, Heart, LayoutDashboard, LifeBuoy, Server, ShieldAlert, Ticket, X } from 'lucide-react';
 import { ApoioAdmin } from './Apoio';
 import { OfficialAdmin } from './Official';
+import { PublicGuildsAdmin, ReportContext } from './Explore';
 import { AdminOverview, type AdminTab } from './AdminOverview';
 import { api, authHeaders } from '../lib/api';
 import { askText } from '../lib/ask';
@@ -166,6 +167,7 @@ const ADMIN_GROUPS: { title?: string; items: { id: AdminTab; label: string; icon
       { id: 'closed', label: 'Encerradas', icon: <Archive size={18} />, description: 'Denúncias já resolvidas ou descartadas, e o que foi feito.' },
       { id: 'support', label: 'Suporte', icon: <LifeBuoy size={18} />, description: 'Pedidos de ajuda das pessoas. Responda por aqui.' },
       { id: 'official', label: 'Servidor oficial', icon: <Crown size={18} />, description: 'A comunidade oficial do Resenha: quem tem conta entra sozinho (uma vez).' },
+      { id: 'public', label: 'Servidores públicos', icon: <Compass size={18} />, description: 'Servidores que aparecem no Explorar. Tire da lista o que não seguir os Termos (o servidor continua existindo).' },
     ],
   },
   {
@@ -259,6 +261,7 @@ export function AdminReports() {
           {tab === 'support' && <AdminSupport />}
           {tab === 'apoio' && <ApoioAdmin />}
           {tab === 'official' && <OfficialAdmin />}
+          {tab === 'public' && <PublicGuildsAdmin />}
           {tab === 'health' && <HealthPanel />}
           {tab === 'stats' && <StatsPanel />}
           {tab === 'system' && <SystemPanel />}
@@ -294,6 +297,12 @@ export function AdminReports() {
                     {r.type === 'message' && r.targetExists && (
                       <button className="btn small danger" onClick={() => void act(r, 'delete_message', 'Apagar esta mensagem para todos?')}>
                         Apagar mensagem
+                      </button>
+                    )}
+                    {r.type === 'message' && r.targetExists && <ReportContext reportId={r.id} />}
+                    {r.type === 'guild' && r.targetExists && (
+                      <button className="btn small" onClick={() => void act(r, 'unlist_guild', `Tirar "${r.snapshot.name}" do Explorar? O servidor continua existindo para quem já está nele.`)}>
+                        Tirar do Explorar
                       </button>
                     )}
                     {r.type === 'guild' && r.targetExists && (

@@ -7694,3 +7694,41 @@ button.ov-card:hover {
 .official-admin { display: flex; flex-direction: column; gap: 12px; max-width: 720px; align-items: flex-start; }
 .official-admin ul { margin: 0; padding-left: 18px; line-height: 1.7; }
 .official-admin label { display: flex; flex-direction: column; gap: 6px; width: 100%; font-weight: 700; font-size: 13px; }
+
+/* ---------- Explorar servidores e servidores públicos ---------- */
+.explore { display: flex; flex-direction: column; gap: 14px; }
+.explore-search { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--bg-0); border: 1px solid var(--border, rgba(255, 255, 255, .1)); }
+.explore-search input { flex: 1; background: none; border: 0; outline: 0; color: inherit; font: inherit; }
+.explore-cats { display: flex; flex-wrap: wrap; gap: 8px; }
+.explore-cats button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border, rgba(255, 255, 255, .12)); background: none; color: var(--text-2); font: inherit; font-size: 13px; cursor: pointer; }
+.explore-cats button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+.explore-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; max-height: 60vh; overflow: auto; padding: 2px; }
+.explore-card { border-radius: 14px; overflow: hidden; background: var(--bg-2); border: 1px solid var(--border, rgba(255, 255, 255, .08)); display: flex; flex-direction: column; }
+.explore-card.official { border-color: #f5b301; box-shadow: 0 0 0 1px rgba(245, 179, 1, .4); }
+.explore-banner { height: 84px; background: linear-gradient(135deg, #1b3d30, #2a1b45) center / cover; }
+.explore-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.explore-title { display: flex; align-items: flex-end; gap: 10px; margin-top: -24px; }
+.explore-icon { width: 52px; height: 52px; border-radius: 14px; object-fit: cover; flex: none; display: inline-flex; align-items: center; justify-content: center; font-weight: 800;
+  background: var(--bg-3); border: 3px solid var(--bg-2); }
+.public-admin .explore-icon { width: 40px; height: 40px; border-width: 0; }
+.explore-name { display: flex; flex-direction: column; min-width: 0; padding-bottom: 2px; }
+.explore-name strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.explore-desc { margin: 0; font-size: 13px; color: var(--text-2); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; flex: 1; }
+.explore-foot { display: flex; align-items: center; gap: 8px; }
+.explore-foot > .muted { display: inline-flex; align-items: center; gap: 4px; margin-right: auto; }
+.visibility-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.visibility-choice label { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border, rgba(255, 255, 255, .12)); cursor: pointer; }
+.visibility-choice label.on { border-color: var(--accent); background: var(--accent-soft); }
+.visibility-choice input { position: absolute; opacity: 0; pointer-events: none; }
+.listing-status ul { margin: 6px 0 0; padding-left: 0; list-style: none; line-height: 1.7; }
+.listing-status .ok { color: var(--accent); margin: 0; }
+.listing-status .warn { margin: 0; }
+.public-admin { display: flex; flex-direction: column; gap: 8px; max-width: 900px; }
+.public-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--border, rgba(255, 255, 255, .08)); }
+.public-row.off { opacity: .65; }
+.public-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.report-context { width: 100%; margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--bg-0); }
+.report-context ol { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.report-context li { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 6px; }
+.report-context li.target { background: rgba(240, 77, 94, .14); border-left: 3px solid var(--danger); }
+@media (max-width: 600px) { .visibility-choice { grid-template-columns: 1fr; } }

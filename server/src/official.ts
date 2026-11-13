@@ -8,6 +8,7 @@ import { USER_COLUMNS, type requireAuth } from './auth.ts';
 import { isPlatformAdmin } from './reports.ts';
 import { audit, userLabel } from './audit.ts';
 import { Perm } from '../../shared/permissions.ts';
+import { officialGuildId, resetOfficialCache } from './listing.ts';
 import type { Member } from '../../shared/types.ts';
 
 /**
@@ -17,19 +18,7 @@ import type { Member } from '../../shared/types.ts';
  *  - quem sair não é colocado de volta; quem foi banido não entra;
  *  - o servidor é criado pela equipe no Painel da equipe → Servidor oficial (dono = quem criou).
  */
-let cached: { id: string | null; at: number } | null = null;
-
-export async function officialGuildId(db: Db): Promise<string | null> {
-  if (cached && Date.now() - cached.at < 60_000) return cached.id;
-  const [row] = await db.query<{ value: { guildId?: string } }>(`select value from app_settings where name = 'official_guild'`);
-  let id = row?.value?.guildId ?? null;
-  if (id) {
-    const [g] = await db.query('select 1 from guilds where id = $1', [id]);
-    if (!g) id = null; // o servidor foi excluído
-  }
-  cached = { id, at: Date.now() };
-  return id;
-}
+export { officialGuildId };
 
 /**
  * Coloca a pessoa no servidor oficial se ela ainda não passou por isso. Devolve o nome do servidor
@@ -181,7 +170,7 @@ export function registerOfficialRoutes(r: Router, db: Db, rt: Realtime, auth: Re
          on conflict (name) do update set value = excluded.value, updated_at = now()`,
         [JSON.stringify({ guildId: id })],
       );
-      cached = null;
+      resetOfficialCache();
       rt.userJoinedGuild(me, id);
       return { guildId: id, missing };
     }),

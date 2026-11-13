@@ -139,6 +139,24 @@ export interface Guild {
   rulesPending?: boolean;
   /** o servidor oficial do Resenha */
   official?: boolean;
+  /** público: aparece em Explorar (se cumprir os requisitos) e qualquer pessoa entra sem convite */
+  public?: boolean;
+  category?: string;
+  /** a equipe do Resenha tirou o servidor da lista do Explorar */
+  unlisted?: boolean;
+}
+
+/** Cartão de um servidor no Explorar. */
+export interface ExploreGuild {
+  id: string;
+  name: string;
+  description: string;
+  iconId: string | null;
+  bannerId: string | null;
+  category: string;
+  members: number;
+  official: boolean;
+  isMember: boolean;
 }
 
 /** Evento agendado do servidor (jogatina, call marcada...). */

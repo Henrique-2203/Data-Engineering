@@ -55,6 +55,7 @@ import { registerPushRoutes, sendPush } from './push.ts';
 import { registerSupportRoutes } from './support.ts';
 import { registerApoioRoutes } from './apoio.ts';
 import { ensureOfficialMember, registerOfficialRoutes } from './official.ts';
+import { registerExploreRoutes } from './explore.ts';
 import { registerHealthRoutes } from './health.ts';
 import { registerEmbedRoutes } from './embeds.ts';
 import { mentionedUsernames } from './mentions.ts';
@@ -730,6 +731,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerSupportRoutes(r, db, rt, auth);
   registerApoioRoutes(r, db, rt, auth);
   registerOfficialRoutes(r, db, rt, auth);
+  registerExploreRoutes(r, db, rt, auth);
   registerHealthRoutes(r, db, rt, auth);
   registerEmbedRoutes(r, auth);
 
