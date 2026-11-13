@@ -76,6 +76,7 @@ async function safetyCode(a: string, b: string) {
 }
 
 /** iPhone/iPad (o iPadOS se apresenta como Mac, mas tem tela de toque) */
+const isAndroid = () => /Android/i.test(navigator.userAgent);
 const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 
 class VoiceEngine {
@@ -303,6 +304,7 @@ class VoiceEngine {
     this.denoiser?.stop();
     this.denoiser = null;
     this.pttDown = this.vadOpen = false;
+    this.bgAndroid = null;
     setV({ noiseActive: null });
     this.camTrack?.stop();
     if (this.screenStream) desktop?.setStreaming?.(false);
@@ -406,8 +408,68 @@ class VoiceEngine {
    * enquanto está fora, os amigos veem o microfone dela desligado; ao voltar, o áudio é retomado
    * (e o microfone é reaberto se o iOS o encerrou) e ela recebe um aviso explicando.
    */
+  /**
+   * Android: ao sair do navegador, o Chrome desacelera os timers da página (~1 vez por segundo) e o
+   * celular corta CPU. A ativação por voz (que mede o volume 20x por segundo) passava a abrir e fechar
+   * o microfone aos pedaços (voz "bugada" ou muda), e o filtro de IA atrasava (voz robótica). Agora,
+   * enquanto a página está escondida: o microfone fica aberto (se não estiver silenciado nem no
+   * push-to-talk) e vai o microfone direto, com o filtro de ruído do próprio navegador, sem a IA.
+   * Ao voltar, tudo é restaurado, o áudio é retomado e o microfone reaberto se o sistema o encerrou.
+   */
+  private bgAndroid: { processed: MediaStreamTrack | null } | null = null;
+
+  private async onAndroidVisibility() {
+    const hidden = document.visibilityState === 'hidden';
+    if (hidden) {
+      if (this.bgAndroid) return;
+      this.backgroundSince = Date.now();
+      const processed = this.denoiser && this.rawMic && this.micTrack === this.denoiser.track ? this.micTrack : null;
+      this.bgAndroid = { processed };
+      this.dbg(`Android: foi para segundo plano (${processed ? 'sem a IA, filtro do navegador' : 'microfone direto'}; ativação por voz aberta)`);
+      if (processed && this.rawMic) {
+        await this.rawMic.applyConstraints({ noiseSuppression: true } as MediaTrackConstraints).catch(() => {});
+        this.micTrack = this.rawMic;
+        processed.enabled = false;
+        this.updateGate();
+        for (const p of this.peers.values()) await p.setTrack('mic', this.micTrack, this.msid.mic);
+      } else this.updateGate();
+      return;
+    }
+    const bg = this.bgAndroid;
+    if (!bg) return;
+    this.bgAndroid = null;
+    const secs = this.backgroundSince ? Math.round((Date.now() - this.backgroundSince) / 1000) : 0;
+    this.backgroundSince = null;
+    void this.audioCtx?.resume();
+    resumeDenoise();
+    // o som dos outros: se o sistema pausou os <audio>, toca de novo
+    document.querySelectorAll<HTMLAudioElement>('audio[data-socket]').forEach((a) => {
+      if (a.paused) void a.play().catch(() => {});
+    });
+    const raw = this.rawMic;
+    const dead = !raw || raw.readyState === 'ended';
+    this.dbg(`Android: voltou depois de ${secs}s (microfone ${raw ? (dead ? 'encerrado' : raw.muted ? 'pausado' : 'ok') : 'sem'})`);
+    if (dead) {
+      await this.restartMic();
+      return;
+    }
+    // volta para o microfone com a IA (se ele ainda é o mesmo de quando saiu)
+    if (bg.processed && this.denoiser?.track === bg.processed && this.micTrack === raw) {
+      await raw.applyConstraints({ noiseSuppression: false } as MediaTrackConstraints).catch(() => {});
+      this.micTrack = bg.processed;
+      raw.enabled = true; // o filtro de IA lê deste microfone
+      this.updateGate();
+      for (const p of this.peers.values()) await p.setTrack('mic', this.micTrack, this.msid.mic);
+    } else this.updateGate();
+  }
+
   private onVisibility() {
-    if (getV().status === 'idle' || !isIOS()) return;
+    if (getV().status === 'idle') return;
+    if (isAndroid()) {
+      void this.onAndroidVisibility();
+      return;
+    }
+    if (!isIOS()) return;
     if (document.visibilityState === 'hidden') {
       this.backgroundSince = Date.now();
       this.dbg('iOS: foi para segundo plano (o iPhone pausa o microfone)');
@@ -456,6 +518,8 @@ class VoiceEngine {
   }
 
   private onDenoiseSlow(mode: AiNoiseMode) {
+    // em segundo plano o Android corta CPU de propósito: não é o aparelho "não dar conta" (e a IA nem está sendo usada)
+    if (this.bgAndroid) return;
     this.noiseCap = mode === 'gtcrn' ? 'rnnoise' : 'browser';
     this.dbg(`denoise ${mode} atrasado ${this.denoiser?.slowPct()}% -> ${this.noiseCap}`);
     toast(
@@ -524,6 +588,11 @@ class VoiceEngine {
     setV({ noMic: false });
     await this.acquireMic();
     for (const p of this.peers.values()) await p.setTrack('mic', this.micTrack, this.msid.mic);
+    // reabriu o microfone com o app escondido no Android: volta ao modo de segundo plano
+    if (this.bgAndroid && isAndroid() && document.visibilityState === 'hidden') {
+      this.bgAndroid = null;
+      await this.onAndroidVisibility();
+    }
   }
 
   // ---------------- pares ----------------
@@ -665,7 +734,9 @@ class VoiceEngine {
 
   updateGate() {
     const { muted, settings } = getV();
-    const open = !muted && !this.serverModerated().muted && (settings.inputMode === 'ptt' ? this.pttDown : this.vadOpen);
+    // Android em segundo plano: a medição de volume fica lenta demais para a ativação por voz
+    const vad = this.vadOpen || !!this.bgAndroid;
+    const open = !muted && !this.serverModerated().muted && (settings.inputMode === 'ptt' ? this.pttDown : vad);
     if (this.micTrack && this.micTrack.enabled !== open) this.micTrack.enabled = open;
   }
 
