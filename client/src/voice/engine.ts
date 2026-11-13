@@ -3,7 +3,7 @@ import type { PublicUser, RtcSignal } from '../../../shared/types';
 import { api } from '../lib/api';
 import { playSound } from '../lib/sounds';
 import { getSocket, onSocketReady } from '../lib/socket';
-import { findChannel, findMember, toast, useApp } from '../store/app';
+import { findChannel, findMember, selectChannel, toast, useApp } from '../store/app';
 import { updateSettings, useVoice, type MediaKind, type RemoteMedia } from '../store/voice';
 import { Peer, type SenderSlot } from './peer';
 import { preferCodec } from './sdp';
@@ -185,6 +185,26 @@ class VoiceEngine {
     socket.on('voice:kicked', ({ reason }: { reason: string }) => {
       this.leave(false);
       toast(reason);
+    });
+    // um moderador moveu você para outro canal de voz
+    socket.on('voice:move', ({ channelId, by }: { channelId: string; by: string }) => {
+      if (getV().status === 'idle') return;
+      const name = findChannel(channelId)?.name;
+      toast(`${by} moveu você para 🔊 ${name ?? 'outro canal'}.`);
+      selectChannel(channelId);
+      void this.join(channelId);
+    });
+    // um moderador silenciou/ensurdeceu (ou tirou)
+    socket.on('voice:server-mod', ({ action, by }: { muted: boolean; deafened: boolean; action: string; by: string }) => {
+      this.updateGate();
+      const text: Record<string, string> = {
+        mute: `${by} silenciou você nesta call. Ninguém ouve seu microfone até um moderador tirar.`,
+        unmute: `${by} tirou o seu silêncio. Já podem te ouvir de novo.`,
+        deafen: `${by} ensurdeceu você nesta call: você não ouve nem fala até um moderador tirar.`,
+        undeafen: `${by} tirou o seu ensurdecimento.`,
+      };
+      if (text[action]) toast(text[action]);
+      playSound(action === 'mute' || action === 'deafen' ? 'mute' : 'unmute');
     });
     socket.on('rtc:signal', ({ from, data }: { from: string; data: RtcSignal }) => {
       if (getV().status === 'idle') {
@@ -606,6 +626,7 @@ class VoiceEngine {
       });
       return;
     }
+    if (!muted && this.serverModerated().muted) toast('Um moderador silenciou você nesta call: ninguém ouve seu microfone até ele tirar.');
     const patch = { muted, ...(muted ? {} : { deafened: false }) };
     setV(patch);
     this.updateGate();
@@ -635,9 +656,16 @@ class VoiceEngine {
    * tecla apertada; na ativação por voz só quando o volume passa da sensibilidade.
    * Desligar a faixa (enabled=false) faz o navegador mandar silêncio, sem renegociar.
    */
+  /** um moderador me silenciou ou ensurdeceu neste servidor? */
+  serverModerated() {
+    const sid = getSocket()?.id;
+    const me = sid ? useApp.getState().voiceStates[sid] : undefined;
+    return { muted: !!(me?.serverMuted || me?.serverDeafened), deafened: !!me?.serverDeafened };
+  }
+
   updateGate() {
     const { muted, settings } = getV();
-    const open = !muted && (settings.inputMode === 'ptt' ? this.pttDown : this.vadOpen);
+    const open = !muted && !this.serverModerated().muted && (settings.inputMode === 'ptt' ? this.pttDown : this.vadOpen);
     if (this.micTrack && this.micTrack.enabled !== open) this.micTrack.enabled = open;
   }
 

@@ -19,6 +19,9 @@ export const Perm = {
   MANAGE_NICKNAMES: 1 << 14,
   VIEW_AUDIT_LOG: 1 << 15,
   CREATE_EVENTS: 1 << 16,
+  MOVE_MEMBERS: 1 << 17,
+  MUTE_MEMBERS: 1 << 18,
+  DEAFEN_MEMBERS: 1 << 19,
 } as const;
 
 export type PermKey = keyof typeof Perm;
@@ -46,6 +49,9 @@ export const PERMISSION_INFO: { key: PermKey; label: string; description: string
   { key: 'CHANGE_NICKNAME', label: 'Mudar o próprio apelido', description: 'Usar um apelido e uma foto só neste servidor.' },
   { key: 'MANAGE_NICKNAMES', label: 'Gerenciar apelidos', description: 'Mudar o apelido ou tirar a foto de servidor de quem está abaixo.' },
   { key: 'CREATE_EVENTS', label: 'Criar eventos', description: 'Agendar eventos (jogatinas, calls marcadas) e mudar ou cancelar os que criou.' },
+  { key: 'MOVE_MEMBERS', label: 'Mover e desconectar da call', description: 'Arrastar quem está numa call para outro canal de voz ou tirar da call (só de quem está abaixo).' },
+  { key: 'MUTE_MEMBERS', label: 'Silenciar na call', description: 'Silenciar o microfone de alguém para todo mundo da call, até um moderador tirar (só de quem está abaixo).' },
+  { key: 'DEAFEN_MEMBERS', label: 'Ensurdecer na call', description: 'Fazer alguém parar de ouvir e de falar na call, até um moderador tirar (só de quem está abaixo).' },
   { key: 'VIEW_AUDIT_LOG', label: 'Ver o registro de auditoria', description: 'Ver quem baniu, expulsou, castigou ou mudou cargos, canais e configurações.' },
 ];
 

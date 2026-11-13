@@ -7662,3 +7662,25 @@ button.ov-card:hover {
 @media (max-width: 600px) {
   .apoio-qr { width: 100%; max-width: 260px; height: auto; aspect-ratio: 1; margin: 0 auto; }
 }
+
+/* ---------- moderação de voz (mover, silenciar, ensurdecer, tirar da call) ---------- */
+.voice-participant { position: relative; border-radius: 6px; }
+.voice-participant[draggable='true'] { cursor: grab; }
+.voice-participant[draggable='true']:active { cursor: grabbing; }
+.voice-participant:hover, .voice-participant.menu-open { background: var(--bg-hover, rgba(255, 255, 255, .05)); }
+.icon-btn.tiny { width: 20px; height: 20px; padding: 0; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; }
+.vp-more { opacity: 0; }
+.voice-participant:hover .vp-more, .voice-participant.menu-open .vp-more, .vp-more:focus-visible { opacity: 1; }
+@media (hover: none) { .vp-more { opacity: 1; } }
+.danger-icon.server-mod { color: #ff7a45; }
+.vp-menu { position: absolute; z-index: 60; right: 4px; top: calc(100% + 2px); min-width: 210px; padding: 6px; border-radius: 10px;
+  background: var(--bg-1, #1b1d23); border: 1px solid var(--border, rgba(255, 255, 255, .1)); box-shadow: 0 12px 30px rgba(0, 0, 0, .45);
+  display: flex; flex-direction: column; gap: 2px; }
+.vp-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none;
+  color: var(--text-1, #e6e8ec); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.vp-menu button:hover, .vp-menu button:focus-visible { background: var(--accent-soft, rgba(61, 220, 151, .14)); }
+.vp-menu button.danger { color: var(--danger, #f04747); }
+.vp-menu button.muted { color: var(--text-3, #9aa0a6); }
+.vp-menu-title { padding: 6px 10px 4px; font-size: 12px; font-weight: 800; color: var(--text-3, #9aa0a6); }
+.vp-menu-empty { padding: 6px 10px; font-size: 13px; color: var(--text-3, #9aa0a6); }
+.channel-main.move-target { outline: 2px dashed var(--accent, #3ddc97); outline-offset: -2px; background: var(--accent-soft, rgba(61, 220, 151, .14)); }

@@ -293,6 +293,10 @@ export interface VoiceState {
    * com a voz da call junto; tab = só uma aba do navegador; none = sem som. Sem o campo: app antigo.
    */
   screenAudioMode?: ScreenAudioMode;
+  /** silenciado por um moderador do servidor (ninguém ouve o microfone até tirarem) */
+  serverMuted?: boolean;
+  /** ensurdecido por um moderador do servidor (não ouve nem fala até tirarem) */
+  serverDeafened?: boolean;
 }
 export type ScreenAudioMode = 'clean' | 'system' | 'tab' | 'none';
 
@@ -372,7 +376,13 @@ export type AuditAction =
   | 'event_delete'
   | 'expression_create'
   | 'expression_update'
-  | 'expression_delete';
+  | 'expression_delete'
+  | 'voice_move'
+  | 'voice_disconnect'
+  | 'voice_mute'
+  | 'voice_unmute'
+  | 'voice_deafen'
+  | 'voice_undeafen';
 
 export interface AuditEntry {
   id: string;

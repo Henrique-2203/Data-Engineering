@@ -152,6 +152,18 @@ function describe(e: AuditEntry): { icon: string; text: string; extra?: string }
       return { icon: '😀', text: `renomeou ${KIND[d.kind] ?? ''} "${d.name?.[0]}" para "${d.name?.[1]}"` };
     case 'expression_delete':
       return { icon: '🗑️', text: `apagou ${KIND[d.kind] ?? ''} ${t}` };
+    case 'voice_move':
+      return { icon: '🔀', text: `moveu ${t} da call`, extra: d.from || d.to ? `${d.from ?? ''} → ${d.to ?? ''}` : undefined };
+    case 'voice_disconnect':
+      return { icon: '📴', text: `tirou ${t} da call${d.from ? ` (${d.from})` : ''}` };
+    case 'voice_mute':
+      return { icon: '🔇', text: `silenciou ${t} na call` };
+    case 'voice_unmute':
+      return { icon: '🎙️', text: `tirou o silêncio de ${t}` };
+    case 'voice_deafen':
+      return { icon: '🙉', text: `ensurdeceu ${t} na call` };
+    case 'voice_undeafen':
+      return { icon: '🎧', text: `tirou o ensurdecimento de ${t}` };
     default:
       return { icon: '•', text: e.action };
   }

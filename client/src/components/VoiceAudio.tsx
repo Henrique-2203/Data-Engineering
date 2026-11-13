@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useVoice } from '../store/voice';
+import { useApp } from '../store/app';
 
 /**
  * Elementos <audio> invisíveis que tocam a voz dos participantes e o áudio das
@@ -12,17 +13,22 @@ export function VoiceAudio() {
     <div hidden>
       {Object.entries(remotes).map(([sid, r]) => (
         <span key={sid}>
-          {r.mic && <RemoteAudio stream={r.mic} userId={r.userId} version={r.v} />}
-          {r.screen && watching[sid] && <RemoteAudio stream={r.screen} userId={r.userId} version={r.v} kind="screen" />}
+          {r.mic && <RemoteAudio stream={r.mic} userId={r.userId} version={r.v} socketId={sid} />}
+          {r.screen && watching[sid] && <RemoteAudio stream={r.screen} userId={r.userId} version={r.v} kind="screen" socketId={sid} />}
         </span>
       ))}
     </div>
   );
 }
 
-function RemoteAudio({ stream, userId, version, kind = 'mic' }: { stream: MediaStream; userId: string; version: number; kind?: 'mic' | 'screen' }) {
+function RemoteAudio({ stream, userId, version, kind = 'mic', socketId }: { stream: MediaStream; userId: string; version: number; kind?: 'mic' | 'screen'; socketId: string }) {
   const ref = useRef<HTMLAudioElement>(null);
-  const deafened = useVoice((s) => s.deafened);
+  const selfDeaf = useVoice((s) => s.deafened);
+  // moderação: quem foi silenciado pelo servidor não é ouvido (mesmo que o app dele não obedeça);
+  // e se fui eu o ensurdecido, não ouço ninguém
+  const modMuted = useApp((s) => kind === 'mic' && !!(s.voiceStates[socketId]?.serverMuted || s.voiceStates[socketId]?.serverDeafened));
+  const meDeaf = useApp((s) => !!(s.socketId && s.voiceStates[s.socketId]?.serverDeafened));
+  const deafened = selfDeaf || modMuted || meDeaf;
   // a transmissão tem o próprio volume (som do jogo/vídeo), independente da voz da pessoa
   const volume = useVoice((s) => (kind === 'screen' ? (s.settings.streamVolumes?.[userId] ?? 1) : (s.settings.volumes[userId] ?? 1)));
 
@@ -50,5 +56,5 @@ function RemoteAudio({ stream, userId, version, kind = 'mic' }: { stream: MediaS
     if (ref.current) ref.current.volume = Math.max(0, Math.min(1, volume));
   }, [volume]);
 
-  return <audio ref={ref} autoPlay playsInline data-kind={kind} />;
+  return <audio ref={ref} autoPlay playsInline data-kind={kind} data-socket={socketId} />;
 }

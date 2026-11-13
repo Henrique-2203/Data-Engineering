@@ -7,7 +7,8 @@ import { canSee, channelAudience, isTimedOut, loadChannel, memberAccess } from '
 import type { Db } from './db.ts';
 import { usableExpression } from './expressions.ts';
 import { bump } from './stats.ts';
-import { Perm, has } from '../../shared/permissions.ts';
+import { Perm, has, topRolePosition } from '../../shared/permissions.ts';
+import { audit } from './audit.ts';
 import { randomUUID } from 'node:crypto';
 import type { PublicUser, RtcSignal, VoiceState, Activity, TogetherState, CallChatMessage, ScreenAudience } from '../../shared/types.ts';
 import { checkAutomod } from './community.ts';
@@ -47,6 +48,10 @@ export class Realtime {
   private activeSockets = new Map<string, Set<string>>();
   /** socketId -> estado de voz */
   private voice = new Map<string, VoiceState>();
+  /** silenciado/ensurdecido por moderador, por servidor e pessoa ("guildId:userId"); vale até tirarem */
+  private voiceMod = new Map<string, { mute: boolean; deaf: boolean }>();
+  /** quem um moderador está movendo: pode entrar no canal de destino mesmo se ele tiver limite */
+  private moveTickets = new Map<string, { channelId: string; until: number }>();
   /** "Jogando agora": userId -> jogo (só em memória, some quando a pessoa sai) */
   private activities = new Map<string, Activity>();
   /** participantes de cada conversa direta com chamada ativa (para entregar eventos só a eles) */
@@ -273,6 +278,16 @@ export class Realtime {
 
     socket.on('voice:leave', () => this.leaveVoice(socket.id));
 
+    // moderação de voz: mover, desconectar, silenciar e ensurdecer (com permissão e hierarquia)
+    socket.on('voice:mod', (payload: unknown, ack?: Ack) => {
+      this.onVoiceMod(socket, payload)
+        .then((res) => ack?.(res))
+        .catch((err) => {
+          console.error('[voice] moderação falhou', err);
+          ack?.({ ok: false, error: 'Não foi possível fazer isso agora.' });
+        });
+    });
+
     // "Jogando agora" / "Ouvindo agora": o app de desktop informa o jogo aberto ou a música do Spotify (ou null)
     socket.on('activity:set', (payload: unknown) => {
       const p = z
@@ -495,7 +510,10 @@ export class Realtime {
       if (!full || !access || !canSee(access, full)) return { ok: false, error: 'Canal de voz não encontrado.' };
       if (isTimedOut(access)) return { ok: false, error: 'Você está de castigo neste servidor e não pode entrar em voz agora.' };
       const inChannel = [...this.voice.values()].filter((s) => s.channelId === full.id && s.userId !== user.id).length;
-      if (full.userLimit > 0 && inChannel >= full.userLimit) {
+      const ticket = this.moveTickets.get(socket.id);
+      const moved = !!ticket && ticket.channelId === full.id && ticket.until > Date.now();
+      this.moveTickets.delete(socket.id);
+      if (full.userLimit > 0 && inChannel >= full.userLimit && !moved) {
         return { ok: false, error: `Canal cheio (limite de ${full.userLimit} pessoa${full.userLimit > 1 ? "s" : ""}).` };
       }
       this.voiceAudience.set(full.id, await channelAudience(this.db, full));
@@ -524,6 +542,9 @@ export class Realtime {
       camera: false,
       screen: false,
     };
+    const mod = state.guildId ? this.voiceMod.get(`${state.guildId}:${user.id}`) : undefined;
+    if (mod?.mute) state.serverMuted = true;
+    if (mod?.deaf) state.serverDeafened = true;
     this.voice.set(socket.id, state);
     bump('voice_join');
     socket.join(`voice:${state.channelId}`);
@@ -766,6 +787,71 @@ export class Realtime {
     if (list[i].userId !== (socket.data.user as PublicUser).id) return { ok: false, error: 'Você só pode apagar as suas mensagens.' };
     list.splice(i, 1);
     this.io.to(`voice:${v.channelId}`).emit('callchat:delete', { channelId: v.channelId, id: p.data.id });
+    return { ok: true };
+  }
+
+  private async onVoiceMod(socket: Socket, payload: unknown) {
+    const actor = socket.data.user as PublicUser;
+    const p = z
+      .object({
+        action: z.enum(['move', 'disconnect', 'mute', 'unmute', 'deafen', 'undeafen']),
+        socketId: z.string(),
+        channelId: z.string().optional(),
+      })
+      .safeParse(payload);
+    if (!p.success) return { ok: false, error: 'Requisição inválida.' };
+    const { action } = p.data;
+    const target = this.voice.get(p.data.socketId);
+    if (!target || !target.guildId) return { ok: false, error: 'Essa pessoa não está mais na call.' };
+    const need = action === 'move' || action === 'disconnect' ? Perm.MOVE_MEMBERS : action === 'mute' || action === 'unmute' ? Perm.MUTE_MEMBERS : Perm.DEAFEN_MEMBERS;
+    const [me, them] = await Promise.all([memberAccess(this.db, target.guildId, actor.id), memberAccess(this.db, target.guildId, target.userId)]);
+    if (!me || !has(me.perms, need)) return { ok: false, error: 'Seu cargo não tem permissão para isso neste servidor.' };
+    if (!them) return { ok: false, error: 'Essa pessoa não está mais no servidor.' };
+    // ninguém mexe em quem está no mesmo nível ou acima (o dono só mexe em si mesmo... e em todos)
+    if (target.userId !== actor.id && topRolePosition(me.ctx, actor.id, me.roleIds) <= topRolePosition(them.ctx, target.userId, them.roleIds)) {
+      return { ok: false, error: 'Você só pode fazer isso com quem tem cargo abaixo do seu.' };
+    }
+    const actorName = (await this.db.query<{ name: string }>(
+      `select coalesce(m.nick, u.display_name) as name from users u left join members m on m.user_id = u.id and m.guild_id = $2 where u.id = $1`,
+      [actor.id, target.guildId],
+    ))[0]?.name ?? actor.displayName;
+    const targetLabel = (await this.db.query<{ name: string }>('select display_name as name from users where id = $1', [target.userId]))[0]?.name ?? 'alguém';
+    const who = { type: 'user' as const, id: target.userId, label: targetLabel };
+    const from = await loadChannel(this.db, target.channelId);
+
+    if (action === 'move') {
+      const dest = p.data.channelId ? await loadChannel(this.db, p.data.channelId) : null;
+      if (!dest || dest.guildId !== target.guildId || dest.type !== 'voice') return { ok: false, error: 'Canal de voz não encontrado.' };
+      if (dest.id === target.channelId) return { ok: true };
+      if (!canSee(them, dest)) return { ok: false, error: 'Essa pessoa não tem acesso a esse canal.' };
+      if ([...this.voice.values()].filter((v) => v.channelId === dest.id).length >= config.maxVoicePeers) {
+        return { ok: false, error: `Esse canal está cheio (máximo de ${config.maxVoicePeers} pessoas).` };
+      }
+      this.moveTickets.set(target.socketId, { channelId: dest.id, until: Date.now() + 20_000 });
+      this.io.to(target.socketId).emit('voice:move', { channelId: dest.id, by: actorName });
+      await audit(this.db, target.guildId, actor.id, 'voice_move', who, { from: from?.name ?? '', to: dest.name });
+      return { ok: true };
+    }
+    if (action === 'disconnect') {
+      this.kickFromVoice(target.socketId, `${actorName} tirou você da call.`);
+      await audit(this.db, target.guildId, actor.id, 'voice_disconnect', who, { from: from?.name ?? '' });
+      return { ok: true };
+    }
+    const key = `${target.guildId}:${target.userId}`;
+    const cur = this.voiceMod.get(key) ?? { mute: false, deaf: false };
+    if (action === 'mute' || action === 'unmute') cur.mute = action === 'mute';
+    else cur.deaf = action === 'deafen';
+    if (cur.mute || cur.deaf) this.voiceMod.set(key, cur);
+    else this.voiceMod.delete(key);
+    // vale em qualquer aparelho dessa pessoa nesse servidor
+    for (const v of this.voice.values()) {
+      if (v.guildId !== target.guildId || v.userId !== target.userId) continue;
+      v.serverMuted = cur.mute || undefined;
+      v.serverDeafened = cur.deaf || undefined;
+      this.emitVoice(v, 'voice:state', v);
+      this.io.to(v.socketId).emit('voice:server-mod', { muted: cur.mute, deafened: cur.deaf, action, by: actorName });
+    }
+    await audit(this.db, target.guildId, actor.id, `voice_${action}` as 'voice_mute', who, { channel: from?.name ?? '' });
     return { ok: true };
   }
 

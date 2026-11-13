@@ -22,6 +22,7 @@ import {
   Video,
   VideoOff,
   Volume2,
+  MoreHorizontal,
 } from 'lucide-react';
 import type { Channel, VoiceState } from '../../../shared/types';
 import { api } from '../lib/api';
@@ -31,6 +32,7 @@ import { refreshGuild } from '../lib/socket';
 import { presenceLine } from '../lib/presence';
 import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
+import { MOVE_DRAG_TYPE, voiceMod, voiceModRights } from '../voice/moderation';
 import { SoundboardButton } from './Soundboard';
 import { canShareScreen } from '../voice/settings';
 import { Avatar } from './Avatar';
@@ -345,6 +347,7 @@ function VoiceChannelItem({ channel, canEdit, drag }: { channel: Channel; canEdi
   const participants = Object.values(allStates).filter((v) => v.channelId === channel.id);
   const myChannel = useVoice((s) => s.channelId);
   const limit = channel.userLimit ?? 0;
+  const [dropMove, setDropMove] = useState(false);
 
   return (
     <>
@@ -353,10 +356,27 @@ function VoiceChannelItem({ channel, canEdit, drag }: { channel: Channel; canEdi
         {...dragAttrs(drag)}
       >
         <button
-          className="channel-main"
+          className={`channel-main${dropMove ? ' move-target' : ''}`}
           onClick={() => {
             selectChannel(channel.id);
             void voice.join(channel.id);
+          }}
+          // moderador arrastando alguém da call para este canal
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes(MOVE_DRAG_TYPE)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'move';
+            setDropMove(true);
+          }}
+          onDragLeave={() => setDropMove(false)}
+          onDrop={(e) => {
+            const sid = e.dataTransfer.getData(MOVE_DRAG_TYPE);
+            setDropMove(false);
+            if (!sid) return;
+            e.preventDefault();
+            e.stopPropagation();
+            void voiceMod('move', sid, channel.id);
           }}
         >
           {channel.allowedRoleIds ? <HashLock voice /> : <Volume2 size={18} className="channel-icon" />}
@@ -389,18 +409,116 @@ function VoiceParticipant({ state }: { state: VoiceState }) {
   const mySocket = useApp((s) => s.socketId);
   const speaking = useVoice((s) => (state.socketId === mySocket ? s.speaking.me : s.speaking[state.socketId]));
   const nameColor = useApp((s) => memberColor(s.guilds[state.guildId], state.userId, 'inherit'));
+  // seletores devolvem valores estáveis (o servidor e o meu id); o cálculo fica fora deles
+  const guild = useApp((s) => s.guilds[state.guildId]);
+  const meId = useApp((s) => s.me?.id);
+  const rights = voiceModRights(guild, meId, state);
+  const [menu, setMenu] = useState(false);
+  const silenced = state.serverMuted || state.serverDeafened;
   return (
-    <li className="voice-participant">
-      <Avatar user={user} size={22} speaking={!!speaking && !state.muted} />
+    <li
+      className={`voice-participant${menu ? ' menu-open' : ''}`}
+      draggable={rights.move}
+      onDragStart={(e) => {
+        if (!rights.move) return;
+        e.dataTransfer.setData(MOVE_DRAG_TYPE, state.socketId);
+        e.dataTransfer.effectAllowed = 'move';
+        e.stopPropagation();
+      }}
+      onContextMenu={(e) => {
+        if (!rights.any) return;
+        e.preventDefault();
+        setMenu(true);
+      }}
+      title={rights.move ? 'Arraste para outro canal de voz para mover' : undefined}
+    >
+      <Avatar user={user} size={22} speaking={!!speaking && !state.muted && !silenced} />
       <span className="ellipsis" style={{ color: nameColor }}>
         {user?.displayName ?? 'Alguém'}
       </span>
       <span className="vp-icons">
         {state.screen && <span className="live-badge">AO VIVO</span>}
         {state.camera && <Video size={14} />}
-        {state.deafened ? <HeadphoneOff size={14} className="danger-icon" /> : state.muted && <MicOff size={14} className="danger-icon" />}
+        {state.serverDeafened ? (
+          <HeadphoneOff size={14} className="danger-icon server-mod" aria-label="Ensurdecido por um moderador">
+            <title>Ensurdecido por um moderador</title>
+          </HeadphoneOff>
+        ) : state.serverMuted ? (
+          <MicOff size={14} className="danger-icon server-mod" aria-label="Silenciado por um moderador">
+            <title>Silenciado por um moderador</title>
+          </MicOff>
+        ) : state.deafened ? (
+          <HeadphoneOff size={14} className="danger-icon" />
+        ) : (
+          state.muted && <MicOff size={14} className="danger-icon" />
+        )}
+        {rights.any && (
+          <button className="icon-btn tiny vp-more" aria-label={`Moderar ${user?.displayName ?? 'pessoa'} na call`} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+            <MoreHorizontal size={14} />
+          </button>
+        )}
       </span>
+      {menu && <VoiceModMenu state={state} rights={rights} name={user?.displayName ?? 'essa pessoa'} onClose={() => setMenu(false)} />}
     </li>
+  );
+}
+
+function VoiceModMenu({ state, rights, name, onClose }: { state: VoiceState; rights: ReturnType<typeof voiceModRights>; name: string; onClose(): void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const allChannels = useApp((s) => s.guilds[state.guildId]?.channels);
+  const channels = (allChannels ?? []).filter((c) => c.type === 'voice' && c.id !== state.channelId);
+  const [moving, setMoving] = useState(false);
+  useEffect(() => {
+    const off = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && onClose();
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    setTimeout(() => document.addEventListener('mousedown', off), 0);
+    document.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('mousedown', off);
+      document.removeEventListener('keydown', key);
+    };
+  }, [onClose]);
+  const run = (action: Parameters<typeof voiceMod>[0], channelId?: string) => {
+    onClose();
+    void voiceMod(action, state.socketId, channelId);
+  };
+  return (
+    <div className="vp-menu" role="menu" aria-label={`Moderar ${name} na call`} ref={ref}>
+      {rights.move &&
+        (moving ? (
+          <>
+            <div className="vp-menu-title">Mover {name} para:</div>
+            {channels.length === 0 && <div className="vp-menu-empty">Não há outro canal de voz.</div>}
+            {channels.map((c) => (
+              <button key={c.id} role="menuitem" onClick={() => run('move', c.id)}>
+                <Volume2 size={14} /> {c.name}
+              </button>
+            ))}
+            <button role="menuitem" className="muted" onClick={() => setMoving(false)}>
+              ← Voltar
+            </button>
+          </>
+        ) : (
+          <button role="menuitem" onClick={() => setMoving(true)}>
+            🔀 Mover para outro canal…
+          </button>
+        ))}
+      {!moving && rights.mute && (
+        <button role="menuitem" onClick={() => run(state.serverMuted ? 'unmute' : 'mute')}>
+          {state.serverMuted ? '🎙️ Tirar o silêncio' : '🔇 Silenciar na call'}
+        </button>
+      )}
+      {!moving && rights.deafen && (
+        <button role="menuitem" onClick={() => run(state.serverDeafened ? 'undeafen' : 'deafen')}>
+          {state.serverDeafened ? '🎧 Tirar o ensurdecimento' : '🙉 Ensurdecer na call'}
+        </button>
+      )}
+      {!moving && rights.move && (
+        <button role="menuitem" className="danger" onClick={() => run('disconnect')}>
+          📴 Tirar da call
+        </button>
+      )}
+    </div>
   );
 }
 
