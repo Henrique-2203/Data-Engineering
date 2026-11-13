@@ -174,7 +174,7 @@ BACKUP_KEY='sua frase' DATABASE_URL='postgres://...banco-novo...' npx tsx server
 Barra robôs no cadastro, no "esqueci a senha" e no login depois de 3 senhas erradas, sem "clique nos semáforos".
 
 1. No painel da Cloudflare: **Application security → Turnstile → Add widget**.
-2. Nome `resenha`, em **Hostnames** adicione o endereço do site (ex.: `resenha-m2bt.onrender.com`), modo **Managed**.
+2. Nome `resenha`, em **Hostnames** adicione os endereços do site (ex.: `resenhabr.com.br`, `www.resenhabr.com.br` e `resenha-m2bt.onrender.com`, que o app de Windows ainda usa), modo **Managed**.
 3. Copie a **Site Key** e a **Secret Key** para `TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY` no Render.
 
 ### 7. E-mails de segurança (Brevo, 300 por dia grátis)
