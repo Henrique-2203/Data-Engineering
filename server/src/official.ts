@@ -152,8 +152,8 @@ export function registerOfficialRoutes(r: Router, db: Db, rt: Realtime, auth: Re
       // mensagens iniciais: as regras e o "bem-vindo" nos avisos
       const post = (channelId: string, content: string) =>
         db.query('insert into messages (id, channel_id, author_id, content) values ($1, $2, $3, $4)', [randomUUID(), channelId, me, content]);
-      await post(rulesCh, `📜 **Regras do ${body.name}**\n\n${RULES}`);
-      await post(news, `👋 Bem-vindo(a) ao **${body.name}**! Aqui a equipe posta as novidades do Resenha. Para conversar, use o #geral; para chamar galera pra jogar, o #procurando-grupo.`);
+      await post(rulesCh, `📜 Regras do ${body.name}\n\n${RULES}`);
+      await post(news, `👋 Bem-vindo(a) ao ${body.name}! Aqui a equipe posta as novidades do Resenha. Para conversar, use o #geral; para chamar galera pra jogar, o #procurando-grupo.`);
       // cargo da moderação (abaixo do dono)
       const roleId = randomUUID();
       await db.query('insert into roles (id, guild_id, name, color, position, permissions) values ($1, $2, $3, $4, 1, $5)', [
