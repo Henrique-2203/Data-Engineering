@@ -110,13 +110,13 @@ export async function sendEmail(m: Mail): Promise<boolean> {
         ? await fetch('https://api.brevo.com/v3/smtp/email', {
             method: 'POST',
             headers: { 'api-key': apiKey, 'content-type': 'application/json', accept: 'application/json' },
-            body: JSON.stringify({ sender: { name: fromName, email: from }, to: [{ email: m.to }], subject: m.subject, htmlContent: html, textContent: text }),
+            body: JSON.stringify({ sender: { name: fromName, email: from }, to: [{ email: m.to }], subject: m.subject, htmlContent: html, textContent: text, ...(config.email.replyTo ? { replyTo: { email: config.email.replyTo } } : {}) }),
             signal: AbortSignal.timeout(10_000),
           })
         : await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-            body: JSON.stringify({ from: `${fromName} <${from}>`, to: [m.to], subject: m.subject, html, text }),
+            body: JSON.stringify({ from: `${fromName} <${from}>`, to: [m.to], subject: m.subject, html, text, ...(config.email.replyTo ? { reply_to: config.email.replyTo } : {}) }),
             signal: AbortSignal.timeout(10_000),
           });
     if (!res.ok) {

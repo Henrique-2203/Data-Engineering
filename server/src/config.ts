@@ -54,6 +54,8 @@ export const config = {
     apiKey: process.env.EMAIL_API_KEY || '',
     from: process.env.EMAIL_FROM || '',
     fromName: process.env.EMAIL_FROM_NAME || 'Resenha',
+    /** para onde vão as respostas aos e-mails do Resenha (ex.: suporte@resenhabr.com.br); vazio = o próprio remetente */
+    replyTo: process.env.EMAIL_REPLY_TO || '',
     outbox: process.env.EMAIL_OUTBOX || './data/outbox.jsonl',
   },
   /** Cloudflare Turnstile: captcha invisível contra robôs no cadastro, login suspeito e recuperação de senha */
