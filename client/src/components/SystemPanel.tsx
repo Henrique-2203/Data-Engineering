@@ -104,6 +104,9 @@ interface Capacity {
   embeddedDb: boolean;
 }
 
+/** 687 → "687 MB"; 1000000 → "1.000 GB" */
+const mbOrGb = (mb: number) => (mb >= 10_000 ? `${(mb / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} GB` : `${mb} MB`);
+
 /** Limites do plano (processador, memória, TURN) com aviso antes de estourar. */
 function CapacityCard() {
   const [c, setC] = useState<Capacity | null>(null);
@@ -145,10 +148,10 @@ function CapacityCard() {
         </div>
         <div className="stat-tile">
           <span className="stat-label">TURN este mês</span>
-          <strong className="stat-value">{c.turn.monthMb} MB</strong>
+          <strong className="stat-value">{mbOrGb(c.turn.monthMb)}</strong>
           {c.turn.quotaMb ? <Bar used={c.turn.monthMb} total={c.turn.quotaMb} /> : null}
           <span className="stat-note">
-            {c.turn.quotaMb ? `de ${c.turn.quotaMb} MB` : 'defina TURN_QUOTA_MB no Render com a cota do seu plano para ver a barra'}
+            {c.turn.quotaMb ? `de ${mbOrGb(c.turn.quotaMb)}` : 'defina TURN_QUOTA_MB no Render com a cota do seu plano para ver a barra'}
           </span>
           {c.turn.cloudflareLimitMb ? (
             <span className={`stat-note${c.turn.paused ? ' danger-text' : ''}`}>
