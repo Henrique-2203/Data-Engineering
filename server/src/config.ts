@@ -79,6 +79,8 @@ export const config = {
   cloudflareTurn: {
     keyId: process.env.CLOUDFLARE_TURN_KEY_ID || null,
     apiToken: process.env.CLOUDFLARE_TURN_API_TOKEN || null,
+    /** limite de segurança do mês (MB): ao chegar nele, o TURN da Cloudflare pausa até o mês virar (1.000 GB grátis; padrão 500 GB) */
+    limitMb: Number(process.env.CLOUDFLARE_TURN_LIMIT_MB) || 500_000,
   },
   clientDist: fileURLToPath(new URL('../../client/dist', import.meta.url)),
 };

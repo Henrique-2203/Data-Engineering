@@ -56,6 +56,9 @@ para a qualidade e não custa nada de servidor, mas cada pessoa envia uma cópia
 - **Provedor principal: Cloudflare Realtime** (TURN Server): **1.000 GB por mês grátis**, depois US$ 0,05 por GB.
   Variáveis no Render: `CLOUDFLARE_TURN_KEY_ID` e `CLOUDFLARE_TURN_API_TOKEN` (Cloudflare → Realtime → TURN Server →
   criar chave). Com a Cloudflare funcionando, o Metered **não** é entregue aos navegadores (só entra se a Cloudflare falhar).
+- **Limite de segurança: 500 GB por mês** (`CLOUDFLARE_TURN_LIMIT_MB`, padrão `500000`). Chegando nele, o TURN da
+  Cloudflare **pausa até o mês virar** (fica só o Metered de reserva), para nunca passar da parte grátis. A equipe recebe
+  e-mail aos 80% (400 GB) e quando pausa; o painel Sistema mostra. Para liberar mais, aumente a variável no Render.
 - **Reserva: Metered** (`METERED_TURN_DOMAIN`, `METERED_TURN_API_KEY`), cota pequena no plano grátis.
 - Painel da equipe → Saúde mostra quantos minutos passaram pelo TURN e quantos MB no mês. A conta é uma estimativa do
   Resenha (só conta o aparelho que usa o TURN pelo próprio lado); o número oficial é o do painel do provedor.

@@ -3,6 +3,7 @@ import type { Realtime } from './realtime.ts';
 import { config } from './config.ts';
 import { storageUsage } from './access.ts';
 import { alertUser } from './account.ts';
+import { cloudflareConfigured } from './ice.ts';
 
 /**
  * Capacidade (Painel da equipe → Sistema): quanto já foi usado de cada limite do plano grátis, para
@@ -32,7 +33,7 @@ export interface Capacity {
   memory: { usedMb: number; limitMb: number };
   database: { usedMb: number; limitMb: number };
   files: { usedMb: number; limitMb: number; where: 'r2' | 'db' };
-  turn: { monthMb: number; quotaMb: number | null };
+  turn: { monthMb: number; quotaMb: number | null; cloudflareLimitMb: number | null; paused: boolean };
   live: { online: number; inVoice: number; calls: number; streaming: number };
   /** banco embutido (sem DATABASE_URL): ele roda dentro do servidor e soma no processador e na memória */
   embeddedDb: boolean;
@@ -50,7 +51,12 @@ export async function capacity(db: Db, rt: Realtime): Promise<Capacity> {
     memory: { usedMb: Math.round(process.memoryUsage().rss / 1048576), limitMb: memoryLimitMb },
     database: { usedMb: Math.round(s.databaseBytes / 1048576), limitMb: Math.round(s.databaseLimitBytes / 1048576) },
     files: { usedMb: Math.round(s.filesBytes / 1048576), limitMb: Math.round(s.filesLimitBytes / 1048576), where: s.where },
-    turn: { monthMb: Math.round(month), quotaMb: turnQuotaMb },
+    turn: {
+      monthMb: Math.round(month),
+      quotaMb: turnQuotaMb,
+      cloudflareLimitMb: cloudflareConfigured() ? config.cloudflareTurn.limitMb : null,
+      paused: cloudflareConfigured() && month >= config.cloudflareTurn.limitMb,
+    },
     live: rt.liveCounts(),
     embeddedDb: !config.databaseUrl,
   };
@@ -67,6 +73,14 @@ export function overLimits(c: Capacity): { key: string; text: string }[] {
   if (p(c.database.usedMb, c.database.limitMb) >= 0.8) out.push({ key: 'database', text: `Banco de dados: ${c.database.usedMb} MB de ${c.database.limitMb} MB.` });
   if (p(c.files.usedMb, c.files.limitMb) >= 0.8) out.push({ key: 'files', text: `Arquivos: ${c.files.usedMb} MB de ${c.files.limitMb} MB.` });
   if (c.turn.quotaMb && p(c.turn.monthMb, c.turn.quotaMb) >= 0.8) out.push({ key: 'turn', text: `TURN: ${c.turn.monthMb} MB de ${c.turn.quotaMb} MB este mês.` });
+  const gb = (mb: number) => `${(mb / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} GB`;
+  if (c.turn.cloudflareLimitMb && c.turn.paused)
+    out.push({
+      key: 'turn-paused',
+      text: `TURN da Cloudflare PAUSADO até o mês virar: chegou no limite de segurança (${gb(c.turn.monthMb)} de ${gb(c.turn.cloudflareLimitMb)}). Quem está no 4G/5G agora usa o Metered (cota pequena) e pode não conectar. Para liberar, aumente CLOUDFLARE_TURN_LIMIT_MB no Render (a Cloudflare dá 1.000 GB grátis; o que passar custa US$ 0,05 por GB).`,
+    });
+  else if (c.turn.cloudflareLimitMb && p(c.turn.monthMb, c.turn.cloudflareLimitMb) >= 0.8)
+    out.push({ key: 'turn-cf', text: `TURN da Cloudflare: ${gb(c.turn.monthMb)} de ${gb(c.turn.cloudflareLimitMb)} (limite de segurança). Ao chegar no limite, ele pausa até o mês virar.` });
   return out;
 }
 

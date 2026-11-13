@@ -98,7 +98,7 @@ function Bar({ used, total }: { used: number; total: number }) {
 interface Capacity {
   cpu: { avgPct: number; peakPct: number; limitPct: number };
   memory: { usedMb: number; limitMb: number };
-  turn: { monthMb: number; quotaMb: number | null };
+  turn: { monthMb: number; quotaMb: number | null; cloudflareLimitMb?: number | null; paused?: boolean };
   live: { online: number; inVoice: number; calls: number; streaming: number };
   warnings: string[];
   embeddedDb: boolean;
@@ -148,8 +148,15 @@ function CapacityCard() {
           <strong className="stat-value">{c.turn.monthMb} MB</strong>
           {c.turn.quotaMb ? <Bar used={c.turn.monthMb} total={c.turn.quotaMb} /> : null}
           <span className="stat-note">
-            {c.turn.quotaMb ? `de ${c.turn.quotaMb} MB` : 'defina TURN_QUOTA_MB no Render com a cota do seu plano Metered para ver a barra'}
+            {c.turn.quotaMb ? `de ${c.turn.quotaMb} MB` : 'defina TURN_QUOTA_MB no Render com a cota do seu plano para ver a barra'}
           </span>
+          {c.turn.cloudflareLimitMb ? (
+            <span className={`stat-note${c.turn.paused ? ' danger-text' : ''}`}>
+              {c.turn.paused
+                ? `⏸️ TURN da Cloudflare pausado até o mês virar (limite de segurança de ${Math.round(c.turn.cloudflareLimitMb / 1000)} GB)`
+                : `Limite de segurança da Cloudflare: ${Math.round(c.turn.cloudflareLimitMb / 1000)} GB (pausa ao chegar, sem cobrança)`}
+            </span>
+          ) : null}
         </div>
         <div className="stat-tile">
           <span className="stat-label">Conectados agora</span>

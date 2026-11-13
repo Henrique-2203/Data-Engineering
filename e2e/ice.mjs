@@ -34,7 +34,7 @@ const cf = createServer((req, res) => {
 }).listen(0);
 await new Promise((r) => cf.once('listening', r));
 
-async function run(port, failing) {
+async function run(port, failing, extraEnv = {}, before = async () => {}) {
   failCf = failing;
   const logs = [];
   const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], {
@@ -47,6 +47,8 @@ async function run(port, failing) {
       CLOUDFLARE_TURN_API_BASE: `http://localhost:${cf.address().port}`,
       METERED_TURN_DOMAIN: 'teste-inexistente.invalid',
       METERED_TURN_API_KEY: 'x',
+      PLATFORM_ADMINS: 'ana',
+      ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -61,9 +63,11 @@ async function run(port, failing) {
       await sleep(500);
     }
     const reg = await (await fetch(`${BASE}/api/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'ana', password: 'Cor-Forte-Xis-42', displayName: 'Ana', acceptTerms: true }) })).json();
+    await before(BASE, reg.token);
     const ice = await (await fetch(`${BASE}/api/ice`, { headers: { authorization: `Bearer ${reg.token}` } })).json();
+    const cap = await (await fetch(`${BASE}/api/admin/capacity`, { headers: { authorization: `Bearer ${reg.token}` } })).json();
     await sleep(300);
-    return { ice, logs: logs.join('') };
+    return { ice, cap, logs: logs.join('') };
   } finally {
     server.kill();
   }
@@ -84,6 +88,24 @@ try {
   assert(!urls2.some((u) => u.includes('cloudflare.com') && u.startsWith('turn')), 'Cloudflare fora do ar: sem TURN dela');
   assert(/falha ao gerar credenciais TURN da Cloudflare/.test(bad.logs) && /Metered/.test(bad.logs), 'Cloudflare falhou: tentou o Metered como reserva');
   step('se a Cloudflare falhar, o Resenha tenta o Metered como reserva');
+  // limite de segurança: o mês já passou do limite (aqui 50 MB) -> Cloudflare pausa, Metered entra
+  const capped = await run(3197, false, { CLOUDFLARE_TURN_LIMIT_MB: '50' }, async (BASE, token) => {
+    const r = await fetch(`${BASE}/api/telemetry/call-health`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ metrics: { turn_mb: { sum: 60, count: 1 } } }) });
+    assert(r.ok, 'uso de TURN registrado');
+  });
+  const urls3 = capped.ice.iceServers.flatMap((s) => [s.urls].flat());
+  assert(!urls3.some((u) => u.includes('cloudflare.com') && u.startsWith('turn')), `passou do limite: sem TURN da Cloudflare (${urls3.join(', ')})`);
+  assert(/Metered/.test(capped.logs), 'passou do limite: tenta o Metered');
+  const capTurn = capped.cap.capacity?.turn ?? capped.cap.turn;
+  assert(capTurn?.paused === true && capTurn.cloudflareLimitMb === 50, `painel mostra "pausado" (${JSON.stringify(capTurn)})`);
+  // abaixo do limite (padrão 500 GB): segue normal
+  const under = await run(3198, false, {}, async (BASE, token) => {
+    await fetch(`${BASE}/api/telemetry/call-health`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify({ metrics: { turn_mb: { sum: 60, count: 1 } } }) });
+  });
+  const capTurn2 = under.cap.capacity?.turn ?? under.cap.turn;
+  assert(under.ice.iceServers.some((s) => [s.urls].flat().some((u) => u.startsWith('turn:turn.cloudflare.com'))) && capTurn2?.paused === false && capTurn2.cloudflareLimitMb === 500000, 'abaixo do limite de 500 GB segue com a Cloudflare');
+  step('limite de segurança: passou do limite do mês, o TURN da Cloudflare pausa (Metered de reserva) e o painel mostra; abaixo de 500 GB, segue normal');
+
   console.log('\nTUDO CERTO (TURN)');
 } catch (err) {
   console.error(err);

@@ -511,7 +511,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerStatsRoutes(r, db, auth);
   registerSystemRoutes(r, db, auth);
 
-  r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers(), hasTurn: hasTurn() })));
+  r.get('/ice', auth, wrap(async () => ({ iceServers: await getIceServers(db), hasTurn: hasTurn() })));
 
   // Mensagens
   r.get(

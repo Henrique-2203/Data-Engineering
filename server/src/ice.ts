@@ -1,4 +1,5 @@
 import { config } from './config.ts';
+import type { Db } from './db.ts';
 
 export interface IceServer {
   urls: string | string[];
@@ -80,8 +81,30 @@ if (!hasTurn()) {
  * Cloudflare não estiver configurada ou falhar: se os dois fossem juntos, o navegador poderia escolher
  * o Metered e gastar a cota dele à toa.
  */
-export async function getIceServers(): Promise<IceServer[]> {
-  const cloudflare = await cloudflareServers();
+/** TURN usado no mês (MB, estimado pelos aparelhos; ver client/src/lib/health.ts), guardado por 5 min */
+let monthCache: { mb: number; at: number } | null = null;
+export async function turnMonthMb(db: Db, fresh = false): Promise<number> {
+  if (!fresh && monthCache && Date.now() - monthCache.at < 5 * 60_000) return monthCache.mb;
+  const [{ month }] = await db.query<{ month: number }>(
+    `select coalesce(sum(sum), 0)::float as month from call_health
+     where metric = 'turn_mb' and date_trunc('month', day) = date_trunc('month', (now() at time zone 'America/Sao_Paulo')::date)`,
+  );
+  monthCache = { mb: month, at: Date.now() };
+  return month;
+}
+export const cloudflareConfigured = () => !!(config.cloudflareTurn.keyId && config.cloudflareTurn.apiToken);
+
+/**
+ * Limite de segurança: a Cloudflare dá 1.000 GB por mês e cobra o que passar. Chegando no limite
+ * (CLOUDFLARE_TURN_LIMIT_MB, padrão 500 GB, metade da parte grátis para sobrar folga para o erro da
+ * estimativa), o TURN da Cloudflare pausa até o mês virar e entra só o Metered (reserva).
+ */
+export async function cloudflarePaused(db: Db, fresh = false) {
+  return cloudflareConfigured() && (await turnMonthMb(db, fresh)) >= config.cloudflareTurn.limitMb;
+}
+
+export async function getIceServers(db: Db): Promise<IceServer[]> {
+  const cloudflare = (await cloudflarePaused(db)) ? [] : await cloudflareServers();
   const metered = cloudflare.length ? [] : await meteredServers();
   const servers = [...STUN, ...cloudflare, ...metered];
   const { urls, username, credential } = config.turn;
