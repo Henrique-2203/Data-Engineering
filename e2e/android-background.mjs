@@ -44,6 +44,8 @@ try {
     await ctx.addInitScript((t) => {
       localStorage.setItem('resenha.token', t);
       localStorage.setItem('resenha.voiceSettings', JSON.stringify({ noiseMode: 'gtcrn', inputMode: 'voice', vadThresholdDb: -5 }));
+      // celular de 4 GB, como o Infinix Smart 8 Pro
+      if (/Android/.test(navigator.userAgent)) Object.defineProperty(navigator, 'deviceMemory', { get: () => 4, configurable: true });
       // deixa o teste "tirar a página da tela" como o iOS faz
       let vis = 'visible';
       Object.defineProperty(document, 'visibilityState', { get: () => vis, configurable: true });
@@ -62,6 +64,8 @@ try {
     return page;
   };
   const pa = await open(ana.token, true);
+  await pa.getByText('Neste celular usamos a supressão de ruído Leve').waitFor({ timeout: 8000 });
+  step('celular Android de 4 GB: usa a supressão Leve no lugar da Forte (que deixaria a voz robótica)');
   const pb = await open(bia.token, false);
   await sleep(2500);
   const state = () =>

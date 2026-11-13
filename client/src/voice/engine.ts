@@ -77,6 +77,7 @@ async function safetyCode(a: string, b: string) {
 
 /** iPhone/iPad (o iPadOS se apresenta como Mac, mas tem tela de toque) */
 const isAndroid = () => /Android/i.test(navigator.userAgent);
+const weakAndroid = () => isAndroid() && ((navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8) <= 4;
 const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 
 class VoiceEngine {
@@ -499,6 +500,7 @@ class VoiceEngine {
   /** filtro de ruído por IA ligado no microfone (null = sem filtro de IA) */
   private denoiser: Denoiser | null = null;
   private denoiseWarned = false;
+  private weakWarned = false;
   /**
    * Este aparelho não deu conta do filtro (o áudio ficou atrasado = voz picotada/robótica para os
    * outros): até recarregar a página usamos um mais leve. 'rnnoise' = no lugar do Forte; 'browser' = sem IA.
@@ -512,6 +514,16 @@ class VoiceEngine {
   /** o filtro de ruído escolhido, já descontando o que este aparelho mostrou que não aguenta */
   private effectiveNoise(): NoiseMode {
     const want = getV().settings.noiseMode;
+    // celular Android fraco (até 4 GB): o Forte pesa demais e a voz sai picotada/robótica, mesmo quando a
+    // medição de atraso não acusa (o processador "engasga" em picos). Usa o Leve, que soa quase igual.
+    if (want === 'gtcrn' && this.noiseCap !== 'browser' && weakAndroid()) {
+      if (!this.weakWarned) {
+        this.weakWarned = true;
+        this.dbg('Android fraco: supressão Forte -> Leve');
+        toast('Neste celular usamos a supressão de ruído Leve: a Forte pesa demais e deixaria sua voz robótica.');
+      }
+      return 'rnnoise';
+    }
     if (this.noiseCap === 'browser' && (want === 'gtcrn' || want === 'rnnoise')) return 'browser';
     if (this.noiseCap === 'rnnoise' && want === 'gtcrn') return 'rnnoise';
     return want;
