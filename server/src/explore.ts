@@ -10,7 +10,7 @@ import { audit, userLabel } from './audit.ts';
 import { loadGuild } from './guilds.ts';
 import { LISTED_SQL, isListed, officialGuildId } from './listing.ts';
 import { limit } from './security.ts';
-import { GUILD_CATEGORIES } from '../../shared/explore.ts';
+import { GUILD_CATEGORIES, listingMissing } from '../../shared/explore.ts';
 import type { ExploreGuild, Member } from '../../shared/types.ts';
 
 /**
@@ -28,7 +28,11 @@ export function registerExploreRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
     auth,
     wrap(async (req) => {
       const q = parse(
-        z.object({ q: z.string().trim().max(50).default(''), category: z.enum(GUILD_CATEGORIES).or(z.literal('')).default('') }),
+        z.object({
+          q: z.string().trim().max(50).default(''),
+          category: z.enum(GUILD_CATEGORIES).or(z.literal('')).default(''),
+          sort: z.enum(['members', 'new']).default('members'),
+        }),
         req.query,
       );
       const official = await officialGuildId(db);
@@ -41,11 +45,16 @@ export function registerExploreRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
          where (g.id = $1 or (${LISTED_SQL}))
            and ($3 = '' or g.name ilike '%' || $3 || '%' or g.description ilike '%' || $3 || '%')
            and ($4 = '' or g.category = $4 or g.id = $1)
-         order by (g.id = $1) desc, members desc, g.created_at
-         limit 60`,
+         order by (g.id = $1) desc, ${q.sort === 'new' ? 'g.created_at desc' : 'members desc, g.created_at'}
+         limit 120`,
         [official ?? '', req.user!.id, q.q, q.category],
       );
-      return { guilds: rows };
+      // quantos servidores em cada categoria (para os filtros)
+      const counts = await db.query<{ category: string; n: number }>(
+        `select g.category, count(*)::int as n from guilds g where (${LISTED_SQL}) and g.id <> $1 group by g.category`,
+        [official ?? ''],
+      );
+      return { guilds: rows, counts: Object.fromEntries(counts.map((c) => [c.category, c.n])) };
     }),
   );
 
@@ -82,15 +91,16 @@ export function registerExploreRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
     auth,
     wrap(async (req) => {
       requireAdmin(req.user!.username);
-      return {
-        guilds: await db.query(
+      const rows = await db.query<{ description: string; iconId: string | null; rules: string; rulesRequired: boolean; category: string }>(
           `select g.id, g.name, g.description, g.icon_id as "iconId", g.category, g.unlisted, (${LISTED_SQL}) as listed,
+             g.rules, g.rules_required as "rulesRequired",
              (select count(*)::int from members m where m.guild_id = g.id) as members,
              (select count(*)::int from reports r where r.guild_id = g.id and r.status = 'open') as "openReports",
              (select username from users u where u.id = g.owner_id) as owner
            from guilds g where g.public order by "openReports" desc, members desc limit 200`,
-        ),
-      };
+      );
+      // o que falta para aparecer no Explorar (as regras não vão para a tela: só o resultado)
+      return { guilds: rows.map(({ rules, ...g }) => ({ ...g, missing: listingMissing({ ...g, rules }) })) };
     }),
   );
 

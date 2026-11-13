@@ -7466,7 +7466,8 @@ html.env-staging body {
   color: var(--text-3);
   padding: 6px 10px 2px;
 }
-.admin-panel .nav-count {
+.admin-panel .nav-count,
+.explore-page .nav-count {
   margin-left: auto;
   min-width: 20px;
   padding: 1px 7px;
@@ -7732,3 +7733,27 @@ button.ov-card:hover {
 .report-context li { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 6px; }
 .report-context li.target { background: rgba(240, 77, 94, .14); border-left: 3px solid var(--danger); }
 @media (max-width: 600px) { .visibility-choice { grid-template-columns: 1fr; } }
+
+/* Explorar em tela cheia */
+.explore-page .settings-nav button { display: flex; align-items: center; gap: 8px; }
+.explore-page .settings-nav button > span { flex: 1; }
+.explore-page .settings-nav-title { display: flex; align-items: center; gap: 6px; }
+.explore-page .explore { max-width: 1180px; gap: 18px; }
+.explore-page .explore-grid { max-height: none; overflow: visible; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.explore-page .explore-banner { height: 104px; }
+.explore-hero { padding: 26px 28px; border-radius: 18px; background: linear-gradient(135deg, rgba(35, 165, 90, .22), rgba(110, 70, 200, .22)), var(--bg-2); display: flex; flex-direction: column; gap: 6px; margin-right: 56px; }
+.explore-hero h2 { font-size: 26px; margin: 0; }
+.explore-hero p { margin: 0 0 8px; }
+.explore-tools { display: flex; gap: 10px; }
+.explore-tools select { flex: none; width: auto; }
+.explore-tools .explore-search { flex: 1; min-width: 220px; }
+.explore-tools select { padding: 0 12px; border-radius: 10px; background: var(--bg-0); color: inherit; border: 1px solid var(--border, rgba(255, 255, 255, .1)); font: inherit; min-height: 42px; }
+.explore-section { font-size: 16px; margin: 6px 0 0; }
+.explore-empty { padding: 20px 0; }
+@media (max-width: 900px) {
+  .explore-hero { margin-right: 0; padding: 18px; }
+  .explore-hero h2 { font-size: 21px; }
+  .explore-tools { flex-direction: column; }
+  .explore-page .explore-grid { grid-template-columns: 1fr; }
+}
+.explore-page .nav-count { background: var(--bg-4); color: var(--text-2); }

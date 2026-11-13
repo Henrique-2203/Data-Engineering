@@ -76,6 +76,8 @@ try {
   let ex = await api('/explore', null, ana.token);
   assert(ex.guilds.length === 1 && ex.guilds[0].official, `só o oficial aparece por enquanto (${ex.guilds.map((g) => g.name)})`);
   assert((await api(`/explore/${gid}/join`, {}, ana.token)).status === 404, 'sem os requisitos, não dá para entrar sem convite');
+  const adm = (await api('/admin/public-guilds', null, equipe.token)).guilds.find((g) => g.id === gid);
+  assert(!adm.listed && adm.missing.join() === 'descrição,ícone,regras com "Aceito"', `painel da equipe diz o que falta (${adm.missing})`);
   step('criar servidor público pela tela (com categoria); sem descrição/ícone/regras não aparece; privado nunca aparece');
 
   // completa os requisitos
@@ -88,6 +90,8 @@ try {
   assert((await api('/explore?q=bomb', null, ana.token)).guilds.some((g) => g.id === gid), 'busca por nome');
   assert(!(await api('/explore?category=rpg', null, ana.token)).guilds.some((g) => g.id === gid), 'filtro de categoria');
   assert((await api('/explore?category=fps', null, ana.token)).guilds.some((g) => g.id === gid), 'categoria certa');
+  assert(ex.counts.fps === 1 && !ex.counts.rpg, `contagem por categoria (${JSON.stringify(ex.counts)})`);
+  assert((await api('/admin/public-guilds', null, equipe.token)).guilds.find((g) => g.id === gid).missing.length === 0, 'nada faltando');
   step('com descrição, ícone, categoria e regras, aparece no Explorar (oficial fixo em 1º); busca e categorias funcionam');
 
   // a Ana entra pelo Explorar (bússola)
@@ -96,7 +100,16 @@ try {
   const dlg = pa.getByRole('dialog', { name: 'Explorar servidores' });
   const card = dlg.getByRole('article', { name: 'Clã do Bomb' });
   await card.waitFor();
+  await dlg.getByRole('tab', { name: /FPS/ }).getByText('1').waitFor();
+  await sleep(400);
   await pa.screenshot({ path: path.join(shots, 'explorar.png') });
+  await dlg.getByRole('tab', { name: /RPG/ }).click();
+  await dlg.getByText('Nenhum servidor público aqui ainda').waitFor();
+  await dlg.getByRole('tab', { name: /FPS/ }).click();
+  await card.waitFor();
+  await pa.setViewportSize({ width: 390, height: 800 });
+  await pa.screenshot({ path: path.join(shots, 'explorar-celular.png') });
+  await pa.setViewportSize({ width: 1280, height: 860 });
   await card.getByRole('button', { name: 'Entrar' }).click();
   await pa.getByText('Você entrou no Clã do Bomb!').waitFor();
   await pa.getByText('leia as regras e clique em').waitFor();
@@ -144,6 +157,8 @@ try {
   assert((await api(`/guilds/${gid}`, null, dono.token)).guild.unlisted, 'o dono vê que foi tirado');
   // e devolve pelo painel de servidores públicos
   await pe.getByRole('tab', { name: /Servidores públicos/ }).click();
+  await pe.getByText('tirado da lista').waitFor();
+  await pe.screenshot({ path: path.join(shots, 'explorar-painel.png') });
   await pe.getByRole('button', { name: 'Devolver ao Explorar' }).click();
   await pe.getByText('Voltou para o Explorar.').waitFor();
   assert((await api('/explore', null, bia.token)).guilds.some((g) => g.id === gid), 'voltou para a lista');

@@ -1,29 +1,42 @@
 import { useEffect, useState } from 'react';
-import { Flag, Search, Users } from 'lucide-react';
+import { Compass, Flag, Search, Users, X } from 'lucide-react';
 import type { ExploreGuild, Guild, VoiceState } from '../../../shared/types';
 import { CATEGORY_LABEL, GUILD_CATEGORIES, listingMissing, type GuildCategory } from '../../../shared/explore';
 import { api } from '../lib/api';
 import { imageUrl } from '../lib/perms';
 import { closeModal, openModal, selectGuild, toast, upsertGuild, useApp } from '../store/app';
-import { Modal } from './Modals';
 
 /**
  * Explorar servidores (públicos), a aba "Comunidade" das configurações do servidor e a lista da equipe.
  * Para aparecer no Explorar: público, com descrição, ícone, categoria e regras com "Aceito".
  */
 
+/** Explorar servidores: página em tela cheia, com categorias à esquerda, busca e ordem. */
 export function ExploreModal() {
   const [q, setQ] = useState('');
   const [category, setCategory] = useState<GuildCategory | ''>('');
+  const [sort, setSort] = useState<'members' | 'new'>('members');
   const [list, setList] = useState<ExploreGuild[] | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [joining, setJoining] = useState<string | null>(null);
   useEffect(() => {
     const t = setTimeout(() => {
-      const p = new URLSearchParams({ q, category });
-      void api<{ guilds: ExploreGuild[] }>(`/explore?${p}`).then((r) => setList(r.guilds), (e) => toast(e.message));
-    }, 250);
+      const p = new URLSearchParams({ q, category, sort });
+      void api<{ guilds: ExploreGuild[]; counts: Record<string, number> }>(`/explore?${p}`).then(
+        (r) => {
+          setList(r.guilds);
+          setCounts(r.counts ?? {});
+        },
+        (e) => toast(e.message),
+      );
+    }, q ? 250 : 0);
     return () => clearTimeout(t);
-  }, [q, category]);
+  }, [q, category, sort]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('.modal-backdrop') && closeModal();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   async function join(g: ExploreGuild) {
     if (g.isMember) {
@@ -46,68 +59,119 @@ export function ExploreModal() {
     }
   }
 
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const official = list?.filter((g) => g.official) ?? [];
+  const others = list?.filter((g) => !g.official) ?? [];
+  const title = category ? CATEGORY_LABEL[category] : 'Todos os servidores';
   return (
-    <Modal title="Explorar servidores" wide>
-      <div className="explore">
-        <label className="explore-search">
-          <Search size={16} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar servidores por nome ou assunto" aria-label="Buscar servidores" />
-        </label>
-        <div className="explore-cats" role="tablist" aria-label="Categorias">
-          <button role="tab" aria-selected={category === ''} className={category === '' ? 'on' : ''} onClick={() => setCategory('')}>
-            Todos
-          </button>
-          {GUILD_CATEGORIES.map((c) => (
-            <button key={c} role="tab" aria-selected={category === c} className={category === c ? 'on' : ''} onClick={() => setCategory(c)}>
-              {CATEGORY_LABEL[c]}
-            </button>
-          ))}
+    <div className="settings-page explore-page" role="dialog" aria-modal="true" aria-label="Explorar servidores">
+      <nav className="settings-nav" aria-label="Categorias" role="tablist">
+        <div className="settings-nav-title">
+          <Compass size={14} /> Explorar
         </div>
-        {!list ? (
-          <p className="muted">Carregando…</p>
-        ) : list.length === 0 ? (
-          <p className="muted">Nenhum servidor público encontrado{q ? ` para "${q}"` : ''}.</p>
-        ) : (
-          <div className="explore-grid">
-            {list.map((g) => (
-              <article key={g.id} className={`explore-card${g.official ? ' official' : ''}`} aria-label={g.name}>
-                <div className="explore-banner" style={g.bannerId ? { backgroundImage: `url(${imageUrl(g.bannerId)})` } : undefined} />
-                <div className="explore-body">
-                  <div className="explore-title">
-                    {g.iconId ? <img src={imageUrl(g.iconId)!} alt="" className="explore-icon" /> : <span className="explore-icon">{g.name.slice(0, 2).toUpperCase()}</span>}
-                    <div className="explore-name">
-                      <strong>{g.name}</strong>
-                      <span className="muted small">
-                        {g.official ? '✓ Oficial do Resenha' : g.category ? CATEGORY_LABEL[g.category as GuildCategory] : ''}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="explore-desc">{g.description}</p>
-                  <div className="explore-foot">
-                    <span className="muted small">
-                      <Users size={13} /> {g.members.toLocaleString('pt-BR')} membro{g.members === 1 ? '' : 's'}
-                    </span>
-                    {!g.official && !g.isMember && (
-                      <button
-                        className="icon-btn small"
-                        aria-label={`Denunciar ${g.name}`}
-                        title="Denunciar servidor"
-                        onClick={() => openModal({ kind: 'report', target: { type: 'guild', id: g.id, label: g.name } })}
-                      >
-                        <Flag size={14} />
-                      </button>
-                    )}
-                    <button className={`btn small${g.isMember ? '' : ' primary'}`} disabled={joining === g.id} onClick={() => void join(g)}>
-                      {g.isMember ? 'Abrir' : 'Entrar'}
-                    </button>
-                  </div>
+        <button role="tab" aria-selected={category === ''} className={category === '' ? 'active' : ''} onClick={() => setCategory('')}>
+          <span>🧭 Todos</span>
+          {total > 0 && <b className="nav-count">{total}</b>}
+        </button>
+        {GUILD_CATEGORIES.map((c) => (
+          <button key={c} role="tab" aria-selected={category === c} className={category === c ? 'active' : ''} onClick={() => setCategory(c)}>
+            <span>{CATEGORY_LABEL[c]}</span>
+            {!!counts[c] && <b className="nav-count">{counts[c]}</b>}
+          </button>
+        ))}
+      </nav>
+      <section className="settings-body">
+        <button className="icon-btn settings-close" aria-label="Fechar" title="Fechar (Esc)" onClick={closeModal}>
+          <X size={22} />
+        </button>
+        <div className="explore">
+          <header className="explore-hero">
+            <h2>Encontre sua resenha</h2>
+            <p className="muted">Servidores públicos da comunidade: entre sem convite, chame galera pra jogar e faça amigos novos.</p>
+            <div className="explore-tools">
+              <label className="explore-search">
+                <Search size={16} />
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar servidores por nome ou assunto" aria-label="Buscar servidores" autoFocus />
+              </label>
+              <select value={sort} onChange={(e) => setSort(e.target.value as 'members' | 'new')} aria-label="Ordenar">
+                <option value="members">Mais membros</option>
+                <option value="new">Mais novos</option>
+              </select>
+            </div>
+          </header>
+          {!list ? (
+            <p className="muted">Carregando…</p>
+          ) : (
+            <>
+              {official.length > 0 && !q && (
+                <div className="explore-grid">
+                  {official.map((g) => (
+                    <ExploreCard key={g.id} g={g} joining={joining === g.id} onJoin={() => void join(g)} />
+                  ))}
                 </div>
-              </article>
-            ))}
+              )}
+              <h3 className="explore-section">
+                {q ? `Resultados para "${q}"` : title} <span className="muted">· {others.length}</span>
+              </h3>
+              {others.length === 0 ? (
+                <p className="muted explore-empty">
+                  {q ? 'Nenhum servidor encontrado. Tente outra palavra ou outra categoria.' : 'Nenhum servidor público aqui ainda. Que tal deixar o seu público? (Configurações do servidor → Comunidade)'}
+                </p>
+              ) : (
+                <div className="explore-grid">
+                  {others.map((g) => (
+                    <ExploreCard key={g.id} g={g} joining={joining === g.id} onJoin={() => void join(g)} />
+                  ))}
+                </div>
+              )}
+              {q && official.length > 0 && (
+                <div className="explore-grid">
+                  {official.map((g) => (
+                    <ExploreCard key={g.id} g={g} joining={joining === g.id} onJoin={() => void join(g)} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ExploreCard({ g, joining, onJoin }: { g: ExploreGuild; joining: boolean; onJoin(): void }) {
+  return (
+    <article className={`explore-card${g.official ? ' official' : ''}`} aria-label={g.name}>
+      <div className="explore-banner" style={g.bannerId ? { backgroundImage: `url(${imageUrl(g.bannerId)})` } : undefined} />
+      <div className="explore-body">
+        <div className="explore-title">
+          {g.iconId ? <img src={imageUrl(g.iconId)!} alt="" className="explore-icon" /> : <span className="explore-icon">{g.name.slice(0, 2).toUpperCase()}</span>}
+          <div className="explore-name">
+            <strong>{g.name}</strong>
+            <span className="muted small">{g.official ? '✓ Oficial do Resenha' : g.category ? CATEGORY_LABEL[g.category as GuildCategory] : ''}</span>
           </div>
-        )}
+        </div>
+        <p className="explore-desc">{g.description}</p>
+        <div className="explore-foot">
+          <span className="muted small">
+            <Users size={13} /> {g.members.toLocaleString('pt-BR')} membro{g.members === 1 ? '' : 's'}
+          </span>
+          {!g.official && !g.isMember && (
+            <button
+              className="icon-btn small"
+              aria-label={`Denunciar ${g.name}`}
+              title="Denunciar servidor"
+              onClick={() => openModal({ kind: 'report', target: { type: 'guild', id: g.id, label: g.name } })}
+            >
+              <Flag size={14} />
+            </button>
+          )}
+          <button className={`btn small${g.isMember ? '' : ' primary'}`} disabled={joining} onClick={onJoin}>
+            {g.isMember ? 'Abrir' : 'Entrar'}
+          </button>
+        </div>
       </div>
-    </Modal>
+    </article>
   );
 }
 
@@ -183,7 +247,7 @@ export function CommunitySettings({ guild }: { guild: Guild }) {
 /** Painel da equipe → Servidores públicos. */
 export function PublicGuildsAdmin() {
   const [list, setList] = useState<
-    { id: string; name: string; description: string; iconId: string | null; category: string; unlisted: boolean; listed: boolean; members: number; openReports: number; owner: string }[] | null
+    { id: string; name: string; description: string; iconId: string | null; category: string; unlisted: boolean; listed: boolean; missing: string[]; members: number; openReports: number; owner: string }[] | null
   >(null);
   const load = () => void api<{ guilds: NonNullable<typeof list> }>('/admin/public-guilds').then((r) => setList(r.guilds), (e) => toast(e.message));
   useEffect(load, []);
@@ -208,7 +272,7 @@ export function PublicGuildsAdmin() {
             <span className="muted small">
               @{g.owner} · {g.members} membro{g.members === 1 ? '' : 's'}
               {g.category ? ` · ${CATEGORY_LABEL[g.category as GuildCategory] ?? g.category}` : ''} ·{' '}
-              {g.unlisted ? 'tirado da lista' : g.listed ? 'aparecendo no Explorar' : 'ainda sem os requisitos'}
+              {g.unlisted ? 'tirado da lista' : g.listed ? '✅ aparecendo no Explorar' : `⏳ não aparece: falta ${(g.missing ?? []).join(', ')}`}
               {g.openReports ? ` · ⚠️ ${g.openReports} denúncia(s) aberta(s)` : ''}
             </span>
           </div>
