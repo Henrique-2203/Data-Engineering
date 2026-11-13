@@ -114,8 +114,18 @@ function createWindow() {
       spellcheck: true,
     },
   });
-  win.setMenuBarVisibility(false);
+  // sem barra de menu: com ela escondida, apertar Alt mostrava "File Edit View Window"
+  win.removeMenu();
   if (s.bounds?.maximized) win.maximize();
+
+  // botões "voltar"/"avançar" do mouse (e teclas de navegador): num app não existe página anterior.
+  // Antes eles voltavam para a tela de espera do início e parecia que o app tinha reiniciado.
+  win.on('app-command', (e, cmd) => {
+    if (cmd === 'browser-backward' || cmd === 'browser-forward') e.preventDefault();
+  });
+  win.webContents.on('did-finish-load', () => {
+    if (win.webContents.getURL().startsWith(APP_ORIGIN)) win.webContents.navigationHistory.clear();
+  });
 
   win.once('ready-to-show', () => {
     if (!START_HIDDEN) win.show();

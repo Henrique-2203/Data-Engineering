@@ -378,6 +378,27 @@ try {
   await win.getByRole('button', { name: 'Cancelar' }).click();
   step('cancelar o seletor volta normalmente');
 
+  // ---- sem menu (Alt não mostra "File Edit View") e sem "voltar" para a tela de espera ----
+  const nav = await app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() !== 'Resenha overlay' && !x.webContents.getURL().includes('picker'));
+    return { menu: !!w.getMenu?.(), menuBar: w.isMenuBarVisible(), canGoBack: w.webContents.navigationHistory.canGoBack() };
+  });
+  if (nav.menu || nav.menuBar || nav.canGoBack) throw new Error(`esperava sem menu e sem página anterior, veio ${JSON.stringify(nav)}`);
+  await win.keyboard.press('Alt');
+  await sleep(300);
+  const afterAlt = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((x) => x.getTitle() !== 'Resenha overlay' && !x.webContents.getURL().includes('picker')).isMenuBarVisible());
+  if (afterAlt) throw new Error('Alt mostrou a barra de menu');
+  const urlBefore = win.url();
+  await app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() !== 'Resenha overlay' && !x.webContents.getURL().includes('picker'));
+    w.emit('app-command', { preventDefault() {} }, 'browser-backward');
+    w.webContents.navigationHistory.goBack();
+  });
+  await sleep(800);
+  const stillApp = await win.evaluate(() => !!document.querySelector('.voice-panel'));
+  if (win.url() !== urlBefore || !stillApp) throw new Error(`o "voltar" saiu do app (${win.url()})`);
+  step('sem barra de menu (Alt não mostra nada) e o botão "voltar" do mouse não sai do app');
+
   // ---- fechar = continua na bandeja, e a chamada segue ----
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((x) => x.getTitle() !== 'Resenha overlay' && !x.webContents.getURL().includes('picker')).close());
   await sleep(500);
