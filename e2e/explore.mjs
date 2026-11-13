@@ -56,7 +56,7 @@ try {
     page.on('dialog', (d) => d.accept());
     await page.goto(`${BASE}/app`);
     await page.getByRole('dialog', { name: 'Novidades do Resenha' }).getByRole('button', { name: 'Entendi' }).click({ timeout: 2500 }).catch(() => {});
-    await page.getByRole('dialog', { name: /Bem-vindo\(a\)/ }).getByRole('button', { name: 'Agora não' }).click({ timeout: 2500 }).catch(() => {});
+    await page.getByRole('dialog', { name: /Bem-vindo\(a\)/ }).getByRole('button', { name: /Agora não|Depois/ }).click({ timeout: 2500 }).catch(() => {});
     return page;
   };
 

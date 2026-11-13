@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ApoioModal } from './Apoio';
 import { ExploreModal } from './Explore';
 import { CATEGORY_LABEL, GUILD_CATEGORIES } from '../../../shared/explore';
-import { OfficialWelcomeModal, RulesModal } from './Official';
+import { GuildWelcomeModal, OfficialWelcomeModal, RulesModal, afterJoin } from './Official';
 import { Copy, Share2, X } from 'lucide-react';
 import type { Channel, Guild, InvitePreview, PublicUser } from '../../../shared/types';
 import { api } from '../lib/api';
@@ -108,6 +108,8 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       return <ExploreModal />;
     case 'rules':
       return <RulesModal guildId={modal.guildId} />;
+    case 'guildWelcome':
+      return <GuildWelcomeModal guildId={modal.guildId} />;
     case 'officialWelcome':
       return <OfficialWelcomeModal guildId={modal.guildId} name={modal.name} />;
     case 'callReport':
@@ -288,6 +290,7 @@ function JoinGuild({ initialCode }: { initialCode?: string }) {
     selectGuild(guild.id);
     closeModal();
     toast(`Você entrou em ${guild.name}!`);
+    afterJoin(guild);
   });
 
   return (

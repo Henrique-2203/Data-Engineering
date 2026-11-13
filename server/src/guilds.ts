@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { GUILD_CATEGORIES } from '../../shared/explore.ts';
+import { memberJoined } from './welcome.ts';
 import { officialGuildId } from './listing.ts';
 import express, { type Router } from 'express';
 import { z } from 'zod';
@@ -67,10 +68,12 @@ export async function loadGuild(db: Db, userId: string, guildId: string): Promis
     public: boolean;
     category: string;
     unlisted: boolean;
+    welcomeText: string;
+    welcomeChannelId: string | null;
   }>(
     `select id, name, owner_id as "ownerId", invite_code as "inviteCode", description, icon_id as "iconId",
        banner_id as "bannerId", everyone_permissions as "everyonePermissions", rules, rules_required as "rulesRequired",
-       public, category, unlisted
+       public, category, unlisted, welcome_text as "welcomeText", welcome_channel_id as "welcomeChannelId"
      from guilds where id = $1`,
     [guildId],
   );
@@ -198,9 +201,23 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
           rulesRequired: z.boolean().optional(),
           public: z.boolean().optional(),
           category: z.enum(GUILD_CATEGORIES).or(z.literal('')).optional(),
+          welcomeText: z.string().trim().max(1500, 'Boas-vindas muito longas (até 1500 letras).').optional(),
+          welcomeChannelId: z.string().nullable().optional(),
         }),
         req.body,
       );
+      if (body.welcomeText !== undefined || body.welcomeChannelId !== undefined) {
+        await requirePerm(db, id, req.user!.id, Perm.MANAGE_GUILD);
+        if (body.welcomeChannelId) {
+          const [c] = await db.query(`select 1 from channels where id = $1 and guild_id = $2 and type = 'text'`, [body.welcomeChannelId, id]);
+          if (!c) throw new HttpError(400, 'Escolha um canal de texto deste servidor.');
+        }
+        await db.query(
+          `update guilds set welcome_text = coalesce($2, welcome_text),
+             welcome_channel_id = case when $3::boolean then $4 else welcome_channel_id end where id = $1`,
+          [id, body.welcomeText ?? null, body.welcomeChannelId !== undefined, body.welcomeChannelId ?? null],
+        );
+      }
       if (body.public !== undefined || body.category !== undefined) {
         await requirePerm(db, id, req.user!.id, Perm.MANAGE_GUILD);
         await db.query('update guilds set public = coalesce($2, public), category = coalesce($3, category) where id = $1', [id, body.public ?? null, body.category ?? null]);
@@ -297,11 +314,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         'insert into members (guild_id, user_id) values ($1, $2) on conflict do nothing returning joined_at',
         [g.id, me.id],
       );
-      if (inserted.length) {
-        await audit(db, g.id, me.id, 'member_join', { type: 'user', id: me.id, label: await userLabel(db, me.id) });
-        rt.userJoinedGuild(me.id, g.id);
-        await changed(g.id);
-      }
+      if (inserted.length) await memberJoined(db, rt, g.id, me.id);
       return guildResponse(me.id, g.id);
     }),
   );

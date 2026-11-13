@@ -102,6 +102,18 @@ export class Realtime {
     });
   }
 
+  /** Chamado a cada conexão (ex.: colocar no servidor oficial quem estava com o app aberto quando ele foi criado). */
+  private connectHooks: ((userId: string) => Promise<void>)[] = [];
+  onUserConnect(fn: (userId: string) => Promise<void>) {
+    this.connectHooks.push(fn);
+  }
+  /** Roda os mesmos ganchos para quem já está conectado agora. */
+  async runConnectHooksForOnline() {
+    for (const userId of [...this.online.keys()]) {
+      for (const hook of this.connectHooks) await hook(userId).catch((err) => console.warn('[realtime] hook de conexão', err));
+    }
+  }
+
   // ---------- API usada pelas rotas REST ----------
 
   emitGuild(guildId: string, event: string, payload: unknown) {
@@ -226,6 +238,7 @@ export class Realtime {
       maxVoicePeers: config.maxVoicePeers,
       activities: Object.fromEntries(this.activities),
     });
+    for (const hook of this.connectHooks) void hook(user.id).catch((err) => console.warn('[realtime] hook de conexão', err));
     // ligação tocando para mim enquanto eu estava desconectado/recarregando
     for (const [channelId, ring] of this.rings) {
       if (ring.callee === user.id) socket.emit('call:ring', { channelId, from: ring.caller });

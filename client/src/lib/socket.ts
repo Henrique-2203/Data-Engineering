@@ -10,6 +10,7 @@ import {
   setFriends,
   updateReactions,
   upsertGuild,
+  openModal,
   deleteMessage,
   patchGuild,
   removeGuild,
@@ -116,6 +117,11 @@ export function connectSocket() {
       const first = st.guilds[guildId]?.channels.find((c) => c.type === 'text');
       set({ selectedChannelId: first?.id ?? null });
     }
+  });
+  // servidor oficial criado enquanto o app estava aberto: entra agora, com o aviso
+  s.on('official:joined', ({ guild, name }: { guild: Guild; name: string }) => {
+    upsertGuild(guild);
+    if (!useApp.getState().modal) openModal({ kind: 'officialWelcome', guildId: guild.id, name });
   });
   s.on('member:join', ({ guildId, member }: { guildId: string; member: Member }) => {
     const g = useApp.getState().guilds[guildId];

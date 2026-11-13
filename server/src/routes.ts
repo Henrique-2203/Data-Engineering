@@ -39,7 +39,7 @@ import { dmMemberIds, registerSocialRoutes } from './social.ts';
 import { maxFileBytes, registerAttachmentRoutes, withFileLinks } from './attachments.ts';
 import { registerSystemRoutes } from './backup.ts';
 import { audit, registerAuditRoutes, userLabel } from './audit.ts';
-import { loadGuilds, registerGuildRoutes } from './guilds.ts';
+import { loadGuild, loadGuilds, registerGuildRoutes } from './guilds.ts';
 import { type MemberAccess, canSee, channelAudience, guildUsage, loadChannel, memberAccess, requireNotTimedOut } from './access.ts';
 import { Perm, has } from '../../shared/permissions.ts';
 import { siteVersion } from './version.ts';
@@ -56,6 +56,7 @@ import { registerSupportRoutes } from './support.ts';
 import { registerApoioRoutes } from './apoio.ts';
 import { ensureOfficialMember, registerOfficialRoutes } from './official.ts';
 import { registerExploreRoutes } from './explore.ts';
+import { configureWelcome } from './welcome.ts';
 import { registerHealthRoutes } from './health.ts';
 import { registerEmbedRoutes } from './embeds.ts';
 import { mentionedUsernames } from './mentions.ts';
@@ -160,7 +161,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   /** Mensagem completa: autor, trecho respondido, reações agrupadas por emoji e imagens. */
   const MESSAGE_SELECT = `select msg.id, msg.channel_id as "channelId", msg.content,
       msg.created_at as "createdAt", msg.edited_at as "editedAt", msg.mention_everyone as "mentionEveryone",
-      msg.pinned_at as "pinnedAt", ${POLL_SELECT} as poll,
+      msg.pinned_at as "pinnedAt", ${POLL_SELECT} as poll, msg.system,
       ${userJson('u')} as author,
       case
         when msg.reply_to_id is null then null
@@ -636,6 +637,8 @@ export function createRoutes(db: Db, rt: Realtime) {
     wrap(async (req) => {
       const m = await messageForEdit(String(req.params.id), req.user!.id);
       if (m.authorId !== req.user!.id) throw new HttpError(403, 'Você só pode editar suas mensagens.');
+      const [sys] = await db.query('select 1 from messages where id = $1 and system is not null', [m.id]);
+      if (sys) throw new HttpError(400, 'Aviso automático não pode ser editado.');
       const body = parse(z.object({ content: z.string().trim().max(4000) }), req.body);
       if (m.channel.access) {
         await checkAutomod(db, {
@@ -727,6 +730,15 @@ export function createRoutes(db: Db, rt: Realtime) {
   );
 
   registerCommunityRoutes(r, db, rt, auth, { channelForMember, emitToChannel, messageSelect: MESSAGE_SELECT });
+  configureWelcome({ emitToChannel, messageSelect: MESSAGE_SELECT });
+  // quem estava com o app aberto (sem recarregar) quando o servidor oficial foi criado também entra:
+  // a cada conexão (inclusive a reconexão depois de uma atualização do site) confere de novo
+  rt.onUserConnect(async (userId) => {
+    const joined = await ensureOfficialMember(db, rt, userId);
+    if (!joined) return;
+    const guild = await loadGuild(db, userId, joined.guildId);
+    if (guild) rt.emitUser(userId, 'official:joined', { guild, name: joined.name });
+  });
   registerPushRoutes(r, db, auth);
   registerSupportRoutes(r, db, rt, auth);
   registerApoioRoutes(r, db, rt, auth);

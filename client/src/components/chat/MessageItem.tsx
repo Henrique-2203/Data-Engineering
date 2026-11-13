@@ -64,6 +64,8 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
     }
   }
 
+  if (message.system === 'join') return <JoinLine message={message} channel={channel} name={author.displayName} />;
+
   return (
     <div
       id={`msg-${message.id}`}
@@ -248,4 +250,50 @@ function ReplyLine({ reply, channel, onJump }: { reply: NonNullable<Message['rep
 function StickerView({ sticker }: { sticker: StickerRef }) {
   if (!sticker.fileId) return <div className="sticker-missing muted small">Figurinha removida do servidor{sticker.name ? ` (${sticker.name})` : ''}</div>;
   return <img className="sticker" src={fileUrl(sticker.fileId)} alt={`Figurinha ${sticker.name}`} title={sticker.name} loading="lazy" />;
+}
+
+const JOIN_PHRASES = ['chegou na resenha! 👋', 'acabou de entrar. Bora dar as boas-vindas! 🎉', 'chegou! Puxa uma cadeira 🪑', 'entrou no servidor. Seja bem-vindo(a)! 💚', 'apareceu por aqui! 🙌'];
+
+/** Aviso automático "fulano chegou": com botão de acenar (responde com 👋) e, para quem chegou, rever as boas-vindas. */
+function JoinLine({ message, channel, name }: { message: Message; channel: Channel; name: string }) {
+  const me = useApp((s) => s.me)!;
+  const hasWelcome = useApp((s) => !!s.guilds[channel.guildId ?? '']?.welcomeText?.trim());
+  const mine = message.author.id === me.id;
+  // a frase muda conforme a mensagem, mas é sempre a mesma para a mesma mensagem
+  const phrase = JOIN_PHRASES[[...message.id].reduce((a, c) => a + c.charCodeAt(0), 0) % JOIN_PHRASES.length];
+  const [waved, setWaved] = useState(false);
+  async function wave() {
+    try {
+      await api(`/channels/${channel.id}/messages`, { body: { content: `👋 Bem-vindo(a), @${message.author.username}!`, replyToId: message.id } });
+      setWaved(true);
+    } catch (err) {
+      toast((err as Error).message);
+    }
+  }
+  return (
+    <div id={`msg-${message.id}`} className="message system-join" tabIndex={-1}>
+      <span className="join-arrow" aria-hidden>→</span>
+      <div className="join-body">
+        <span>
+          <button className="join-name" onClick={() => openModal({ kind: 'profile', userId: message.author.id, guildId: channel.guildId || null })}>
+            {name}
+          </button>{' '}
+          {phrase} <span className="muted small">{formatDateTime(message.createdAt)}</span>
+        </span>
+        <span className="join-actions">
+          {mine
+            ? hasWelcome && (
+                <button className="btn small" onClick={() => openModal({ kind: 'guildWelcome', guildId: channel.guildId! })}>
+                  Ver as boas-vindas
+                </button>
+              )
+            : !waved && (
+                <button className="btn small" onClick={() => void wave()}>
+                  👋 Dar oi
+                </button>
+              )}
+        </span>
+      </div>
+    </div>
+  );
 }

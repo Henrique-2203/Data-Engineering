@@ -74,6 +74,7 @@ export type ModalState =
   | { kind: 'explore' }
   | { kind: 'rules'; guildId: string }
   | { kind: 'officialWelcome'; guildId: string; name: string }
+  | { kind: 'guildWelcome'; guildId: string }
   | { kind: 'callReport' }
   | { kind: 'changelog' }
   | { kind: 'createPoll'; channelId: string }
@@ -82,7 +83,7 @@ export type ModalState =
   | { kind: 'joinGuild'; code?: string }
   | { kind: 'invite'; guildId: string }
   | { kind: 'createChannel'; guildId: string; type: 'text' | 'voice'; categoryId?: string | null }
-  | { kind: 'guildSettings'; guildId: string; tab?: 'overview' | 'community' | 'rules' | 'roles' | 'members' | 'bans' | 'expressions' | 'automod' }
+  | { kind: 'guildSettings'; guildId: string; tab?: 'overview' | 'community' | 'welcome' | 'rules' | 'roles' | 'members' | 'bans' | 'expressions' | 'automod' }
   | { kind: 'channelSettings'; channelId: string }
   | { kind: 'createCategory'; guildId: string }
   | { kind: 'categorySettings'; guildId: string; categoryId: string }

@@ -144,6 +144,10 @@ export interface Guild {
   category?: string;
   /** a equipe do Resenha tirou o servidor da lista do Explorar */
   unlisted?: boolean;
+  /** boas-vindas: explicação do servidor (janela para quem chega; vazio = sem janela) */
+  welcomeText?: string;
+  /** canal onde aparece "fulano chegou 👋" (null = não avisa no chat) */
+  welcomeChannelId?: string | null;
 }
 
 /** Cartão de um servidor no Explorar. */
@@ -301,6 +305,8 @@ export interface Message {
   /** fixada no canal (quando), ou null */
   pinnedAt?: string | null;
   poll?: Poll | null;
+  /** aviso automático (ex.: 'join' = a pessoa entrou no servidor) */
+  system?: 'join' | null;
 }
 
 export interface VoiceState {

@@ -25,7 +25,7 @@ export async function checkSlowmode(db: Db, c: ChannelRow & { slowmode?: number 
   const wait = c.slowmode ?? 0;
   if (!wait || !access || has(access.perms, Perm.MANAGE_MESSAGES) || has(access.perms, Perm.MANAGE_CHANNELS)) return;
   const [row] = await db.query<{ ago: number | null }>(
-    'select extract(epoch from now() - max(created_at))::float as ago from messages where channel_id = $1 and author_id = $2',
+    'select extract(epoch from now() - max(created_at))::float as ago from messages where channel_id = $1 and author_id = $2 and system is null',
     [c.id, userId],
   );
   if (row?.ago != null && row.ago < wait) {
@@ -289,6 +289,8 @@ export function registerCommunityRoutes(r: Router, db: Db, rt: Realtime, auth: R
         params.push(q.authorId);
         where.push(`msg.author_id = $${params.length}`);
       }
+      // avisos automáticos ("fulano chegou") não entram na busca
+      where.push('msg.system is null');
       if (q.has === 'file') where.push('exists (select 1 from attachments a where a.message_id = msg.id)');
       if (q.has === 'image') where.push(`exists (select 1 from attachments a where a.message_id = msg.id and a.kind = 'image')`);
       if (q.has === 'link') where.push(`msg.content ~* '(https?://|www\\.)'`);

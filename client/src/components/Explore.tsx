@@ -3,6 +3,7 @@ import { Compass, Flag, Search, Users, X } from 'lucide-react';
 import type { ExploreGuild, Guild, VoiceState } from '../../../shared/types';
 import { CATEGORY_LABEL, GUILD_CATEGORIES, listingMissing, type GuildCategory } from '../../../shared/explore';
 import { api } from '../lib/api';
+import { afterJoin } from './Official';
 import { imageUrl } from '../lib/perms';
 import { closeModal, openModal, selectGuild, toast, upsertGuild, useApp } from '../store/app';
 
@@ -52,6 +53,7 @@ export function ExploreModal() {
       closeModal();
       selectGuild(g.id);
       toast(`Você entrou no ${g.name}! 🎉`);
+      afterJoin(r.guild);
     } catch (err) {
       toast((err as Error).message);
     } finally {

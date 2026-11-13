@@ -4,14 +4,14 @@ import { z } from 'zod';
 import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import { HttpError, parse, wrap } from './http.ts';
-import { USER_COLUMNS, type requireAuth } from './auth.ts';
+import type { requireAuth } from './auth.ts';
 import { isPlatformAdmin } from './reports.ts';
-import { audit, userLabel } from './audit.ts';
+import { memberJoined } from './welcome.ts';
 import { loadGuild } from './guilds.ts';
 import { LISTED_SQL, isListed, officialGuildId } from './listing.ts';
 import { limit } from './security.ts';
 import { GUILD_CATEGORIES, listingMissing } from '../../shared/explore.ts';
-import type { ExploreGuild, Member } from '../../shared/types.ts';
+import type { ExploreGuild } from '../../shared/types.ts';
 
 /**
  * Explorar servidores: servidores públicos que qualquer pessoa pode achar e entrar sem convite.
@@ -70,16 +70,7 @@ export function registerExploreRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
       const [banned] = await db.query('select 1 from bans where guild_id = $1 and user_id = $2', [id, me]);
       if (banned) throw new HttpError(403, 'Você foi banido deste servidor.');
       const inserted = await db.query('insert into members (guild_id, user_id) values ($1, $2) on conflict do nothing returning joined_at', [id, me]);
-      if (inserted.length) {
-        await audit(db, id, me, 'member_join', { type: 'user', id: me, label: await userLabel(db, me) });
-        rt.userJoinedGuild(me, id);
-        const [member] = await db.query<Member>(
-          `select m.joined_at as "joinedAt", m.timeout_until as "timeoutUntil", m.nick, ${USER_COLUMNS}, '{}'::text[] as "roleIds"
-           from members m join users u on u.id = m.user_id where m.guild_id = $1 and m.user_id = $2`,
-          [id, me],
-        );
-        if (member) rt.emitGuild(id, 'member:join', { guildId: id, member });
-      }
+      if (inserted.length) await memberJoined(db, rt, id, me);
       const guild = await loadGuild(db, me, id);
       return { guild, voiceStates: rt.voiceStatesFor(id, me) };
     }),

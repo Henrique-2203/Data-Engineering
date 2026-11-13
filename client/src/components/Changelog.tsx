@@ -11,6 +11,14 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-13',
+    title: 'Explorar servidores e boas-vindas',
+    items: [
+      ['🧭', 'Explorar em tela cheia: servidores públicos da comunidade por categoria, com busca. É a bússola na coluna da esquerda.'],
+      ['👋', 'Boas-vindas: o dono do servidor escreve uma explicação que aparece para quem chega e escolhe um canal para avisar "fulano chegou", com botão de dar oi. Configurações do servidor → Boas-vindas.'],
+    ],
+  },
+  {
     id: '2026-11-11c',
     title: 'Ícone do app',
     items: [

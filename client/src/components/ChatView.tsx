@@ -223,7 +223,9 @@ export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?:
           const grouped =
             !newDay &&
             !m.replyTo &&
+            !m.system &&
             prev &&
+            !prev.system &&
             prev.author.id === m.author.id &&
             new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < GROUP_WINDOW_MS;
           return (

@@ -4,12 +4,11 @@ import { z } from 'zod';
 import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import { HttpError, parse, wrap } from './http.ts';
-import { USER_COLUMNS, type requireAuth } from './auth.ts';
+import type { requireAuth } from './auth.ts';
 import { isPlatformAdmin } from './reports.ts';
-import { audit, userLabel } from './audit.ts';
 import { Perm } from '../../shared/permissions.ts';
 import { officialGuildId, resetOfficialCache } from './listing.ts';
-import type { Member } from '../../shared/types.ts';
+import { memberJoined } from './welcome.ts';
 
 /**
  * Servidor oficial do Resenha ("Resenha Brasil OFC"): a comunidade onde quem cria conta entra
@@ -36,15 +35,7 @@ export async function ensureOfficialMember(db: Db, rt: Realtime, userId: string)
   if (banned) return null;
   const inserted = await db.query('insert into members (guild_id, user_id) values ($1, $2) on conflict do nothing returning joined_at', [guildId, userId]);
   if (!inserted.length) return null; // já era membro
-  await audit(db, guildId, userId, 'member_join', { type: 'user', id: userId, label: await userLabel(db, userId) });
-  rt.userJoinedGuild(userId, guildId);
-  // aviso leve para quem já está lá (sem fazer todo mundo recarregar o servidor inteiro)
-  const [member] = await db.query<Member>(
-    `select m.joined_at as "joinedAt", m.timeout_until as "timeoutUntil", m.nick, ${USER_COLUMNS}, '{}'::text[] as "roleIds"
-     from members m join users u on u.id = m.user_id where m.guild_id = $1 and m.user_id = $2`,
-    [guildId, userId],
-  );
-  if (member) rt.emitGuild(guildId, 'member:join', { guildId, member });
+  await memberJoined(db, rt, guildId, userId);
   const [g] = await db.query<{ name: string }>('select name from guilds where id = $1', [guildId]);
   return { guildId, name: g?.name ?? 'servidor oficial' };
 }
@@ -59,6 +50,20 @@ const RULES = `1. Respeito acima de tudo: nada de ódio, preconceito, assédio o
 8. Viu algo errado? Use o botão Denunciar (🚩) na mensagem ou no perfil.
 
 Valem também os Termos de uso do Resenha.`;
+
+/** Texto de boas-vindas sugerido para o servidor oficial (aparece numa janela para quem chega). */
+export const OFFICIAL_WELCOME = `Que bom ter você aqui, {usuario}! 💚
+
+Este é o servidor oficial do Resenha, a comunidade de quem usa o app. Por aqui:
+
+📜 #regras: leia e clique em "Aceito" para liberar o chat e as calls.
+📣 #novidades: tudo o que chega de novo no Resenha, em primeira mão.
+💬 #geral: conversa livre, se apresenta pra galera!
+🎮 #procurando-grupo: diga o jogo, o rank e o horário e ache gente pra jogar.
+💡 #sugestões: ideias e pedidos para o app (a equipe lê tudo).
+🔊 Call 1, 2 e 3: calls abertas, é só entrar.
+
+Achou um problema no app? Use o botão de Suporte (a boia, no canto de baixo).`;
 
 export function registerOfficialRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnType<typeof requireAuth>) {
   const requireAdmin = (username: string | undefined) => {
@@ -134,7 +139,8 @@ export function registerOfficialRoutes(r: Router, db: Db, rt: Realtime, auth: Re
       };
       const rulesCh = await ch('regras', 'text', info, { announce: true });
       const news = await ch('novidades', 'text', info, { announce: true });
-      await ch('geral', 'text', comm, { slowmode: 5 });
+      const geral = await ch('geral', 'text', comm, { slowmode: 5 });
+      await db.query('update guilds set welcome_text = $2, welcome_channel_id = $3 where id = $1', [id, OFFICIAL_WELCOME, geral]);
       await ch('procurando-grupo', 'text', comm, { slowmode: 10 });
       await ch('sugestões', 'text', comm, { slowmode: 30 });
       for (const n of ['Call 1', 'Call 2', 'Call 3']) await ch(n, 'voice', calls);
@@ -172,6 +178,8 @@ export function registerOfficialRoutes(r: Router, db: Db, rt: Realtime, auth: Re
       );
       resetOfficialCache();
       rt.userJoinedGuild(me, id);
+      // quem está com o app aberto agora entra na hora (sem precisar recarregar)
+      void rt.runConnectHooksForOnline();
       return { guildId: id, missing };
     }),
   );

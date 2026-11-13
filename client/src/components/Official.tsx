@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { ScrollText, Megaphone } from 'lucide-react';
 import type { Guild } from '../../../shared/types';
 import { api } from '../lib/api';
-import { closeModal, openModal, selectGuild, toast, upsertGuild, useApp } from '../store/app';
+import { closeModal, openModal, selectChannel, selectGuild, toast, upsertGuild, useApp } from '../store/app';
+import { imageUrl } from '../lib/perms';
+import { WELCOME_SUGGESTED, fillWelcome } from '../../../shared/welcome';
 import { Modal } from './Modals';
 
 /**
@@ -75,6 +77,8 @@ export function RulesModal({ guildId }: { guildId: string }) {
 
 /** "Você entrou no servidor oficial" (uma vez, quando a pessoa é colocada lá). */
 export function OfficialWelcomeModal({ guildId, name }: { guildId: string; name: string }) {
+  const hasText = useApp((s) => !!s.guilds[guildId]?.welcomeText?.trim());
+  if (hasText) return <GuildWelcomeModal guildId={guildId} note="Você entrou sozinho(a) porque este é o servidor oficial. Se não quiser ficar, é só sair: você não será colocado(a) de volta." />;
   return (
     <Modal title={`Bem-vindo(a) ao ${name}! 🎉`}>
       <p>
@@ -97,6 +101,155 @@ export function OfficialWelcomeModal({ guildId, name }: { guildId: string; name:
         </button>
       </div>
     </Modal>
+  );
+}
+
+/** Texto das boas-vindas com os #canais clicáveis. */
+function WelcomeText({ guild, text }: { guild: Guild; text: string }) {
+  const parts = text.split(/(#[\p{L}\p{N}_-]+)/u);
+  return (
+    <div className="welcome-text">
+      {parts.map((p, i) => {
+        const ch = p.startsWith('#') ? guild.channels.find((c) => c.type === 'text' && c.name.toLowerCase() === p.slice(1).toLowerCase()) : undefined;
+        return ch ? (
+          <button
+            key={i}
+            className="channel-chip"
+            onClick={() => {
+              closeModal();
+              selectChannel(ch.id);
+            }}
+          >
+            {p}
+          </button>
+        ) : (
+          <span key={i}>{p}</span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Boas-vindas do servidor: aparece para quem acabou de entrar (e dá para rever pelo aviso no chat). */
+export function GuildWelcomeModal({ guildId, note }: { guildId: string; note?: string }) {
+  const guild = useApp((s) => s.guilds[guildId]);
+  const me = useApp((s) => s.me);
+  if (!guild || !me) return null;
+  const myName = guild.members.find((m) => m.id === me.id)?.displayName ?? me.displayName;
+  const text = fillWelcome(guild.welcomeText ?? '', myName, guild.name);
+  return (
+    <Modal title={`Bem-vindo(a) ao ${guild.name}! 🎉`}>
+      <div className="guild-welcome">
+        {guild.iconId ? <img src={imageUrl(guild.iconId)!} alt="" className="explore-icon" /> : <span className="explore-icon">{guild.name.slice(0, 2).toUpperCase()}</span>}
+        <WelcomeText guild={guild} text={text} />
+      </div>
+      {note && <p className="muted small">{note}</p>}
+      <div className="modal-actions spread">
+        <button
+          className="btn ghost"
+          onClick={() => {
+            closeModal();
+            selectGuild(guildId);
+          }}
+        >
+          {guild.rulesPending ? 'Depois' : 'Fechar'}
+        </button>
+        {guild.rulesPending ? (
+          <button
+            className="btn primary"
+            onClick={() => {
+              selectGuild(guildId);
+              openModal({ kind: 'rules', guildId });
+            }}
+          >
+            Ler as regras
+          </button>
+        ) : (
+          <button
+            className="btn primary"
+            onClick={() => {
+              closeModal();
+              selectGuild(guildId);
+            }}
+          >
+            Bora! 🚀
+          </button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+/** Depois de entrar num servidor (convite ou Explorar): mostra as boas-vindas se ele tiver. */
+export function afterJoin(guild: Guild) {
+  if (guild.welcomeText?.trim()) openModal({ kind: 'guildWelcome', guildId: guild.id });
+}
+
+/** Configurações do servidor → Boas-vindas. */
+export function WelcomeSettings({ guild }: { guild: Guild }) {
+  const [text, setText] = useState(guild.welcomeText ?? '');
+  const [channelId, setChannelId] = useState(guild.welcomeChannelId ?? '');
+  const [busy, setBusy] = useState(false);
+  const me = useApp((s) => s.me)!;
+  const textChannels = guild.channels.filter((c) => c.type === 'text');
+  async function save() {
+    setBusy(true);
+    try {
+      await api(`/guilds/${guild.id}`, { method: 'PATCH', body: { welcomeText: text, welcomeChannelId: channelId || null } });
+      toast('Boas-vindas salvas.');
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="form settings-section">
+      <h2>Boas-vindas</h2>
+      <p className="muted">Quem entrar no servidor (por convite, pelo Explorar ou sozinho no oficial) é recebido de dois jeitos:</p>
+      <label>
+        Mensagem de boas-vindas (só a pessoa que chegou vê, numa janela)
+        <textarea
+          rows={10}
+          maxLength={1500}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Explique o servidor: para que serve cada canal, como achar galera, o que fazer primeiro…"
+        />
+      </label>
+      <p className="muted small">
+        Use <code>{'{usuario}'}</code> para o nome de quem chegou e <code>{'{servidor}'}</code> para o nome do servidor. Escreva <code>#nome-do-canal</code> e ele vira um botão que
+        leva ao canal. Deixe vazio para não mostrar a janela.
+      </p>
+      <div>
+        <button className="btn small" type="button" onClick={() => setText(WELCOME_SUGGESTED)}>
+          Usar texto sugerido
+        </button>
+      </div>
+      <label>
+        Avisar no chat quando alguém chegar
+        <select value={channelId} onChange={(e) => setChannelId(e.target.value)}>
+          <option value="">Não avisar no chat</option>
+          {textChannels.map((c) => (
+            <option key={c.id} value={c.id}>
+              #{c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="muted small">Aparece "→ Fulano chegou! 👋" com um botão para a galera dar oi. Num servidor grande, um canal só para isso (ex.: #boas-vindas) evita encher o #geral.</p>
+      {text.trim() && (
+        <div className="welcome-preview">
+          <span className="muted small">Prévia</span>
+          <WelcomeText guild={guild} text={fillWelcome(text, me.displayName, guild.name)} />
+        </div>
+      )}
+      <div>
+        <button className="btn primary" disabled={busy} onClick={() => void save()}>
+          Salvar
+        </button>
+      </div>
+    </div>
   );
 }
 

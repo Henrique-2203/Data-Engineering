@@ -475,6 +475,10 @@ create table if not exists app_settings (
   value jsonb not null,
   updated_at timestamptz not null default now()
 );
+-- v46: boas-vindas do servidor (janela para quem chega + aviso "fulano chegou" num canal)
+alter table guilds add column if not exists welcome_text text not null default '';
+alter table guilds add column if not exists welcome_channel_id text;
+alter table messages add column if not exists system text;
 -- v45: servidores públicos (Explorar), tirados da lista pela equipe, e registro de quando a equipe vê o contexto de uma denúncia
 alter table guilds add column if not exists public boolean not null default false;
 alter table guilds add column if not exists category text not null default '';

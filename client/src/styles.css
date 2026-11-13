@@ -7757,3 +7757,18 @@ button.ov-card:hover {
   .explore-page .explore-grid { grid-template-columns: 1fr; }
 }
 .explore-page .nav-count { background: var(--bg-4); color: var(--text-2); }
+
+/* Boas-vindas do servidor */
+.message.system-join { display: flex; align-items: center; gap: 12px; padding-top: 6px; padding-bottom: 6px; }
+.join-arrow { width: 40px; flex: none; text-align: center; color: var(--accent); font-weight: 800; font-size: 18px; }
+.join-body { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 0; color: var(--text-2); }
+.join-name { font-weight: 700; color: var(--text); padding: 0; background: none; border: 0; cursor: pointer; font: inherit; }
+.join-name:hover { text-decoration: underline; }
+.join-actions .btn { padding: 3px 10px; }
+.guild-welcome { display: flex; gap: 14px; align-items: flex-start; }
+.guild-welcome .explore-icon { border-width: 0; }
+.welcome-text { white-space: pre-wrap; line-height: 1.55; flex: 1; min-width: 0; max-height: 55vh; overflow: auto; }
+.channel-chip { display: inline; padding: 0 4px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font: inherit; font-weight: 600; border: 0; cursor: pointer; }
+.channel-chip:hover { text-decoration: underline; }
+.welcome-preview { padding: 14px; border-radius: 10px; background: var(--bg-0); display: flex; flex-direction: column; gap: 6px; }
+@media (max-width: 600px) { .guild-welcome { flex-direction: column; } }

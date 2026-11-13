@@ -91,7 +91,7 @@ try {
   const welcome = pa.getByRole('dialog', { name: 'Bem-vindo(a) ao Resenha Brasil OFC! 🎉' });
   await welcome.waitFor();
   await pa.screenshot({ path: path.join(shots, 'oficial-boas-vindas.png') });
-  await welcome.getByRole('button', { name: 'Ir para o servidor' }).click();
+  await welcome.getByRole('button', { name: 'Depois' }).click();
   // antes de aceitar as regras: só lê
   await pa.getByRole('button', { name: 'geral', exact: true }).click();
   await pa.getByText('leia as regras e clique em').waitFor();
