@@ -23,7 +23,7 @@ const server = createServer(async (req, res) => {
   }
 }).listen(0);
 const browser = await chromium.launch();
-for (const [mode, w, h] of [['banner', 1920, 800], ['icon', 1024, 1024], ['story', 1080, 1920]]) {
+for (const [mode, w, h] of [['banner', 1920, 800], ['icon', 1024, 1024], ['story', 1080, 1920], ['post', 1080, 1350]]) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
   await page.goto(`http://localhost:${server.address().port}/promo/oficial/arte.html?mode=${mode}`);
   await page.waitForFunction(() => window.ready);
