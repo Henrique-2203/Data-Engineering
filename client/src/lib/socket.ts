@@ -187,6 +187,7 @@ export function connectSocket() {
   s.on('reports:count', ({ open }: { open: number }) => set({ openReports: open }));
   s.on('support:count', ({ open }: { open: number }) => set({ openSupport: open }));
   s.on('apoio:count', ({ pending }: { pending: number }) => set({ pendingApoio: pending }));
+  s.on('apoio:changed', () => window.dispatchEvent(new Event('resenha:apoio-update')));
   s.on('apoio:update', ({ status }: { status: string }) => {
     window.dispatchEvent(new Event('resenha:apoio-update'));
     if (status === 'confirmed') {

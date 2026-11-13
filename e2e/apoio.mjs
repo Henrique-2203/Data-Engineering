@@ -87,7 +87,9 @@ try {
   await pe.getByLabel('Mostrar o "Apoie o Resenha" para as pessoas').check();
   await pe.getByRole('button', { name: 'Salvar' }).click();
   await pe.getByText('Aberto até 17 de dezembro').waitFor();
-  step('equipe configura a chave Pix aleatória no painel (com aviso se for CPF/telefone/e-mail) e liga o apoio até 17/12');
+  // quem já estava com o Resenha aberto vê o botão aparecer sem recarregar
+  await pa.getByRole('button', { name: 'Apoie o Resenha' }).waitFor({ timeout: 5000 });
+  step('equipe configura a chave Pix aleatória no painel (com aviso se for CPF/telefone/e-mail) e liga o apoio até 17/12; quem está com o app aberto vê o botão na hora');
 
   // a pessoa: QR Code + copia e cola com o código dela
   a = await api('/apoio', null, ana.token);
@@ -98,7 +100,6 @@ try {
   assert(!/54\d\d\d/.test(p.split('5802BR')[0].split('5303986')[1] ?? ''), 'sem valor fixo (a pessoa escolhe quanto dar)');
   assert(p.includes(a.me.code.replace('-', '')) && crcOk(p), 'código da pessoa no identificador e CRC certo');
   assert(a.pix.qrSvg.startsWith('<svg'), 'QR Code em SVG');
-  await pa.reload();
   await pa.getByRole('button', { name: 'Apoie o Resenha' }).click();
   const dlg = pa.getByRole('dialog', { name: 'Apoie o Resenha 💚' });
   await dlg.getByRole('img', { name: 'QR Code do Pix' }).waitFor();
@@ -108,13 +109,25 @@ try {
   await dlg.getByText('Tudo que é grátis hoje continua grátis para sempre.').waitFor();
   await dlg.getByText('O apoio não libera nenhuma função').waitFor();
   await pa.screenshot({ path: path.join(shots, 'apoio-janela.png') });
+  // clicar sem querer não avisa a equipe: pede confirmação e dá para voltar
   await dlg.getByRole('button', { name: 'Já fiz o Pix' }).click();
+  await dlg.getByText('Você já fez o Pix?').waitFor();
+  await dlg.getByRole('button', { name: 'Ainda não' }).click();
+  assert((await api('/admin/apoio', null, equipe.token)).totals.pending === 0, '"Ainda não" não avisa a equipe');
+  await dlg.getByRole('button', { name: 'Já fiz o Pix' }).click();
+  await dlg.getByRole('button', { name: 'Sim, já paguei' }).click();
   await dlg.getByText('Recebemos o seu aviso!').waitFor();
-  step(`pessoa vê o QR Code e o Pix copia e cola (CRC certo, sem valor fixo, código ${a.me.code}) e avisa "Já fiz o Pix"`);
+  step(`pessoa vê o QR Code e o Pix copia e cola (CRC certo, sem valor fixo, código ${a.me.code}) e avisa "Já fiz o Pix" (com confirmação, para não avisar sem querer)`);
 
   // a equipe confere e confirma (valor só para a meta)
   await pe.getByRole('tab', { name: /Apoios\s*1/ }).waitFor({ timeout: 5000 });
   await pe.getByText(a.me.code).waitFor();
+  // o cartão do pedido aparece inteiro (antes ficava espremido num quadrado de 84 px)
+  const card = pe.locator('.apoio-item').first();
+  const box = await card.boundingBox();
+  assert(box && box.width > 500, `cartão do apoio com largura normal (${box?.width}px)`);
+  await card.getByText('⏳ Para conferir').waitFor();
+  await pe.screenshot({ path: path.join(shots, 'apoio-painel-conferir.png') });
   await pe.getByLabel('Valor recebido de @ana').fill('10,00');
   await pe.getByRole('button', { name: 'Confirmar', exact: true }).click();
   await pe.getByText('Selo entregue para @ana').waitFor();

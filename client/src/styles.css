@@ -7638,9 +7638,21 @@ button.ov-card:hover {
 .apoio-list { display: flex; flex-direction: column; gap: 8px; }
 .apoio-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px;
   background: var(--bg-2, rgba(255, 255, 255, .04)); border: 1px solid rgba(255, 255, 255, .08); }
-.apoio-item.pending { border-color: rgba(240, 178, 50, .6); }
-.apoio-item.confirmed { border-color: rgba(61, 220, 151, .5); }
+.apoio-item.apoio-st-pending { border-color: rgba(240, 178, 50, .6); }
+.apoio-item.apoio-st-confirmed { border-color: rgba(61, 220, 151, .5); }
 .apoio-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.apoio-item { width: 100%; box-sizing: border-box; }
+.apoio-who { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.apoio-who-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.apoio-who-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.apoio-who-meta code { white-space: nowrap; font-weight: 700; }
+.apoio-chip { font-size: 12px; font-weight: 800; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.apoio-chip-pending { background: rgba(240, 178, 50, .18); color: #f0b232; }
+.apoio-chip-confirmed { background: rgba(61, 220, 151, .16); color: #3ddc97; }
+.apoio-chip-rejected { background: rgba(255, 255, 255, .08); color: var(--text-muted, #9aa0a6); }
+.apoio-ask { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(240, 178, 50, .5); background: rgba(240, 178, 50, .08); }
+.apoio-ask p { margin: 0; }
+.apoio-ask-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .apoio-actions input { width: 140px; }
 .apoio-settings { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
 .apoio-settings > label:not(.check) { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 520px; font-weight: 700; font-size: 13px; }

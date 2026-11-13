@@ -221,6 +221,8 @@ export function registerApoioRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
          on conflict (name) do update set value = excluded.value, updated_at = now()`,
         [JSON.stringify(b)],
       );
+      // quem está com o Resenha aberto vê o botão aparecer (ou sumir) na hora, sem recarregar
+      rt.io.emit('apoio:changed', {});
       return { settings: b, open: isOpen(b) };
     }),
   );

@@ -56,6 +56,7 @@ export function ApoioButton() {
 export function ApoioModal() {
   const [st, setSt] = useState<ApoioState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
   const load = () => void api<ApoioState>('/apoio').then(setSt, (e) => toast(e.message));
   useEffect(() => {
     load();
@@ -67,6 +68,7 @@ export function ApoioModal() {
     setBusy(true);
     try {
       await api('/apoio/claim', { body: {} });
+      setAsking(false);
       load();
     } catch (err) {
       toast((err as Error).message);
@@ -172,9 +174,25 @@ export function ApoioModal() {
                   {status === 'rejected' && (
                     <p className="apoio-rejected">Não encontramos o seu Pix ainda. Se você já pagou, confira se o código foi na mensagem e clique de novo, ou fale com a gente no Suporte (a boia 🛟).</p>
                   )}
-                  <button className="btn primary" disabled={busy} onClick={() => void claim()}>
-                    Já fiz o Pix
-                  </button>
+                  {asking ? (
+                    <div className="apoio-ask" role="group" aria-label="Confirmar que fez o Pix">
+                      <p>
+                        <strong>Você já fez o Pix?</strong> Só confirme depois de pagar: a equipe vai procurar o seu Pix no extrato.
+                      </p>
+                      <div className="apoio-ask-btns">
+                        <button className="btn primary" disabled={busy} onClick={() => void claim()}>
+                          Sim, já paguei
+                        </button>
+                        <button className="btn ghost" onClick={() => setAsking(false)}>
+                          Ainda não
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button className="btn primary" disabled={busy} onClick={() => setAsking(true)}>
+                      Já fiz o Pix
+                    </button>
+                  )}
                 </>
               )}
               <p className="muted small">Fez por engano? Fale com o Suporte em até 7 dias que a gente devolve.</p>
@@ -208,6 +226,7 @@ interface Supporter {
   confirmedAt: string | null;
   amountCents: number | null;
 }
+const STATUS_LABEL: Record<Status, string> = { none: '', pending: '⏳ Para conferir', confirmed: '✅ Confirmado', rejected: '✖ Não encontrado' };
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 const RANDOM_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const toCents = (v: string) => {
@@ -281,20 +300,27 @@ export function ApoioAdmin() {
         ) : (
           <div className="apoio-list">
             {data.supporters.map((s) => (
-              <div key={s.userId} className={`apoio-item ${s.status}`}>
+              <div key={s.userId} className={`apoio-item apoio-st-${s.status}`}>
                 <div className="apoio-who">
-                  <strong>{s.displayName}</strong> <span className="muted">@{s.username}</span>
-                  <div className="muted small">
-                    código <code>{s.code}</code> · avisou {when(s.claimedAt)}
-                    {s.status === 'confirmed' && ` · confirmado ${when(s.confirmedAt)}${s.amountCents !== null ? ` · ${brl(s.amountCents)}` : ''}`}
-                    {s.status === 'rejected' && ' · não encontrado'}
+                  <div className="apoio-who-top">
+                    <span className={`apoio-chip apoio-chip-${s.status}`}>{STATUS_LABEL[s.status]}</span>
+                    <strong>{s.displayName}</strong>
+                    <span className="muted">@{s.username}</span>
+                  </div>
+                  <div className="apoio-who-meta muted small">
+                    <span>
+                      Código <code>{s.code}</code>
+                    </span>
+                    <span>Avisou em {when(s.claimedAt)}</span>
+                    {s.status === 'confirmed' && <span>Confirmado em {when(s.confirmedAt)}</span>}
+                    {s.status === 'confirmed' && s.amountCents !== null && <span>{brl(s.amountCents)}</span>}
                   </div>
                 </div>
                 {s.status === 'pending' ? (
                   <div className="apoio-actions">
                     <input
                       aria-label={`Valor recebido de @${s.username}`}
-                      placeholder="Valor (opcional)"
+                      placeholder="R$ (opcional)"
                       inputMode="decimal"
                       value={amounts[s.userId] ?? ''}
                       onChange={(e) => setAmounts({ ...amounts, [s.userId]: e.target.value })}
@@ -307,13 +333,17 @@ export function ApoioAdmin() {
                     </button>
                   </div>
                 ) : s.status === 'confirmed' ? (
-                  <button className="btn ghost small" onClick={() => confirm(`Tirar o selo de @${s.username}?`) && void act(s, 'reject')}>
-                    Desfazer
-                  </button>
+                  <div className="apoio-actions">
+                    <button className="btn ghost small" onClick={() => confirm(`Tirar o selo de @${s.username}?`) && void act(s, 'reject')}>
+                      Desfazer
+                    </button>
+                  </div>
                 ) : (
-                  <button className="btn ghost small" onClick={() => void act(s, 'confirm')}>
-                    Confirmar mesmo assim
-                  </button>
+                  <div className="apoio-actions">
+                    <button className="btn ghost small" onClick={() => void act(s, 'confirm')}>
+                      Confirmar mesmo assim
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
