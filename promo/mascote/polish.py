@@ -15,8 +15,26 @@ def limpa_borda(im, passos=7):
         new = grow & dark & ~bg
         if not new.any(): break
         bg |= new
+    # a transição cinza entre o contorno branco do desenho e o fundo (o "fio preto" no meio do branco):
+    # na beirada, tudo que é neutro (cinza/preto) vira branco; as cores dos enfeites ficam
+    near = np.asarray(Image.fromarray((bg * 255).astype('uint8')).filter(ImageFilter.MaxFilter(7))) > 0
+    neutral = (rgb.max(axis=2) - rgb.min(axis=2)) < 40
+    # e o contorno branco do próprio desenho fica todo branco puro (a IA deixou um fio cinza dentro dele)
+    near_wide = np.asarray(Image.fromarray((bg * 255).astype('uint8')).filter(ImageFilter.MaxFilter(17))) > 0
+    light = rgb.min(axis=2) > 110
+    fix = ((near & neutral) | (near_wide & light)) & ~bg
+    # pontinhos escuros soltos no meio do branco (restos da linha antiga): ilhas pequenas viram branco
+    from cut_label import label
+    lab, nl = label(near_wide & ~bg & ~light)
+    if nl:
+        sizes = np.bincount(lab.ravel())
+        fix |= (sizes[lab] < 40) & (lab > 0)
+    rgb2 = a[..., :3].copy()
+    rgb2[fix] = 255
+    # os pixels transparentes guardavam o preto do fundo: ao reduzir a imagem esse preto vazava na beirada
+    rgb2[bg] = 255
     alpha = Image.fromarray(np.where(bg, 0, 255).astype('uint8')).filter(ImageFilter.GaussianBlur(0.6))
-    out = Image.fromarray(a[..., :3].astype('uint8')).convert('RGBA'); out.putalpha(alpha)
+    out = Image.fromarray(rgb2.astype('uint8')).convert('RGBA'); out.putalpha(alpha)
     return out
 def sticker(src, size, outline, pad):
     im = limpa_borda(Image.open(src).convert('RGBA'))
@@ -30,7 +48,7 @@ def sticker(src, size, outline, pad):
     im = im.resize((round(im.width * k), round(im.height * k)), Image.LANCZOS).filter(ImageFilter.UnsharpMask(1.2, 60, 2))
     canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     ox, oy = (size - im.width) // 2, (size - im.height) // 2
-    layer = Image.new('RGBA', (size, size), (0, 0, 0, 0)); layer.paste(im, (ox, oy), im)
+    layer = Image.new('RGBA', (size, size), (255, 255, 255, 0)); layer.alpha_composite(im, (ox, oy))  # sem misturar a beirada com preto
     a = layer.getchannel('A').point(lambda v: 255 if v > 60 else 0)
     # contorno branco uniforme (estilo figurinha) + sombra suave
     ring = a.filter(ImageFilter.MaxFilter(outline * 2 + 1)).filter(ImageFilter.GaussianBlur(0.8))
