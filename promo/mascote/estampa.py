@@ -9,7 +9,7 @@ SYM = Image.open('simbolo.png').convert('RGBA')
 POS = {
   'joinha':   [(154, 42, 197, 72, 0, 0.85), (248, 339, 295, 386, 0, 1.0)],
   'oculos':   [(141, 29, 191, 70, -4, 0.9), (240, 323, 292, 370, 0, 1.0)],
-  'bandeira': [(102, 69, 145, 99, -14, 0.85), (218, 349, 263, 396, 0, 1.0)],
+  'bandeira': [(102, 69, 145, 99, -14, 0.85, 'brilho'), (218, 349, 263, 396, 0, 1.0)],
   'curioso':  [(156, 72, 206, 122, -12, 0.95)],
   'fone':     [(143, 64, 178, 91, 0, 0.85), (274, 183, 306, 221, 0, 1.0), (129, 315, 177, 349, 0, 1.0)],
   'dormindo': [(195, 117, 235, 147, -6, 0.85)],
@@ -72,7 +72,9 @@ for n, items in POS.items():
     A = np.asarray(im).astype(float)
     rgb = A[..., :3].copy()
     alpha = A[..., 3]
-    for bx0, by0, bx1, by1, ang, squash in items:
+    for item in items:
+        bx0, by0, bx1, by1, ang, squash = item[:6]
+        tira_brilho = 'brilho' in item[6:]
         P = 16
         ry0, ry1 = max(0, by0 - P), min(rgb.shape[0], by1 + P + 1)
         rx0, rx1 = max(0, bx0 - P), min(rgb.shape[1], bx1 + P + 1)
@@ -99,13 +101,24 @@ for n, items in POS.items():
         light_logo = mostly_inside(light, 0.98)      # traço branco do logo (o brilho/costura sai da caixa)
         green_logo = mostly_inside(green, 0.7)       # balão verde do logo (o verde do boné é quase todo fora)
         stroke = inbox & (green_logo | light_logo)
+        if tira_brilho:
+            # o brilho fino do boné que abraça o logo parecia falha: sai numa área maior em volta,
+            # mas longe do contorno da figurinha (borda transparente)
+            perto_borda = dilate(alpha[ry0:ry1, rx0:rx1] < 128, 9)
+            stroke |= dilate(inbox, 8) & (mn > 120) & ~perto_borda
         # o logo antigo = traço + miolo + o contorno preto dele (tudo que é escuro dentro da caixa)
         old = fill_holes(dilate(stroke, 2)) | (tight & ((mx < 12) | stroke))
-        old = dilate(old, 1) & inbox & ~(light & ~light_logo)
+        protege = light & ~light_logo
+        if tira_brilho:
+            protege = protege & ~stroke
+        old = dilate(old, 1) & (dilate(inbox, 9) if tira_brilho else inbox) & ~protege
         old &= alpha[ry0:ry1, rx0:rx1] > 200
         # 2) reconstrói o pano ali, só com a cor do pano (nem linha preta, nem branco)
         fabric = (mx >= 9) & (mx <= 70)
-        reg[:] = inpaint(reg, old, fabric)
+        filled = inpaint(reg, old, fabric)
+        soft = np.asarray(Image.fromarray((old * 255).astype('uint8')).filter(ImageFilter.GaussianBlur(1.2))).astype(float)[..., None] / 255
+        soft = np.maximum(soft, old[..., None].astype(float))
+        reg[:] = reg * (1 - soft) + filled * soft
         # 3) a estampa no tamanho do logo antigo
         w, h = bx1 - bx0 + 1, by1 - by0 + 1
         ccx, ccy = (bx0 + bx1) / 2 - rx0, (by0 + by1) / 2 - ry0
