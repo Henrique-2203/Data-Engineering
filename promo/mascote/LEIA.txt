@@ -3,6 +3,6 @@ Rodar dentro desta pasta, nesta ordem:
   python3 cut2.py      # separa as figuras da folha (original.png)
   python3 hull.py      # óculos e bandeira (contorno branco aberto)
   for n in joinha oculos bandeira curioso fone dormindo bravo coracao; do cp raw-$n.png orig-raw-$n.png; done
-  python3 logos.py     # coloca o logo oficial (logo-oficial.png) no boné, moletom e fone
+  python3 estampa.py   # apaga o logo que a IA inventou e estampa o símbolo do Resenha (simbolo.png) no boné, moletom e fone
   python3 polish.py    # contorno branco, sombra, 512 px (figurinha) e 128 px (emoji) em out/
-Posição de cada logo: POS em logos.py. Novas poses: acrescente o retângulo em cut.py (B) e as posições em logos.py.
+Caixa de cada logo antigo: POS em estampa.py (x0, y0, x1, y1, inclinação, achatamento). Novas poses: acrescente o retângulo em cut.py (B) e as caixas em estampa.py.
