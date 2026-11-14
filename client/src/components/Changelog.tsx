@@ -11,6 +11,13 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-14',
+    title: 'Voz mais clara na call',
+    items: [
+      ['🎙️', 'A supressão de ruído Forte deixava a voz um pouco abafada. Agora os agudos da sua voz voltam (o "s", o "t" e o "f" ficam nítidos) e o teclado continua de fora.'],
+    ],
+  },
+  {
     id: '2026-11-13',
     title: 'Explorar servidores e boas-vindas',
     items: [

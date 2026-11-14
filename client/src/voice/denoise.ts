@@ -23,7 +23,23 @@ export interface Denoiser {
    */
   slowPct(): number;
   stop(): void;
+  /** só para os testes medirem o atraso do filtro (mesmo AudioContext) */
+  debug?: { ctx: AudioContext; source: AudioNode; node: AudioNode };
 }
+
+/**
+ * O Forte (GTCRN) é um modelo de 16 kHz: a voz sai sem nada acima de ~8 kHz (medido: os agudos caem
+ * ~40x), e fica ABAFADA ("s", "t", "f" sem brilho). Devolvemos os agudos do microfone original, mas só
+ * enquanto há voz: o volume da própria saída do filtro (que já tirou o teclado) abre e fecha os agudos.
+ * Tudo no próprio processamento de áudio (sem timers), então funciona com o app minimizado.
+ */
+const HF_CROSSOVER = 7000;
+/** atraso do GTCRN (medido no e2e/voice-quality.mjs): os agudos esperam a voz filtrada para não "embolar" */
+export const GTCRN_DELAY_S = 0.032;
+/** os agudos entram no mesmo nível do microfone original (a voz filtrada sai ~2 dB abaixo antes do ganho) */
+const HF_LEVEL = 0.8;
+/** sensibilidade da "porta" dos agudos: voz normal (~-25 dB) abre por completo; o resto do filtro, quase nada */
+const HF_GATE = 30;
 
 /**
  * Mede se o áudio está sendo processado em tempo real: o relógio do áudio (currentTime) só anda
@@ -138,6 +154,49 @@ export async function createDenoiser(raw: MediaStreamTrack, mode: AiNoiseMode, o
   const guard = softClipper(c);
   source.connect(node);
   node.connect(makeup);
+  const extra: AudioNode[] = [];
+  if (mode === 'gtcrn') {
+    // agudos do microfone: passa-alta de 4ª ordem (2 biquads Butterworth) + o mesmo atraso do filtro
+    const hp1 = c.createBiquadFilter();
+    const hp2 = c.createBiquadFilter();
+    for (const [f, q] of [[hp1, 0.541], [hp2, 1.307]] as const) {
+      f.type = 'highpass';
+      f.frequency.value = HF_CROSSOVER;
+      f.Q.value = q;
+    }
+    const delay = c.createDelay(0.25);
+    delay.delayTime.value = GTCRN_DELAY_S;
+    const hf = c.createGain();
+    hf.gain.value = 0; // quem abre é a voz (abaixo)
+    const level = c.createGain();
+    level.gain.value = HF_LEVEL;
+    source.connect(hp1);
+    hp1.connect(hp2);
+    hp2.connect(delay);
+    delay.connect(hf);
+    hf.connect(level);
+    level.connect(makeup);
+    // "porta": o volume da voz já filtrada (retificado e suavizado, ~15 ms) controla o ganho dos agudos
+    const rect = c.createWaveShaper();
+    const abs = new Float32Array(1025);
+    for (let i = 0; i < abs.length; i++) abs[i] = Math.abs((i / 512) - 1);
+    rect.curve = abs;
+    const smooth = c.createBiquadFilter();
+    smooth.type = 'lowpass';
+    smooth.frequency.value = 12;
+    const sens = c.createGain();
+    sens.gain.value = HF_GATE;
+    const clamp = c.createWaveShaper();
+    const cl = new Float32Array(1025);
+    for (let i = 0; i < cl.length; i++) cl[i] = Math.max(0, Math.min(1, (i / 512) - 1));
+    clamp.curve = cl; // fora de [-1, 1] o WaveShaper já segura no 0/1
+    node.connect(rect);
+    rect.connect(smooth);
+    smooth.connect(sens);
+    sens.connect(clamp);
+    clamp.connect(hf.gain);
+    extra.push(hp1, hp2, delay, hf, level, rect, smooth, sens, clamp);
+  }
   makeup.connect(limiter);
   limiter.connect(guard.input);
   guard.output.connect(dest);
@@ -146,6 +205,7 @@ export async function createDenoiser(raw: MediaStreamTrack, mode: AiNoiseMode, o
   return {
     track,
     slowPct: rt.pct,
+    debug: { ctx: c, source, node },
     stop() {
       rt.stop();
       try {
@@ -155,6 +215,7 @@ export async function createDenoiser(raw: MediaStreamTrack, mode: AiNoiseMode, o
         limiter.disconnect();
         guard.input.disconnect();
         guard.output.disconnect();
+        for (const n of extra) n.disconnect();
         node.destroy?.();
       } catch {
         /* já desligado */
