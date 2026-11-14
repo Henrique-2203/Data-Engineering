@@ -1,0 +1,58 @@
+{
+  "name": "resenha",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Chat, voz e transmissão de tela em alta qualidade para você e seus amigos.",
+  "type": "module",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client",
+    "test:e2e": "node e2e/smoke.mjs",
+    "test:e2e:turn": "node e2e/turn.mjs",
+    "test:e2e:voice": "node e2e/voice-features.mjs",
+    "test:e2e:codec": "node e2e/codec.mjs",
+    "test:e2e:social": "node e2e/social.mjs",
+    "test:e2e:chat": "node e2e/chat.mjs",
+    "test:e2e:call": "node e2e/dm-call.mjs",
+    "test:e2e:desktop": "xvfb-run -a node e2e/desktop.mjs",
+    "test:e2e:permissions": "node e2e/permissions.mjs",
+    "test:e2e:server-settings": "node e2e/server-settings.mjs",
+    "test:e2e:profile": "node e2e/profile.mjs",
+    "test:e2e:expressions": "node e2e/expressions.mjs",
+    "test:e2e:security": "node e2e/security.mjs",
+    "test:e2e:reports": "node e2e/reports.mjs",
+    "test:e2e:landing": "node e2e/landing.mjs",
+    "test:e2e:invite-codes": "node e2e/invite-codes.mjs",
+    "test:e2e:account": "node e2e/account.mjs",
+    "test:e2e:audit": "node e2e/audit.mjs",
+    "test:e2e:call-extras": "node e2e/call-extras.mjs",
+    "test:e2e:community": "node e2e/community.mjs",
+    "test:e2e:noise": "node e2e/noise.mjs",
+    "test:e2e:support": "node e2e/support.mjs",
+    "test:e2e:restart": "node e2e/restart.mjs",
+    "test:e2e:turbo": "node e2e/turbo.mjs",
+    "test:e2e:banners": "node e2e/banners.mjs",
+    "test:e2e:diagnostics": "node e2e/diagnostics.mjs",
+    "test:e2e:envs": "node e2e/envs.mjs",
+    "test:e2e:health": "node e2e/health.mjs",
+    "test:e2e:youtube": "node e2e/youtube.mjs",
+    "test:e2e:call-private-chat": "node e2e/call-private-chat.mjs",
+    "test:e2e:stream-quality": "node e2e/stream-quality.mjs",
+    "test:e2e:stream-audience": "node e2e/stream-audience.mjs",
+    "test:e2e:appearance": "node e2e/appearance.mjs",
+    "test:e2e:files": "node --import tsx e2e/files-unit.ts && node e2e/files.mjs",
+    "test:e2e:files:r2": "node e2e/files.mjs --r2 && node e2e/files-migrate.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}

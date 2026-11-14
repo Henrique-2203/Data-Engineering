@@ -1,0 +1,84 @@
+{
+  "name": "resenha-desktop",
+  "productName": "Resenha",
+  "version": "0.3.10",
+  "private": true,
+  "description": "App de desktop do Resenha: chat, voz e transmissão de tela com push-to-talk global.",
+  "author": "Resenha",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --url=http://localhost:5173",
+    "dist": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.10",
+    "koffi": "^2.16.3",
+    "uiohook-napi": "1.5.5"
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "app.resenha.desktop",
+    "productName": "Resenha",
+    "copyright": "Resenha",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "!**/node_modules/koffi/build/koffi/{darwin,freebsd,linux,musl,openbsd}_*/**",
+      "!**/node_modules/koffi/build/koffi/win32_{arm64,ia32}/**",
+      "!**/node_modules/koffi/{src,doc,vendor}/**"
+    ],
+    "extraResources": [
+      {
+        "from": "native/bin",
+        "to": "native",
+        "filter": [
+          "resenha-sysaudio.exe"
+        ]
+      }
+    ],
+    "asarUnpack": [
+      "**/node_modules/koffi/build/**/*.node"
+    ],
+    "npmRebuild": false,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Resenha-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Resenha",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Henrique-2203",
+        "repo": "Data-Engineering",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

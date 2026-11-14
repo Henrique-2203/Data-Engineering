@@ -1,0 +1,38 @@
+# Dependabot: avisa (e abre correções) quando alguma biblioteca usada pelo Resenha tem falha de segurança
+# conhecida, e propõe atualizações semanais agrupadas para não virar uma enxurrada de pedidos.
+version: 2
+updates:
+  # site + servidor (workspaces client/ e server/ usam o package-lock.json da raiz)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    groups:
+      atualizacoes-pequenas:
+        update-types: [minor, patch]
+    labels: [dependencias]
+
+  # app de desktop (Electron)
+  - package-ecosystem: npm
+    directory: /desktop
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 3
+    groups:
+      atualizacoes-pequenas:
+        update-types: [minor, patch]
+    labels: [dependencias, desktop]
+
+  # ações usadas nos workflows do GitHub
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependencias]

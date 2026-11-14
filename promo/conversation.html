@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Resenha — como eu fiz (conversa)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #06070a; font-family: Inter, sans-serif; color: #fff; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  .abs { position: absolute; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(130px); }
+  .who { position: absolute; width: 600px; height: 700px; transform-origin: 0 0; }
+  .who svg { width: 100%; height: 100%; }
+  .nametag { position: absolute; padding: 8px 22px; border-radius: 999px; font-weight: 900; font-size: 30px; letter-spacing: 2px; }
+  .title { position: absolute; left: 60px; right: 60px; top: 1050px; text-align: center; font-weight: 900; font-size: 64px; line-height: 1.05; letter-spacing: -1px; }
+  .title span { color: #3ddc97; }
+  .panel { position: absolute; left: 60px; right: 60px; top: 470px; height: 780px; opacity: 0; }
+  .shot { position: absolute; border-radius: 22px; overflow: hidden; border: 6px solid #1d2028; box-shadow: 0 30px 80px rgba(0,0,0,.6); background: #111318; }
+  .shot img { width: 100%; display: block; }
+  .step { position: absolute; width: 440px; padding: 22px 26px; border-radius: 24px; background: #12151b; border: 3px solid #2a2f3a; font-weight: 900; font-size: 34px; display: flex; gap: 16px; align-items: center; }
+  .step i { font-style: normal; font-size: 54px; }
+  .step small { display: block; font-size: 22px; color: #a7adbb; font-weight: 700; }
+  .step.on { border-color: #3ddc97; box-shadow: 0 0 50px rgba(61,220,151,.45); background: #13241d; }
+  .step.ia.on { border-color: #ff8a3d; box-shadow: 0 0 50px rgba(255,138,61,.45); background: #2a1a10; }
+  .node { position: absolute; width: 230px; text-align: center; font-weight: 900; font-size: 30px; }
+  .node .ic { font-size: 130px; display: block; }
+  .meter { position: absolute; left: 80px; right: 80px; padding: 28px 34px; border-radius: 26px; font-weight: 900; font-size: 46px; text-align: center; border: 4px solid; }
+  .term { position: absolute; left: 0; right: 0; border-radius: 24px; background: #07090c; border: 2px solid #232836; overflow: hidden; font: 24px/1.6 "DejaVu Sans Mono", monospace; }
+  .term .bar { height: 54px; background: #121419; display: flex; align-items: center; padding: 0 22px; color: #a7adbb; font-size: 22px; gap: 10px; position: relative; z-index: 2; }
+  .term .bar b { color: #3ddc97; }
+  .term .feed { position: absolute; left: 24px; right: 24px; top: 70px; }
+  .tl { color: #3ddc97; white-space: nowrap; overflow: hidden; }
+  .count { position: absolute; right: 30px; bottom: 26px; padding: 12px 26px; border-radius: 18px; background: #3ddc97; color: #06281a; font-weight: 900; font-size: 54px; z-index: 3; }
+  .pw { position: absolute; left: 60px; right: 60px; padding: 30px; border-radius: 24px; background: #0b0d11; border: 3px solid #2a2f3a; font: 900 50px "DejaVu Sans Mono", monospace; text-align: center; overflow: hidden; white-space: nowrap; }
+  .badge { position: absolute; padding: 16px 30px; border-radius: 20px; font-weight: 900; font-size: 50px; white-space: nowrap; }
+  .float { position: absolute; pointer-events: none; }
+  .clipframe { width: 100%; display: block; }
+  #captions { position: absolute; left: 60px; right: 140px; top: 1330px; height: 260px; display: flex; align-items: center; justify-content: center; text-align: center; }
+  .chunk { font-weight: 900; font-size: 88px; line-height: 1.08; letter-spacing: -1.5px; text-transform: uppercase; }
+  .w { display: inline-block; margin: 0 .2em; color: #fff; -webkit-text-stroke: 12px #000; paint-order: stroke fill; text-shadow: 0 10px 0 rgba(0,0,0,.6); transform-origin: 50% 60%; }
+  .criador .w.on { color: #3ddc97; }
+  .amigo .w.on { color: #ff8a3d; }
+  .both .w.on { color: #ffd23f; }
+  .w.key { color: #ffd23f; }
+  .wordmark { position: absolute; left: 0; right: 0; text-align: center; font-weight: 900; font-size: 140px; letter-spacing: -5px; }
+  .ring { position: absolute; border-radius: 50%; border: 8px solid #3ddc97; }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 40%, transparent 50%, rgba(0,0,0,.6)); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="blob" id="b1" style="width:900px;height:900px;background:#3ddc97"></div>
+  <div class="blob" id="b2" style="width:850px;height:850px;background:#ff8a3d"></div>
+  <div class="blob" id="b3" style="width:800px;height:800px;background:#7c3aed"></div>
+
+  <div class="title" id="title">COMO EU FIZ MEU PRÓPRIO DISCORD <span>(DE VERDADE)</span></div>
+
+  <!-- 1: o ciclo de trabalho com IA -->
+  <div class="panel" id="pCycle">
+    <div class="step" id="st0" style="left:0;top:40px"><i>🧠</i><div>EU decido<small>o que fazer e como deve funcionar</small></div></div>
+    <div class="step ia" id="st1" style="right:0;top:40px"><i>🤖</i><div>A IA escreve<small>o código a partir disso</small></div></div>
+    <div class="step" id="st2" style="right:0;top:420px"><i>🧪</i><div>EU testo<small>no PC e no celular</small></div></div>
+    <div class="step" id="st3" style="left:0;top:420px"><i>🔍</i><div>EU explico<small>o que quebrou, com prints</small></div></div>
+    <div class="abs" id="cycleArrow" style="left:380px;top:250px;font-size:150px">🔁</div>
+  </div>
+
+  <!-- 2: áudio não passava no 4G -> servidor de retransmissão -->
+  <div class="panel" id="pTurn">
+    <div class="node" id="nA" style="left:0;top:220px"><span class="ic">📱</span>Celular 1<br><small style="color:#a7adbb">4G</small></div>
+    <div class="node" id="nB" style="right:0;top:220px"><span class="ic">📱</span>Celular 2<br><small style="color:#a7adbb">4G</small></div>
+    <div class="abs" id="lineAB" style="left:230px;right:230px;top:330px;height:10px;border-radius:5px;background:#f04d5e"></div>
+    <div class="abs" id="xAB" style="left:400px;top:250px;font-size:150px">❌</div>
+    <div class="node" id="nT" style="left:345px;top:470px"><span class="ic">🛰️</span>Servidor de<br>retransmissão</div>
+    <div class="abs" id="lineAT" style="left:200px;top:430px;width:230px;height:10px;border-radius:5px;background:#3ddc97;transform:rotate(30deg);transform-origin:0 50%"></div>
+    <div class="abs" id="lineTB" style="right:200px;top:430px;width:230px;height:10px;border-radius:5px;background:#3ddc97;transform:rotate(-30deg);transform-origin:100% 50%"></div>
+    <div class="badge" id="freeTurn" style="left:330px;top:0;background:#3ddc97;color:#06281a">✅ R$ 0</div>
+  </div>
+
+  <!-- 3: 30 FPS -> codec certo -->
+  <div class="panel" id="pFps">
+    <div class="meter" id="meterBad" style="top:0;border-color:#f04d5e;background:#2a0f14;color:#ff8b98">🐢 30 FPS · VP8 · processador 98%</div>
+    <div class="shot" id="codecShot" style="left:40px;right:40px;top:150px;height:440px"><img class="clipframe" id="clipCodec" /></div>
+    <div class="meter" id="meterGood" style="top:620px;border-color:#3ddc97;background:#0f2a1f;color:#7ff0bf">🚀 60 FPS · H.264 · placa de vídeo</div>
+  </div>
+
+  <!-- 4: testes com a galera e automáticos -->
+  <div class="panel" id="pTests">
+    <div class="abs" id="crew" style="left:0;right:0;top:0;height:200px"></div>
+    <div class="term" id="tests" style="top:210px;height:570px"><div class="bar">$ npm run test:e2e</div><div class="feed" id="testfeed"></div><div class="count" id="count">0/16 ✓</div></div>
+  </div>
+
+  <!-- 5: senha embaralhada -->
+  <div class="panel" id="pHash">
+    <div class="abs" style="left:60px;top:40px;font-weight:900;font-size:34px;color:#a7adbb">Você digita:</div>
+    <div class="pw" id="pwPlain" style="top:100px;color:#fff">minhasenha123</div>
+    <div class="abs" id="hashArrow" style="left:0;right:0;top:250px;text-align:center;font-size:110px">⬇️</div>
+    <div class="abs" style="left:60px;top:400px;font-weight:900;font-size:34px;color:#a7adbb">O Resenha guarda só isto (scrypt):</div>
+    <div class="pw" id="pwHash" style="top:460px;color:#3ddc97;font-size:34px">…</div>
+    <div class="badge" id="nemEu" style="left:150px;top:640px;background:#ffd23f;color:#1a1400">🙈 nem eu consigo ver</div>
+  </div>
+
+  <!-- 6: 2FA, aparelhos, bloqueio -->
+  <div class="panel" id="pSec">
+    <div class="shot" id="s2fa" style="left:0;width:560px;top:0;height:640px"><img src="out/shots2/security-2fa.png" style="width:1750px;max-width:none;margin-left:-594px;margin-top:-399px" /></div>
+    <div class="shot" id="sDev" style="right:0;width:560px;top:110px"><img src="out/shots3/aparelhos.png" /></div>
+    <div class="shot" id="sLock" style="left:340px;width:280px;top:160px"><img src="out/shots3/bloqueio.png" /></div>
+    <div class="badge" id="secN1" style="left:10px;top:665px;z-index:12;background:#12151b;border:3px solid #3ddc97;color:#3ddc97;font-size:34px">① 2 etapas</div>
+    <div class="badge" id="secN2" style="left:330px;top:665px;z-index:12;background:#12151b;border:3px solid #3ddc97;color:#3ddc97;font-size:34px">② aparelhos</div>
+    <div class="badge" id="secN3" style="left:660px;top:665px;z-index:12;background:#12151b;border:3px solid #3ddc97;color:#3ddc97;font-size:34px">③ bloqueio</div>
+  </div>
+
+  <!-- 7: chamadas criptografadas, sem anúncio, LGPD -->
+  <div class="panel" id="pPriv">
+    <div class="abs" id="e2e" style="left:0;right:0;top:0;text-align:center;transform-origin:50% 0"><div style="font-size:150px">📞🔒</div><div style="font-weight:900;font-size:52px">Chamadas criptografadas</div><div style="font-weight:700;font-size:36px;color:#a7adbb">e nunca gravadas</div></div>
+    <div class="badge" id="noAd" style="left:40px;top:330px;background:#2a0f14;border:3px solid #f04d5e;color:#ff8b98;font-size:40px">🚫 sem anúncio</div>
+    <div class="badge" id="noTrack" style="right:40px;top:330px;background:#2a0f14;border:3px solid #f04d5e;color:#ff8b98;font-size:40px">🚫 sem rastreador</div>
+    <div class="shot" id="sData" style="left:100px;right:100px;top:450px"><img src="out/shots3/dados.png" /></div>
+    <div class="shot" id="sDel" style="left:100px;right:100px;top:650px"><img src="out/shots3/excluir.png" /></div>
+    <div class="badge" id="lgpd" style="left:420px;top:600px;background:#3ddc97;color:#06281a;z-index:4">⚖️ conforme a LGPD</div>
+  </div>
+
+  <!-- 8: lista de espera / link na bio -->
+  <div class="panel" id="pList">
+    <div class="shot" id="sList" style="left:0;right:0;top:40px"><img src="out/shots3/lista.png" /></div>
+    <div class="badge" id="bio" style="left:240px;top:620px;background:#3ddc97;color:#06281a;font-size:60px">👆 LINK NA BIO</div>
+  </div>
+
+  <!-- final -->
+  <div class="abs" id="endCard" style="inset:0;opacity:0">
+    <div class="ring" id="ringE"></div>
+    <img id="logoE" class="abs" src="../client/public/icon.svg" style="width:220px;height:220px;left:430px;top:1000px" />
+    <div class="wordmark" id="wordE" style="top:1180px;font-size:110px;display:none">Resenha</div>
+  </div>
+
+  <div class="who" id="criador"></div>
+  <div class="who" id="amigo"></div>
+  <div class="nametag" id="tagC" style="background:#13241d;color:#3ddc97;border:3px solid #3ddc97">CRIADOR</div>
+  <div class="nametag" id="tagA" style="background:#2a1a10;color:#ff8a3d;border:3px solid #ff8a3d">AMIGO</div>
+
+  <div id="captions"></div>
+  <div class="vignette"></div>
+  <div class="flash" id="flash"></div>
+</div>
+
+<script type="module">
+import { avatarSvg, friendSvg } from './avatar.mjs';
+
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const easeOut = (k) => 1 - Math.pow(1 - k, 3);
+const easeInOut = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const back = (k) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
+const elastic = (k) => (k === 0 || k === 1 ? k : Math.pow(2, -10 * k) * Math.sin((k * 10 - 0.75) * ((2 * Math.PI) / 3)) + 1);
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const css = (el, s) => Object.assign((typeof el === 'string' ? $(el) : el).style, s);
+const pop = (t, at, d = 0.3) => prog(t, at, at + d);
+
+const CONV = await fetch('out/conversa/conversa.json').then((r) => r.json());
+const ENV = await fetch('out/conversa/env.json').then((r) => r.json()).catch(() => ({ amigo: [], criador: [] }));
+const COUNTS = await fetch('out/clips/counts.json').then((r) => r.json()).catch(() => ({}));
+const TESTS = await fetch('out/tests.txt').then((r) => r.text()).then((s) => s.trim().split('\n')).catch(() => []);
+export const DURATION = CONV.duration;
+const L = CONV.lines;
+const envAt = (who, t) => {
+  const e = ENV[who] ?? [];
+  const i = t * 30;
+  return lerp(e[Math.floor(i)] ?? 0, e[Math.ceil(i)] ?? 0, i % 1);
+};
+/** momento em que a fala `li` diz uma palavra que contém `frag` */
+function W(li, frag, nth = 0) {
+  const line = L[li];
+  const ws = CONV.words.filter((w) => w.start >= line.start - 0.05 && w.end <= line.end + 0.05 && w.word.toLowerCase().includes(frag.toLowerCase()));
+  return ws[nth]?.start ?? line.start;
+}
+const speaking = (t) => L.filter((l) => t >= l.start - 0.05 && t <= l.end + 0.1);
+
+// painéis (explicações) de cada resposta do criador: [painel, início, fim]
+const PANELS = [
+  ['pCycle', L[3].start, L[3].end + 0.25],
+  ['pTurn', L[5].start, L[5].end + 0.25],
+  ['pFps', L[7].start, L[7].end + 0.25],
+  ['pTests', L[9].start, L[9].end + 0.25],
+  ['pHash', L[11].start, L[11].end + 0.15],
+  ['pSec', L[12].start, L[12].end + 0.15],
+  ['pPriv', L[13].start, L[13].end + 0.25],
+  ['pList', L[15].start, L[15].end + 0.1],
+];
+for (let i = 0; i < PANELS.length - 1; i++) if (PANELS[i + 1][1] - PANELS[i][2] < 1.2) PANELS[i][2] = PANELS[i + 1][1] + 0.15;
+// quanto do "modo explicação" está ligado (transição suave)
+function brollK(t) {
+  let k = 0;
+  for (const [, a, b] of PANELS) k = Math.max(k, Math.min(prog(t, a - 0.1, a + 0.3), 1 - prog(t, b - 0.15, b + 0.25)));
+  return easeInOut(k);
+}
+
+$('testfeed').innerHTML = TESTS.map((l) => `<div class="tl">${l.replace(/</g, '&lt;').slice(0, 64)}</div>`).join('');
+$('crew').innerHTML = ['🦁#f97316', '🐺#3b82f6', '🦊#ec4899', '🐸#22c55e', '🐼#eab308'].map((s, i) => `<div class="float crewc" id="cw${i}" style="left:${70 + i * 180}px;top:20px;width:150px;height:150px;border-radius:50%;display:grid;place-items:center;font-size:86px;background:${s.slice(2)};box-shadow:0 0 0 6px #0b0d11">${s.slice(0, 2)}</div>`).join('');
+const HASH = 'scrypt$Q2x9mR7tLk0pVw3s$9f8aE1c0b7D4e2F6a5B3c8D1e9F0a7B2c4D6e8F1a3B5c7';
+
+let pending = [];
+function clipFrame(imgId, clip, frame) {
+  const n = Math.max(1, Math.min(COUNTS[clip] ?? 1, Math.round(frame)));
+  const src = `out/clips/${clip}/${String(n).padStart(4, '0')}.jpg`;
+  const el = $(imgId);
+  if (el.dataset.src !== src) {
+    el.dataset.src = src;
+    el.src = src;
+    pending.push(el.decode().catch(() => {}));
+  }
+}
+
+// legendas: frases da conversa em blocos de até 3 palavras, com a cor de quem fala
+function chunks() {
+  const out = [];
+  let cur = [];
+  const flush = () => cur.length && (out.push({ who: cur[0].who, words: cur, start: cur[0].start, end: cur[cur.length - 1].end }), (cur = []));
+  CONV.words.forEach((w, i) => {
+    const p = CONV.words[i - 1];
+    if (cur.length && (w.who !== p.who || w.start - p.end > 0.35 || cur.length >= 3)) flush();
+    cur.push(w);
+    if (/[.?!:,…]$/.test(w.word)) flush();
+  });
+  flush();
+  // não deixa palavra solta: junta com a vizinha da mesma frase
+  for (let i = out.length - 1; i > 0; i--) {
+    const c = out[i], p = out[i - 1];
+    if (c.words.length === 1 && p.who === c.who && p.words.length < 3 && c.start - p.end < 0.2 && !/[.?!:,…]$/.test(p.words[p.words.length - 1].word)) {
+      p.words.push(...c.words);
+      p.end = c.end;
+      out.splice(i, 1);
+    }
+  }
+  for (let i = 0; i < out.length - 1; i++) out[i].end = Math.min(out[i + 1].start, out[i].end + 0.6);
+  out[out.length - 1].end = DURATION - 0.4;
+  return out;
+}
+const CHUNKS = chunks();
+const KEYS = /^(ia|código|4g|retransmissão|graça|fps|codec|placa|liso|madrugada|dezesseis|testes|não!|embaralhada|duas|aparelhos|bloqueio|criptografadas|gravadas|anúncio|rastreador|lgpd|bio!|beta|resenha!)/i;
+let last = -1;
+function captions(t) {
+  const i = CHUNKS.findIndex((c) => t >= c.start && t < c.end);
+  const el = $('captions');
+  if (i !== last) {
+    last = i;
+    el.innerHTML = i < 0 ? '' : `<div class="chunk ${CHUNKS[i].who}">${CHUNKS[i].words.map((w) => `<span class="w${KEYS.test(w.word.replace(/^[…"]+/, '')) ? ' key' : ''}">${w.word.replace(/[,.:;]+$|…$/g, '').replace(/"/g, '')}</span>`).join(' ')}</div>`;
+  }
+  if (i < 0) return;
+  const c = CHUNKS[i];
+  const k = prog(t, c.start, c.start + 0.16);
+  css(el.firstChild, { transform: `scale(${lerp(0.7, 1, back(k))}) translateY(${lerp(30, 0, easeOut(k))}px)`, opacity: k });
+  c.words.forEach((w, j) => {
+    const sp = el.firstChild.children[j];
+    const on = t >= w.start;
+    const p = prog(t, w.start, w.start + 0.14);
+    sp.classList.toggle('on', on && t < w.end + 0.25);
+    css(sp, { transform: `scale(${on ? lerp(1.18, 1, easeOut(p)) : 0.92})`, opacity: on ? 1 : 0.8 });
+  });
+}
+
+function show(id, k, from = 60) {
+  css(id, { opacity: clamp(k), transform: `translateY(${lerp(from, 0, easeOut(clamp(k)))}px) scale(${lerp(0.94, 1, easeOut(clamp(k)))})` });
+}
+const between = (t, a, b) => t >= a && t < b;
+
+window.seek = async function seek(t) {
+  pending = [];
+  const end = L[16].start;
+  // fundo
+  const serious = between(t, L[10].start, L[14].start) ? 1 : 0;
+  css('b1', { left: `${-300 + Math.sin(t * 0.5) * 200}px`, top: `${100 + Math.cos(t * 0.4) * 150}px`, opacity: 0.4 });
+  css('b2', { left: `${500 + Math.cos(t * 0.45) * 220}px`, top: `${300 + Math.sin(t * 0.35) * 200}px`, opacity: lerp(0.35, 0.12, serious) });
+  css('b3', { left: `${100 + Math.sin(t * 0.3) * 250}px`, top: `${1200 + Math.cos(t * 0.5) * 120}px`, opacity: lerp(0.3, 0.5, serious) });
+
+  // personagens: lado a lado (podcast) ou pequenos no topo (explicação); no final, os dois juntos
+  const bk = brollK(t);
+  const finale = prog(t, end - 0.2, end + 0.4);
+  const talk = speaking(t);
+  const isTalking = (who) => talk.some((l) => l.who === who);
+  for (const who of ['criador', 'amigo']) {
+    const left = who === 'criador';
+    const active = isTalking(who);
+    const m = clamp(envAt(who, t) * 1.35);
+    const blinkPhase = (t + (left ? 0.7 : 2.1)) % (left ? 3.7 : 4.3);
+    const blink = blinkPhase < 0.12 ? Math.sin((blinkPhase / 0.12) * Math.PI) : 0;
+    const opts = { mouth: m, blink, glow: active ? 0.6 + m * 0.4 : 0.35, look: left ? 0.35 : -0.35, tilt: Math.sin(t * (left ? 1.3 : 1.6)) * 2.5 + (active ? Math.sin(t * 5) * 1.2 : 0), bob: Math.sin(t * (left ? 2.1 : 2.4)) * 6 };
+    $(who).innerHTML = left ? avatarSvg(opts) : friendSvg(opts);
+    // posição: podcast (grande) -> explicação (canto) -> final (centro)
+    const pod = { x: left ? -40 : 520, y: 300, s: active ? 0.98 : 0.88 };
+    const pip = { x: left ? 20 : 820, y: 120, s: 0.38 };
+    const fin = { x: left ? 40 : 440, y: 330, s: 0.95 };
+    let x = lerp(pod.x, pip.x, bk), y = lerp(pod.y, pip.y, bk), s = lerp(pod.s, pip.s, bk);
+    x = lerp(x, fin.x, finale); y = lerp(y, fin.y, finale); s = lerp(s, fin.s, finale);
+    const intro = pop(t, left ? 0.25 : 0, 0.5);
+    css(who, { left: `${x}px`, top: `${y + lerp(200, 0, back(intro))}px`, transform: `scale(${s})`, opacity: intro, filter: active || finale > 0 ? 'none' : `brightness(${lerp(0.55, 0.85, bk)})`, zIndex: active ? 3 : 2 });
+    const tag = left ? 'tagC' : 'tagA';
+    css(tag, { left: `${x + (left ? 200 : 250) * s}px`, top: `${y + 700 * s - 10}px`, transform: `scale(${lerp(1, 0.6, bk)})`, transformOrigin: '0 0', opacity: intro * (1 - finale) * (active ? 1 : 0.55) });
+  }
+
+  // título no começo
+  const ti = pop(t, 0.3, 0.4) * (1 - prog(t, L[1].start + 1.5, L[1].start + 1.9));
+  css('title', { opacity: ti, transform: `scale(${lerp(0.8, 1, back(pop(t, 0.3, 0.4)))})` });
+
+  // painéis
+  for (const [id, a, b] of PANELS) {
+    const k = Math.min(prog(t, a - 0.05, a + 0.45), 1 - prog(t, b - 0.3, b));
+    css(id, { opacity: k > 0 ? k : 0, display: k > 0 ? 'block' : 'none', transform: `translateY(${lerp(80, 0, easeOut(clamp(k)))}px)` });
+  }
+
+  // 1: ciclo (cada passo acende quando é dito)
+  if (between(t, L[3].start, L[3].end + 0.3)) {
+    const marks = [W(3, 'decide'), W(3, 'escreve'), W(3, 'testa'), W(3, 'explica')];
+    marks.forEach((m, i) => {
+      const k = pop(t, m - 0.1, 0.3);
+      $(`st${i}`).classList.toggle('on', t >= m - 0.1);
+      css(`st${i}`, { transform: `scale(${t >= m - 0.1 ? lerp(1.12, 1, easeOut(k)) : 0.92})`, opacity: lerp(0.45, 1, k) });
+    });
+    css('cycleArrow', { transform: `rotate(${(t - L[3].start) * 90}deg)` });
+  }
+
+  // 2: 4G -> servidor de retransmissão (grátis)
+  if (between(t, L[5].start, L[5].end + 0.3)) {
+    const fail = W(5, 'passava'), relay = W(5, 'retransmissão'), free = W(5, 'graça');
+    show('nA', pop(t, L[5].start + 0.1));
+    show('nB', pop(t, L[5].start + 0.25));
+    const red = pop(t, fail - 0.2, 0.3) * (1 - pop(t, relay, 0.3));
+    css('lineAB', { opacity: red, transform: `scaleX(${Math.sin(t * 30) > 0 ? 1 : 0.94})` });
+    css('xAB', { opacity: red, transform: `scale(${lerp(2, 1, back(pop(t, fail - 0.2, 0.3)))})` });
+    show('nT', pop(t, relay - 0.1, 0.35), -80);
+    css('lineAT', { opacity: pop(t, relay + 0.2, 0.3) });
+    css('lineTB', { opacity: pop(t, relay + 0.35, 0.3) });
+    const fr = pop(t, free - 0.15, 0.3);
+    css('freeTurn', { opacity: fr, transform: `scale(${lerp(2.2, 1, back(fr))}) rotate(-4deg)` });
+  }
+
+  // 3: 30 FPS no VP8 -> 60 FPS no H.264 (janela de qualidade real do app)
+  if (between(t, L[7].start, L[7].end + 0.3)) {
+    const codec = W(7, 'codec'), gpu = W(7, 'placa');
+    const bad = pop(t, L[7].start + 0.1, 0.3) * (1 - pop(t, gpu, 0.3));
+    css('meterBad', { opacity: bad, transform: `translateX(${Math.sin(t * 40) * 6 * bad}px)` });
+    show('codecShot', pop(t, codec - 0.2, 0.35));
+    clipFrame('clipCodec', 'quality', Math.min(COUNTS.quality ?? 100, 40 + (t - codec) * 30 * 0.9));
+    css('clipCodec', { transform: `scale(${lerp(1.3, 1.9, prog(t, codec, codec + 1))})`, transformOrigin: '52% 72%' });
+    const gd = pop(t, gpu, 0.35);
+    css('meterGood', { opacity: gd, transform: `scale(${lerp(1.4, 1, back(gd))})` });
+  }
+
+  // 4: galera de madrugada + testes automáticos (contador até 16)
+  if (between(t, L[9].start, L[9].end + 0.3)) {
+    for (let i = 0; i < 5; i++) {
+      const k = pop(t, L[9].start + i * 0.12, 0.35);
+      css(`cw${i}`, { opacity: k, transform: `translateY(${lerp(60, 0, back(k)) - Math.max(0, Math.sin(t * 9 + i * 1.7)) * 12}px)` });
+    }
+    const tk = W(9, 'testes') - 0.6;
+    show('tests', pop(t, tk - 0.6, 0.35));
+    const prg = prog(t, tk, L[9].end);
+    css('testfeed', { transform: `translateY(${-prg * Math.max(0, TESTS.length * 38 - 420)}px)` });
+    $('count').textContent = `${Math.round(prg * 16)}/16 ✓`;
+    css('count', { transform: `scale(${1 + (prg >= 1 ? 0.12 * Math.exp(-(t - L[9].end) * 6) : 0)})` });
+  }
+
+  // 5: senha embaralhada (hash)
+  if (between(t, L[11].start, L[11].end + 0.2)) {
+    const sc = W(11, 'embaralhada');
+    const k = prog(t, sc - 0.3, sc + 0.9);
+    const chars = 'abcdef0123456789$ABCDEF';
+    const n = Math.floor(HASH.length * k);
+    $('pwHash').textContent = k <= 0 ? '…' : HASH.slice(0, n) + Array.from({ length: Math.min(8, HASH.length - n) }, (_, i) => chars[(Math.floor(t * 60) + i * 7) % chars.length]).join('');
+    css('hashArrow', { transform: `translateY(${Math.sin(t * 6) * 10}px)` });
+    const ne = pop(t, W(11, 'consigo') - 0.3, 0.3);
+    css('nemEu', { opacity: ne, transform: `scale(${lerp(2, 1, back(ne))}) rotate(-3deg)` });
+  }
+
+  // 6: 2FA -> aparelhos -> bloqueio (telas reais)
+  if (between(t, L[12].start, L[12].end + 0.2)) {
+    const a = W(12, 'duas'), b = W(12, 'aparelhos'), c = W(12, 'bloqueio');
+    const ka = pop(t, Math.min(a - 0.5, L[12].start + 0.2), 0.5), kb = pop(t, b - 0.4, 0.5), kc = pop(t, c - 0.4, 0.5);
+    // a mais nova fica na frente; as anteriores recuam um pouco, mas continuam na tela
+    const stack = (id, k, back1, rot) => css(id, { opacity: k, zIndex: Math.round(10 - back1 * 5), filter: `brightness(${lerp(1, 0.6, back1)})`, transform: `translateY(${lerp(70, 0, easeOut(k))}px) scale(${lerp(0.92, 1, easeOut(k)) * lerp(1, 0.94, back1)}) rotate(${rot}deg)` });
+    stack('s2fa', ka, Math.max(kb, kc), -3);
+    stack('sDev', kb, kc, 2.5);
+    stack('sLock', kc, 0, -1);
+    [ka, kb, kc].forEach((k, i) => css(`secN${i + 1}`, { opacity: k, transform: `scale(${lerp(1.5, 1, back(k))})` }));
+  }
+
+  // 7: criptografia, sem anúncio, baixar dados, apagar conta, LGPD
+  if (between(t, L[13].start, L[13].end + 0.3)) {
+    const ad = W(13, 'anúncio'), dl = W(13, 'baixa'), del = W(13, 'apaga'), lg = W(13, 'lgpd');
+    const rt = W(13, 'rastreador');
+    show('e2e', pop(t, L[13].start, 0.45));
+    const na = pop(t, ad - 0.25, 0.4), nt = pop(t, rt - 0.25, 0.4);
+    css('noAd', { opacity: na, transform: `scale(${lerp(1.6, 1, back(na))}) rotate(-2deg)` });
+    css('noTrack', { opacity: nt, transform: `scale(${lerp(1.6, 1, back(nt))}) rotate(2deg)` });
+    show('sData', pop(t, dl - 0.35, 0.5));
+    show('sDel', pop(t, del - 0.3, 0.5));
+    const lk = pop(t, lg - 0.3, 0.3);
+    css('lgpd', { opacity: lk, transform: `scale(${lerp(2, 1, back(lk))}) rotate(-3deg)` });
+  }
+
+  // 8: lista de espera + link na bio
+  if (between(t, L[15].start, L[15].end + 0.2)) {
+    show('sList', pop(t, L[15].start, 0.35));
+    const bi = pop(t, L[15].start + 0.1, 0.35);
+    css('bio', { opacity: bi, transform: `scale(${lerp(0.5, 1, back(bi)) * (1 + Math.max(0, Math.sin(t * 6)) * 0.04)})` });
+  }
+
+  // final: os dois juntos + logo
+  const ec = prog(t, end - 0.1, end + 0.4);
+  css('endCard', { opacity: ec });
+  css('logoE', { transform: `scale(${elastic(ec)})` });
+  const rk = ((t - end) % 1.2) / 1.2;
+  const rs = lerp(220, 800, Math.max(0, rk));
+  css('ringE', { width: `${rs}px`, height: `${rs}px`, left: `${540 - rs / 2}px`, top: `${1110 - rs / 2}px`, opacity: t >= end ? (1 - rk) * 0.7 : 0 });
+
+  // clarões
+  const hits = [L[3].start, W(5, 'retransmissão'), W(7, 'placa'), W(11, 'embaralhada'), end];
+  css('flash', { opacity: Math.max(0, ...hits.map((h) => (t >= h && t < h + 0.1 ? 1 - prog(t, h, h + 0.1) : 0))) * 0.6 });
+
+  captions(t);
+  await Promise.all(pending);
+};
+
+window.DURATION = DURATION;
+window.ready = Promise.all([...document.images].map((i) => i.decode().catch(() => {}))).then(() => document.fonts.ready);
+await window.seek(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+# Gera o instalador do app de desktop para Windows a cada mudança em desktop/ e publica a versão
+# (desktop/package.json -> "version") em Releases deste repositório: os apps instalados olham essas
+# Releases e se atualizam sozinhos. Com a variável RELEASE_BRANCH definida, só essa branch publica.
+# Versão já publicada não é sobrescrita: para lançar uma atualização, aumente o "version".
+name: App de desktop (Windows)
+
+on:
+  push:
+    branches: [main, claude/screen-sharing-app-w2m6ft]
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write # criar a Release com o instalador
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Ver se esta versão já foi publicada
+        id: rel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_BRANCH: ${{ vars.RELEASE_BRANCH }}
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          TAG="v$VER"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # Quem publica para todo mundo é a branch que o site oficial segue (variável do repositório
+          # RELEASE_BRANCH; sem ela, as duas). Quando existir o site de teste (docs/LANCAMENTOS.md),
+          # defina RELEASE_BRANCH=main: na branch de trabalho o instalador fica só em "Artifacts".
+          if [ -n "$RELEASE_BRANCH" ] && [ "$GITHUB_REF" != "refs/heads/$RELEASE_BRANCH" ]; then
+            echo "Branch $GITHUB_REF não é a de lançamento ($RELEASE_BRANCH): gera o instalador, mas não publica."
+            echo "publish=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # todas as Releases (inclusive rascunhos) desta versão: "id rascunho arquivos"
+          gh api "repos/$REPO/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$TAG\") | \"\(.id) \(.draft) \([.assets[].name] | join(\",\"))\"" > rels.txt
+          cat rels.txt
+          COMPLETE=$(awk '$2 == "false" && $3 ~ /\.exe/ && $3 ~ /latest\.yml/' rels.txt | wc -l)
+          TOTAL=$(wc -l < rels.txt)
+          if [ "$COMPLETE" -eq 1 ] && [ "$TOTAL" -eq 1 ]; then
+            echo "Versão $TAG já publicada e completa: só gera o instalador. Para lançar, aumente o version."
+            echo "publish=no" >> "$GITHUB_OUTPUT"
+          else
+            # nenhuma, incompleta, rascunho parado ou duplicada: limpa tudo e publica de novo
+            while read -r ID _; do
+              [ -n "$ID" ] && echo "Apagando Release $ID" && gh api -X DELETE "repos/$REPO/releases/$ID"
+            done < rels.txt
+            gh api -X DELETE "repos/$REPO/git/refs/tags/$TAG" 2>/dev/null && echo "Tag $TAG apagada" || true
+            echo "publish=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Programa nativo do "som do PC sem o Resenha" (captura de áudio de aplicativo do Windows), compilado
+      # com o Visual Studio que já vem na máquina do GitHub e empacotado junto (extraResources).
+      - name: Compilar o som do PC sem o Resenha
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          New-Item -ItemType Directory -Force native\bin | Out-Null
+          cmd /c "call `"$vs\VC\Auxiliary\Build\vcvars64.bat`" && cl /nologo /O2 /EHsc /std:c++17 /W3 /MT native\sysaudio.cpp /Fe:native\bin\resenha-sysaudio.exe /Fo:native\bin\ ole32.lib mmdevapi.lib"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-Item native\bin\resenha-sysaudio.exe
+
+      # O empacotador só gera os arquivos (inclusive latest.yml, usado pela atualização automática).
+      # A Release é criada depois com UM comando, já com todos os arquivos: publicar pelo empacotador
+      # fazia envios em paralelo criarem Releases duplicadas.
+      - name: Gerar instalador
+        run: npx electron-builder --win --publish never
+
+      - name: Publicar a versão
+        if: steps.rel.outputs.publish == 'yes'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.rel.outputs.tag }}
+        run: |
+          ls -la dist
+          gh release create "$TAG" dist/Resenha-Setup-*.exe dist/Resenha-Setup-*.exe.blockmap dist/latest.yml \
+            --target "$GITHUB_SHA" --latest --title "Resenha $TAG" \
+            --notes "App de desktop do Resenha para Windows. Baixe e abra o **Resenha-Setup-${TAG#v}.exe**. Os outros arquivos são usados pela atualização automática."
+
+      - name: Guardar instalador
+        uses: actions/upload-artifact@v4
+        with:
+          name: Resenha-Windows
+          path: desktop/dist/*.exe
+          retention-days: 30
+          if-no-files-found: error

@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Resenha — trailer do app</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: #07080b; font-family: Inter, sans-serif; color: #fff; }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+  .abs { position: absolute; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(140px); opacity: .45; }
+  #world { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+  #win { position: absolute; left: 210px; top: 90px; width: 1500px; height: 938px; border-radius: 18px; overflow: hidden; box-shadow: 0 50px 120px rgba(0,0,0,.7), 0 0 0 2px #262a35; background: #111318; }
+  #win > img { position: absolute; left: 0; top: 0; width: 1500px; height: 938px; }
+  #game { position: absolute; border-radius: 6px; }
+  .live { position: absolute; padding: 4px 10px; border-radius: 6px; background: rgba(0,0,0,.6); font-weight: 800; font-size: 16px; }
+  .live b { background: #e5384b; padding: 1px 6px; border-radius: 4px; margin-right: 8px; }
+  .speak { position: absolute; border: 4px solid #3ddc97; border-radius: 12px; box-shadow: 0 0 30px #3ddc97; opacity: 0; }
+  .float { position: absolute; font-size: 64px; pointer-events: none; }
+  .bubble { position: absolute; right: 120px; padding: 12px 18px; border-radius: 16px; background: rgba(17,19,24,.92); border: 1px solid #2a2f3a; font-weight: 700; font-size: 24px; display: flex; gap: 12px; align-items: center; box-shadow: 0 12px 30px rgba(0,0,0,.5); white-space: nowrap; }
+  .bubble i { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 24px; }
+  .bubble small { display: block; font-size: 15px; color: #3ddc97; }
+  .phone { position: absolute; width: 520px; height: 1080px; border-radius: 66px; background: #1d2028; padding: 18px; box-shadow: 0 50px 100px rgba(0,0,0,.7), inset 0 0 0 2px #333846; }
+  .phone .screen { position: relative; width: 100%; height: 100%; border-radius: 50px; overflow: hidden; background: #111318; }
+  .phone img { width: 100%; display: block; }
+  .phone .notch { position: absolute; top: 30px; left: 50%; width: 130px; height: 32px; margin-left: -65px; border-radius: 20px; background: #000; z-index: 2; }
+  /* legendas */
+  #cap { position: absolute; left: 0; right: 0; display: flex; justify-content: center; flex-wrap: wrap; text-align: center; pointer-events: none; }
+  .w { display: inline-block; margin: 0 .22em; font-weight: 900; letter-spacing: -1.5px; -webkit-text-stroke: 10px #000; paint-order: stroke fill; text-shadow: 0 8px 0 rgba(0,0,0,.55); transform-origin: 50% 70%; }
+  .w.key { color: #3ddc97; margin: 0 .32em; }
+  .grad { position: absolute; left: 0; right: 0; bottom: 0; height: 360px; background: linear-gradient(transparent, rgba(0,0,0,.75)); pointer-events: none; }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55)); }
+  #end { position: absolute; inset: 0; opacity: 0; }
+  .wordmark { position: absolute; left: 0; right: 0; text-align: center; font-weight: 900; letter-spacing: -6px; }
+  .pill { display: inline-block; padding: 12px 26px; border-radius: 999px; font-weight: 800; font-size: 30px; }
+  .ring { position: absolute; border-radius: 50%; border: 10px solid #3ddc97; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="blob" id="b1" style="width:1000px;height:1000px;background:#3ddc97"></div>
+  <div class="blob" id="b2" style="width:900px;height:900px;background:#7c3aed"></div>
+  <div class="blob" id="b3" style="width:800px;height:800px;background:#ff3d7f"></div>
+
+  <div id="world">
+    <div id="win">
+      <img src="out/shots/desk-call.png" />
+      <canvas id="game" width="1150" height="652"></canvas>
+      <div class="live" id="live"><b>AO VIVO</b>Tela de Henrique · 1080p</div>
+      <div id="prelive" class="abs" style="display:grid;place-items:center;background:#000;color:#a7adbb;font-weight:700;font-size:30px">🖥️ Henrique está iniciando a transmissão…</div>
+      <div id="speak"></div>
+      <div id="floats"></div>
+      <div id="bubbles"></div>
+    </div>
+  </div>
+
+  <div class="phone" id="ph1" style="left:700px;top:0"><div class="notch"></div><div class="screen"><img src="out/shots/phone-soundboard.png" /></div></div>
+  <div class="phone" id="ph2" style="left:700px;top:0"><div class="notch"></div><div class="screen"><img src="out/shots/phone-chat.png" /></div></div>
+  <div class="abs" id="phfx" style="inset:0"></div>
+
+  <div id="end">
+    <div class="ring" id="endring"></div>
+    <img id="endlogo" class="abs" src="../client/public/icon.svg" style="width:300px;height:300px;left:810px;top:170px" />
+    <div class="wordmark" id="endword" style="top:500px;font-size:190px">Resenha</div>
+    <div class="abs" id="endsub" style="left:0;right:0;top:730px;text-align:center;font-weight:800;font-size:56px">Chama a galera.</div>
+    <div class="abs" id="endpills" style="left:0;right:0;top:840px;text-align:center">
+      <span class="pill" style="background:#3ddc97;color:#06281a">BETA GRÁTIS</span>
+      <span class="pill" style="background:rgba(255,255,255,.1);margin-left:14px">Windows · Navegador</span>
+    </div>
+  </div>
+
+  <div class="grad" id="grad"></div>
+  <div id="cap"></div>
+  <div class="vignette"></div>
+  <div class="flash" id="flash"></div>
+</div>
+
+<script type="module">
+import { drawGame } from './game.mjs';
+
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const easeOut = (k) => 1 - Math.pow(1 - k, 3);
+const easeInOut = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const back = (k) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
+const elastic = (k) => (k === 0 || k === 1 ? k : Math.pow(2, -10 * k) * Math.sin((k * 10 - 0.75) * ((2 * Math.PI) / 3)) + 1);
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const css = (el, s) => Object.assign((typeof el === 'string' ? $(el) : el).style, s);
+export const DURATION = 24;
+const BEAT = 0.5; // 120 BPM
+
+// ---------- geometria da janela (print 1440x900 desenhado em 1500x938) ----------
+const K = 1500 / 1440;
+const WIN = { x: 210, y: 90 };
+const STREAM = { x: 328 * K, y: 60 * K, w: 1104 * K, h: 626 * K };
+const TILE_X = [329, 517, 705, 893, 1081];
+const TILES = TILE_X.map((x) => ({ x: x * K, y: 695 * K, w: 178 * K, h: 119 * K }));
+css('game', { left: `${STREAM.x}px`, top: `${STREAM.y}px`, width: `${STREAM.w}px`, height: `${STREAM.h}px` });
+css('live', { left: `${STREAM.x + 14}px`, top: `${STREAM.y + STREAM.h - 46}px` });
+css('prelive', { left: `${STREAM.x}px`, top: `${STREAM.y}px`, width: `${STREAM.w}px`, height: `${STREAM.h}px` });
+$('speak').innerHTML = TILES.map((r, i) => `<div class="speak" id="sp${i}" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px"></div>`).join('');
+
+// ---------- câmera ----------
+// foco em coordenadas do mundo e escala
+const at = (x, y) => ({ x: WIN.x + x, y: WIN.y + y });
+const WIDE = { ...at(750, 469), s: 0.98 };
+const ONSTREAM = { ...at(STREAM.x + STREAM.w / 2, STREAM.y + STREAM.h / 2), s: 1.55 };
+const ONTILES = (x) => ({ ...at(x, 786), s: 1.75 });
+function camAt(t) {
+  const keys = [
+    [3.8, { ...WIDE, s: 0.7 }],
+    [4.6, WIDE],
+    [8.0, { ...WIDE, s: 1.06 }],
+    [8.6, ONSTREAM],
+    [12.0, { ...ONSTREAM, s: 1.68 }],
+    [12.6, ONTILES(560)],
+    [16.0, ONTILES(1170)],
+  ];
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++) {
+    if (t <= keys[i][0]) {
+      const [t0, a] = keys[i - 1];
+      const [t1, b] = keys[i];
+      const k = easeInOut(prog(t, t0, t1));
+      return { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), s: lerp(a.s, b.s, k) };
+    }
+  }
+  return keys[keys.length - 1][1];
+}
+/** "soco" de câmera nas batidas fortes */
+const punch = (t, times, amt = 0.04) => times.reduce((acc, h) => acc + (t >= h ? amt * Math.exp(-(t - h) * 9) : 0), 0);
+
+// ---------- legendas (cada palavra entra na batida) ----------
+const CAPS = [
+  { end: 1.95, pos: 'center', size: 170, words: [['SEXTA,', 0.5], ['22H.', 1.0, 1]] },
+  { end: 3.75, pos: 'center', size: 150, words: [['A', 2.0], ['GALERA', 2.25], ['TÁ', 2.75], ['ON.', 3.0, 1]] },
+  { end: 5.95, words: [['Todo', 4.6], ['mundo', 4.85], ['na', 5.1], ['call…', 5.35]] },
+  { end: 7.95, words: [['…e', 6.0], ['alguém', 6.25], ['começa', 6.6], ['a', 6.85], ['transmitir.', 7.0, 1]] },
+  { end: 9.95, words: [['Gameplay', 8.0], ['em', 8.5], ['Full', 8.75, 1], ['HD', 9.0, 1]] },
+  { end: 11.95, words: [['pra', 10.0], ['galera', 10.25], ['toda', 10.5], ['assistir', 10.75], ['junto.', 11.0, 1]] },
+  { end: 13.45, words: [['Reage,', 12.0], ['zoa,', 12.5], ['comenta…', 12.75]] },
+  { end: 15.95, words: [['…e', 13.5], ['solta', 13.75], ['o', 14.0], ['SOUNDBOARD.', 14.25, 1]] },
+  { end: 16.95, pos: 'center', size: 190, words: [['FULL HD.', 16.0, 1]] },
+  { end: 17.95, pos: 'center', size: 170, words: [['SOUNDBOARD.', 17.0, 1]] },
+  { end: 18.95, pos: 'center', size: 170, words: [['FIGURINHAS.', 18.0, 1]] },
+  { end: 19.95, pos: 'center', size: 170, words: [['TUDO', 19.0], ['GRÁTIS.', 19.5, 1]] },
+];
+let lastCap = -2;
+function captions(t) {
+  const i = CAPS.findIndex((c) => t >= c.words[0][1] && t < c.end);
+  const capEl = $('cap');
+  if (i !== lastCap) {
+    lastCap = i;
+    if (i < 0) capEl.innerHTML = '';
+    else {
+      const c = CAPS[i];
+      capEl.innerHTML = c.words.map(([w, , key]) => `<span class="w${key ? ' key' : ''}">${w}</span>`).join('');
+      css(capEl, c.pos === 'center' ? { top: '0', bottom: '0', alignItems: 'center', alignContent: 'center' } : { top: 'auto', bottom: '110px', alignItems: 'flex-end', alignContent: 'flex-end' });
+      css(capEl, { fontSize: `${c.size ?? 84}px` });
+    }
+  }
+  if (i < 0) return;
+  const c = CAPS[i];
+  c.words.forEach(([, wt, key], j) => {
+    const el = capEl.children[j];
+    const k = prog(t, wt, wt + 0.16);
+    const out = prog(t, c.end - 0.12, c.end);
+    css(el, {
+      opacity: k * (1 - out),
+      transform: `translateY(${lerp(40, 0, easeOut(k))}px) scale(${(key ? lerp(1.6, 1.08, back(k)) : lerp(1.3, 1, back(k))) * lerp(1, 0.9, out)}) rotate(${key ? -2 : 0}deg)`,
+    });
+  });
+}
+
+// ---------- momentos de ação ----------
+const BOOSTS = [8.75, 9.0, 10.5, 11.0];
+const DROP_HITS = [16, 17, 18, 19, 20];
+const EMOJI_SPAWNS = [
+  [12.0, 0, '😂'], [12.25, 3, '🔥'], [12.5, 1, '💀'], [12.75, 4, '🤣'], [13.0, 2, '😱'], [13.25, 0, '🔥'], [13.5, 3, '😂'], [15.0, 4, '🔥'], [15.25, 1, '😂'], [15.5, 2, '👏'],
+];
+const BUBBLES = [
+  [8.9, '🐺', '#3b82f6', 'Lucas', 'KKKKKKK que curva'],
+  [9.6, '🦊', '#ec4899', 'Bia', 'turbo agora!! 🔥'],
+  [10.4, '🐸', '#22c55e', 'Pedrão', 'replay disso pfv'],
+  [11.1, '🐼', '#eab308', 'Duda', 'GG 🏆'],
+];
+
+const gameCanvas = $('game');
+window.seek = function seek(t) {
+  // fundo
+  const pulse = punch(t, [0, 2, 4, 8, 12, ...DROP_HITS], 0.25);
+  css('b1', { left: `${-200 + Math.sin(t * 0.5) * 220}px`, top: `${-200 + Math.cos(t * 0.4) * 140}px`, opacity: 0.35 + pulse });
+  css('b2', { left: `${1100 + Math.cos(t * 0.45) * 220}px`, top: `${400 + Math.sin(t * 0.35) * 180}px` });
+  css('b3', { left: `${400 + Math.sin(t * 0.3) * 260}px`, top: `${700 + Math.cos(t * 0.5) * 120}px`, opacity: 0.3 });
+
+  // jogo na transmissão (a partir de "começa a transmitir")
+  const boost = Math.max(...BOOSTS.map((b) => (t >= b ? Math.exp(-(t - b) * 2.2) : 0)), t >= 16 && t < 17 ? 1 : 0);
+  drawGame(gameCanvas, t, { boost });
+  const live = prog(t, 6.9, 7.3);
+  css('prelive', { opacity: 1 - live });
+  css('live', { opacity: live, transform: `scale(${1 + Math.max(0, Math.sin(t * 6)) * 0.04})` });
+
+  // quem está falando (aros verdes)
+  for (let i = 0; i < 5; i++) {
+    const v = Math.max(0, Math.sin(t * (5 + i) + i * 2.1)) * (t > 4.2 ? 1 : 0);
+    css(`sp${i}`, { opacity: v > 0.55 ? 1 : 0 });
+  }
+
+  // emojis subindo dos blocos + buzina do soundboard
+  $('floats').innerHTML = [
+    ...EMOJI_SPAWNS.map(([at0, tile, e], n) => {
+      const k = prog(t, at0, at0 + 1.6);
+      if (k <= 0 || k >= 1) return '';
+      const r = TILES[tile];
+      return `<span class="float" style="left:${r.x + r.w / 2 - 32 + Math.sin(k * 6 + n) * 20}px;top:${r.y - k * 260}px;opacity:${1 - k * k};transform:scale(${lerp(0.4, 1.3, easeOut(Math.min(1, k * 3)))})">${e}</span>`;
+    }),
+    (() => {
+      const k = prog(t, 14.25, 15.6);
+      if (k <= 0 || k >= 1) return '';
+      const r = TILES[2];
+      return `<span class="float" style="left:${r.x + r.w / 2 - 70}px;top:${r.y - 40 - k * 60}px;font-size:140px;opacity:${1 - k * k};transform:scale(${elastic(Math.min(1, k * 2.5))}) rotate(${Math.sin(t * 20) * 8}deg)">📯</span>`;
+    })(),
+  ].join('');
+  css(`sp2`, { opacity: t >= 14.25 && t < 15.6 ? 1 : $('sp2').style.opacity });
+
+  // mensagens do chat aparecendo por cima da transmissão
+  $('bubbles').innerHTML = BUBBLES.map(([at0, emoji, color, name, text], n) => {
+    const k = prog(t, at0, at0 + 0.3);
+    if (k <= 0) return '';
+    const y = STREAM.y + 60 + n * 82;
+    return `<div class="bubble" style="top:${y}px;right:${1500 - STREAM.x - STREAM.w + 30}px;opacity:${k};transform:translateX(${lerp(80, 0, back(k))}px)"><i style="background:${color}">${emoji}</i><span><small>${name}</small>${text}</span></div>`;
+  }).join('');
+
+  // câmera
+  let cam = camAt(t);
+  let winOpacity = prog(t, 3.8, 4.4);
+  let showPhone = null;
+  if (t >= 16 && t < 17) cam = { ...ONSTREAM, s: 1.95 };
+  if (t >= 17 && t < 18) showPhone = 'ph1';
+  if (t >= 18 && t < 19) showPhone = 'ph2';
+  if (t >= 19 && t < 20) cam = { ...WIDE, s: 1.0 };
+  if (t >= 20) winOpacity = 1 - prog(t, 20, 20.3);
+  const s = cam.s * (1 + punch(t, [8, 12, 16, 19], 0.05)) * (t >= 8.6 && t < 12 ? 1 + punch(t, [9, 10, 11], 0.025) : 1);
+  const shake = punch(t, [16, 17, 18, 19, 20], 14);
+  const tx = 960 - cam.x * s + Math.sin(t * 70) * shake;
+  const ty = 540 - cam.y * s + Math.cos(t * 63) * shake;
+  const fly = prog(t, 3.8, 4.6);
+  css('world', {
+    transform: `translate(${tx}px, ${ty}px) scale(${s})`,
+    opacity: showPhone ? 0 : winOpacity,
+    filter: t < 4.6 ? `blur(${lerp(14, 0, easeOut(fly))}px)` : 'none',
+  });
+  css('win', { transform: t < 4.6 ? `perspective(1800px) rotateX(${lerp(28, 0, easeOut(fly))}deg)` : 'none' });
+
+  // celulares no drop
+  for (const id of ['ph1', 'ph2']) {
+    const on = showPhone === id;
+    const start = id === 'ph1' ? 17 : 18;
+    const k = prog(t, start, start + 0.35);
+    css(id, {
+      opacity: on ? 1 : 0,
+      transform: on ? `translateY(${lerp(200, -60, easeOut(k)) - (t - start) * 120}px) scale(${lerp(1.25, 1.12, easeOut(k))}) rotate(${id === 'ph1' ? -6 : 6}deg)` : 'none',
+    });
+  }
+  $('phfx').innerHTML =
+    showPhone === 'ph1'
+      ? [0, 1, 2, 3, 4, 5].map((i) => {
+          const k = prog(t, 17.15 + i * 0.05, 17.9 + i * 0.05);
+          const a = -Math.PI / 2 + (i - 2.5) * 0.5;
+          const d = lerp(0, 620, easeOut(k));
+          return `<span class="float" style="left:${960 + Math.cos(a) * d - 60}px;top:${560 + Math.sin(a) * d - 60}px;font-size:${i % 2 ? 110 : 150}px;opacity:${1 - k * k}">${['📯', '🔊', '💥', '📯', '🎶', '💥'][i]}</span>`;
+        }).join('')
+      : showPhone === 'ph2'
+        ? ['😂', '🔥', '💀', '🏆'].map((e, i) => {
+            const k = prog(t, 18.1 + i * 0.12, 18.9 + i * 0.12);
+            return `<span class="float" style="left:${[380, 1380, 300, 1450][i]}px;top:${[260, 320, 700, 760][i] - k * 80}px;font-size:150px;opacity:${Math.sin(Math.PI * k)};transform:scale(${back(Math.min(1, k * 2))})">${e}</span>`;
+          }).join('')
+        : '';
+
+  // final
+  const e = prog(t, 20, 20.6);
+  css('end', { opacity: t >= 20 ? 1 : 0 });
+  css('endlogo', { transform: `scale(${elastic(e)}) rotate(${lerp(-160, 0, easeOut(e))}deg)` });
+  const rk = prog(t, 20.05, 21.2);
+  const rs = lerp(300, 1900, easeOut(rk));
+  css('endring', { width: `${rs}px`, height: `${rs}px`, left: `${960 - rs / 2}px`, top: `${320 - rs / 2}px`, opacity: 1 - rk });
+  const wk = prog(t, 20.3, 20.7);
+  css('endword', { opacity: wk, letterSpacing: `${lerp(40, -6, easeOut(wk))}px` });
+  css('endsub', { opacity: prog(t, 20.9, 21.3), transform: `translateY(${lerp(30, 0, easeOut(prog(t, 20.9, 21.3)))}px)` });
+  css('endpills', { opacity: prog(t, 21.5, 21.9), transform: `scale(${lerp(0.7, 1, back(prog(t, 21.5, 21.9)))})` });
+  css('grad', { opacity: t >= 20 ? 0 : 1 });
+
+  // clarões nas batidas fortes
+  const fl = Math.max(0, ...[3.8, ...DROP_HITS].map((h) => (t >= h && t < h + 0.15 ? 1 - prog(t, h, h + 0.15) : 0)));
+  css('flash', { opacity: fl * 0.8 });
+
+  captions(t);
+};
+
+window.ready = Promise.all([...document.images].map((i) => i.decode().catch(() => {}))).then(() => document.fonts.ready);
+window.seek(0);
+</script>
+</body>
+</html>

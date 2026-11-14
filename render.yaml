@@ -1,0 +1,65 @@
+# Deploy gratuito no Render (https://render.com) via "New > Blueprint".
+services:
+  - type: web
+    name: resenha
+    runtime: node
+    plan: free
+    region: virginia # mesma região do banco no Neon (AWS US East 1)
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Site de TESTE: crie outro serviço com APP_ENV=staging (veja docs/LANCAMENTOS.md). O oficial não precisa desta variável.
+      # Cota de TURN do seu plano Metered, em MB (aviso em Painel da equipe → Sistema ao passar de 80%)
+      - key: TURN_QUOTA_MB
+        sync: false
+      # Postgres gratuito e permanente (ex.: Neon). Sem isso, os dados somem quando o Render reinicia.
+      - key: DATABASE_URL
+        sync: false
+      # Código exigido para criar conta (deixe só seus amigos entrarem).
+      - key: REGISTRATION_CODE
+        sync: false
+      # E-mail de contato de privacidade (LGPD), mostrado na Política de Privacidade.
+      - key: PRIVACY_CONTACT
+        sync: false
+      # Equipe do Resenha (seu nome de usuário; vários separados por vírgula): recebe as denúncias.
+      - key: PLATFORM_ADMINS
+        sync: false
+      # Arquivos no Cloudflare R2 (10 GB grátis, sem custo de download). Sem isso, ficam no banco.
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      # Captcha invisível da Cloudflare (Turnstile): cadastro, login suspeito e "esqueci a senha"
+      - key: TURNSTILE_SITE_KEY
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      # E-mails de segurança (Brevo: 300/dia grátis). EMAIL_PROVIDER=brevo, EMAIL_FROM = remetente verificado
+      - key: EMAIL_PROVIDER
+        sync: false
+      - key: EMAIL_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      # Chave dos backups criptografados (uma frase longa). GUARDE UMA CÓPIA fora do Render:
+      # sem ela, nenhum backup pode ser aberto. Sem esta variável, não há backup.
+      - key: BACKUP_KEY
+        sync: false
+      # TURN (opcional, ajuda conexões pelo 4G/5G e provedores com CGNAT)
+      # Metered: grátis e sem cartão (https://www.metered.ca/stun-turn)
+      - key: METERED_TURN_DOMAIN
+        sync: false
+      - key: METERED_TURN_API_KEY
+        sync: false
+      # Cloudflare: alternativa (pede cartão)
+      - key: CLOUDFLARE_TURN_KEY_ID
+        sync: false
+      - key: CLOUDFLARE_TURN_API_TOKEN
+        sync: false

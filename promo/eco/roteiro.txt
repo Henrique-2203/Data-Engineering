@@ -1,0 +1,10 @@
+Eu tava transmitindo meu jogo pros amigos na call
+e toda vez que alguém falava, ouvia a própria voz voltando, atrasada.
+Escuta só:
+Isso é o eco: o som do PC ia pra transmissão, levando junto a voz de todo mundo da call.
+Então a gente resolveu.
+Agora o app do Resenha manda só o som do jogo, e deixa a call de fora.
+Escuta de novo:
+Sem eco, sem voz repetida, só o jogo.
+Já tá no app de Windows, na versão nova.
+O Resenha é grátis. Chama a galera, o link tá na bio.
