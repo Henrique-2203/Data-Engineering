@@ -2,8 +2,24 @@ from PIL import Image, ImageFilter, ImageEnhance, ImageChops
 import os
 os.makedirs('out/figurinhas', exist_ok=True); os.makedirs('out/emojis', exist_ok=True)
 names = ['joinha','oculos','bandeira','curioso','fone','dormindo','bravo','coracao','logo-texto']
+def limpa_borda(im, passos=7):
+    """tira a faixa de fundo preto que sobrou do lado de fora do contorno branco do desenho:
+    a partir do transparente, 'come' só pixels escuros, no máximo `passos` pixels para dentro"""
+    import numpy as np
+    a = np.asarray(im).copy()
+    rgb, al = a[..., :3].astype(int), a[..., 3]
+    dark = rgb.max(axis=2) < 70
+    bg = al < 128
+    for _ in range(passos):
+        grow = np.asarray(Image.fromarray((bg * 255).astype('uint8')).filter(ImageFilter.MaxFilter(3))) > 0
+        new = grow & dark & ~bg
+        if not new.any(): break
+        bg |= new
+    alpha = Image.fromarray(np.where(bg, 0, 255).astype('uint8')).filter(ImageFilter.GaussianBlur(0.6))
+    out = Image.fromarray(a[..., :3].astype('uint8')).convert('RGBA'); out.putalpha(alpha)
+    return out
 def sticker(src, size, outline, pad):
-    im = Image.open(src).convert('RGBA')
+    im = limpa_borda(Image.open(src).convert('RGBA'))
     # cor um pouco mais viva e nítida
     rgb = ImageEnhance.Color(im.convert('RGB')).enhance(1.08)
     rgb = ImageEnhance.Contrast(rgb).enhance(1.04)
