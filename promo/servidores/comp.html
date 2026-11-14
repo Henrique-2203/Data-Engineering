@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Resenha — agora tem comunidade</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #07080b; font-family: Inter, 'Noto Color Emoji', sans-serif; color: #fff; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  #bg { position: absolute; inset: 0; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(150px); opacity: .5; }
+  #grid { position: absolute; inset: 0; opacity: .5;
+    background-image: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size: 72px 72px; }
+  #fx { position: absolute; inset: 0; }
+  #panel { position: absolute; left: 50px; width: 980px; border-radius: 34px; overflow: hidden; background: #111318;
+    box-shadow: 0 40px 120px rgba(0,0,0,.65), 0 0 0 2px rgba(255,255,255,.08), 0 0 90px var(--glow, rgba(61,220,151,.35)); transform-origin: 50% 50%; }
+  #panel img { position: absolute; left: 0; top: 0; transform-origin: 0 0; display: none; }
+  #panel .layer { position: absolute; inset: 0; overflow: hidden; }
+  .mark { position: absolute; border: 5px solid #3ddc97; border-radius: 18px; box-shadow: 0 0 30px #3ddc97, inset 0 0 20px rgba(61,220,151,.35); }
+  #tap { position: absolute; font-size: 110px; opacity: 0; filter: drop-shadow(0 10px 18px rgba(0,0,0,.6)); }
+  #ripple { position: absolute; border-radius: 50%; border: 8px solid #fff; opacity: 0; }
+  .pill { position: absolute; padding: 10px 26px; border-radius: 999px; font-weight: 900; font-size: 32px; letter-spacing: .5px; background: #3ddc97; color: #06281a; }
+  /* o número real ("15 chegadas", "33 membros") */
+  #big { position: absolute; right: 70px; padding: 22px 40px 26px; border-radius: 34px; background: #3ddc97; color: #06281a; text-align: center; opacity: 0;
+    box-shadow: 0 30px 70px rgba(0,0,0,.55), 0 0 60px rgba(61,220,151,.6); transform-origin: 70% 50%; }
+  #big b { display: block; font-size: 170px; line-height: .95; font-weight: 900; letter-spacing: -6px; }
+  #big span { display: block; font-size: 34px; font-weight: 900; }
+  /* legendas */
+  #cap { position: absolute; left: 60px; width: 900px; top: 1420px; display: flex; justify-content: center; flex-wrap: wrap; text-align: center; }
+  .w { display: inline-block; margin: 0 .2em; font-weight: 900; font-size: 104px; line-height: 1.08; letter-spacing: -2px;
+    -webkit-text-stroke: 14px #000; paint-order: stroke fill; text-shadow: 0 10px 0 rgba(0,0,0,.55); transform-origin: 50% 80%; }
+  .w.key { color: #3ddc97; }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  .vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.6)); pointer-events: none; }
+  #end { position: absolute; inset: 0; opacity: 0; }
+  #endicon { position: absolute; left: 310px; top: 360px; width: 460px; height: 460px; filter: drop-shadow(0 40px 80px rgba(61,220,151,.45)); }
+  #endicon svg { width: 100%; height: 100%; }
+  .ring { position: absolute; border-radius: 50%; border: 12px solid #3ddc97; }
+  #word { position: absolute; left: 0; right: 0; top: 860px; text-align: center; font-weight: 900; font-size: 170px; letter-spacing: -6px; }
+  #free { position: absolute; left: 0; right: 0; top: 1080px; text-align: center; }
+  #free b { display: inline-block; padding: 14px 34px; border-radius: 999px; background: #3ddc97; color: #06281a; font-size: 44px; font-weight: 900; }
+  #url { position: absolute; left: 0; right: 0; top: 1180px; text-align: center; font-size: 46px; font-weight: 900; color: rgba(255,255,255,.9); opacity: 0; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg">
+    <div class="blob" id="b1" style="width:900px;height:900px;background:#3ddc97"></div>
+    <div class="blob" id="b2" style="width:800px;height:800px;background:#7c3aed"></div>
+    <div class="blob" id="b3" style="width:700px;height:700px;background:#ff3d7f"></div>
+    <div id="grid"></div>
+    <canvas id="fx" width="1080" height="1920"></canvas>
+  </div>
+
+  <div id="panel"><div class="layer" id="layerA"></div>
+    <div id="marks"></div>
+    <div id="ripple"></div><div id="tap">👆</div>
+    <div class="pill" id="pillN" style="left:30px;top:26px;opacity:0"></div>
+  </div>
+  <div id="big"><b id="bigN"></b><span id="bigS"></span></div>
+
+  <div id="cap"></div>
+
+  <div id="end">
+    <div class="ring" id="r1"></div><div class="ring" id="r2"></div>
+    <div id="endicon"></div>
+    <div id="word">Resenha</div>
+    <div id="free"><b id="freeT"></b></div>
+    <div id="url">resenhabr.com.br · link na bio</div>
+  </div>
+  <div class="vignette"></div>
+  <div class="flash" id="flash"></div>
+</div>
+<script type="module">
+import { SCENES, CAPTIONS, CUTS, BEAT, DURATION, END, COVER, MUSIC } from './timeline.mjs';
+
+const PW = 980;
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const easeIO = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const back = (x) => { const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const lerp = (a, b, k) => a + (b - a) * k;
+
+const imgs = {};
+for (const n of [...new Set(SCENES.filter((s) => s.img).map((s) => s.img))]) {
+  const el = document.createElement('img');
+  el.src = n === 'print' ? '../out/servidores/print-real.png' : `../out/servidores/shots/${n}.png`;
+  imgs[n] = el;
+}
+const icons = await (await fetch('../out/reels/icons.json')).json();
+$('endicon').innerHTML = icons.find((i) => i.id === 'classic').svg;
+
+const capWords = CAPTIONS.map((c) => {
+  const out = [];
+  for (const m of c.text.matchAll(/\*([^*]+)\*(\S*)|(\S+)/g)) {
+    if (m[1]) {
+      m[1].split(' ').forEach((w) => out.push({ w, key: true }));
+      out[out.length - 1].w += m[2];
+    } else out.push({ w: m[3], key: false });
+  }
+  return { ...c, words: out };
+});
+
+function place(el, r, ph) {
+  const W = el.naturalWidth, H = el.naturalHeight;
+  const s = Math.max(PW / (r[2] * W), ph / (r[3] * H));
+  const x = PW / 2 - (r[0] + r[2] / 2) * W * s;
+  const y = ph / 2 - (r[1] + r[3] / 2) * H * s;
+  el.style.display = 'block';
+  el.style.width = `${W}px`;
+  el.style.height = `${H}px`;
+  el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+  return { s, x, y, W, H, map: (px, py) => [x + px * W * s, y + py * H * s] };
+}
+
+function drawFx(t) {
+  const c = $('fx'), g = c.getContext('2d');
+  g.clearRect(0, 0, 1080, 1920);
+  for (let i = 0; i < 70; i++) {
+    const sp = 20 + (i % 7) * 9;
+    const x = (i * 157.3) % 1080 + Math.sin(t * 0.7 + i) * 14;
+    const y = 1920 - ((i * 263.1 + t * sp) % 2000);
+    const a = 0.15 + 0.35 * ((i * 37) % 10) / 10;
+    g.fillStyle = i % 3 === 0 ? `rgba(61,220,151,${a})` : i % 3 === 1 ? `rgba(167,139,250,${a})` : `rgba(255,255,255,${a * 0.8})`;
+    g.beginPath();
+    g.arc(x, y, 2 + (i % 4), 0, Math.PI * 2);
+    g.fill();
+  }
+}
+
+window.seek = function seek(t) {
+  $('b1').style.transform = `translate(${-200 + Math.sin(t * 0.5) * 140}px, ${200 + Math.cos(t * 0.4) * 120}px)`;
+  $('b2').style.transform = `translate(${480 + Math.cos(t * 0.45) * 160}px, ${900 + Math.sin(t * 0.55) * 140}px)`;
+  $('b3').style.transform = `translate(${60 + Math.sin(t * 0.6 + 1) * 160}px, ${1350 + Math.cos(t * 0.5) * 120}px)`;
+  $('grid').style.transform = `translateY(${(t * 24) % 72}px)`;
+  const pulse = t >= MUSIC.drop && t < END ? Math.exp(-((t % BEAT) / BEAT) * 5) : 0;
+  for (const id of ['b1', 'b2', 'b3']) $(id).style.opacity = 0.42 + 0.22 * pulse;
+  drawFx(t);
+
+  const shot = SCENES.find((s) => t >= s.t0 && t < s.t1);
+  const panel = $('panel');
+  Object.values(imgs).forEach((i) => (i.style.display = 'none'));
+  $('layerA').replaceChildren();
+  $('marks').replaceChildren();
+  ['pillN', 'tap', 'ripple', 'big'].forEach((id) => ($(id).style.opacity = 0));
+  let top = 0;
+  if (shot?.img) {
+    const ph = shot.ph;
+    top = 790 - ph / 2;
+    const since = t - shot.t0;
+    const punch = 1 + 0.06 * Math.exp(-since * 12);
+    const shake = Math.exp(-since * 18) * 8 * Math.sin(since * 90);
+    const intro = t < 0.35 ? easeOut(t / 0.35) : 1;
+    panel.style.opacity = intro;
+    panel.style.height = `${ph}px`;
+    panel.style.top = `${top}px`;
+    panel.style.transform = `translate(${shake}px, ${(1 - intro) * 120}px) scale(${punch * lerp(0.92, 1, intro)}) rotate(${Math.sin(t * 0.8) * 0.4}deg)`;
+    panel.style.setProperty('--glow', shot.print ? '#ffd16688' : '#3ddc9766');
+    const el = imgs[shot.img];
+    $('layerA').append(el);
+    const k = easeIO(clamp(since / (shot.t1 - shot.t0)));
+    const r = shot.from.map((v, i) => lerp(v, shot.to[i], k));
+    const P = place(el, r, ph);
+    if (shot.tag) {
+      const pn = $('pillN');
+      pn.textContent = shot.tag;
+      pn.style.background = shot.print ? '#ffd166' : '#3ddc97';
+      pn.style.color = shot.print ? '#2b1d00' : '#06281a';
+      const ta = shot.tagAt ?? 0.15;
+      pn.style.opacity = since > ta ? 1 : 0;
+      pn.style.transform = `scale(${back(clamp((since - ta) / 0.2))}) rotate(-3deg)`;
+    }
+    for (const m of shot.marks ?? []) {
+      if (t < m.t || t >= m.t1) continue;
+      const [x, y] = P.map(m.r[0], m.r[1]);
+      const d = document.createElement('div');
+      d.className = 'mark';
+      const pop = back(clamp((t - m.t) / 0.15));
+      Object.assign(d.style, { left: `${x}px`, top: `${y}px`, width: `${m.r[2] * P.W * P.s}px`, height: `${m.r[3] * P.H * P.s}px`, transform: `scale(${0.9 + 0.1 * pop})` });
+      $('marks').append(d);
+    }
+    if (shot.click) {
+      // o dedo chega no "Entrar" e toca
+      const [cx, cy] = P.map(shot.click.r[0] + shot.click.r[2] / 2, shot.click.r[1] + shot.click.r[3] / 2);
+      const arrive = easeOut(clamp((t - (shot.click.at - 0.55)) / 0.45));
+      const press = t >= shot.click.at ? 1 - 0.15 * Math.exp(-(t - shot.click.at) * 10) : 1;
+      Object.assign($('tap').style, { opacity: clamp((t - (shot.click.at - 0.6)) / 0.15), left: `${cx - 30 + (1 - arrive) * 200}px`, top: `${cy - 10 + (1 - arrive) * 260}px`, transform: `scale(${press})` });
+      const rk = clamp((t - shot.click.at) / 0.4);
+      const size = 40 + rk * 160;
+      Object.assign($('ripple').style, { opacity: t >= shot.click.at ? 1 - rk : 0, width: `${size}px`, height: `${size}px`, left: `${cx - size / 2}px`, top: `${cy - size / 2}px` });
+    }
+    if (shot.big) {
+      const bk = clamp((t - shot.big.at) / 0.25);
+      $('bigN').textContent = shot.big.text;
+      $('bigS').textContent = shot.big.sub;
+      Object.assign($('big').style, { opacity: bk, top: `${top + ph - 300}px`, transform: `scale(${back(bk)}) rotate(4deg)` });
+    }
+  } else panel.style.opacity = 0;
+
+  // ---------- legendas ----------
+  // no logo e no fecho a palavra grande já está na tela: sem legenda repetida
+  const cap = shot?.end ? null : capWords.find((c) => t >= c.t && t < c.end);
+  const box = $('cap');
+  if (!cap) box.replaceChildren();
+  else {
+    const out = 1 - clamp((t - (cap.end - 0.07)) / 0.07);
+    box.style.top = `${shot?.end ? 1300 : 1430}px`;
+    box.replaceChildren(
+      ...cap.words.map((w, i) => {
+        const s = document.createElement('span');
+        s.className = `w${w.key ? ' key' : ''}`;
+        s.textContent = w.w;
+        const k = clamp((t - cap.times[Math.min(i, cap.times.length - 1)]) / 0.16);
+        const enter = back(clamp((t - cap.t) / 0.16));
+        s.style.opacity = k > 0 ? 1 : 0.38;
+        if (k <= 0) s.style.color = '#fff';
+        s.style.transform = `scale(${(0.9 + 0.1 * (k > 0 ? back(k) : 0)) * enter * out}) translateY(${k > 0 ? -8 * Math.sin(Math.PI * k) : 0}px)`;
+        return s;
+      }),
+    );
+  }
+
+  const lastCut = CUTS.filter((c) => c <= t).pop() ?? -9;
+  $('flash').style.opacity = 0.35 * Math.exp(-(t - lastCut) * 14) * (lastCut > 0 ? 1 : 0);
+
+  // ---------- logo ("Resenha.") e fecho ("Falta você") ----------
+  const endShot = shot?.end ? shot : null;
+  $('end').style.opacity = endShot ? clamp((t - endShot.t0) / 0.25) : 0;
+  if (endShot) {
+    const st = endShot.t0;
+    const final = endShot.end === 'final';
+    $('endicon').style.transform = `scale(${back(clamp((t - st) / 0.35))}) rotate(${Math.sin(t * 2) * 3}deg)`;
+    for (const [id, d] of [['r1', 0], ['r2', 0.25]]) {
+      const rk = clamp((t - st - d) / 0.9);
+      const size = 300 + rk * 900;
+      Object.assign($(id).style, { width: `${size}px`, height: `${size}px`, left: `${540 - size / 2}px`, top: `${590 - size / 2}px`, opacity: (1 - rk) * (t >= st + d ? 1 : 0) });
+    }
+    $('word').textContent = final ? 'Falta você 💚' : 'Resenha';
+    $('word').style.fontSize = final ? '128px' : '170px';
+    $('word').style.transform = `translateY(${(1 - easeOut(clamp((t - st - 0.1) / 0.3))) * 60}px)`;
+    $('word').style.opacity = clamp((t - st - 0.1) / 0.2);
+    $('freeT').textContent = final ? 'grátis · lista de espera aberta' : 'gratuito · brasileiro 🇧🇷';
+    $('free').style.opacity = clamp((t - st - 0.35) / 0.2);
+    $('free').style.transform = `scale(${back(clamp((t - st - 0.35) / 0.25))})`;
+    $('url').style.opacity = final ? clamp((t - st - 0.6) / 0.25) : 0;
+  }
+};
+
+window.DURATION = DURATION;
+window.COVER = COVER;
+window.ready = Promise.all(Object.values(imgs).map((i) => i.decode().catch(() => {}))).then(() => document.fonts.ready);
+window.seek(0);
+</script>
+</body>
+</html>
