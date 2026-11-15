@@ -27,9 +27,21 @@ export async function loadMessages(channelId: string, older = false) {
     const res = await api<{ messages: Message[]; hasMore: boolean }>(`/channels/${channelId}/messages${before}`);
     const current = channelMessages(channelId).items;
     const ids = new Set(res.messages.map((m) => m.id));
+    let keep = current.filter((m) => !ids.has(m.id));
+    let hasMore = res.hasMore;
+    if (!older && keep.length) {
+      // ao reconectar: se chegaram mais de 50 mensagens enquanto estava fora, as antigas da tela ficariam
+      // separadas por um "buraco"; aí começa de novo só com as novas
+      const oldestNew = res.messages[0]?.createdAt;
+      const newestKept = keep.reduce((a, m) => (m.createdAt > a ? m.createdAt : a), '');
+      if (res.hasMore && oldestNew && newestKept < oldestNew) keep = [];
+      else hasMore = cm.hasMore || res.hasMore;
+    }
+    // sempre em ordem de data (antes, ao reconectar, as mensagens antigas iam parar DEPOIS das de hoje)
+    const items = [...res.messages, ...keep].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
     patchMessages(channelId, {
-      items: older ? [...res.messages, ...current] : [...res.messages, ...current.filter((m) => !ids.has(m.id))],
-      hasMore: res.hasMore,
+      items,
+      hasMore,
       loaded: true,
       loading: false,
     });
