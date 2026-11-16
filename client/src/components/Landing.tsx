@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { Check, ChevronDown, Download, Globe, Lock, Monitor, Smartphone, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
 import { api, hasSession } from '../lib/api';
 import { SOURCE_URL } from './LegalPage';
+import { canPrompt, isIos, isMobile, isStandalone, onInstallChange, promptInstall } from '../lib/install';
 
 /** Animação de entrada quando a seção aparece na tela. */
 function useReveal() {
@@ -93,6 +94,7 @@ export function Landing() {
               <a className="lp-btn" href="/api/download/windows">
                 <Download size={18} /> Baixar para Windows <span className="lp-beta-chip">beta</span>
               </a>
+              <InstallButton />
             </div>
             <p className="lp-small">
               Já tem convite? <a href="/app">Use no navegador</a>, sem instalar nada.
@@ -197,14 +199,9 @@ export function Landing() {
             <DownloadCard
               icon={<Smartphone size={28} />}
               title="Android e iPhone"
-              badge="Em breve"
-              soon
-              text="O app de celular está em desenvolvimento. Enquanto isso, o Resenha funciona no navegador do celular."
-              action={
-                <button className="lp-btn" onClick={() => scrollTo('lista')}>
-                  Quero ser avisado
-                </button>
-              }
+              badge="Disponível"
+              text="Instale direto do site: fica com o ícone na tela inicial, abre em tela cheia e já recebe as notificações. Não ocupa espaço e sempre está na versão mais nova (sem loja e sem atualizar)."
+              action={<InstallButton primary />}
             />
           </div>
         </section>
@@ -286,6 +283,7 @@ export function Landing() {
             <a className="lp-btn" href="/api/download/windows">
               <Download size={18} /> Baixar para Windows
             </a>
+            <InstallButton />
           </div>
         </section>
       </main>
@@ -377,6 +375,76 @@ function DownloadCard({ icon, title, badge, text, action, note, soon }: { icon: 
       <p>{text}</p>
       {action}
       {note && <p className="lp-small">{note}</p>}
+    </div>
+  );
+}
+
+/** Instalar o app no celular: pedido do navegador (Android) ou passo a passo (iPhone e quando não há pedido). */
+function InstallButton({ primary }: { primary?: boolean }) {
+  const [, force] = useState(0);
+  const [help, setHelp] = useState(false);
+  useEffect(() => onInstallChange(() => force((n) => n + 1)), []);
+  if (isStandalone()) return null;
+  async function click() {
+    if (canPrompt()) {
+      if (await promptInstall()) window.location.href = '/app';
+      return;
+    }
+    setHelp(true);
+  }
+  return (
+    <>
+      <button className={`lp-btn${primary ? ' primary' : ''}`} onClick={() => void click()}>
+        <Smartphone size={18} /> Instalar no celular
+      </button>
+      {help && <InstallHelp onClose={() => setHelp(false)} />}
+    </>
+  );
+}
+
+function InstallHelp({ onClose }: { onClose(): void }) {
+  const ios = isIos();
+  const mobile = isMobile();
+  return (
+    <div className="lp-modal" role="dialog" aria-modal="true" aria-label="Instalar o Resenha no celular" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="lp-modal-box">
+        <button className="lp-modal-x" aria-label="Fechar" onClick={onClose}>
+          <X size={20} />
+        </button>
+        <img src="/icon.svg" alt="" width={64} height={64} />
+        <h3>Instalar o Resenha no celular</h3>
+        {!mobile ? (
+          <>
+            <p>Abra este endereço no navegador do celular e toque em <strong>Instalar no celular</strong>:</p>
+            <p className="lp-modal-url">resenhabr.com.br</p>
+          </>
+        ) : ios ? (
+          <ol>
+            <li>
+              Abra o site no <strong>Safari</strong> (no iPhone só o Safari instala).
+            </li>
+            <li>
+              Toque em <strong>Compartilhar</strong> (o quadrado com a seta para cima, embaixo da tela).
+            </li>
+            <li>
+              Escolha <strong>Adicionar à Tela de Início</strong> e toque em <strong>Adicionar</strong>.
+            </li>
+          </ol>
+        ) : (
+          <ol>
+            <li>
+              Abra o site no <strong>Chrome</strong>.
+            </li>
+            <li>
+              Toque nos <strong>três pontinhos ⋮</strong> no canto de cima.
+            </li>
+            <li>
+              Escolha <strong>Instalar app</strong> (ou <strong>Adicionar à tela inicial</strong>).
+            </li>
+          </ol>
+        )}
+        <p className="lp-small">Sem loja e sem baixar nada: o app abre o próprio Resenha, então está sempre atualizado.</p>
+      </div>
     </div>
   );
 }

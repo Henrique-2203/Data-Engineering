@@ -11,6 +11,14 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-16',
+    title: 'Mensagens não lidas e app no celular',
+    items: [
+      ['🔢', 'Cada canal mostra quantas mensagens novas chegaram desde a última vez que você abriu, e o número continua lá mesmo se você fechar o app.'],
+      ['📱', 'Resenha no celular: na página inicial, toque em "Instalar no celular". Fica com ícone na tela inicial, abre em tela cheia e está sempre atualizado.'],
+    ],
+  },
+  {
     id: '2026-11-14',
     title: 'Voz mais clara na call',
     items: [

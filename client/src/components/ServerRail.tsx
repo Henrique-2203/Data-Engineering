@@ -45,6 +45,7 @@ export function ServerRail() {
         const g = guilds[id];
         if (!g) return null;
         const hasUnread = g.channels.some((c) => unread[c.id]);
+        const unreadTotal = g.channels.reduce((n, c) => n + (unread[c.id] ?? 0), 0);
         const mentionCount = g.channels.reduce((n, c) => n + (mentions[c.id] ?? 0), 0);
         return (
           <button
@@ -59,7 +60,16 @@ export function ServerRail() {
               {g.iconId ? <img src={`/api/images/${g.iconId}`} alt="" className="rail-img" /> : initials(g.name)}
             </span>
             {voiceGuild === id && <span className="rail-voice" title="Você está em uma chamada aqui" />}
-            {mentionCount > 0 && <span className="rail-count">{mentionCount}</span>}
+            {mentionCount > 0 ? (
+              <span className="rail-count">{mentionCount}</span>
+            ) : (
+              unreadTotal > 0 &&
+              selected !== id && (
+                <span className="rail-count soft" aria-label={`${unreadTotal} mensagens não lidas`}>
+                  {unreadTotal > 99 ? '99+' : unreadTotal}
+                </span>
+              )
+            )}
           </button>
         );
       })}

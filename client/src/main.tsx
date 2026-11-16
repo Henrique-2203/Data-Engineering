@@ -5,9 +5,11 @@ import { EnvBanner } from './components/EnvBanner';
 import './styles.css';
 import { isDesktop } from './lib/desktop';
 import { initAppearance } from './lib/appearance';
+import { initInstall } from './lib/install';
 
 // tema antes de desenhar (sem piscar o escuro para quem usa o claro)
 initAppearance();
+initInstall();
 
 // app de Windows: os botões "voltar"/"avançar" do mouse não navegam (não há página anterior num app)
 if (isDesktop) {

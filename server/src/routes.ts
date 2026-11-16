@@ -57,6 +57,7 @@ import { registerApoioRoutes } from './apoio.ts';
 import { ensureOfficialMember, registerOfficialRoutes } from './official.ts';
 import { registerExploreRoutes } from './explore.ts';
 import { configureWelcome } from './welcome.ts';
+import { registerUnreadRoutes, unreadCounts } from './unread.ts';
 import { registerHealthRoutes } from './health.ts';
 import { registerEmbedRoutes } from './embeds.ts';
 import { mentionedUsernames } from './mentions.ts';
@@ -483,9 +484,16 @@ export function createRoutes(db: Db, rt: Realtime) {
         console.warn('[oficial] falha ao colocar no servidor oficial', err);
         return null;
       });
+      const guilds = await loadGuilds(db, req.user!.id);
+      const dmIds = (await db.query<{ channel_id: string }>('select channel_id from dm_members where user_id = $1', [req.user!.id])).map((d) => d.channel_id);
+      const unread = await unreadCounts(db, req.user!.id, [...guilds.flatMap((g) => g.channels.map((c) => c.id)), ...dmIds]).catch((err) => {
+        console.warn('[não lidas]', err);
+        return {};
+      });
       return {
         user: req.user,
-        guilds: await loadGuilds(db, req.user!.id),
+        guilds,
+        unread,
         joinedOfficial,
         isPlatformAdmin: isPlatformAdmin(req.user!.username),
         // contas antigas sem e-mail recebem o convite para adicionar um (recuperação e alertas)
@@ -731,6 +739,7 @@ export function createRoutes(db: Db, rt: Realtime) {
 
   registerCommunityRoutes(r, db, rt, auth, { channelForMember, emitToChannel, messageSelect: MESSAGE_SELECT });
   configureWelcome({ emitToChannel, messageSelect: MESSAGE_SELECT });
+  registerUnreadRoutes(r, db, auth);
   // quem estava com o app aberto (sem recarregar) quando o servidor oficial foi criado também entra:
   // a cada conexão (inclusive a reconexão depois de uma atualização do site) confere de novo
   rt.onUserConnect(async (userId) => {

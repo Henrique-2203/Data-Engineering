@@ -475,6 +475,14 @@ create table if not exists app_settings (
   value jsonb not null,
   updated_at timestamptz not null default now()
 );
+-- v47: até onde cada pessoa leu cada canal (contador de mensagens não lidas)
+create table if not exists channel_reads (
+  user_id text not null references users(id) on delete cascade,
+  channel_id text not null references channels(id) on delete cascade,
+  last_read_at timestamptz not null default now(),
+  primary key (user_id, channel_id)
+);
+insert into app_settings (name, value) values ('unread_since', to_jsonb(now()::text)) on conflict (name) do nothing;
 -- v46: boas-vindas do servidor (janela para quem chega + aviso "fulano chegou" num canal)
 alter table guilds add column if not exists welcome_text text not null default '';
 alter table guilds add column if not exists welcome_channel_id text;

@@ -40,7 +40,11 @@ export function HomeSidebar() {
                   <Phone size={14} />
                 </span>
               )}
-              {unread[id] && <span className="unread-dot" aria-label="mensagens não lidas" />}
+              {!!unread[id] && (
+                <span className="count-badge" aria-label={`${unread[id] >= 100 ? 'mais de 99' : unread[id]} mensagens não lidas`}>
+                  {unread[id] >= 100 ? '99+' : unread[id]}
+                </span>
+              )}
             </button>
           </div>
         );

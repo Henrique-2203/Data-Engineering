@@ -307,7 +307,8 @@ function Section({ title, onAdd, onEdit }: { title: string; onAdd?: () => void; 
 
 function TextChannelItem({ channel, canEdit, drag }: { channel: Channel; canEdit: boolean; drag?: DragProps }) {
   const active = useApp((s) => s.selectedChannelId === channel.id);
-  const unread = useApp((s) => !!s.unread[channel.id]);
+  const unreadN = useApp((s) => s.unread[channel.id] ?? 0);
+  const unread = unreadN > 0;
   const mentions = useApp((s) => s.mentions[channel.id] ?? 0);
   return (
     <div
@@ -317,10 +318,17 @@ function TextChannelItem({ channel, canEdit, drag }: { channel: Channel; canEdit
       <button className="channel-main" onClick={() => selectChannel(channel.id)}>
         {channel.announce ? <Megaphone size={18} className="channel-icon" /> : channel.allowedRoleIds ? <HashLock /> : <Hash size={18} className="channel-icon" />}
         <span className="ellipsis">{channel.name}</span>
-        {mentions > 0 && (
+        {mentions > 0 ? (
           <span className="count-badge" aria-label={`${mentions} menções`}>
             {mentions}
           </span>
+        ) : (
+          unread &&
+          !active && (
+            <span className="count-badge soft" aria-label={`${unreadN >= 100 ? 'mais de 99' : unreadN} mensagens não lidas`}>
+              {unreadN >= 100 ? '99+' : unreadN}
+            </span>
+          )
         )}
       </button>
       {canEdit && (

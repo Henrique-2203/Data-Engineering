@@ -26,7 +26,8 @@ export interface AppState {
   activities: Record<string, Activity>;
   voiceStates: Record<string, VoiceState>; // por socketId
   typing: Record<string, Record<string, number>>; // channelId -> userId -> expira em
-  unread: Record<string, true>;
+  /** mensagens não lidas por canal (o servidor guarda até onde li; até 100) */
+  unread: Record<string, number>;
   /** menções a você ainda não vistas, por canal */
   mentions: Record<string, number>;
   /** ligação de DM chegando para você */
@@ -252,7 +253,23 @@ export function jumpToMessage(channelId: string, messageId: string) {
   set({ jumpTo: { channelId, messageId }, mobilePanel: 'main' });
 }
 
+/** avisa o servidor "li até aqui" (no máximo a cada 3 s por canal) */
+const readSent = new Map<string, number>();
+const readTimers = new Map<string, ReturnType<typeof setTimeout>>();
+function sendRead(channelId: string) {
+  const now = Date.now();
+  const last = readSent.get(channelId) ?? 0;
+  const go = () => {
+    readSent.set(channelId, Date.now());
+    readTimers.delete(channelId);
+    void import('../lib/api').then(({ api }) => api(`/channels/${channelId}/read`, { body: {} }).catch(() => {}));
+  };
+  if (now - last > 3000) go();
+  else if (!readTimers.has(channelId)) readTimers.set(channelId, setTimeout(go, 3000 - (now - last)));
+}
+
 export function markRead(channelId: string) {
+  sendRead(channelId);
   if (!get().unread[channelId] && !get().mentions[channelId]) return;
   set((s) => {
     const unread = { ...s.unread };
@@ -359,11 +376,12 @@ export function addMessage(message: Message) {
   }
   const s = get();
   const visible = s.selectedChannelId === message.channelId && document.visibilityState === 'visible';
+  if (visible) sendRead(message.channelId);
   if (!visible && message.author.id !== s.me?.id) {
     const channel = findChannel(message.channelId);
     const mentioned = !!s.me && channel?.type !== 'dm' && mentionsUser(message.content, s.me.username, message.mentionEveryone);
     set({
-      unread: { ...s.unread, [message.channelId]: true },
+      unread: { ...s.unread, [message.channelId]: Math.min(100, (s.unread[message.channelId] ?? 0) + 1) },
       ...(mentioned ? { mentions: { ...s.mentions, [message.channelId]: (s.mentions[message.channelId] ?? 0) + 1 } } : {}),
     });
   }

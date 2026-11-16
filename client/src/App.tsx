@@ -103,6 +103,7 @@ function MainApp() {
         changelog?: { seen: string | null; accountCreatedAt: string | null };
         supportUnread?: number;
         joinedOfficial?: { guildId: string; name: string } | null;
+        unread?: Record<string, number>;
       }>('/bootstrap'),
       api<{ dms: DmChannel[] }>('/dms'),
       api<{ friends: Friend[] }>('/friends'),
@@ -115,6 +116,7 @@ function MainApp() {
       mobilePanel: 'nav',
       isPlatformAdmin: !!data.isPlatformAdmin,
       supportUnread: data.supportUnread ?? 0,
+      unread: data.unread ?? {},
       pendingChangelog: data.changelog ? pendingChangelog(data.changelog.seen, data.changelog.accountCreatedAt) : [],
     });
     if (data.isPlatformAdmin) {
