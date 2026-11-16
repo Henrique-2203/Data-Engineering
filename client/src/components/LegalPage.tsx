@@ -346,9 +346,10 @@ function Terms({ contact }: { contact: ReactNode }) {
 
       <h2>5. Servidores e moderação</h2>
       <p>
-        Quem cria um servidor define as regras dele e pode moderar (castigar, expulsar, banir) dentro das permissões do Resenha. Podemos
-        remover conteúdo ou encerrar contas e servidores que violem estes termos ou a lei, e cumprir ordens judiciais, como prevê o Marco
-        Civil da Internet (Lei 12.965/2014).
+        Quem cria um servidor define as regras dele e pode moderar (castigar, expulsar, banir) dentro das permissões do Resenha. A equipe do
+        Resenha pode remover conteúdo, suspender a conta no Resenha inteiro (por um tempo, de 1 a 30 dias, ou até ser reativada) ou encerrar
+        contas e servidores que violem estes termos ou a lei, e cumprir ordens judiciais, como prevê o Marco Civil da Internet (Lei
+        12.965/2014). Quem for suspenso vê o motivo e até quando ao tentar entrar, e pode pedir revisão pelo contato da Política de Privacidade.
       </p>
 
       <p>

@@ -317,7 +317,8 @@ export function registerAccountRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
   const findForReset = async (login: string) => {
     const l = login.trim().toLowerCase().replace(/^@/, '');
     const [u] = await db.query<{ id: string; username: string; email: string | null; verified: boolean; suspended: boolean }>(
-      `select id, username, email, email_verified_at is not null as verified, suspended_at is not null as suspended
+      `select id, username, email, email_verified_at is not null as verified,
+         (suspended_at is not null and (suspended_until is null or suspended_until > now())) as suspended
        from users where username = $1 or (lower(email) = $1 and email_verified_at is not null) limit 1`,
       [l],
     );

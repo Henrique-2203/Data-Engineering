@@ -7,7 +7,7 @@ import { OfficialAdmin } from './Official';
 import { PublicGuildsAdmin, ReportContext } from './Explore';
 import { AdminOverview, type AdminTab } from './AdminOverview';
 import { api, authHeaders } from '../lib/api';
-import { askText } from '../lib/ask';
+import { askText , askSuspension } from '../lib/ask';
 import { StatsPanel } from './StatsPanel';
 import { SystemPanel } from './SystemPanel';
 import { InviteCodesAdmin } from './InviteCodes';
@@ -210,14 +210,17 @@ export function AdminReports() {
   useEffect(load, [tab, openCount]);
 
   async function act(r: AdminReport, action: string, confirmText?: string) {
-    if (confirmText && !confirm(confirmText)) return;
-    const note =
-      action === 'suspend_user'
-        ? await askText({ title: 'Suspender conta', message: 'Motivo da suspensão (a pessoa vai ver ao tentar entrar):', initial: reasonLabel(r.reason), maxLength: 300, confirmLabel: 'Suspender', danger: true })
-        : '';
-    if (note === null) return;
+    if (confirmText && action !== 'suspend_user' && !confirm(confirmText)) return;
+    let note = '';
+    let days: number | null = null;
+    if (action === 'suspend_user') {
+      const sus = await askSuspension(r.targetUsername ?? '', reasonLabel(r.reason));
+      if (!sus) return;
+      note = sus.reason;
+      days = sus.days;
+    }
     try {
-      await api(`/admin/reports/${r.id}/action`, { body: { action, note } });
+      await api(`/admin/reports/${r.id}/action`, { body: { action, note, days } });
       toast('Feito.');
       load();
     } catch (err) {

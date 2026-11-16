@@ -57,6 +57,7 @@ import { registerApoioRoutes } from './apoio.ts';
 import { ensureOfficialMember, registerOfficialRoutes } from './official.ts';
 import { registerExploreRoutes } from './explore.ts';
 import { configureWelcome } from './welcome.ts';
+import { startSuspensionCleanup, suspendedNow, suspensionMessage } from './suspension.ts';
 import { registerUnreadRoutes, unreadCounts } from './unread.ts';
 import { registerHealthRoutes } from './health.ts';
 import { registerEmbedRoutes } from './embeds.ts';
@@ -411,23 +412,21 @@ export function createRoutes(db: Db, rt: Realtime) {
         }
         return res.status(401).json({ error: message, needCaptcha: suspicious(), ...extra });
       };
-      const [row] = await db.query<PublicUser & { password_hash: string; suspended_at: string | null; suspended_reason: string | null }>(
+      const [row] = await db.query<PublicUser & { password_hash: string; suspended_now: boolean; suspended_reason: string | null; suspended_until: string | null }>(
         // entra com o usuário OU com o e-mail confirmado
-        `select ${USER_COLUMNS}, u.password_hash, u.suspended_at, u.suspended_reason from users u
+        `select ${USER_COLUMNS}, u.password_hash, ${suspendedNow('u')} as suspended_now, u.suspended_reason, u.suspended_until from users u
          where u.username = $1 or (lower(u.email) = $1 and u.email_verified_at is not null)
          order by (u.username = $1) desc limit 1`,
         [body.username.replace(/^@/, '')],
       );
       if (!row || !(await verifyPassword(body.password, row.password_hash))) return failed(row?.id ?? null, 'Usuário ou senha incorretos.');
-      if (row.suspended_at) {
-        throw new HttpError(403, `Esta conta foi suspensa por violar os Termos de uso${row.suspended_reason ? ` (${row.suspended_reason})` : ''}. Se acha que foi um engano, escreva para ${config.privacyContact}.`);
-      }
+      if (row.suspended_now) throw new HttpError(403, suspensionMessage(row.suspended_reason, row.suspended_until, config.privacyContact));
       // verificação em duas etapas (se a pessoa ativou)
       const second = await checkSecondFactor(db, row.id, body.code);
       if (second === 'missing') return res.status(401).json({ error: 'Digite o código do seu app autenticador.', need2fa: true });
       if (second === 'wrong') return failed(row.id, 'Código de verificação incorreto.', { need2fa: true });
       clearLimit(failKey);
-      const { password_hash, suspended_at, suspended_reason, ...user } = row;
+      const { password_hash, suspended_now, suspended_reason, suspended_until, ...user } = row;
       return finishLogin(db, req, res, user, body.password);
     }),
   );
@@ -740,6 +739,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerCommunityRoutes(r, db, rt, auth, { channelForMember, emitToChannel, messageSelect: MESSAGE_SELECT });
   configureWelcome({ emitToChannel, messageSelect: MESSAGE_SELECT });
   registerUnreadRoutes(r, db, auth);
+  startSuspensionCleanup(db);
   // quem estava com o app aberto (sem recarregar) quando o servidor oficial foi criado também entra:
   // a cada conexão (inclusive a reconexão depois de uma atualização do site) confere de novo
   rt.onUserConnect(async (userId) => {

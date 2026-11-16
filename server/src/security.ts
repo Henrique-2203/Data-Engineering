@@ -404,8 +404,11 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
       limit(`recover:${req.ip}`, 6, 15 * 60_000);
       const body = parse(z.object({ username: z.string().trim().toLowerCase(), code: z.string().trim(), password: z.string() }), req.body);
       limit(`recover-user:${body.username}`, 6, 15 * 60_000);
-      const [u] = await db.query<{ id: string; username: string; suspended_at: string | null }>('select id, username, suspended_at from users where username = $1', [body.username]);
-      if (u?.suspended_at) throw new HttpError(403, 'Esta conta está suspensa por violar os Termos de uso.');
+      const [u] = await db.query<{ id: string; username: string; suspended: boolean }>(
+        'select id, username, (suspended_at is not null and (suspended_until is null or suspended_until > now())) as suspended from users where username = $1',
+        [body.username],
+      );
+      if (u?.suspended) throw new HttpError(403, 'Esta conta está suspensa por violar os Termos de uso.');
       // mesma resposta para usuário inexistente e código errado (não revela quem tem conta)
       if (!u || !(await useRecoveryCode(db, u.id, body.code))) throw new HttpError(400, 'Usuário ou código de recuperação incorreto.');
       const checked = await requireSafePassword(body.password, u.username);

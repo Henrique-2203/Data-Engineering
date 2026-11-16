@@ -9,6 +9,7 @@ import { openDm, sendFriendRequest } from '../lib/social';
 import { closeModal, findMember, openModal, toast, useApp } from '../store/app';
 import { Avatar } from './Avatar';
 import { MemberModeration } from './GuildSettings';
+import { askSuspension } from '../lib/ask';
 
 const sinceFmt = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' });
 
@@ -195,7 +196,60 @@ export function ProfileCard({ userId, guildId, onAction }: { userId: string; gui
             </>
           )}
         </div>
+        {!isMe && <PlatformSuspend userId={userId} username={user.username} />}
       </div>
+    </div>
+  );
+}
+
+/** Só a equipe do Resenha: suspender a conta no app inteiro (por um tempo ou até reativar). */
+function PlatformSuspend({ userId, username }: { userId: string; username: string }) {
+  const admin = useApp((s) => s.isPlatformAdmin);
+  const [st, setSt] = useState<{ suspended: boolean; reason: string | null; until: string | null } | null>(null);
+  const load = () => void api<NonNullable<typeof st>>(`/admin/users/${userId}/suspension`).then(setSt, () => {});
+  useEffect(() => {
+    if (admin) load();
+  }, [admin, userId]);
+  if (!admin || !st) return null;
+  async function suspend() {
+    const sus = await askSuspension(username);
+    if (!sus) return;
+    try {
+      await api(`/admin/users/${userId}/suspend`, { body: sus });
+      toast(`@${username} suspenso(a) ${sus.days ? `por ${sus.days} dia(s)` : 'até a equipe reativar'}.`);
+      load();
+    } catch (err) {
+      toast((err as Error).message);
+    }
+  }
+  async function reactivate() {
+    if (!confirm(`Reativar a conta @${username}?`)) return;
+    try {
+      await api(`/admin/users/${userId}/unsuspend-id`, { body: {} });
+      toast('Conta reativada.');
+      load();
+    } catch (err) {
+      toast((err as Error).message);
+    }
+  }
+  return (
+    <div className="profile-admin">
+      <span className="muted small">Equipe do Resenha</span>
+      {st.suspended ? (
+        <>
+          <span className="small">
+            ⛔ Suspensa {st.until ? `até ${new Date(st.until).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` : 'até reativar'}
+            {st.reason ? ` · ${st.reason}` : ''}
+          </span>
+          <button className="btn small" onClick={() => void reactivate()}>
+            Reativar conta
+          </button>
+        </>
+      ) : (
+        <button className="btn small danger ghost" onClick={() => void suspend()}>
+          Suspender no Resenha
+        </button>
+      )}
     </div>
   );
 }

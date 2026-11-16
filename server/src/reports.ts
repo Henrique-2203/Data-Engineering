@@ -1,3 +1,4 @@
+import { SUSPENSION_DAYS, suspendUser, suspendedNow, unsuspendUser } from './suspension.ts';
 import { randomUUID } from 'node:crypto';
 import { isListed } from './listing.ts';
 import type { Router } from 'express';
@@ -147,7 +148,7 @@ export function registerReportRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
         `select r.id, r.target_type as "type", r.target_id as "targetId", r.reason, r.details, r.snapshot, r.status,
            r.resolution, r.created_at as "createdAt", r.handled_at as "handledAt",
            rep.username as "reporter", h.username as "handledBy",
-           tu.username as "targetUsername", tu.suspended_at is not null as "targetSuspended",
+           tu.username as "targetUsername", ${suspendedNow("tu")} as "targetSuspended",
            (select count(*)::int from reports o where o.target_type = r.target_type and o.target_id = r.target_id) as "sameTarget",
            (select count(*)::int from reports o where o.target_user_id = r.target_user_id and r.target_user_id is not null) as "againstUser",
            case r.target_type
@@ -191,6 +192,8 @@ export function registerReportRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
         z.object({
           action: z.enum(['delete_message', 'suspend_user', 'delete_guild', 'unlist_guild', 'resolve', 'dismiss']),
           note: z.string().trim().max(500).default(''),
+          /** suspensão: dias (null = até a equipe reativar) */
+          days: z.number().int().refine((d) => (SUSPENSION_DAYS as readonly number[]).includes(d)).nullable().default(null),
         }),
         req.body,
       );
@@ -225,10 +228,7 @@ export function registerReportRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
         const [u] = await db.query<{ username: string }>('select username from users where id = $1', [rep.target_user_id]);
         if (!u) throw new HttpError(404, 'A conta já foi excluída.');
         if (isPlatformAdmin(u.username)) throw new HttpError(400, 'Não dá para suspender alguém da equipe.');
-        await db.query('update users set suspended_at = now(), suspended_reason = $2 where id = $1', [rep.target_user_id, body.note || 'Violação dos Termos de uso']);
-        const ended = await db.query<{ token_hash: string }>('delete from sessions where user_id = $1 returning token_hash', [rep.target_user_id]);
-        rt.endSessions(ended.map((s) => s.token_hash));
-        rt.endUser(rep.target_user_id);
+        await suspendUser(db, rt, rep.target_user_id, body.note, body.days, req.user!.id);
       } else if (body.action === 'unlist_guild') {
         if (!rep.guild_id || rep.target_type !== 'guild') throw new HttpError(400, 'Essa denúncia não é de servidor.');
         await db.query('update guilds set unlisted = true where id = $1', [rep.guild_id]);
@@ -279,8 +279,53 @@ export function registerReportRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
     auth,
     wrap(async (req) => {
       requireAdmin(req.user!.username);
-      const rows = await db.query('update users set suspended_at = null, suspended_reason = null where username = $1 returning 1', [String(req.params.username).toLowerCase()]);
-      if (!rows.length) throw new HttpError(404, 'Usuário não encontrado.');
+      if (!(await unsuspendUser(db, { username: String(req.params.username).toLowerCase() }))) throw new HttpError(404, 'Usuário não encontrado.');
+    }),
+  );
+
+  /** suspender direto (sem denúncia): pelo perfil da pessoa, só a equipe */
+  r.post(
+    '/admin/users/:id/suspend',
+    auth,
+    wrap(async (req) => {
+      requireAdmin(req.user!.username);
+      const body = parse(
+        z.object({
+          reason: z.string().trim().min(3, 'Escreva o motivo (a pessoa vai ver).').max(300),
+          days: z.number().int().refine((d) => (SUSPENSION_DAYS as readonly number[]).includes(d)).nullable(),
+        }),
+        req.body,
+      );
+      const [u] = await db.query<{ id: string; username: string }>('select id, username from users where id = $1', [String(req.params.id)]);
+      if (!u) throw new HttpError(404, 'Usuário não encontrado.');
+      if (isPlatformAdmin(u.username) || u.id === req.user!.id) throw new HttpError(400, 'Não dá para suspender alguém da equipe.');
+      await suspendUser(db, rt, u.id, body.reason, body.days, req.user!.id);
+      return { ok: true };
+    }),
+  );
+
+  /** situação da conta (para o perfil, só a equipe) */
+  r.get(
+    '/admin/users/:id/suspension',
+    auth,
+    wrap(async (req) => {
+      requireAdmin(req.user!.username);
+      const [u] = await db.query<{ suspended: boolean; reason: string | null; until: string | null }>(
+        `select ${suspendedNow('u')} as suspended, u.suspended_reason as reason, u.suspended_until as until from users u where u.id = $1`,
+        [String(req.params.id)],
+      );
+      if (!u) throw new HttpError(404, 'Usuário não encontrado.');
+      return u;
+    }),
+  );
+
+  r.post(
+    '/admin/users/:id/unsuspend-id',
+    auth,
+    wrap(async (req) => {
+      requireAdmin(req.user!.username);
+      if (!(await unsuspendUser(db, { id: String(req.params.id) }))) throw new HttpError(404, 'Usuário não encontrado.');
+      return { ok: true };
     }),
   );
 
