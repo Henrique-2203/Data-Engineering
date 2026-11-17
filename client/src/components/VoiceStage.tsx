@@ -951,8 +951,10 @@ function VoiceControls() {
   });
   return (
     <div className="voice-controls">
-      <CallSecurityButton />
-      <CallReportButton />
+      <div className="vc-info">
+        <CallSecurityButton />
+        <CallReportButton />
+      </div>
       <button className={`round-btn${muted ? ' off' : ''}`} aria-label={muted ? 'Ativar microfone' : 'Silenciar'} title={muted ? 'Ativar microfone' : 'Silenciar'} onClick={() => voice.setMuted(!muted)}>
         {muted ? <MicOff /> : <Mic />}
       </button>
@@ -963,7 +965,7 @@ function VoiceControls() {
         {camera ? <Video /> : <VideoOff />}
       </button>
       <button
-        className={`round-btn${screen ? ' on' : ''}`}
+        className={`round-btn share-btn${screen ? ' on' : ''}${shareSupported ? '' : ' no-share'}`}
         aria-label={screen ? 'Parar transmissão' : 'Transmitir tela'}
         title={
           !shareSupported

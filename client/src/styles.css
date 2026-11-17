@@ -7883,3 +7883,29 @@ button.ov-card:hover {
 }
 .apoio-rings { width: 100%; text-align: left; margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
 .apoio-rings p { margin: 0 0 6px; }
+
+/* ---------- celular: barra da call e caixa de mensagem ---------- */
+.vc-info { display: contents; }
+.round-btn { flex-shrink: 0; }
+.composer textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 700px) {
+  /* os botões de informação (cadeado e relatar) ganham uma linha só deles; os redondos nunca espremem */
+  .voice-controls { flex-wrap: wrap; row-gap: 10px; padding-top: 10px; }
+  .vc-info { display: flex; flex-basis: 100%; justify-content: center; gap: 8px; }
+  .vc-info .call-lock { margin-right: 0; }
+  /* no celular não dá para transmitir a tela: o botão some em vez de ficar apagado */
+  .round-btn.no-share { display: none; }
+  .voice-controls { gap: 8px; }
+  .round-btn { width: 46px; height: 46px; }
+  /* enquanto digita, enquete e figurinhas saem para o texto ter espaço (emoji fica) */
+  .composer.typing .composer-tool:not([aria-label='Emojis']) { display: none; }
+  .composer { gap: 4px; padding-left: 10px; }
+}
+@media (max-width: 700px) and (pointer: coarse) {
+  /* celular e tablet: transmitir a tela só funciona no computador */
+  .round-btn.share-btn { display: none; }
+}
+@media (max-width: 380px) {
+  .round-btn { width: 44px; height: 44px; }
+  .voice-controls { gap: 6px; }
+}
