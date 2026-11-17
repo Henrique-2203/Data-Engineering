@@ -38,6 +38,7 @@ import { SoundboardButton } from './Soundboard';
 import { canShareScreen } from '../voice/settings';
 import { Avatar } from './Avatar';
 import { HomeSidebar } from './HomeSidebar';
+import { AndroidAppBanner } from './AndroidDownload';
 
 export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
   const guildId = useApp((s) => s.selectedGuildId);
@@ -246,6 +247,7 @@ export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
       </div>
 
       <VoicePanel />
+      <AndroidAppBanner />
       <UserPanel onLogout={onLogout} />
     </div>
   );

@@ -2,5 +2,5 @@
   "versionCode": 3,
   "versionName": "1.0.2",
   "url": "https://github.com/Henrique-2203/Data-Engineering/releases/download/android-v1.0.2-teste3/Resenha-1.0.2-teste3.apk",
-  "notes": "A notificação da call agora fica fixa (não some se você limpar as notificações) e tem os botões Desligar, Silenciar e Desativar áudio."
+  "notes": "A call continua com a tela bloqueada ou em outro app, com os botões Desligar, Silenciar e Desativar áudio na notificação."
 }

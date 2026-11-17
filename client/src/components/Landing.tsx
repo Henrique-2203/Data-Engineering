@@ -3,6 +3,7 @@ import { Check, ChevronDown, Download, Globe, Lock, Monitor, Smartphone, Sparkle
 import { api, hasSession } from '../lib/api';
 import { SOURCE_URL } from './LegalPage';
 import { canPrompt, isIos, isMobile, isStandalone, onInstallChange, promptInstall } from '../lib/install';
+import { AndroidDownloadButton, AndroidSteps, isAndroidPhone, useAndroidRelease } from './AndroidDownload';
 
 /** Animação de entrada quando a seção aparece na tela. */
 function useReveal() {
@@ -91,10 +92,14 @@ export function Landing() {
               <button className="lp-btn primary" onClick={() => scrollTo('lista')}>
                 Entrar na lista de espera
               </button>
-              <a className="lp-btn" href="/api/download/windows">
-                <Download size={18} /> Baixar para Windows <span className="lp-beta-chip">beta</span>
-              </a>
-              <InstallButton />
+              {isAndroidPhone() ? (
+                <AndroidDownloadButton />
+              ) : (
+                <a className="lp-btn" href="/api/download/windows">
+                  <Download size={18} /> Baixar para Windows <span className="lp-beta-chip">beta</span>
+                </a>
+              )}
+              {!isAndroidPhone() && <InstallButton />}
             </div>
             <p className="lp-small">
               Já tem convite? <a href="/app">Use no navegador</a>, sem instalar nada.
@@ -196,11 +201,12 @@ export function Landing() {
                 </a>
               }
             />
+            <AndroidCard />
             <DownloadCard
               icon={<Smartphone size={28} />}
-              title="Android e iPhone"
+              title="iPhone"
               badge="Disponível"
-              text="Instale direto do site: fica com o ícone na tela inicial, abre em tela cheia e já recebe as notificações. Não ocupa espaço e sempre está na versão mais nova (sem loja e sem atualizar)."
+              text="Instale direto do Safari: fica com o ícone na tela inicial, abre em tela cheia e sempre está na versão mais nova."
               action={<InstallButton primary />}
             />
           </div>
@@ -211,7 +217,7 @@ export function Landing() {
             <h2>Entre na lista de espera</h2>
             <p>
               Estamos liberando o acesso aos poucos para manter tudo rápido e estável. Deixe seu contato para receber o <strong>convite</strong>{' '}
-              e ser o primeiro a saber quando o app de celular sair.
+              e ser o primeiro a saber das novidades.
             </p>
             <ul>
               <li>
@@ -446,6 +452,42 @@ function InstallHelp({ onClose }: { onClose(): void }) {
         <p className="lp-small">Sem loja e sem baixar nada: o app abre o próprio Resenha, então está sempre atualizado.</p>
       </div>
     </div>
+  );
+}
+
+/** Card do app Android: no celular Android baixa direto; no PC mostra o endereço para abrir no celular. */
+function AndroidCard() {
+  const r = useAndroidRelease();
+  const [help, setHelp] = useState(() => location.pathname === '/android');
+  useEffect(() => {
+    if (location.pathname === '/android') {
+      history.replaceState(null, '', '/');
+      setTimeout(() => scrollTo('baixar'), 300);
+    }
+  }, []);
+  // aparece já (a animação de entrada da página só vale para o que existe ao abrir); some se não houver versão
+  if (r === null) return null;
+  const v = r ? ` (v${r.versionName})` : '';
+  return (
+    <>
+      <DownloadCard
+        icon={<Smartphone size={28} />}
+        title="Android"
+        badge="Novo"
+        text="O app do Resenha para Android: a call continua com a tela bloqueada ou jogando, com os botões de microfone na notificação. Atualiza sozinho."
+        action={
+          isAndroidPhone() ? (
+            <AndroidDownloadButton label={`Baixar app${v}`} />
+          ) : (
+            <button className="lp-btn primary" onClick={() => setHelp(true)}>
+              <Smartphone size={18} /> Como instalar
+            </button>
+          )
+        }
+        note={isAndroidPhone() ? undefined : 'No celular, abra resenhabr.com.br/android e toque em Baixar app.'}
+      />
+      {help && <AndroidSteps onClose={() => setHelp(false)} />}
+    </>
   );
 }
 

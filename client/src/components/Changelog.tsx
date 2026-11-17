@@ -11,6 +11,14 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-17b',
+    title: 'App do Resenha para Android',
+    items: [
+      ['📱', 'Saiu o app para Android! Com ele, a call continua com a tela bloqueada, jogando ou em outro app, e a notificação da call tem os botões de silenciar, desativar o áudio e desligar.'],
+      ['⬇️', 'Para baixar: no celular, abra resenhabr.com.br/android e toque em "Baixar app". As próximas versões chegam pelo próprio app, sem perder o login.'],
+    ],
+  },
+  {
     id: '2026-11-17',
     title: 'Anéis de Fundador',
     items: [

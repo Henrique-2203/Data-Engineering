@@ -54,7 +54,7 @@ function openChannelFromNotification(id: string) {
  * instalado na tela inicial do celular vão direto para o app.
  */
 const standalone = !!window.matchMedia?.('(display-mode: standalone)').matches;
-const showLanding = !pendingInvite.code && location.pathname === '/' && !isDesktop && !standalone;
+const showLanding = !pendingInvite.code && (location.pathname === '/' || location.pathname === '/android') && !isDesktop && !standalone;
 // "/entrar" (links antigos) e "/" no app de desktop viram "/app"
 if (location.pathname === '/entrar' || (location.pathname === '/' && !showLanding)) {
   history.replaceState(null, '', `/app${location.search}`);

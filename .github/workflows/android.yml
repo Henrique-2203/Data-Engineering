@@ -75,7 +75,7 @@ jobs:
           VN=$(grep -oP "versionName '\K[^']+" android/app/build.gradle)
           VC=$(grep -oP "versionCode \K[0-9]+" android/app/build.gradle)
           SUF=""; [ "${TEMPKEY:-}" = "1" ] && SUF="-chave-temporaria"
-          NAME="Resenha-$VN-teste${{ github.run_number }}$SUF.apk"
+          NAME="Resenha-$VN$SUF.apk"
           cp android/app/build/outputs/apk/release/app-release.apk "$NAME"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "vn=$VN" >> "$GITHUB_OUTPUT"

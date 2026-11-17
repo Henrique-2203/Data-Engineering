@@ -36,4 +36,11 @@ export function registerAndroidRoutes(r: Router) {
     res.setHeader('Cache-Control', 'public, max-age=60');
     res.json(await androidRelease());
   });
+  /** link fixo do site e dos stories: sempre baixa a versão mais nova do APK */
+  r.get('/download/android', async (_req, res) => {
+    const rel = await androidRelease();
+    if (!rel.versionCode || !rel.url) return res.redirect(302, '/');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.redirect(302, rel.url);
+  });
 }
