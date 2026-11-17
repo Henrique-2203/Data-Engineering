@@ -415,7 +415,7 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
         </div>
       )}
 
-      <div className={`composer${replyTo || pending.length ? ' attached' : ''}${text ? ' typing' : ''}`}>
+      <div className={`composer${replyTo || pending.length ? ' attached' : ''}${text ? ' has-text' : ''}`}>
         <button
           className="icon-btn attach-btn"
           aria-label="Enviar arquivo"

@@ -7898,7 +7898,7 @@ button.ov-card:hover {
   .voice-controls { gap: 8px; }
   .round-btn { width: 46px; height: 46px; }
   /* enquanto digita, enquete e figurinhas saem para o texto ter espaço (emoji fica) */
-  .composer.typing .composer-tool:not([aria-label='Emojis']) { display: none; }
+  .composer.has-text .composer-tool:not([aria-label='Emojis']) { display: none; }
   .composer { gap: 4px; padding-left: 10px; }
 }
 @media (max-width: 700px) and (pointer: coarse) {
