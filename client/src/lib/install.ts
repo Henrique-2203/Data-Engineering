@@ -28,7 +28,9 @@ export function initInstall() {
 
 export const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 export const isStandalone = () =>
-  window.matchMedia?.('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
+  window.matchMedia?.('(display-mode: standalone)').matches ||
+  (navigator as { standalone?: boolean }).standalone === true ||
+  /ResenhaAndroid\//.test(navigator.userAgent); // dentro do app Android não oferece "instalar"
 export const isMobile = () => /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent) || isIos();
 export const canPrompt = () => !!deferred;
 export function onInstallChange(f: () => void) {

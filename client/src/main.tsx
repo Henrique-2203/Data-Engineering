@@ -6,10 +6,12 @@ import './styles.css';
 import { isDesktop } from './lib/desktop';
 import { initAppearance } from './lib/appearance';
 import { initInstall } from './lib/install';
+import { initAndroidApp } from './lib/android';
 
 // tema antes de desenhar (sem piscar o escuro para quem usa o claro)
 initAppearance();
 initInstall();
+initAndroidApp();
 
 // app de Windows: os botões "voltar"/"avançar" do mouse não navegam (não há página anterior num app)
 if (isDesktop) {
