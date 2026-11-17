@@ -117,9 +117,44 @@ const S = {
       <div class="pill" style="top:1290px">Até 17 de dezembro</div>
       <div class="note" style="top:1440px">O Resenha continua grátis. Tudo que é grátis hoje continua grátis para sempre.</div>`,
   },
+  // 4. mascote segurando a placa
+  4: {
+    bg: ['mascote-placa.jpg', '50% 50%'],
+    shade: 'none',
+    brand: false,
+    html: `
+      <div class="t" style="top:150px;font-size:112px">Anéis de<br><span class="gold">Fundador</span></div>
+      <div style="position:absolute;left:0;right:0;top:450px;height:150px">
+        ${av('aurora', 120, 245, 0)}${av('raiz', 140, 470, -10)}${av('selo', 120, 715, 0)}
+      </div>
+      <div class="sign" style="position:absolute;left:168px;width:770px;top:690px;height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#1d1405">
+        <div style="font-size:50px;font-weight:800;line-height:1.15">Apoie o Resenha e ganhe<br>os 3 anéis para a sua foto</div>
+        <div style="font-size:104px;font-weight:900;letter-spacing:-3px;margin-top:14px;color:#0f6e45">Só até 17/12</div>
+        <div style="font-size:34px;font-weight:800;margin-top:10px;color:#5b4a2c">resenhabr.com.br</div>
+      </div>`,
+  },
+  // 5. mascote apontando para o texto (imagem menor, no canto de baixo, para o texto caber em cima)
+  5: {
+    bg: ['mascote-apontando.jpg', '75% 100%'],
+    bgSize: '80%',
+    bgColor: '#0f2f20',
+    shade: 'none',
+    brand: false,
+    html: `
+      <div style="position:absolute;left:80px;top:70px;font-size:34px;font-weight:900;color:rgba(255,255,255,.85)">resenhabr.com.br</div>
+      <div class="t" style="top:150px;font-size:96px;text-align:left;left:80px">Já viu os <span class="gold">anéis<br>de Fundador?</span></div>
+      <div style="position:absolute;left:80px;top:400px;height:130px">
+        ${av('raiz', 110, 0, 0)}${av('aurora', 110, 160, 0)}${av('selo', 110, 320, 0)}
+      </div>
+      <div class="step" style="top:580px;left:80px;right:80px;font-size:40px"><span class="n" style="width:72px;height:72px;font-size:38px">1</span><span>Toque no <span class="g">coração</span> dentro do Resenha</span></div>
+      <div class="step" style="top:690px;left:80px;right:80px;font-size:40px"><span class="n" style="width:72px;height:72px;font-size:38px">2</span><span>Faça um Pix a partir de R$ 5</span></div>
+      <div class="step" style="top:800px;left:80px;right:80px;font-size:40px"><span class="n" style="width:72px;height:72px;font-size:38px">3</span><span>Escolha o seu anel</span></div>
+      <div class="pill" style="top:930px;left:80px;transform:none">Só até 17/12</div>`,
+  },
 };
 const cur = S[n];
-document.getElementById('bg').style.cssText = `background-image:url(../out/fundador/${cur.bg[0]});background-position:${cur.bg[1]}`;
+if (cur.brand === false) document.querySelector('.brand').style.display = 'none';
+document.getElementById('bg').style.cssText = `background-image:url(../out/fundador/${cur.bg[0]});background-position:${cur.bg[1]};background-repeat:no-repeat;${cur.bgSize ? `background-size:${cur.bgSize};` : ''}${cur.bgColor ? `background-color:${cur.bgColor};` : ''}`;
 document.getElementById('shade').style.background = cur.shade;
 document.getElementById('c').innerHTML = cur.html;
 await Promise.all([...document.images].map((i) => (i.complete ? null : new Promise((r) => { i.onload = r; i.onerror = r; }))));

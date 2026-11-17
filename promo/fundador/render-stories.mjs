@@ -23,7 +23,7 @@ const server = createServer(async (req, res) => {
   }
 }).listen(0);
 const browser = await chromium.launch();
-for (const [mode, w, h] of [['1', 1080, 1920], ['2', 1080, 1920], ['3', 1080, 1920]]) {
+for (const [mode, w, h] of [['1', 1080, 1920], ['2', 1080, 1920], ['3', 1080, 1920], ['4', 1080, 1920], ['5', 1080, 1920]]) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
   await page.goto(`http://localhost:${server.address().port}/promo/fundador/stories.html?n=${mode}`);
   await page.waitForFunction(() => window.ready);
