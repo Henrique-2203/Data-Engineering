@@ -21,7 +21,12 @@ export interface PublicUser {
   callBanner?: string | null;
   /** posição vertical da imagem do banner no quadro (0 = topo, 100 = base) */
   callBannerPos?: number;
+  /** anel de Fundador (só de quem teve o apoio confirmado; null = sem anel) */
+  ring?: FounderRing | null;
 }
+
+export type FounderRing = 'raiz' | 'aurora' | 'selo';
+export const FOUNDER_RINGS: FounderRing[] = ['raiz', 'aurora', 'selo'];
 
 /** "Jogando agora" (detectado pelo app de desktop; só existe enquanto a pessoa está online) */
 export interface Activity {

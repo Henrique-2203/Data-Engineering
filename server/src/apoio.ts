@@ -10,6 +10,8 @@ import { limit } from './security.ts';
 import type { requireAuth } from './auth.ts';
 import { sendPush } from './push.ts';
 import { isPlatformAdmin } from './reports.ts';
+import { USER_COLUMNS } from './auth.ts';
+import type { PublicUser } from '../../shared/types.ts';
 
 /**
  * "Apoie o Resenha": apoio voluntário por Pix (valor livre, a partir do mínimo), até uma data limite.
@@ -95,7 +97,7 @@ export function pixPayload(s: ApoioSettings, code: string) {
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sem 0/O, 1/I
 const newCode = () => `RSN-${Array.from({ length: 5 }, () => ALPHABET[randomInt(ALPHABET.length)]).join('')}`;
 
-type Row = { code: string; status: 'none' | 'pending' | 'confirmed' | 'rejected'; showBadge: boolean };
+type Row = { code: string; status: 'none' | 'pending' | 'confirmed' | 'rejected'; showBadge: boolean; ring: string | null };
 
 export function registerApoioRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnType<typeof requireAuth>) {
   const requireAdmin = (username: string | undefined) => {
@@ -103,7 +105,13 @@ export function registerApoioRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
   };
   const mine = async (userId: string, create: boolean): Promise<Row | null> => {
     const get = async () =>
-      (await db.query<Row>('select code, status, show_badge as "showBadge" from supporters where user_id = $1', [userId]))[0] ?? null;
+      (
+        await db.query<Row>(
+          `select s.code, s.status, s.show_badge as "showBadge", coalesce(u.founder_ring, 'raiz') as ring
+           from supporters s join users u on u.id = s.user_id where s.user_id = $1`,
+          [userId],
+        )
+      )[0] ?? null;
     let row = await get();
     for (let i = 0; !row && create && i < 5; i++) {
       await db.query('insert into supporters (user_id, code) values ($1, $2) on conflict do nothing', [userId, newCode()]).catch(() => {});
@@ -125,7 +133,7 @@ export function registerApoioRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         open,
         deadline: s.deadline,
         minCents: s.minCents,
-        me: row ? { code: row.code, status: row.status, showBadge: row.showBadge } : null,
+        me: row ? { code: row.code, status: row.status, showBadge: row.showBadge, ring: row.status === 'confirmed' ? row.ring : null } : null,
         pix: payload
           ? {
               payload,
@@ -165,6 +173,28 @@ export function registerApoioRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       return { showBadge: show };
     }),
   );
+
+  /** escolher o anel de Fundador (ou nenhum). Só quem teve o apoio confirmado. */
+  r.post(
+    '/apoio/ring',
+    auth,
+    wrap(async (req) => {
+      const { ring } = parse(z.object({ ring: z.enum(['raiz', 'aurora', 'selo', 'none']) }), req.body);
+      const uid = req.user!.id;
+      const row = await mine(uid, false);
+      if (row?.status !== 'confirmed') throw new HttpError(403, 'Os anéis de Fundador são de quem teve o apoio confirmado pela equipe.');
+      await db.query('update users set founder_ring = $2 where id = $1', [uid, ring]);
+      const user = await broadcastUser(uid);
+      return { ring, user };
+    }),
+  );
+
+  /** todo mundo vê o anel aparecer (ou sumir) na hora: chat, membros, perfil e call */
+  const broadcastUser = async (userId: string) => {
+    const [user] = await db.query<PublicUser>(`select ${USER_COLUMNS} from users u where u.id = $1`, [userId]);
+    if (user) rt.io.emit('user:update', user);
+    return user ?? null;
+  };
 
   // ---------- equipe ----------
   const notifyAdmins = async () => {
@@ -241,6 +271,7 @@ export function registerApoioRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       );
       if (!row) throw new HttpError(404, 'Apoio não encontrado.');
       rt.emitUser(userId, 'apoio:update', { status: 'confirmed' });
+      await broadcastUser(userId);
       await sendPush(db, [userId], { title: 'Seu selo chegou 💚', body: 'Obrigado por apoiar o Resenha! Agora você é Apoiador Fundador.', tag: 'apoio' }, { onlyAway: rt }).catch(() => {});
       await notifyAdmins();
       return { ok: true };
@@ -255,6 +286,7 @@ export function registerApoioRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       const userId = String(req.params.userId);
       await db.query(`update supporters set status = 'rejected', confirmed_at = null, amount_cents = null where user_id = $1`, [userId]);
       rt.emitUser(userId, 'apoio:update', { status: 'rejected' });
+      await broadcastUser(userId);
       await notifyAdmins();
       return { ok: true };
     }),

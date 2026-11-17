@@ -56,14 +56,21 @@ const CALL_BANNER = (t: string) => `case ${t}.call_banner
     when 'upload' then case when ${t}.call_banner_image is null then null else 'image:' || ${t}.call_banner_image end
     else ${t}.call_banner end`;
 
+/**
+ * Anel de Fundador: só sai do servidor para quem teve o apoio CONFIRMADO pela equipe (pendente,
+ * recusado ou sem apoio = sem anel, mesmo que a coluna tenha valor). Sem escolha = Raiz.
+ */
+const FOUNDER_RING = (t: string) => `case when exists (select 1 from supporters fs where fs.user_id = ${t}.id and fs.status = 'confirmed')
+    then nullif(coalesce(${t}.founder_ring, 'raiz'), 'none') else null end`;
+
 export const USER_COLUMNS = `u.id, u.username, u.display_name as "displayName", u.avatar_color as "avatarColor",
-  u.avatar_id as "avatarId", ${STATUS_JSON('u')} as status, ${CALL_BANNER('u')} as "callBanner", u.call_banner_pos as "callBannerPos"`;
+  u.avatar_id as "avatarId", ${STATUS_JSON('u')} as status, ${CALL_BANNER('u')} as "callBanner", u.call_banner_pos as "callBannerPos", ${FOUNDER_RING('u')} as ring`;
 
 /** Mesmo usuário público, como objeto JSON dentro de uma consulta (autor de mensagem etc.). */
 export const userJson = (t: string) =>
   `json_build_object('id', ${t}.id, 'username', ${t}.username, 'displayName', ${t}.display_name,
     'avatarColor', ${t}.avatar_color, 'avatarId', ${t}.avatar_id, 'status', ${STATUS_JSON(t)},
-    'callBanner', ${CALL_BANNER(t)}, 'callBannerPos', ${t}.call_banner_pos)`;
+    'callBanner', ${CALL_BANNER(t)}, 'callBannerPos', ${t}.call_banner_pos, 'ring', ${FOUNDER_RING(t)})`;
 
 export async function userFromToken(db: Db, token: unknown): Promise<PublicUser | null> {
   return (await sessionFromToken(db, token))?.user ?? null;

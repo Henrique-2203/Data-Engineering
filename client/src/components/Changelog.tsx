@@ -11,6 +11,14 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-17',
+    title: 'Anéis de Fundador',
+    items: [
+      ['💍', 'Quem apoia o Resenha até 17/12 ganha, junto com o selo de Apoiador Fundador, 3 anéis para a foto: Raiz, Aurora e Selo. O anel aparece no chat, na lista de membros, no perfil e na call. Quem já apoiou escolhe o seu no botão de coração, na coluna da esquerda.'],
+      ['🔒', 'Os anéis de Fundador nunca vão ser vendidos: depois de 17/12, ninguém mais consegue. E tudo que é grátis continua grátis.'],
+    ],
+  },
+  {
     id: '2026-11-16',
     title: 'Mensagens não lidas e app no celular',
     items: [

@@ -475,6 +475,8 @@ create table if not exists app_settings (
   value jsonb not null,
   updated_at timestamptz not null default now()
 );
+-- v49: anel de Fundador escolhido ('raiz' | 'aurora' | 'selo' | 'none'; null = o padrão, Raiz). Só aparece com apoio confirmado.
+alter table users add column if not exists founder_ring text;
 -- v48: suspensão da conta com prazo (null = até a equipe reativar)
 alter table users add column if not exists suspended_until timestamptz;
 alter table users add column if not exists suspended_by text;

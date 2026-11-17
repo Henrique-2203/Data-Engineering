@@ -134,7 +134,7 @@ try {
   await pe.getByText('Apoiadores: 1 de 10').waitFor();
   await pe.getByText('R$ 10 de R$ 100').waitFor();
   await pe.screenshot({ path: path.join(shots, 'apoio-painel.png') });
-  await pa.getByText('Seu selo de Apoiador Fundador chegou!').waitFor({ timeout: 5000 });
+  await pa.getByText('Seu selo e seus anéis de Fundador chegaram!').waitFor({ timeout: 5000 });
   await dlg.getByText('Obrigado de verdade!').waitFor();
   step('equipe confirma no painel (meta 1/10 e R$ 10/R$ 100, só a equipe vê) e a pessoa recebe o aviso na hora');
 

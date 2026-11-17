@@ -3,6 +3,8 @@ import { Copy, Heart } from 'lucide-react';
 import { api } from '../lib/api';
 import { openModal, toast, useApp } from '../store/app';
 import { Modal } from './Modals';
+import { Avatar } from './Avatar';
+import type { FounderRing } from '../../../shared/types';
 
 /**
  * "Apoie o Resenha": apoio voluntário por Pix até a data limite, em troca do selo "Apoiador Fundador"
@@ -13,9 +15,16 @@ interface ApoioState {
   open: boolean;
   deadline: string;
   minCents: number;
-  me: { code: string; status: Status; showBadge: boolean } | null;
+  me: { code: string; status: Status; showBadge: boolean; ring: FounderRing | 'none' | null } | null;
   pix: { payload: string; qrSvg: string; receiver: string } | null;
 }
+
+const RINGS: { id: FounderRing | 'none'; name: string; sub: string }[] = [
+  { id: 'raiz', name: 'Raiz', sub: 'Dourado e verde girando devagar' },
+  { id: 'aurora', name: 'Aurora', sub: 'Anel duplo que respira em dourado' },
+  { id: 'selo', name: 'Selo', sub: 'Dourado parado, com a folhinha' },
+  { id: 'none', name: 'Nenhum', sub: 'Só a foto, sem anel' },
+];
 
 const brl = (cents: number) => (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: cents % 100 ? 2 : 0 });
 const dayMonth = (d: string) => new Date(`${d}T12:00:00-03:00`).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
@@ -54,6 +63,7 @@ export function ApoioButton() {
 }
 
 export function ApoioModal() {
+  const me = useApp((s) => s.me);
   const [st, setSt] = useState<ApoioState | null>(null);
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -85,6 +95,14 @@ export function ApoioModal() {
     });
   }
 
+  async function setRing(ring: FounderRing | 'none') {
+    setSt((s) => (s?.me ? { ...s, me: { ...s.me, ring } } : s));
+    await api('/apoio/ring', { body: { ring } }).catch((e) => {
+      toast(e.message);
+      load();
+    });
+  }
+
   if (!st) {
     return (
       <Modal title="Apoie o Resenha">
@@ -107,6 +125,19 @@ export function ApoioModal() {
             <label className="check">
               <input type="checkbox" checked={st.me!.showBadge} onChange={(e) => void setBadge(e.target.checked)} /> Mostrar o selo no meu perfil
             </label>
+            <div className="apoio-rings">
+              <strong>Seu anel de Fundador</strong>
+              <p className="muted small">Aparece em volta da sua foto no chat, na lista de membros, no perfil e na call. Troque quando quiser.</p>
+              <div className="ring-picker" role="group" aria-label="Anel de Fundador">
+                {RINGS.map((r) => (
+                  <button key={r.id} type="button" className="ring-opt" aria-pressed={(st.me!.ring ?? 'raiz') === r.id} onClick={() => void setRing(r.id)}>
+                    <Avatar user={me ?? undefined} size={56} ring={r.id === 'none' ? null : r.id} />
+                    <span>{r.name}</span>
+                    <span className="ring-opt-sub">{r.sub}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         ) : !st.open ? (
           <p>A campanha de fundadores terminou em {dayMonth(st.deadline)}. Obrigado a todo mundo que apoiou! 💚</p>
@@ -127,7 +158,12 @@ export function ApoioModal() {
             <div className="apoio-reward">
               <div>
                 <strong>Quem apoiar até {dayMonth(st.deadline)} ganha</strong>
-                <span className="muted small"> o selo de Apoiador Fundador no perfil, para sempre. Depois dessa data ele nunca mais vai ser oferecido.</span>
+                <span className="muted small"> o selo de Apoiador Fundador e os 3 anéis de Fundador para a sua foto, para sempre. Depois dessa data eles nunca mais vão ser oferecidos (nem vendidos).</span>
+              </div>
+              <div className="ring-preview" aria-label="Os 3 anéis de Fundador">
+                {(['raiz', 'aurora', 'selo'] as FounderRing[]).map((r) => (
+                  <Avatar key={r} user={me ?? undefined} size={48} ring={r} />
+                ))}
               </div>
               <FounderBadge />
               <span className="muted small">O apoio não libera nenhuma função: é só um agradecimento nosso. 🙏</span>
@@ -168,7 +204,7 @@ export function ApoioModal() {
 
             <div className="apoio-status">
               {status === 'pending' ? (
-                <p className="apoio-pending">✅ Recebemos o seu aviso! Assim que a equipe conferir o Pix, o selo aparece no seu perfil (normalmente em até 1 dia).</p>
+                <p className="apoio-pending">✅ Recebemos o seu aviso! Assim que a equipe conferir o Pix, o selo e os anéis aparecem no seu perfil (normalmente em até 1 dia).</p>
               ) : (
                 <>
                   {status === 'rejected' && (

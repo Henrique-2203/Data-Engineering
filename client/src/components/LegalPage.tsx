@@ -157,8 +157,8 @@ function Privacy({ contact }: { contact: ReactNode }) {
             <td>Mostrar no seu perfil. Fica só na memória enquanto você está online e pode ser desligado</td>
           </tr>
           <tr>
-            <td>Apoio ao Resenha (só se você apoiar): seu código de apoio, quando avisou que fez o Pix, se foi confirmado e se o selo aparece</td>
-            <td>Entregar o selo de Apoiador Fundador. O Pix vai direto para a conta do responsável pelo Resenha: os dados do pagamento (como o seu nome) ficam no banco dele, como em qualquer Pix. Só a equipe vê quem apoiou; ninguém mais vê quem deu nem quanto</td>
+            <td>Apoio ao Resenha (só se você apoiar): seu código de apoio, quando avisou que fez o Pix, se foi confirmado, se o selo aparece e qual anel de Fundador você escolheu</td>
+            <td>Entregar o selo e os anéis de Fundador. O Pix vai direto para a conta do responsável pelo Resenha: os dados do pagamento (como o seu nome) ficam no banco dele, como em qualquer Pix. Só a equipe vê quem apoiou; ninguém mais vê quem deu nem quanto</td>
           </tr>
         </tbody>
       </table>
@@ -374,8 +374,8 @@ function Terms({ contact }: { contact: ReactNode }) {
         </li>
         <li>
           <strong>Apoio voluntário:</strong> você pode apoiar o Resenha com um Pix, por vontade própria, para ajudar a pagar os servidores. O apoio
-          não libera nenhuma função; quem apoia durante a campanha de fundadores ganha só o selo "Apoiador Fundador", oferecido apenas até a data
-          informada na tela de apoio. Fez por engano? Fale com o Suporte em até 7 dias que devolvemos.
+          não libera nenhuma função; quem apoia durante a campanha de fundadores ganha só enfeites: o selo "Apoiador Fundador" e os anéis de Fundador para a foto,
+          oferecidos apenas até a data informada na tela de apoio e que nunca vão ser vendidos. Fez por engano? Fale com o Suporte em até 7 dias que devolvemos.
         </li>
         <li>
           No futuro poderemos oferecer itens visuais <strong>novos</strong>, criados pelo Resenha e opcionais (como efeitos animados). Eles nunca

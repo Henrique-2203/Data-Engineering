@@ -7785,3 +7785,101 @@ button.ov-card:hover {
 .lp-modal-x { position: absolute; top: 12px; right: 12px; background: none; border: 0; color: inherit; cursor: pointer; opacity: .7; }
 .lp-modal-url { font-size: 22px; font-weight: 900; color: #3ddc97; margin: 6px 0 12px; }
 .profile-admin { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line, rgba(255,255,255,.12)); }
+
+/* ---------- Anéis de Fundador (só de quem teve o apoio confirmado) ---------- */
+.founder-ring {
+  --fr-w: max(2px, calc(var(--av, 32px) * 0.075));
+  position: absolute;
+  inset: calc(var(--av, 32px) * -0.11);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+}
+.founder-ring::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--fr-paint);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--fr-w)), #000 calc(100% - var(--fr-w) + 0.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - var(--fr-w)), #000 calc(100% - var(--fr-w) + 0.5px));
+}
+/* Raiz: dourado e verde girando devagar */
+.fr-raiz {
+  --fr-paint: conic-gradient(from 0deg, #f5b301, #ffe58a, #3ddc97, #1e9e68, #f5b301);
+  filter: drop-shadow(0 0 3px rgba(245, 179, 1, 0.45));
+}
+.fr-raiz::before {
+  animation: fr-spin 9s linear infinite;
+}
+/* Aurora: anel duplo, o de fora respira em dourado */
+.fr-aurora {
+  --fr-w: max(1.5px, calc(var(--av, 32px) * 0.055));
+  --fr-paint: conic-gradient(#3ddc97, #f5b301, #3ddc97);
+}
+.fr-aurora::before {
+  animation: fr-spin 12s linear infinite;
+}
+.fr-aurora::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--av, 32px) * -0.06);
+  border-radius: 50%;
+  border: max(1px, calc(var(--av, 32px) * 0.035)) solid rgba(245, 179, 1, 0.55);
+  animation: fr-breathe 2.6s ease-in-out infinite;
+}
+/* Selo: dourado parado, com a folhinha do Resenha */
+.fr-selo {
+  --fr-paint: linear-gradient(160deg, #ffe58a, #f5b301 45%, #b97f00);
+}
+.fr-leaf {
+  position: absolute;
+  left: 2%;
+  bottom: 2%;
+  width: 32%;
+  height: 32%;
+  border-radius: 50%;
+  background: #f5b301;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 2px var(--bg-2);
+}
+.fr-leaf svg {
+  width: 62%;
+  height: 62%;
+}
+@keyframes fr-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@keyframes fr-breathe {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+    box-shadow: 0 0 12px rgba(245, 179, 1, 0.5);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .founder-ring::before,
+  .founder-ring::after {
+    animation: none;
+  }
+}
+/* escolher o anel (janela de apoio) */
+.ring-picker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.ring-opt { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 8px 12px; border-radius: 12px;
+  background: var(--bg-3); border: 1px solid var(--line); color: var(--text); cursor: pointer; font-weight: 700; }
+.ring-opt[aria-pressed='true'] { border-color: #f5b301; box-shadow: 0 0 0 1px #f5b301 inset; }
+.ring-opt .ring-opt-sub { font-size: 12px; font-weight: 500; color: var(--text-3); text-align: center; }
+.ring-preview { display: flex; gap: 18px; align-items: center; padding: 8px 4px 2px; }
+@media (max-width: 560px) {
+  .ring-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.apoio-rings { width: 100%; text-align: left; margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.apoio-rings p { margin: 0 0 6px; }

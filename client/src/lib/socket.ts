@@ -197,7 +197,7 @@ export function connectSocket() {
   s.on('apoio:update', ({ status }: { status: string }) => {
     window.dispatchEvent(new Event('resenha:apoio-update'));
     if (status === 'confirmed') {
-      toast('💚 Seu selo de Apoiador Fundador chegou! Obrigado por apoiar o Resenha.');
+      toast('💚 Seu selo e seus anéis de Fundador chegaram! Escolha o seu anel no botão de coração. Obrigado por apoiar o Resenha.');
       playSound('mention');
     }
   });
