@@ -10,6 +10,7 @@ import { voice } from '../voice/engine';
 interface AndroidBridge {
   callStarted(title: string): void;
   callEnded(): void;
+  callState?(title: string, muted: boolean, deafened: boolean): void;
   version(): string;
   versionCode(): number;
   checkUpdate(): void;
@@ -41,6 +42,10 @@ export function initAndroidApp() {
       if (s.status === 'connected' && (!inCall || s.channelId !== prev.channelId)) {
         inCall = true;
         b.callStarted(title());
+        b.callState?.(title(), s.muted, s.deafened);
+      } else if (inCall && s.status === 'connected' && (s.muted !== prev.muted || s.deafened !== prev.deafened)) {
+        // botões "Silenciar" e "Desativar áudio" da notificação acompanham o estado da call
+        b.callState?.(title(), s.muted, s.deafened);
       } else if (s.status === 'idle' && inCall) {
         inCall = false;
         b.callEnded();
@@ -48,4 +53,6 @@ export function initAndroidApp() {
     } catch {}
   });
   window.addEventListener('resenha:native-leave', () => voice.leave());
+  window.addEventListener('resenha:native-mute', () => voice.setMuted(!useVoice.getState().muted));
+  window.addEventListener('resenha:native-deafen', () => voice.setDeafened(!useVoice.getState().deafened));
 }

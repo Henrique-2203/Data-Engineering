@@ -8,31 +8,47 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.graphics.drawable.Icon;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
 
 /**
- * Enquanto a pessoa está numa call: notificação fixa "Você está numa call" (com "Sair da call"). É isso que
- * faz o Android manter o microfone, o som e a internet do app vivos com a tela bloqueada ou em outro app,
- * como no WhatsApp e no Discord.
+ * Enquanto a pessoa está numa call: notificação fixa "Você está numa call", com os botões Microfone, Áudio e
+ * Sair. É isso que faz o Android manter o microfone, o som e a internet do app vivos com a tela bloqueada ou
+ * em outro app, como no WhatsApp e no Discord.
  */
 public class CallService extends Service {
-    private static final String CHANNEL = "call";
+    // canal novo (o "call" da primeira versão de teste era silencioso demais e ficava escondido)
+    private static final String CHANNEL = "call2";
     private static final String ACTION_LEAVE = "br.com.resenhabr.app.LEAVE";
+    private static final String ACTION_MUTE = "br.com.resenhabr.app.MUTE";
+    private static final String ACTION_DEAFEN = "br.com.resenhabr.app.DEAFEN";
     private static final int ID = 1;
+    static boolean running;
+    private static String title = "";
+    private static boolean muted;
+    private static boolean deafened;
     private PowerManager.WakeLock wake;
     private WifiManager.WifiLock wifi;
 
-    static void start(Context c, String title) {
-        Intent i = new Intent(c, CallService.class).putExtra("title", title == null ? "" : title);
+    static void start(Context c, String t, boolean m, boolean d) {
+        title = t == null ? "" : t;
+        muted = m;
+        deafened = d;
+        Intent i = new Intent(c, CallService.class);
         try {
             if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(i);
             else c.startService(i);
-        } catch (Exception ignored) {
-            // sem permissão do microfone ainda: a call segue enquanto o app estiver aberto
+        } catch (Exception e) {
+            if (MainActivity.instance != null) MainActivity.instance.callServiceFailed(e.getClass().getSimpleName() + ": " + e.getMessage());
         }
+    }
+
+    /** as notificações foram liberadas agora: mostra de novo */
+    static void refresh(Context c) {
+        start(c, title, muted, deafened);
     }
 
     static void stop(Context c) {
@@ -41,18 +57,27 @@ public class CallService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && ACTION_LEAVE.equals(intent.getAction())) {
-            if (MainActivity.instance != null) MainActivity.instance.leaveCallFromNotification();
+        String action = intent != null ? intent.getAction() : null;
+        if (ACTION_LEAVE.equals(action)) {
+            if (MainActivity.instance != null) MainActivity.instance.fromNotification("leave");
+            running = false;
             stopForeground(true);
             stopSelf();
             return START_NOT_STICKY;
         }
-        String title = intent != null ? intent.getStringExtra("title") : null;
-        Notification n = build(title == null || title.isEmpty() ? "Toque para voltar à call" : title);
+        if (ACTION_MUTE.equals(action) || ACTION_DEAFEN.equals(action)) {
+            // o site muda e devolve o estado novo por callState(), que redesenha a notificação
+            if (MainActivity.instance != null) MainActivity.instance.fromNotification(ACTION_MUTE.equals(action) ? "mute" : "deafen");
+            return START_NOT_STICKY;
+        }
+        Notification n = build();
         try {
             if (Build.VERSION.SDK_INT >= 29) startForeground(ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
             else startForeground(ID, n);
+            running = true;
         } catch (Exception e) {
+            running = false;
+            if (MainActivity.instance != null) MainActivity.instance.callServiceFailed(e.getClass().getSimpleName() + ": " + e.getMessage());
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -73,34 +98,49 @@ public class CallService extends Service {
         return START_NOT_STICKY;
     }
 
-    private Notification build(String text) {
+    private PendingIntent action(String a, int code, int flags) {
+        return PendingIntent.getService(this, code, new Intent(this, CallService.class).setAction(a), flags);
+    }
+
+    private Notification build() {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CHANNEL) == null) {
-            NotificationChannel ch = new NotificationChannel(CHANNEL, "Call em andamento", NotificationManager.IMPORTANCE_LOW);
-            ch.setDescription("Mantém a call viva com o celular bloqueado ou em outro app");
+            NotificationChannel old = nm.getNotificationChannel("call");
+            if (old != null) nm.deleteNotificationChannel("call");
+            NotificationChannel ch = new NotificationChannel(CHANNEL, "Call em andamento", NotificationManager.IMPORTANCE_DEFAULT);
+            ch.setDescription("Mantém a call viva com o celular bloqueado ou em outro app, com os botões de microfone, áudio e sair");
+            ch.setSound(null, null);
+            ch.enableVibration(false);
             ch.setShowBadge(false);
+            ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             nm.createNotificationChannel(ch);
         }
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
         PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), flags);
-        PendingIntent leave = PendingIntent.getService(this, 1, new Intent(this, CallService.class).setAction(ACTION_LEAVE), flags);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
+        String state = deafened ? "Áudio desativado" : muted ? "Microfone silenciado" : "Microfone ligado";
         b.setSmallIcon(R.drawable.ic_stat_call)
             .setContentTitle("Você está numa call")
-            .setContentText(text)
+            .setContentText((title.isEmpty() ? "" : title + " · ") + state)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .setShowWhen(true)
             .setUsesChronometer(true)
             .setColor(0xff3ddc97)
             .setCategory(Notification.CATEGORY_CALL)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setContentIntent(open)
-            .addAction(new Notification.Action.Builder(null, "Sair da call", leave).build());
+            .addAction(new Notification.Action.Builder((Icon) null, muted ? "Ativar microfone" : "Silenciar", action(ACTION_MUTE, 2, flags)).build())
+            .addAction(new Notification.Action.Builder((Icon) null, deafened ? "Ativar áudio" : "Desativar áudio", action(ACTION_DEAFEN, 3, flags)).build())
+            .addAction(new Notification.Action.Builder((Icon) null, "Sair da call", action(ACTION_LEAVE, 1, flags)).build());
+        if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_DEFAULT);
         if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
         return b.build();
     }
 
     @Override
     public void onDestroy() {
+        running = false;
         if (wake != null && wake.isHeld()) wake.release();
         if (wifi != null && wifi.isHeld()) wifi.release();
         wake = null;

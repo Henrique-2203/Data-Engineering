@@ -2,6 +2,8 @@ package br.com.resenhabr.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.NotificationManager;
 import android.app.DownloadManager;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
@@ -12,6 +14,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -97,6 +100,46 @@ public class MainActivity extends Activity {
         else web.loadUrl(startUrl(getIntent()));
 
         Updater.check(this, false);
+        askNotificationsOnce();
+    }
+
+    /** primeira vez que abre: pede a permissão de notificações (é ela que mostra "Você está numa call") */
+    private void askNotificationsOnce() {
+        if (Build.VERSION.SDK_INT < 33 || granted(Manifest.permission.POST_NOTIFICATIONS)) return;
+        android.content.SharedPreferences p = getSharedPreferences("resenha", MODE_PRIVATE);
+        if (p.getBoolean("askedNotif", false)) return;
+        p.edit().putBoolean("askedNotif", true).apply();
+        requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, REQ_NOTIF);
+    }
+
+    private boolean notificationsOn() {
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        return nm != null && nm.areNotificationsEnabled();
+    }
+
+    private boolean warnedNotif;
+
+    /** entrou na call com as notificações do Resenha desligadas: explica e leva para ligar (uma vez por vez que abre o app) */
+    private void warnIfNotificationsOff() {
+        if (warnedNotif || notificationsOn()) return;
+        warnedNotif = true;
+        new AlertDialog.Builder(this, R.style.Dialogo)
+            .setTitle("Ative as notificações do Resenha")
+            .setMessage("É a notificação \"Você está numa call\" que mantém a call viva com a tela bloqueada ou em outro app, e é nela que ficam os botões de microfone, áudio e sair.")
+            .setPositiveButton("Ativar", (d, w) -> {
+                if (Build.VERSION.SDK_INT >= 33 && shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+                    requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, REQ_NOTIF);
+                } else {
+                    Intent i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+                    try {
+                        startActivity(i);
+                    } catch (Exception e) {
+                        startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
+                    }
+                }
+            })
+            .setNegativeButton("Agora não", null)
+            .show();
     }
 
     private String startUrl(Intent intent) {
@@ -247,6 +290,7 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
         super.onRequestPermissionsResult(code, perms, results);
+        if (code == REQ_NOTIF && CallService.running) CallService.refresh(this);
         if (code != REQ_MEDIA || pendingMedia == null) return;
         List<String> ok = new ArrayList<>();
         for (String r : pendingMedia.getResources()) {
@@ -280,9 +324,17 @@ public class MainActivity extends Activity {
         fileCb = null;
     }
 
-    /** chamado pela notificação da call ("Sair da call") */
-    void leaveCallFromNotification() {
-        runOnUiThread(() -> web.evaluateJavascript("window.dispatchEvent(new Event('resenha:native-leave'))", null));
+    /** botões da notificação da call: 'leave', 'mute' ou 'deafen' */
+    void fromNotification(String what) {
+        runOnUiThread(() -> web.evaluateJavascript("window.dispatchEvent(new Event('resenha:native-" + what + "'))", null));
+    }
+
+    /** a notificação da call não conseguiu abrir (aparece para a pessoa e vai no "Relatar problema") */
+    void callServiceFailed(String why) {
+        runOnUiThread(() -> {
+            Toast.makeText(this, "Não deu para manter a call em segundo plano: " + why, Toast.LENGTH_LONG).show();
+            web.evaluateJavascript("window.__resenhaNativeError=" + org.json.JSONObject.quote(why), null);
+        });
     }
 
     // ---------------- ponte com o site (window.ResenhaAndroid) ----------------
@@ -292,11 +344,22 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void callStarted(String title) {
             runOnUiThread(() -> {
-                if (Build.VERSION.SDK_INT >= 33 && !granted(Manifest.permission.POST_NOTIFICATIONS)) {
-                    requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, REQ_NOTIF);
-                }
-                CallService.start(MainActivity.this, title);
+                CallService.start(MainActivity.this, title, false, false);
+                warnIfNotificationsOff();
             });
+        }
+
+        /** microfone/áudio mudaram: atualiza os botões da notificação */
+        @JavascriptInterface
+        public void callState(String title, boolean muted, boolean deafened) {
+            runOnUiThread(() -> {
+                if (CallService.running) CallService.start(MainActivity.this, title, muted, deafened);
+            });
+        }
+
+        @JavascriptInterface
+        public boolean notificationsEnabled() {
+            return notificationsOn();
         }
 
         @JavascriptInterface
