@@ -7,6 +7,7 @@ import { updateSettings, useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { NOISE_MODES, type NoiseMode, keyLabel } from '../voice/settings';
 import { isDesktop } from '../lib/desktop';
+import { androidAppVersion, checkAndroidUpdate, isAndroidApp } from '../lib/android';
 import { Avatar } from './Avatar';
 import { ProfileEditor } from './ProfileEditor';
 import { SecuritySettings } from './SecuritySettings';
@@ -367,6 +368,15 @@ function ShortcutsSection() {
             : 'No site, os atalhos funcionam com a janela do Resenha em foco. Para usar com o jogo em primeiro plano, use a ativação por voz ou o app de desktop.'}
         </p>
       </div>
+      {isAndroidApp() && (
+        <div className="settings-card">
+          <h3>App Android</h3>
+          <p className="muted small">Versão {androidAppVersion() ?? '?'}. Quando sai uma versão nova, o app avisa sozinho ao abrir e se atualiza por cima, sem perder o login.</p>
+          <button type="button" className="btn" onClick={() => checkAndroidUpdate()}>
+            Procurar atualização
+          </button>
+        </div>
+      )}
       <div className="settings-card">
         <DesktopSettingsSection />
       </div>
