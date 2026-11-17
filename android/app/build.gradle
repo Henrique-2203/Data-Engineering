@@ -12,8 +12,8 @@ android {
         targetSdk 34
         // Para lançar uma atualização: aumente o versionCode (e o versionName). O app instalado compara com
         // android/release.json (servido em /api/app/android) e oferece baixar a nova versão.
-        versionCode 2
-        versionName '1.0.1'
+        versionCode 3
+        versionName '1.0.2'
         buildConfigField 'String', 'APP_URL', '"https://resenhabr.com.br/app"'
         buildConfigField 'String', 'UPDATE_URL', '"https://resenhabr.com.br/api/app/android"'
     }

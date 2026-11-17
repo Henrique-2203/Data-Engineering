@@ -4,6 +4,7 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.Person;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -25,6 +26,8 @@ public class CallService extends Service {
     private static final String ACTION_LEAVE = "br.com.resenhabr.app.LEAVE";
     private static final String ACTION_MUTE = "br.com.resenhabr.app.MUTE";
     private static final String ACTION_DEAFEN = "br.com.resenhabr.app.DEAFEN";
+    /** a pessoa apagou a notificação: ela volta na hora (a call continua, então o aviso também) */
+    private static final String ACTION_REPOST = "br.com.resenhabr.app.REPOST";
     private static final int ID = 1;
     static boolean running;
     private static String title = "";
@@ -63,6 +66,17 @@ public class CallService extends Service {
             running = false;
             stopForeground(true);
             stopSelf();
+            return START_NOT_STICKY;
+        }
+        if (ACTION_REPOST.equals(action)) {
+            if (running) {
+                try {
+                    NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                    nm.notify(ID, build());
+                } catch (Exception ignored) {
+                    // se o sistema recusar, a call continua do mesmo jeito; a notificação volta no próximo estado
+                }
+            }
             return START_NOT_STICKY;
         }
         if (ACTION_MUTE.equals(action) || ACTION_DEAFEN.equals(action)) {
@@ -119,6 +133,9 @@ public class CallService extends Service {
         PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), flags);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
         String state = deafened ? "Áudio desativado" : muted ? "Microfone silenciado" : "Microfone ligado";
+        PendingIntent leave = action(ACTION_LEAVE, 1, flags);
+        Notification.Action muteAction = new Notification.Action.Builder((Icon) null, muted ? "Ativar microfone" : "Silenciar", action(ACTION_MUTE, 2, flags)).build();
+        Notification.Action deafAction = new Notification.Action.Builder((Icon) null, deafened ? "Ativar áudio" : "Desativar áudio", action(ACTION_DEAFEN, 3, flags)).build();
         b.setSmallIcon(R.drawable.ic_stat_call)
             .setContentTitle("Você está numa call")
             .setContentText((title.isEmpty() ? "" : title + " · ") + state)
@@ -127,15 +144,29 @@ public class CallService extends Service {
             .setShowWhen(true)
             .setUsesChronometer(true)
             .setColor(0xff3ddc97)
+            .setColorized(true)
             .setCategory(Notification.CATEGORY_CALL)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setContentIntent(open)
-            .addAction(new Notification.Action.Builder((Icon) null, muted ? "Ativar microfone" : "Silenciar", action(ACTION_MUTE, 2, flags)).build())
-            .addAction(new Notification.Action.Builder((Icon) null, deafened ? "Ativar áudio" : "Desativar áudio", action(ACTION_DEAFEN, 3, flags)).build())
-            .addAction(new Notification.Action.Builder((Icon) null, "Sair da call", action(ACTION_LEAVE, 1, flags)).build());
-        if (Build.VERSION.SDK_INT < 26) b.setPriority(Notification.PRIORITY_DEFAULT);
-        if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
-        return b.build();
+            .setDeleteIntent(action(ACTION_REPOST, 4, flags))
+            .addAction(muteAction)
+            .addAction(deafAction);
+        if (Build.VERSION.SDK_INT >= 31) {
+            // estilo "chamada em andamento" (como WhatsApp e Discord): o Android não deixa apagar e mostra no topo
+            Person p = new Person.Builder()
+                .setName(title.isEmpty() ? "Resenha" : title)
+                .setIcon(Icon.createWithResource(this, R.mipmap.ic_launcher))
+                .setImportant(true)
+                .build();
+            b.setStyle(Notification.CallStyle.forOngoingCall(p, leave));
+            b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
+        } else {
+            b.addAction(new Notification.Action.Builder((Icon) null, "Sair da call", leave).build());
+            b.setPriority(Notification.PRIORITY_HIGH);
+        }
+        Notification n = b.build();
+        n.flags |= Notification.FLAG_NO_CLEAR | Notification.FLAG_ONGOING_EVENT;
+        return n;
     }
 
     @Override
