@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Novidades do Resenha — stories</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #07080b; font-family: Inter, 'Noto Color Emoji', sans-serif; color: #fff; }
+  #s { position: relative; width: 1080px; height: 1920px; overflow: hidden; background: radial-gradient(900px 700px at 15% 0%, rgba(61,220,151,.22), transparent 70%), radial-gradient(800px 700px at 100% 100%, rgba(124,58,237,.22), transparent 70%), #0b0d11; }
+  .t { position: absolute; left: 80px; right: 80px; font-weight: 900; letter-spacing: -3px; line-height: 1.02; }
+  .g { color: #3ddc97; }
+  .sub { position: absolute; left: 80px; right: 80px; font-weight: 700; font-size: 42px; line-height: 1.3; color: rgba(255,255,255,.88); }
+  .kick { position: absolute; left: 80px; display: inline-block; padding: 12px 26px; border-radius: 999px; background: rgba(61,220,151,.14); border: 2px solid rgba(61,220,151,.5); color: #3ddc97; font-weight: 800; font-size: 32px; }
+  .phone { position: absolute; border-radius: 56px; padding: 16px; background: #1b1e25; box-shadow: 0 40px 100px rgba(0,0,0,.6), 0 0 0 2px rgba(255,255,255,.08); }
+  .phone img { display: block; width: 100%; border-radius: 42px; }
+  .zoom { position: absolute; border-radius: 36px; overflow: hidden; box-shadow: 0 40px 100px rgba(0,0,0,.6), 0 0 0 3px rgba(61,220,151,.6); }
+  .zoom img { display: block; width: 100%; }
+  .ring { position: absolute; border: 6px solid #3ddc97; border-radius: 50%; box-shadow: 0 0 40px rgba(61,220,151,.7); }
+  .arrow { position: absolute; font-size: 90px; }
+  .sugg { position: absolute; left: 80px; right: 80px; background: rgba(23,26,33,.95); border: 1px solid rgba(255,255,255,.1); border-radius: 32px; padding: 30px 34px; }
+  .sugg .h { font-size: 28px; font-weight: 800; color: #8b93a5; letter-spacing: 2px; margin-bottom: 14px; }
+  .sugg .m { font-size: 38px; font-weight: 600; line-height: 1.35; }
+  .chip { display: inline-block; padding: 6px 16px; border-radius: 12px; background: #262b36; font-family: ui-monospace, Consolas, monospace; font-size: 32px; margin: 6px 8px 6px 0; }
+  .brand { position: absolute; left: 0; right: 0; bottom: 120px; display: flex; justify-content: center; align-items: center; gap: 18px; font-weight: 900; font-size: 40px; color: rgba(255,255,255,.95); }
+  .brand .ic { width: 64px; height: 64px; }
+  .brand .ic svg { width: 100%; height: 100%; }
+  .masc { position: absolute; filter: drop-shadow(0 20px 40px rgba(0,0,0,.5)); }
+</style>
+</head>
+<body>
+<div id="s">
+  <div id="c"></div>
+  <div class="brand"><span class="ic" id="ic"></span>resenhabr.com.br</div>
+</div>
+<script type="module">
+const n = new URLSearchParams(location.search).get('n') ?? '1';
+const icons = await (await fetch('../out/reels/icons.json')).json();
+document.getElementById('ic').innerHTML = icons.find((i) => i.id === 'classic').svg;
+const O = '../out/novidades/';
+const M = (x) => `../out/mascote2/figurinhas/resenha-${x}.png`;
+const S = {
+  // 1. sugestão de um usuário que virou novidade
+  1: `
+    <div class="kick" style="top:150px">💡 Vocês pediram, a gente fez</div>
+    <div class="t" style="top:250px;font-size:92px">Ícone de call<br>no <span class="g">servidor</span></div>
+    <div class="sugg" style="top:500px">
+      <div class="h">SUGESTÃO DA COMUNIDADE · #sugestões</div>
+      <div class="m">"Quando estiver em uma call, aparecer no cantinho do servidor"</div>
+    </div>
+    <div class="zoom" style="left:230px;top:790px;width:560px"><img src="${O}call-zoom.png"></div>
+    <div class="ring" style="left:213px;top:1050px;width:110px;height:110px"></div>
+    <div class="arrow" style="left:110px;top:1035px">👉</div>
+    <div class="sub" style="top:1430px;font-size:40px;right:330px">Agora o servidor da sua call ganha um <span class="g">🔊 ícone de som</span> na coluna da esquerda.</div>
+    <img class="masc" src="${M('uhul')}" style="left:760px;top:1480px;width:260px">
+    <div class="sub" style="top:1620px;font-size:32px;right:330px;color:rgba(255,255,255,.75)">Mande a sua ideia no <b>#sugestões</b> do servidor oficial 💚</div>`,
+  // 2. formatação
+  2: `
+    <div class="kick" style="top:130px">✍️ Novidade</div>
+    <div class="t" style="top:230px;font-size:92px">Mensagens com<br><span class="g">formatação</span></div>
+    <div style="position:absolute;left:80px;right:80px;top:470px">
+      <span class="chip">**negrito**</span><span class="chip">*itálico*</span><span class="chip"># título</span>
+      <span class="chip">- lista</span><span class="chip">&gt; citação</span><span class="chip">||spoiler||</span>
+    </div>
+    <div class="phone" style="left:210px;top:700px;width:660px"><img src="${O}formatacao-c.png"></div>
+    <div class="sub" style="top:1600px;font-size:36px;text-align:center">Não sabe os símbolos? Toque em <b class="g">Formatar texto</b>.</div>`,
+  // 3. + e enviar
+  3: `
+    <div class="kick" style="top:130px">📱 No celular</div>
+    <div class="t" style="top:230px;font-size:92px">Tudo no <span class="g">+</span></div>
+    <div class="sub" style="top:360px">Foto, vídeo ou arquivo, enquete, figurinha e formatar. E o botão de enviar ficou maior.</div>
+    <div class="phone" style="left:210px;top:560px;width:620px"><img src="${O}mais-c.png"></div>
+    <img class="masc" src="${M('falando')}" style="left:790px;top:1420px;width:260px">`,
+  // 4. segurar a mensagem
+  4: `
+    <div class="kick" style="top:130px">👆 No celular</div>
+    <div class="t" style="top:230px;font-size:92px">Segure a<br><span class="g">mensagem</span></div>
+    <div class="sub" style="top:470px">Para reagir, responder, copiar, editar ou excluir. Sem tocar sem querer.</div>
+    <div class="phone" style="left:250px;top:620px;width:620px"><img src="${O}segurar-c.png"></div>
+    <img class="masc" src="${M('oi')}" style="left:20px;top:1420px;width:250px">`,
+};
+document.getElementById('c').innerHTML = S[n];
+await Promise.all([...document.images].map((i) => (i.complete ? null : new Promise((r) => { i.onload = r; i.onerror = r; }))));
+await document.fonts.ready;
+window.ready = true;
+</script>
+</body>
+</html>
