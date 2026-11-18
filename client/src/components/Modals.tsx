@@ -492,10 +492,10 @@ function ChannelFields({
 function CreateChannel({ guildId, type: initialType, categoryId }: { guildId: string; type: 'text' | 'voice'; categoryId: string | null }) {
   const [type, setType] = useState(initialType);
   const [name, setName] = useState('');
-  const [fields, setFields] = useState({ categoryId, allowedRoleIds: null as string[] | null, bitrate: 128, userLimit: 0 });
+  const [fields, setFields] = useState({ categoryId, allowedRoleIds: null as string[] | null, bitrate: 128, userLimit: 0, announce: false });
   const { busy, error, submit } = useSubmit(async () => {
     const { channel } = await api<{ channel: Channel }>(`/guilds/${guildId}/channels`, {
-      body: { name, type, ...fields, ...(type === 'text' ? { bitrate: undefined, userLimit: undefined } : {}) },
+      body: { name, type, ...fields, ...(type === 'text' ? { bitrate: undefined, userLimit: undefined } : { announce: undefined }) },
     });
     await refreshGuild(guildId);
     closeModal();

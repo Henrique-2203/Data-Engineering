@@ -1,4 +1,4 @@
-import { LifeBuoy, Link2, Plus } from 'lucide-react';
+import { LifeBuoy, Link2, Plus, Volume2 } from 'lucide-react';
 import { ApoioButton } from './Apoio';
 import { Compass } from 'lucide-react';
 import { goHome, openModal, selectGuild, useApp } from '../store/app';
@@ -18,7 +18,9 @@ export function ServerRail() {
   const selected = useApp((s) => s.selectedGuildId);
   const unread = useApp((s) => s.unread);
   const mentions = useApp((s) => s.mentions);
-  const voiceGuild = useVoice((s) => s.guildId);
+  // em call: ícone de som no servidor da call (ou no Início, se for call de mensagem direta)
+  const inCall = useVoice((s) => s.status !== 'idle');
+  const voiceGuild = useVoice((s) => (s.status !== 'idle' ? s.guildId : null));
   const homeAlerts = useApp(
     (s) => s.friends.filter((f) => f.status === 'incoming').length + s.dmOrder.filter((id) => s.unread[id]).length,
   );
@@ -38,6 +40,11 @@ export function ServerRail() {
         <span className="rail-icon">
           <img src="/icon.svg" alt="" width={30} height={30} />
         </span>
+        {inCall && !voiceGuild && (
+          <span className="rail-voice" title="Você está numa call de mensagem direta" aria-label="Em call">
+            <Volume2 size={12} strokeWidth={2.6} />
+          </span>
+        )}
         {homeAlerts > 0 && <span className="rail-count">{homeAlerts}</span>}
       </button>
       <div className="rail-sep" />
@@ -59,7 +66,11 @@ export function ServerRail() {
             <span className="rail-icon">
               {g.iconId ? <img src={`/api/images/${g.iconId}`} alt="" className="rail-img" /> : initials(g.name)}
             </span>
-            {voiceGuild === id && <span className="rail-voice" title="Você está em uma chamada aqui" />}
+            {voiceGuild === id && (
+              <span className="rail-voice" title="Você está numa call neste servidor" aria-label="Em call neste servidor">
+                <Volume2 size={12} strokeWidth={2.6} />
+              </span>
+            )}
             {mentionCount > 0 ? (
               <span className="rail-count">{mentionCount}</span>
             ) : (

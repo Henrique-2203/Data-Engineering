@@ -440,14 +440,19 @@ input[type='radio'] {
   height: 8px;
 }
 .rail-voice {
+  /* canto de baixo à esquerda: o contador de não lidas fica à direita, os dois aparecem juntos */
   position: absolute;
-  bottom: -2px;
-  right: 12px;
-  width: 16px;
-  height: 16px;
+  bottom: -3px;
+  left: 6px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
+  display: grid;
+  place-items: center;
   background: var(--accent);
+  color: var(--accent-ink);
   border: 3px solid var(--bg-0);
+  z-index: 2;
 }
 .rail-sep {
   width: 32px;
@@ -828,19 +833,27 @@ input[type='radio'] {
 .message:focus-within .message-actions {
   display: flex;
 }
-@media (hover: none) {
-  .message:focus .message-actions,
-  .message:focus-within .message-actions {
-    display: flex;
-  }
-}
 .edit-box {
   display: grid;
-  gap: 4px;
+  gap: 6px;
 }
 .edit-box textarea {
   resize: none;
   min-height: 44px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-3);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  line-height: 1.45;
+}
+.edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.edit-actions .edit-hint {
+  margin-right: auto;
 }
 
 .typing {
@@ -1873,6 +1886,12 @@ kbd {
   width: auto;
   max-width: 100%;
   height: auto;
+}
+/* uma imagem só: a caixa tem o tamanho da imagem (antes, imagem pequena ficava minúscula numa caixa enorme) */
+.attachments.count-1 .attachment {
+  width: fit-content;
+  max-width: 100%;
+  aspect-ratio: auto !important;
 }
 
 .composer-wrap {
@@ -7933,3 +7952,147 @@ button.ov-card:hover {
 .android-banner > svg { flex: none; color: var(--accent); }
 .android-banner .btn { flex: none; }
 .android-banner .icon-btn { flex: none; width: 26px; height: 26px; }
+
+/* ---------- celular: segurar a mensagem abre o menu; botões e edição maiores ---------- */
+@media (hover: none) {
+  /* sem mouse, a barrinha de ações não aparece com um toque (ela abria sem querer) */
+  .message-actions,
+  .message-actions.open,
+  .message:hover .message-actions,
+  .message:focus-within .message-actions {
+    display: none !important;
+  }
+  .message {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .message:hover,
+  .message:focus-within {
+    background: none;
+  }
+  .message.pressed {
+    background: var(--hover);
+  }
+  .message .edit-box textarea {
+    -webkit-user-select: text;
+    user-select: text;
+    font-size: 16px; /* 16 px: o celular não dá zoom ao tocar */
+    min-height: 96px;
+  }
+  .edit-actions .edit-hint {
+    display: none;
+  }
+  .edit-actions {
+    justify-content: flex-end;
+  }
+  .edit-actions .btn {
+    min-height: 40px;
+    padding: 0 18px;
+    font-size: 15px;
+  }
+  .reaction {
+    height: 34px;
+    padding: 0 10px;
+    font-size: 15px;
+  }
+  .reaction.add {
+    display: inline-flex;
+  }
+}
+.msg-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fade 0.12s ease-out;
+}
+.msg-sheet {
+  width: min(560px, 100%);
+  background: var(--bg-2);
+  border-radius: 18px 18px 0 0;
+  padding: 8px 12px calc(12px + var(--safe-bottom, 0px));
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+  animation: sheet-up 0.16s ease-out;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(40px);
+    opacity: 0.6;
+  }
+}
+.msg-sheet-grab {
+  width: 40px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--bg-4);
+  margin: 2px auto 10px;
+}
+.msg-sheet-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 6px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  min-width: 0;
+}
+.msg-sheet-reacts {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 12px 2px;
+}
+.msg-sheet-reacts button {
+  flex: 1;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--bg-3);
+  font-size: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+}
+.msg-sheet-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-3);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.msg-sheet-list button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 52px;
+  padding: 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+}
+.msg-sheet-list button + button {
+  border-top: 1px solid var(--line);
+}
+.msg-sheet-list button.danger {
+  color: var(--danger);
+}
+.msg-sheet-close {
+  margin-top: 10px;
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+  background: var(--bg-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-2);
+}
