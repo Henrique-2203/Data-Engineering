@@ -127,11 +127,18 @@ try {
   await input.evaluate((e) => e.setSelectionRange(6, 16));
   await page.getByRole('button', { name: 'Negrito' }).click();
   assert((await input.inputValue()) === 'aviso **importante**', `negrito pela barra (${await input.inputValue()})`);
+  // no celular o Enter do teclado pula linha (não envia) e o teclado mostra "pular linha"
+  assert((await input.getAttribute('enterkeyhint')) === 'enter', 'teclado do celular mostra pular linha');
+  await input.press('End');
+  await input.press('Enter');
+  await input.type('segunda linha');
+  assert((await input.inputValue()) === 'aviso **importante**\nsegunda linha', `Enter pula linha (${JSON.stringify(await input.inputValue())})`);
   const send = page.getByRole('button', { name: 'Enviar', exact: true });
   const sb = await send.boundingBox();
   assert(sb.width >= 44 && sb.height >= 44, `botão de enviar grande (${sb.width}x${sb.height})`);
   await send.click();
   await page.locator('.message strong', { hasText: 'importante' }).waitFor();
+  await page.locator('.message .md-line', { hasText: 'segunda linha' }).waitFor();
   await api(`/channels/${geral.id}/messages`, { content: '# Regras\n- uma\n- duas\n> citação\n||segredo||' }, bia.token);
   await page.locator('.md-h1', { hasText: 'Regras' }).waitFor();
   assert((await page.locator('.md-li').count()) >= 2 && (await page.locator('.md-quote').count()) >= 1 && (await page.locator('.md-spoiler').count()) >= 1, 'título, lista, citação e spoiler');

@@ -169,7 +169,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
               value={draft}
               autoFocus
               aria-label="Editar mensagem"
-              enterKeyHint="done"
+              enterKeyHint={isTouch() ? 'enter' : 'done'}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 // no computador Enter salva; no celular o Enter pula linha e quem salva é o botão

@@ -11,6 +11,8 @@ import { ChatView } from './ChatView';
 import { LinkEmbeds } from './chat/LinkEmbed';
 import { renderContent } from './chat/format';
 
+const coarse = () => !!window.matchMedia?.('(hover: none)').matches;
+
 type Tab = 'call' | 'channel';
 const TAB_KEY = 'resenha.callChatTab';
 
@@ -143,8 +145,10 @@ function PrivateCallChat({ channel }: { channel: Channel }) {
           placeholder="Mensagem só para a call"
           aria-label="Mensagem só para quem está na call"
           onChange={(e) => setDraft(e.target.value)}
+          enterKeyHint={coarse() ? 'enter' : 'send'}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            // no celular o Enter pula linha (envia pelo botão); no computador Enter envia
+            if (e.key === 'Enter' && !e.shiftKey && !coarse()) {
               e.preventDefault();
               void send();
             }

@@ -20,7 +20,8 @@ const emojiQuery = (before: string) => /(^|\s):([a-z0-9_]{2,32})$/i.exec(before)
 const MAX_ATTACHMENTS = 10;
 /** modo lento: quando mandei a última mensagem em cada canal */
 const lastSent = new Map<string, number>();
-const isTouch = () => window.matchMedia('(pointer: coarse)').matches;
+/** celular/tablet (sem mouse): Enter pula linha e quem envia é o botão */
+const isTouch = () => !!window.matchMedia?.('(hover: none)').matches || window.matchMedia('(pointer: coarse)').matches;
 
 export interface ComposerHandle {
   addFiles(files: File[]): void;
@@ -545,7 +546,7 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
             }
           }}
           maxLength={4000}
-          enterKeyHint="send"
+          enterKeyHint={isTouch() ? 'enter' : 'send'}
           aria-autocomplete="list"
         />
         <button className="icon-btn composer-tool" aria-label="Criar enquete" title="Criar enquete" onClick={() => openModal({ kind: 'createPoll', channelId: channel.id })}>
