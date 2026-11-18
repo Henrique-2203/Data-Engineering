@@ -118,6 +118,25 @@ try {
   await sheet.waitFor({ state: 'detached' });
   step('na mensagem dos outros aparece Denunciar e não Editar; Fechar fecha');
 
+  // caixa de mensagem: "+" abre as bolhas; Formatar põe **negrito**; a formatação aparece na mensagem
+  await page.getByRole('button', { name: 'Mais opções' }).click();
+  for (const n of ['Foto, vídeo ou arquivo', 'Enquete', 'Figurinha', 'Formatar texto']) await page.getByRole('menuitem', { name: n }).waitFor();
+  await page.getByRole('menuitem', { name: 'Formatar texto' }).click();
+  const input = page.locator('.composer textarea');
+  await input.fill('aviso importante');
+  await input.evaluate((e) => e.setSelectionRange(6, 16));
+  await page.getByRole('button', { name: 'Negrito' }).click();
+  assert((await input.inputValue()) === 'aviso **importante**', `negrito pela barra (${await input.inputValue()})`);
+  const send = page.getByRole('button', { name: 'Enviar', exact: true });
+  const sb = await send.boundingBox();
+  assert(sb.width >= 44 && sb.height >= 44, `botão de enviar grande (${sb.width}x${sb.height})`);
+  await send.click();
+  await page.locator('.message strong', { hasText: 'importante' }).waitFor();
+  await api(`/channels/${geral.id}/messages`, { content: '# Regras\n- uma\n- duas\n> citação\n||segredo||' }, bia.token);
+  await page.locator('.md-h1', { hasText: 'Regras' }).waitFor();
+  assert((await page.locator('.md-li').count()) >= 2 && (await page.locator('.md-quote').count()) >= 1 && (await page.locator('.md-spoiler').count()) >= 1, 'título, lista, citação e spoiler');
+  step('"+" abre as bolhas (arquivo, enquete, figurinha, formatar); a barra de formatação põe negrito; enviar com 44px; mensagens com título, lista, citação e spoiler');
+
   // ícone de som no servidor da call
   await page.getByRole('button', { name: /menu/i }).first().click().catch(() => {});
   await page.getByRole('button', { name: 'Sala de voz' }).first().click();

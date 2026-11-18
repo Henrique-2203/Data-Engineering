@@ -11,6 +11,16 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-18',
+    title: 'Mensagens com formatação e chat melhor no celular',
+    items: [
+      ['✍️', 'Formate as mensagens: **negrito**, *itálico*, __sublinhado__, ~~riscado~~, # título, - lista, > citação, `código` e ||spoiler||. Não sabe os símbolos? Toque em "Formatar texto" (o T ao lado do emoji, ou no + pelo celular).'],
+      ['➕', 'No celular, o + abre as opções: foto, vídeo ou arquivo, enquete, figurinha e formatar. O botão de enviar ficou maior.'],
+      ['👆', 'No celular, segure a mensagem para responder, reagir, copiar, editar ou excluir. Editar ficou maior, com Cancelar e Salvar.'],
+      ['🔊', 'O servidor da sua call ganha um ícone de som na coluna da esquerda.'],
+    ],
+  },
+  {
     id: '2026-11-17b',
     title: 'App do Resenha para Android',
     items: [

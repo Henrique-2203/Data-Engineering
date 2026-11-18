@@ -1,5 +1,5 @@
-import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent, type Ref } from 'react';
-import { BarChart3, Loader2, Paperclip, SendHorizontal, Smile, Sticker, X } from 'lucide-react';
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type Ref } from 'react';
+import { BarChart3, Bold, Code, EyeOff, Heading, Italic, List, Loader2, Paperclip, Plus, Quote, SendHorizontal, Smile, Sticker, Strikethrough, Type, Underline, X } from 'lucide-react';
 import { FileIcon } from './Attachments';
 import type { Attachment, Channel, Expression, Message, PublicUser } from '../../../../shared/types';
 import { api } from '../../lib/api';
@@ -72,6 +72,10 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
   const [mentionIdx, setMentionIdx] = useState(0);
   const [mentionClosed, setMentionClosed] = useState(false);
   const [picker, setPicker] = useState<'emoji' | 'sticker' | null>(null);
+  /** celular: menu do "+" (bolhas). 'closing' = animação de saída */
+  const [menu, setMenu] = useState<'open' | 'closing' | null>(null);
+  const [formatBar, setFormatBar] = useState(false);
+  const [sentAnim, setSentAnim] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const lastTyping = useRef(0);
@@ -166,6 +170,7 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
         body: { content: encodeEmojis(text.trim(), channel.guildId), replyToId: replyTo?.id, attachmentIds: ready.map((p) => p.attachment!.id) },
       });
       setText('');
+      setSentAnim((n) => n + 1);
       lastSent.set(channel.id, Date.now());
       setNow(Date.now());
       pending.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
@@ -188,6 +193,35 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
     } catch (err) {
       toast((err as Error).message);
     }
+  }
+
+  function closeMenu() {
+    setMenu('closing');
+    window.setTimeout(() => setMenu((m) => (m === 'closing' ? null : m)), 160);
+  }
+  function menuAction(fn: () => void) {
+    closeMenu();
+    fn();
+  }
+
+  /** Formatar: envolve o trecho selecionado (ou põe os símbolos com o cursor no meio). */
+  function wrapSelection(before: string, after = before) {
+    const el = inputRef.current;
+    const s = el?.selectionStart ?? caret;
+    const e = el?.selectionEnd ?? caret;
+    const sel = text.slice(s, e);
+    const next = text.slice(0, s) + before + sel + after + text.slice(e);
+    pendingCaret.current = sel ? s + before.length + sel.length + after.length : s + before.length;
+    setText(next);
+  }
+  /** Formatar a linha: título, citação, lista. */
+  function prefixLine(prefix: string) {
+    const el = inputRef.current;
+    const s = el?.selectionStart ?? caret;
+    const lineStart = text.lastIndexOf('\n', s - 1) + 1;
+    const next = text.slice(0, lineStart) + prefix + text.slice(lineStart);
+    pendingCaret.current = s + prefix.length;
+    setText(next);
   }
 
   /** Coloca o emoji onde está o cursor. */
@@ -415,7 +449,61 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
         </div>
       )}
 
+      {formatBar && (
+        <div className="format-bar" role="toolbar" aria-label="Formatar texto" onMouseDown={(e) => e.preventDefault()}>
+          <button type="button" aria-label="Negrito" title="Negrito (**texto**)" onClick={() => wrapSelection('**')}><Bold size={17} /></button>
+          <button type="button" aria-label="Itálico" title="Itálico (*texto*)" onClick={() => wrapSelection('*')}><Italic size={17} /></button>
+          <button type="button" aria-label="Sublinhado" title="Sublinhado (__texto__)" onClick={() => wrapSelection('__')}><Underline size={17} /></button>
+          <button type="button" aria-label="Riscado" title="Riscado (~~texto~~)" onClick={() => wrapSelection('~~')}><Strikethrough size={17} /></button>
+          <button type="button" aria-label="Título" title="Título (# no começo da linha)" onClick={() => prefixLine('# ')}><Heading size={17} /></button>
+          <button type="button" aria-label="Lista" title="Lista (- no começo da linha)" onClick={() => prefixLine('- ')}><List size={17} /></button>
+          <button type="button" aria-label="Citação" title="Citação (> no começo da linha)" onClick={() => prefixLine('> ')}><Quote size={17} /></button>
+          <button type="button" aria-label="Código" title="Código (`texto`)" onClick={() => wrapSelection('`')}><Code size={17} /></button>
+          <button type="button" aria-label="Spoiler" title="Spoiler (||texto||)" onClick={() => wrapSelection('||')}><EyeOff size={17} /></button>
+          <button type="button" className="fb-close" aria-label="Fechar formatação" onClick={() => setFormatBar(false)}><X size={17} /></button>
+        </div>
+      )}
+
+      {menu && (
+        <>
+          <div className={`attach-scrim${menu === 'closing' ? ' closing' : ''}`} onClick={closeMenu} />
+          <div className={`attach-menu${menu === 'closing' ? ' closing' : ''}`} role="menu" aria-label="Enviar">
+            <button type="button" role="menuitem" style={{ '--i': 3 } as CSSProperties} onClick={() => menuAction(() => setFormatBar((v) => !v))}>
+              <span className="bubble" style={{ background: '#2fb37a' }}><Type size={22} /></span>
+              <span className="lbl">Formatar texto</span>
+            </button>
+            <button type="button" role="menuitem" style={{ '--i': 2 } as CSSProperties} onClick={() => menuAction(() => setPicker('sticker'))}>
+              <span className="bubble" style={{ background: '#8b5cf6' }}><Sticker size={22} /></span>
+              <span className="lbl">Figurinha</span>
+            </button>
+            <button type="button" role="menuitem" style={{ '--i': 1 } as CSSProperties} onClick={() => menuAction(() => openModal({ kind: 'createPoll', channelId: channel.id }))}>
+              <span className="bubble" style={{ background: '#f08c2e' }}><BarChart3 size={22} /></span>
+              <span className="lbl">Enquete</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              style={{ '--i': 0 } as CSSProperties}
+              disabled={pending.length >= MAX_ATTACHMENTS}
+              onClick={() => menuAction(() => fileRef.current?.click())}
+            >
+              <span className="bubble" style={{ background: '#3b82f6' }}><Paperclip size={22} /></span>
+              <span className="lbl">Foto, vídeo ou arquivo</span>
+            </button>
+          </div>
+        </>
+      )}
+
       <div className={`composer${replyTo || pending.length ? ' attached' : ''}${text ? ' has-text' : ''}`}>
+        <button
+          type="button"
+          className={`icon-btn plus-btn${menu === 'open' ? ' open' : ''}`}
+          aria-label="Mais opções"
+          aria-expanded={menu === 'open'}
+          onClick={() => (menu === 'open' ? closeMenu() : setMenu('open'))}
+        >
+          <Plus size={24} />
+        </button>
         <button
           className="icon-btn attach-btn"
           aria-label="Enviar arquivo"
@@ -466,10 +554,13 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
         <button className="icon-btn composer-tool" data-picker-toggle aria-label="Figurinhas" title="Figurinhas" onClick={() => setPicker((p) => (p === 'sticker' ? null : 'sticker'))}>
           <Sticker size={20} />
         </button>
+        <button className={`icon-btn composer-tool${formatBar ? ' active' : ''}`} aria-label="Formatar texto" title="Formatar texto (negrito, itálico, título…)" aria-pressed={formatBar} onClick={() => setFormatBar((v) => !v)}>
+          <Type size={20} />
+        </button>
         <button className="icon-btn composer-tool" data-picker-toggle aria-label="Emojis" title="Emojis" onClick={() => setPicker((p) => (p === 'emoji' ? null : 'emoji'))}>
           <Smile size={20} />
         </button>
-        <button className="icon-btn send-btn" aria-label="Enviar" disabled={!canSend} onClick={() => void send()}>
+        <button key={sentAnim} className={`icon-btn send-btn${canSend ? ' ready' : ''}${sentAnim ? ' sent' : ''}`} aria-label="Enviar" disabled={!canSend} onClick={() => void send()}>
           <SendHorizontal size={20} />
         </button>
       </div>
