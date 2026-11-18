@@ -18,6 +18,8 @@ export const CHANGELOG: { id: string; title: string; items: [string, string][] }
       ['➕', 'No celular, o + abre as opções: foto, vídeo ou arquivo, enquete, figurinha e formatar. O botão de enviar ficou maior.'],
       ['👆', 'No celular, segure a mensagem para responder, reagir, copiar, editar ou excluir. Editar ficou maior, com Cancelar e Salvar.'],
       ['🔊', 'O servidor da sua call ganha um ícone de som na coluna da esquerda.'],
+      ['👉', 'No celular, arraste a tela para o lado: para a direita abre os servidores e canais, para a esquerda mostra quem está no canal.'],
+      ['🏠', 'O Início mostra quem está online e um resumo do que está rolando: calls com gente, menções, mensagens novas, amigos jogando e pedidos de amizade.'],
     ],
   },
   {

@@ -15,6 +15,7 @@ import { DesktopBridge } from './DesktopBridge';
 import { UpdateNotice } from './UpdateNotice';
 import { SidePanel } from './Community';
 import { ChangelogWatcher } from './Changelog';
+import { useMobileSwipe } from '../lib/swipe';
 
 export function Layout({ onLogout }: { onLogout(): void }) {
   const mobilePanel = useApp((s) => s.mobilePanel);
@@ -26,6 +27,7 @@ export function Layout({ onLogout }: { onLogout(): void }) {
   const toastMsg = useApp((s) => s.toast);
   // reavalia quando os canais mudam
   const channel = useApp(() => findChannel(selectedChannelId));
+  useMobileSwipe();
 
   useEffect(() => {
     const onVisible = () => {
