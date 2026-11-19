@@ -11,6 +11,15 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-19',
+    title: 'Mais sugestões de vocês',
+    items: [
+      ['🖱️', 'Botão direito numa pessoa da call (no quadro dela ou no nome, na lista do canal de voz): ver perfil, mandar mensagem, mudar o volume dela e silenciar só para você. Quem modera também move, silencia, ensurdece e tira da call por ali.'],
+      ['⬇️', 'Rolou a conversa para cima? Aparece uma seta para voltar ao fim, mostrando quantas mensagens novas chegaram.'],
+      ['💡', 'As duas vieram do #sugestões do servidor oficial. Valeu pelas ideias!'],
+    ],
+  },
+  {
     id: '2026-11-18',
     title: 'Mensagens com formatação e chat melhor no celular',
     items: [

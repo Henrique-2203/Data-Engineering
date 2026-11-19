@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Hash, ImagePlus, Phone, Volume2 } from 'lucide-react';
+import { Hash, ImagePlus, Phone, Volume2, ChevronDown } from 'lucide-react';
 import { WallpaperLayer, useChatWallpaper } from './AppearanceSettings';
 import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
@@ -71,6 +71,9 @@ export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?:
   const prevFirstId = useRef<string | undefined>(undefined);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [dragging, setDragging] = useState(false);
+  /** rolou para cima: mostra a seta para voltar ao fim (e quantas mensagens chegaram enquanto isso) */
+  const [away, setAway] = useState(false);
+  const awayFrom = useRef<string | undefined>(undefined);
   const dragDepth = useRef(0);
 
   // carrega ao abrir o canal e ao reconectar (pega o que chegou enquanto estava offline)
@@ -81,6 +84,7 @@ export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?:
   useEffect(() => {
     stickToBottom.current = true;
     setReplyTo(null);
+    setAway(false);
   }, [channel.id]);
 
   // mantém a rolagem: no fim quando chegam novas, ou no mesmo lugar ao carregar antigas
@@ -110,10 +114,30 @@ export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?:
 
   function onScroll() {
     const el = listRef.current!;
-    stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottom.current = dist < 80;
     prevHeight.current = el.scrollHeight;
+    const far = dist > 400;
+    if (far !== away) {
+      setAway(far);
+      awayFrom.current = far ? cm?.items[cm.items.length - 1]?.id : undefined;
+    }
     if (el.scrollTop < 200 && cm?.hasMore && !cm.loading) void loadMessages(channel.id, true);
   }
+
+  function toBottom() {
+    const el = listRef.current;
+    if (!el) return;
+    stickToBottom.current = true;
+    setAway(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: Math.abs(el.scrollHeight - el.scrollTop) > 6000 ? 'auto' : 'smooth' });
+  }
+  const meId = useApp((s) => s.me?.id);
+  const newWhileAway = (() => {
+    if (!away || !awayFrom.current || !cm) return 0;
+    const i = cm.items.findIndex((m) => m.id === awayFrom.current);
+    return i < 0 ? 0 : cm.items.slice(i + 1).filter((m) => m.author.id !== meId && !m.system).length;
+  })();
 
   const onReply = useCallback((m: Message) => setReplyTo(m), []);
   const onJump = useCallback((id: string) => jumpToMessage(channel.id, id), [channel.id]);
@@ -204,6 +228,7 @@ export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?:
         <MobileHeader title={channel.name} icon={<Hash size={20} className="muted" />} showMembersButton actions={<ChatHeaderTools channel={channel} />} />
       )}
       {dm && (callActive || inThisCall) && <VoiceStage channelId={dm.id} embedded />}
+      <div className="messages-wrap">
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {cm?.loaded && !cm.hasMore && (
           <div className="channel-start">
@@ -247,6 +272,13 @@ export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?:
             </Fragment>
           );
         })}
+      </div>
+      {away && (
+        <button type="button" className={`to-bottom${newWhileAway ? ' has-new' : ''}`} onClick={toBottom} aria-label={newWhileAway ? `Ir para o fim: ${newWhileAway} mensagens novas` : 'Ir para o fim da conversa'}>
+          {newWhileAway > 0 && <span>{newWhileAway > 99 ? '99+' : newWhileAway} {newWhileAway > 1 ? 'novas' : 'nova'}</span>}
+          <ChevronDown size={22} />
+        </button>
+      )}
       </div>
       <TypingIndicator channel={channel} />
       {guild?.rulesPending ? (

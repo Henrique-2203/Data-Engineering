@@ -16,6 +16,7 @@ import { UpdateNotice } from './UpdateNotice';
 import { SidePanel } from './Community';
 import { ChangelogWatcher } from './Changelog';
 import { useMobileSwipe } from '../lib/swipe';
+import { CallUserMenuHost } from './CallUserMenu';
 
 export function Layout({ onLogout }: { onLogout(): void }) {
   const mobilePanel = useApp((s) => s.mobilePanel);
@@ -77,6 +78,7 @@ export function Layout({ onLogout }: { onLogout(): void }) {
       <DesktopBridge />
       <UpdateNotice />
       <ChangelogWatcher />
+      <CallUserMenuHost />
       <Modals onLogout={onLogout} />
       {!connected && (
         <div className="offline-bar">

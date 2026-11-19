@@ -92,7 +92,7 @@ try {
   const openMenu = async (page, name) => {
     await row(page, name).hover();
     await page.getByRole('button', { name: `Moderar ${name} na call` }).click();
-    return page.getByRole('menu', { name: `Moderar ${name} na call` });
+    return page.getByRole('menu', { name: `Opções de ${name}` });
   };
   /** nível do áudio da Bia chegando no Caio, e se o <audio> dela está mudo para ele */
   const biaAtCaio = async () => {
@@ -170,7 +170,7 @@ try {
 
   // mover pelo menu, mesmo com a Sala 2 no limite (1 pessoa): moderador passa por cima do limite
   await (await openMenu(pa, 'Caio')).getByRole('menuitem', { name: /Mover para outro canal/ }).click();
-  await pa.getByRole('menu', { name: 'Moderar Caio na call' }).getByRole('menuitem', { name: 'Sala 2' }).click();
+  await pa.getByRole('menu', { name: 'Opções de Caio' }).getByRole('menuitem', { name: 'Sala 2' }).click();
   await pc.getByText('Ana moveu você para 🔊 Sala 2').waitFor({ timeout: 5000 });
   for (let i = 0; i < 30 && (await states()).find((v) => v.userId === caio.user.id)?.channelId !== sala2.id; i++) await sleep(200);
   assert((await states()).find((v) => v.userId === caio.user.id)?.channelId === sala2.id, 'Caio foi para a Sala 2 mesmo com o limite');

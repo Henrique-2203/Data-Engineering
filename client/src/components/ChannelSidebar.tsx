@@ -39,6 +39,7 @@ import { canShareScreen } from '../voice/settings';
 import { Avatar } from './Avatar';
 import { HomeSidebar } from './HomeSidebar';
 import { AndroidAppBanner } from './AndroidDownload';
+import { openCallUserMenu } from './CallUserMenu';
 
 export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
   const guildId = useApp((s) => s.selectedGuildId);
@@ -424,11 +425,10 @@ function VoiceParticipant({ state }: { state: VoiceState }) {
   const guild = useApp((s) => s.guilds[state.guildId]);
   const meId = useApp((s) => s.me?.id);
   const rights = voiceModRights(guild, meId, state);
-  const [menu, setMenu] = useState(false);
   const silenced = state.serverMuted || state.serverDeafened;
   return (
     <li
-      className={`voice-participant${menu ? ' menu-open' : ''}`}
+      className="voice-participant"
       draggable={rights.move}
       onDragStart={(e) => {
         if (!rights.move) return;
@@ -437,9 +437,8 @@ function VoiceParticipant({ state }: { state: VoiceState }) {
         e.stopPropagation();
       }}
       onContextMenu={(e) => {
-        if (!rights.any) return;
         e.preventDefault();
-        setMenu(true);
+        openCallUserMenu(state, e.clientX, e.clientY);
       }}
       title={rights.move ? 'Arraste para outro canal de voz para mover' : undefined}
     >
@@ -464,72 +463,20 @@ function VoiceParticipant({ state }: { state: VoiceState }) {
           state.muted && <MicOff size={14} className="danger-icon" />
         )}
         {rights.any && (
-          <button className="icon-btn tiny vp-more" aria-label={`Moderar ${user?.displayName ?? 'pessoa'} na call`} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+          <button
+            className="icon-btn tiny vp-more"
+            aria-label={`Moderar ${user?.displayName ?? 'pessoa'} na call`}
+            aria-haspopup="menu"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              openCallUserMenu(state, r.right - 220, r.bottom + 4);
+            }}
+          >
             <MoreHorizontal size={14} />
           </button>
         )}
       </span>
-      {menu && <VoiceModMenu state={state} rights={rights} name={user?.displayName ?? 'essa pessoa'} onClose={() => setMenu(false)} />}
     </li>
-  );
-}
-
-function VoiceModMenu({ state, rights, name, onClose }: { state: VoiceState; rights: ReturnType<typeof voiceModRights>; name: string; onClose(): void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const allChannels = useApp((s) => s.guilds[state.guildId]?.channels);
-  const channels = (allChannels ?? []).filter((c) => c.type === 'voice' && c.id !== state.channelId);
-  const [moving, setMoving] = useState(false);
-  useEffect(() => {
-    const off = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && onClose();
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    setTimeout(() => document.addEventListener('mousedown', off), 0);
-    document.addEventListener('keydown', key);
-    return () => {
-      document.removeEventListener('mousedown', off);
-      document.removeEventListener('keydown', key);
-    };
-  }, [onClose]);
-  const run = (action: Parameters<typeof voiceMod>[0], channelId?: string) => {
-    onClose();
-    void voiceMod(action, state.socketId, channelId);
-  };
-  return (
-    <div className="vp-menu" role="menu" aria-label={`Moderar ${name} na call`} ref={ref}>
-      {rights.move &&
-        (moving ? (
-          <>
-            <div className="vp-menu-title">Mover {name} para:</div>
-            {channels.length === 0 && <div className="vp-menu-empty">Não há outro canal de voz.</div>}
-            {channels.map((c) => (
-              <button key={c.id} role="menuitem" onClick={() => run('move', c.id)}>
-                <Volume2 size={14} /> {c.name}
-              </button>
-            ))}
-            <button role="menuitem" className="muted" onClick={() => setMoving(false)}>
-              ← Voltar
-            </button>
-          </>
-        ) : (
-          <button role="menuitem" onClick={() => setMoving(true)}>
-            🔀 Mover para outro canal…
-          </button>
-        ))}
-      {!moving && rights.mute && (
-        <button role="menuitem" onClick={() => run(state.serverMuted ? 'unmute' : 'mute')}>
-          {state.serverMuted ? '🎙️ Tirar o silêncio' : '🔇 Silenciar na call'}
-        </button>
-      )}
-      {!moving && rights.deafen && (
-        <button role="menuitem" onClick={() => run(state.serverDeafened ? 'undeafen' : 'deafen')}>
-          {state.serverDeafened ? '🎧 Tirar o ensurdecimento' : '🙉 Ensurdecer na call'}
-        </button>
-      )}
-      {!moving && rights.move && (
-        <button role="menuitem" className="danger" onClick={() => run('disconnect')}>
-          📴 Tirar da call
-        </button>
-      )}
-    </div>
   );
 }
 

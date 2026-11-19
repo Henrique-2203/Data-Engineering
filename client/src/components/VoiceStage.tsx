@@ -44,6 +44,7 @@ import { Avatar } from './Avatar';
 import { MobileHeader } from './MobileHeader';
 import { loadMessages } from './ChatView';
 import { CallChatPanel } from './CallChat';
+import { openCallUserMenu } from './CallUserMenu';
 
 interface Tile {
   id: string; // `${socketId|me}:${user|screen}`
@@ -417,6 +418,10 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
       ref={ref}
       className={`tile user${big ? ' big' : ''}${sizeClass}${speaking && !tile.state.muted ? ' speaking' : ''}${!showCam && user?.callBanner ? ' has-banner' : ''}`}
       onClick={showCam ? toggleFocus : undefined}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        openCallUserMenu(tile.state, e.clientX, e.clientY);
+      }}
     >
       {!showCam && <CallBannerBackground banner={user?.callBanner} pos={user?.callBannerPos} />}
       {showCam ? (
