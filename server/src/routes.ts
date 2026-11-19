@@ -119,7 +119,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   async function notifyByPush(c: Awaited<ReturnType<typeof channelForMember>>, message: Message) {
     const author = message.author;
     const preview =
-      (message.content ? message.content.replace(/<:([a-z0-9_]+):[0-9a-f-]{36}>/g, ':$1:') : '') ||
+      (message.content ? message.content.replace(/<:([a-z0-9_]+):[0-9a-f-]{36}>/g, ':$1:').replace(/<#[0-9a-f-]{8,64}>/gi, '#canal') : '') ||
       (message.poll ? `📊 ${message.poll.question}` : message.attachments.length ? '📎 Arquivo' : message.sticker ? 'Figurinha' : '');
     if (!c.guildId) {
       const others = (await dmMemberIds(db, c.id)).filter((id) => id !== author.id);

@@ -8205,3 +8205,11 @@ button.ov-card:hover {
   background: var(--bg-3); color: var(--text); border: 1px solid var(--line); box-shadow: 0 8px 22px rgba(0, 0, 0, .4); font-weight: 700; font-size: 13.5px; animation: sheet-up .16s ease-out; }
 .to-bottom:hover { background: var(--bg-4); }
 .to-bottom.has-new { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.img-sizes { margin: 4px 0 0; line-height: 1.45; } .img-sizes strong { color: var(--text); }
+.channel-mention { font: inherit; padding: 0 3px; border-radius: 4px; cursor: pointer; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 600; } .channel-mention:hover { background: color-mix(in srgb, var(--accent) 28%, transparent); } .channel-mention.gone { cursor: default; color: var(--text-3); background: var(--bg-3); }
+/* call expandida: só os quadros, na tela toda */
+body.call-expanded .layout { grid-template-columns: minmax(0, 1fr) !important; }
+body.call-expanded .layout > .nav-drawer,
+body.call-expanded .layout > .members,
+body.call-expanded .layout > .side-panel { display: none !important; }
+body.call-expanded .icon-btn.active { color: var(--accent); }

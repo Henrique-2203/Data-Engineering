@@ -6,6 +6,7 @@ import { LinkEmbeds } from './LinkEmbed';
 import type { Channel, Message, StickerRef } from '../../../../shared/types';
 import { EmojiView, encodeEmojis, fileUrl, plainEmojis, renderCustomEmojis } from '../../lib/expressions';
 import { api } from '../../lib/api';
+import { encodeChannels, plainChannels } from '../../lib/channelMentions';
 import { mentionsUser } from '../../lib/mentions';
 import { AttachmentList } from './Attachments';
 import { findMember, openModal, toast, updateReactions, useApp } from '../../store/app';
@@ -72,7 +73,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
   // usa dados atualizados do membro (nome/cor podem ter mudado)
   const author = useApp(() => findMember(channel.guildId, message.author.id)) ?? message.author;
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(plainEmojis(message.content));
+  const [draft, setDraft] = useState(plainChannels(plainEmojis(message.content)));
   const [picker, setPicker] = useState(false);
   const [sheet, setSheet] = useState(false);
   const press = useLongPress(() => setSheet(true));
@@ -84,7 +85,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
   const canPin = useCanPin(channel);
 
   async function saveEdit() {
-    const content = encodeEmojis(draft.trim(), channel.guildId);
+    const content = encodeChannels(encodeEmojis(draft.trim(), channel.guildId), channel.guildId);
     setEditing(false);
     if (content === message.content || (!content && message.attachments.length === 0)) return;
     try {
@@ -95,7 +96,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
   }
 
   function startEdit() {
-    setDraft(plainEmojis(message.content));
+    setDraft(plainChannels(plainEmojis(message.content)));
     setEditing(true);
   }
   // a caixa de edição cresce com o texto e fica à vista (no celular o teclado sobe por cima)
@@ -115,7 +116,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
 
   async function copyText() {
     try {
-      await navigator.clipboard.writeText(plainEmojis(message.content));
+      await navigator.clipboard.writeText(plainChannels(plainEmojis(message.content)));
       toast('Texto copiado');
     } catch {
       toast('Não deu para copiar');
@@ -384,7 +385,7 @@ function ReplyLine({ reply, channel, onJump }: { reply: NonNullable<Message['rep
           <strong style={{ color: author.avatarColor }}>{author.displayName}</strong>
           <span className="ellipsis muted">
             {reply.content ? (
-              renderCustomEmojis(reply.content, 'r', (t, key) => [<Fragment key={key}>{t}</Fragment>])
+              renderCustomEmojis(plainChannels(reply.content), 'r', (t, key) => [<Fragment key={key}>{t}</Fragment>])
             ) : reply.hasAttachments ? (
               <>
                 <ImageIcon size={13} /> Anexo

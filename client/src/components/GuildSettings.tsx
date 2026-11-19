@@ -140,6 +140,7 @@ function Overview({ guild }: { guild: Guild }) {
         </div>
         <div className="field banner-field">
           <span>Banner (topo da lista de canais)</span>
+          <span className="muted small img-sizes">📐 Tamanho ideal: <strong>960 × 400</strong> (proporção 12 : 5). Ícone: <strong>512 × 512</strong> (quadrado).</span>
           <div className="banner-preview" style={guild.bannerId ? { backgroundImage: `url(${imageUrl(guild.bannerId)})` } : undefined}>
             {!guild.bannerId && <span className="muted small">Sem banner</span>}
           </div>

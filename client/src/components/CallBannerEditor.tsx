@@ -120,6 +120,9 @@ export function CallBannerEditor({ hasProfileBanner }: { hasProfileBanner: boole
         )}
         <input ref={file} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => void upload(e.target.files?.[0])} />
       </div>
+      <p className="muted small img-sizes">
+        📐 Tamanho ideal: <strong>1280 × 720</strong> (proporção 16 : 9, como um print de tela ou vídeo). O quadro de cada pessoa corta as bordas conforme o tamanho; deixe o mais importante no meio.
+      </p>
 
       {isImage && (
         <label>

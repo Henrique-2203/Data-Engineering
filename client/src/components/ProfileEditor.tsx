@@ -121,6 +121,9 @@ export function ProfileEditor() {
         <input ref={avatarInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden onChange={(e) => void upload('avatar', e.target.files?.[0])} />
         <input ref={bannerInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => void upload('banner', e.target.files?.[0])} />
       </div>
+      <p className="muted small img-sizes">
+        📐 Tamanho ideal: <strong>foto 512 × 512</strong> (quadrada) · <strong>banner 1920 × 680</strong> (proporção 2,8 : 1, uma faixa larga). Outros tamanhos são cortados no meio.
+      </p>
       <p className="muted small">As imagens são recortadas e comprimidas antes de enviar (GIF até 1,5 MB), e trocar apaga a anterior.</p>
 
       <label>

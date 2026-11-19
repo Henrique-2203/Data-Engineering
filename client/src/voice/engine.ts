@@ -180,6 +180,10 @@ class VoiceEngine {
     socket.on('call:missed', ({ channelId, userId }: { channelId: string; userId: string }) =>
       endOutgoing(channelId, `${findMember(null, userId)?.displayName ?? 'A pessoa'} não atendeu.`),
     );
+    socket.on('call:ringing-offline', ({ channelId, userId }: { channelId: string; userId: string }) => {
+      if (getV().channelId !== channelId) return;
+      toast(`${findMember(null, userId)?.displayName ?? 'A pessoa'} está offline: avisamos no celular dela. Chamando…`);
+    });
     socket.on('call:unavailable', ({ channelId, userId }: { channelId: string; userId: string }) =>
       endOutgoing(channelId, `${findMember(null, userId)?.displayName ?? 'A pessoa'} está offline agora.`),
     );

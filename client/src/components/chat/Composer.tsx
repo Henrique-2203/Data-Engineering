@@ -13,6 +13,8 @@ import { Avatar } from '../Avatar';
 import { EmojiPicker } from '../EmojiPicker';
 import { StickerPicker } from '../StickerPicker';
 import { encodeEmojis, expressionGroups, fileUrl, plainEmojis } from '../../lib/expressions';
+import { encodeChannels } from '../../lib/channelMentions';
+import { Hash, Volume2 } from 'lucide-react';
 
 /** Texto antes do cursor termina com ":algo" (2+ letras)? Retorna o que foi digitado depois dos dois-pontos. */
 const emojiQuery = (before: string) => /(^|\s):([a-z0-9_]{2,32})$/i.exec(before)?.[2].toLowerCase() ?? null;
@@ -168,7 +170,7 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
     setSending(true);
     try {
       await api(`/channels/${channel.id}/messages`, {
-        body: { content: encodeEmojis(text.trim(), channel.guildId), replyToId: replyTo?.id, attachmentIds: ready.map((p) => p.attachment!.id) },
+        body: { content: encodeChannels(encodeEmojis(text.trim(), channel.guildId), channel.guildId), replyToId: replyTo?.id, attachmentIds: ready.map((p) => p.attachment!.id) },
       });
       setText('');
       setSentAnim((n) => n + 1);
@@ -260,6 +262,25 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
           .slice(0, 8);
   const showEmojis = emojiMatches.length > 0;
 
+  // ---------- autocompletar #canais do servidor ----------
+  const cQuery = showMentions || showEmojis || mentionClosed || !channel.guildId ? null : (/(^|\s)#([\p{L}\p{N}_ -]{0,32})$/u.exec(text.slice(0, caret))?.[2] ?? null);
+  const channelMatches =
+    cQuery === null
+      ? []
+      : (guilds[channel.guildId]?.channels ?? [])
+          .filter((c) => c.type !== 'dm' && c.name.toLowerCase().includes(cQuery.trim().toLowerCase()))
+          .sort((a, b) => Number(!a.name.toLowerCase().startsWith(cQuery.toLowerCase())) - Number(!b.name.toLowerCase().startsWith(cQuery.toLowerCase())))
+          .slice(0, 8);
+  // já digitou o nome inteiro de um canal: não precisa da lista (o Enter envia; "#geral" vira o canal do mesmo jeito)
+  const showChannels = channelMatches.length > 0 && !channelMatches.some((c) => c.name.toLowerCase() === (cQuery ?? '').toLowerCase());
+  function pickChannel(c: { name: string }) {
+    const before = text.slice(0, caret).replace(/#([\p{L}\p{N}_ -]{0,32})$/u, `#${c.name} `);
+    const next = before + text.slice(caret);
+    pendingCaret.current = before.length;
+    setText(next);
+    setCaret(before.length);
+  }
+
   function pickEmoji(e: Expression) {
     // no campo aparece :nome: (legível); vira o emoji de verdade só ao enviar
     const before = text.slice(0, caret).replace(/:[a-z0-9_]*$/i, `:${e.name}: `);
@@ -277,6 +298,23 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (showChannels) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIdx((i) => (i + (e.key === 'ArrowDown' ? 1 : channelMatches.length - 1)) % channelMatches.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        pickChannel(channelMatches[Math.min(mentionIdx, channelMatches.length - 1)]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionClosed(true);
+        return;
+      }
+    }
     if (showEmojis) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -364,6 +402,29 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
                 {c.user ? <Avatar user={c.user} size={22} /> : <span className="mention-all">@</span>}
                 <strong>{c.user ? c.label : '@todos'}</strong>
                 <span className="muted small">{c.user ? `@${c.username}` : c.label}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {showChannels && (
+        <ul className="mention-popup" role="listbox" aria-label="Canais">
+          {channelMatches.map((c, i) => (
+            <li key={c.id}>
+              <button
+                role="option"
+                aria-selected={i === mentionIdx}
+                className={i === mentionIdx ? 'active' : ''}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pickChannel(c);
+                }}
+                onMouseEnter={() => setMentionIdx(i)}
+              >
+                {c.type === 'voice' ? <Volume2 size={18} className="muted" /> : <Hash size={18} className="muted" />}
+                <strong>{c.name}</strong>
+                <span className="muted small">{c.type === 'voice' ? 'canal de voz' : 'canal de texto'}</span>
               </button>
             </li>
           ))}

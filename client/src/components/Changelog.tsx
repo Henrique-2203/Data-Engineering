@@ -16,7 +16,11 @@ export const CHANGELOG: { id: string; title: string; items: [string, string][] }
     items: [
       ['🖱️', 'Botão direito numa pessoa da call (no quadro dela ou no nome, na lista do canal de voz): ver perfil, mandar mensagem, mudar o volume dela e silenciar só para você. Quem modera também move, silencia, ensurdece e tira da call por ali.'],
       ['⬇️', 'Rolou a conversa para cima? Aparece uma seta para voltar ao fim, mostrando quantas mensagens novas chegaram.'],
-      ['💡', 'As duas vieram do #sugestões do servidor oficial. Valeu pelas ideias!'],
+      ['#️⃣', 'Marque canais no chat: digite # e escolha o canal. Na mensagem ele vira um link que abre o canal.'],
+      ['📞', 'Dá para ligar para quem está offline: o celular da pessoa recebe "fulano está te ligando" e, se ela abrir o Resenha a tempo, atende na hora.'],
+      ['⛶', 'Botão de expandir a call (ao lado do chat da call): só os quadros, na tela toda. Esc volta.'],
+      ['📐', 'Ao enviar foto e banners, aparece o tamanho ideal da imagem.'],
+      ['💡', 'Todas vieram do #sugestões do servidor oficial. Valeu pelas ideias!'],
     ],
   },
   {

@@ -112,7 +112,14 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
         <MobileHeader
           title={channel?.name ?? 'Voz'}
           icon={<Volume2 size={20} className="muted" />}
-          actions={channel && channel.type === 'voice' ? <CallChatToggle channelId={channelId} open={chatOpen} onToggle={toggleChat} /> : undefined}
+          actions={
+            channel && channel.type === 'voice' ? (
+              <>
+                {joined && <ExpandCallButton />}
+                <CallChatToggle channelId={channelId} open={chatOpen} onToggle={toggleChat} />
+              </>
+            ) : undefined
+          }
         />
       )}
 
@@ -992,5 +999,55 @@ function VoiceControls() {
         <PhoneOff />
       </button>
     </div>
+  );
+}
+
+/**
+ * Expandir a call: esconde servidores, canais e membros e deixa os quadros na tela toda (no computador também
+ * entra em tela cheia). Esc ou o mesmo botão voltam.
+ */
+function ExpandCallButton() {
+  const [on, setOn] = useState(() => document.body.classList.contains('call-expanded'));
+  useEffect(() => {
+    const sync = () => {
+      const fs = !!document.fullscreenElement;
+      if (!fs && document.body.dataset.callFs === '1') {
+        delete document.body.dataset.callFs;
+        document.body.classList.remove('call-expanded');
+        setOn(false);
+      }
+    };
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && document.body.classList.contains('call-expanded') && toggle(false);
+    document.addEventListener('fullscreenchange', sync);
+    window.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('fullscreenchange', sync);
+      window.removeEventListener('keydown', key);
+      // saiu da tela da call: volta ao normal
+      document.body.classList.remove('call-expanded');
+    };
+  }, []);
+  function toggle(next = !document.body.classList.contains('call-expanded')) {
+    document.body.classList.toggle('call-expanded', next);
+    setOn(next);
+    const desktop = window.matchMedia('(min-width: 901px)').matches;
+    if (next && desktop && document.documentElement.requestFullscreen && !document.fullscreenElement) {
+      document.body.dataset.callFs = '1';
+      void document.documentElement.requestFullscreen().catch(() => delete document.body.dataset.callFs);
+    } else if (!next && document.fullscreenElement && document.body.dataset.callFs === '1') {
+      delete document.body.dataset.callFs;
+      void document.exitFullscreen().catch(() => {});
+    }
+  }
+  return (
+    <button
+      className={`icon-btn${on ? ' active' : ''}`}
+      aria-label={on ? 'Sair da tela expandida' : 'Expandir a call'}
+      aria-pressed={on}
+      title={on ? 'Voltar ao normal (Esc)' : 'Expandir a call (tela toda)'}
+      onClick={() => toggle()}
+    >
+      {on ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
+    </button>
   );
 }

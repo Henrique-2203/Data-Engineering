@@ -1,7 +1,7 @@
 import { Fragment, useState, type ReactNode } from 'react';
 import type { PublicUser } from '../../../../shared/types';
 import { MENTION_RE } from '../../lib/mentions';
-import { useApp } from '../../store/app';
+import { findChannel, selectChannel, useApp } from '../../store/app';
 import { isEmojiOnly, renderCustomEmojis } from '../../lib/expressions';
 
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,:;"')\]!?])/g;
@@ -40,6 +40,26 @@ function renderMentions(text: string, keyPrefix: string, meUsername: string, eve
   }
   if (last < text.length) out.push(<Fragment key={`${keyPrefix}-t${last}`}>{text.slice(last)}</Fragment>);
   return out;
+}
+
+/** Canal marcado na mensagem: "#nome" que abre o canal (ou "#canal" apagado/sem acesso). */
+function ChannelChip({ id }: { id: string }) {
+  const c = useApp(() => findChannel(id));
+  if (!c) return <span className="mention channel-mention gone">#canal</span>;
+  return (
+    <button
+      type="button"
+      className="mention channel-mention"
+      title={c.type === 'voice' ? 'Abrir o canal de voz' : 'Abrir o canal'}
+      onClick={(e) => {
+        e.stopPropagation();
+        selectChannel(c.id);
+      }}
+    >
+      {c.type === 'voice' ? '🔊 ' : '#'}
+      {c.name}
+    </button>
+  );
 }
 
 /** Spoiler: ||texto|| fica escondido até tocar. */
@@ -166,7 +186,11 @@ export function renderContent(text: string, opts: { meUsername: string; everyone
           </a>,
         );
       } else if (part) {
-        out.push(...renderCustomEmojis(part, `${key}-${i}`, mention, false));
+        // <#id> = canal marcado: vira "#nome" clicável
+        part.split(/<#([0-9a-f-]{8,64})>/i).forEach((seg, j) => {
+          if (j % 2 === 1) out.push(<ChannelChip key={`${key}-c${i}-${j}`} id={seg} />);
+          else if (seg) out.push(...renderCustomEmojis(seg, `${key}-${i}-${j}`, mention, false));
+        });
       }
     });
     return out;

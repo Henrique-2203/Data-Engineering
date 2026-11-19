@@ -597,16 +597,26 @@ export class Realtime {
   private startRing(socket: Socket, caller: PublicUser, channelId: string) {
     const callee = (this.dmMembers.get(channelId) ?? []).find((id) => id !== caller.id);
     if (!callee) return;
-    if (!this.online.has(callee)) {
-      socket.emit('call:unavailable', { channelId, userId: callee });
-      return;
-    }
+    // offline: toca mesmo assim. O celular dela recebe "fulano está te ligando" e, se abrir o Resenha
+    // enquanto toca, a chamada aparece na hora (ver o 'connection': quem conecta recebe o call:ring).
+    const offline = !this.online.has(callee);
     this.stopRing(channelId);
+    if (offline) {
+      socket.emit('call:ringing-offline', { channelId, userId: callee });
+      void import('./push.ts')
+        .then(({ sendPush }) => sendPush(this.db, [callee], { title: `📞 ${caller.displayName} está te ligando`, body: 'Toque para abrir o Resenha e atender.', channelId, tag: `call-${channelId}` }))
+        .catch(() => {});
+    }
     const timer = setTimeout(() => {
       this.rings.delete(channelId);
       this.emitUser(callee, 'call:end-ring', { channelId, missed: true, from: caller });
       this.io.to(socket.id).emit('call:missed', { channelId, userId: callee });
-    }, config.ringTimeoutMs);
+      if (!this.online.has(callee)) {
+        void import('./push.ts')
+          .then(({ sendPush }) => sendPush(this.db, [callee], { title: `Chamada perdida de ${caller.displayName}`, body: 'Toque para ver a conversa.', channelId, tag: `call-${channelId}` }))
+          .catch(() => {});
+      }
+    }, offline ? config.ringTimeoutMs + 15_000 : config.ringTimeoutMs);
     this.rings.set(channelId, { caller, callerSocket: socket.id, callee, timer });
     this.emitUser(callee, 'call:ring', { channelId, from: caller });
   }

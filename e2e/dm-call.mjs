@@ -129,9 +129,15 @@ try {
   await pa.getByRole('button', { name: 'Início' }).click();
   await pa.locator('.dm-item', { hasText: 'Caio' }).click();
   await pa.getByRole('button', { name: 'Ligar para Caio' }).click();
-  await pa.getByText('Caio está offline agora.').waitFor({ timeout: 10000 });
+  // sugestão da comunidade: dá para ligar para quem está offline. O celular dela recebe "fulano está te
+  // ligando" e, se ela abrir o Resenha enquanto toca, a chamada aparece.
+  await pa.getByText(/Caio está offline: avisamos no celular/).waitFor({ timeout: 10000 });
+  const pc = await open(caio.token);
+  await pc.getByRole('alertdialog', { name: 'Chamada de Ana' }).waitFor({ timeout: 8000 });
+  await pc.getByRole('button', { name: 'Recusar' }).click();
+  await pa.getByText('Caio recusou a chamada.').waitFor({ timeout: 8000 });
   await voiceOn(pa).waitFor({ state: 'detached', timeout: 5000 });
-  step('ligar para alguém offline avisa na hora');
+  step('ligar para alguém offline: continua chamando (e avisa no celular dela); se ela abrir o Resenha, a chamada aparece');
 
   console.log('\nTudo certo!');
 } catch (err) {
