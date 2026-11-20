@@ -37,6 +37,14 @@ export const HEALTH_METRICS = [
   'stream_turbo',
   'stream_encode_ms',
   'stream_light',
+  // FPS escolhido x entregue, e o que segurou (captura do PC, codificação ou internet)
+  'stream_target',
+  'stream_viewers',
+  'stream_at_target',
+  'stream_lim_capture',
+  'stream_lim_encode',
+  'stream_lim_net',
+  'stream_lab',
   // transmissões que estou assistindo
   'watch_samples',
   'watch_fps',

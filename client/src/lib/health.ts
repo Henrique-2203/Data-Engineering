@@ -1,6 +1,8 @@
 import { useVoice } from '../store/voice';
 import { peerDiag, snapshot, type Snap } from '../voice/diagnostics';
 import { voice } from '../voice/engine';
+import { screenPresetFor } from '../voice/settings';
+import { labOn } from './lab';
 
 /**
  * Saúde das calls: números ANÔNIMOS de qualidade (somados por dia no servidor, sem dizer de quem
@@ -27,6 +29,13 @@ type Metric =
   | 'stream_turbo'
   | 'stream_encode_ms'
   | 'stream_light'
+  | 'stream_target'
+  | 'stream_viewers'
+  | 'stream_at_target'
+  | 'stream_lim_capture'
+  | 'stream_lim_encode'
+  | 'stream_lim_net'
+  | 'stream_lab'
   | 'watch_samples'
   | 'watch_fps'
   | 'watch_low';
@@ -196,6 +205,17 @@ async function sample() {
       if (st.turbo) add('stream_turbo');
       if (st.encodeMs !== undefined) add('stream_encode_ms', st.encodeMs);
       if (info.lightLevel > 0) add('stream_light');
+      // o FPS que a pessoa escolheu chegou em quem assiste? Se não, onde ficou: a captura do PC não
+      // entregou, o codificador não deu conta, ou a internet (de quem transmite ou de quem assiste).
+      const target = screenPresetFor(v.settings).fps;
+      const got = st.viewerFps ?? st.fps;
+      add('stream_target', target);
+      add('stream_viewers', voice.screenViewerCount());
+      if (got >= target * 0.9) add('stream_at_target');
+      else if (st.captureFps < target * 0.9) add('stream_lim_capture');
+      else if (st.fps < st.captureFps * 0.9 || st.limitedBy === 'cpu') add('stream_lim_encode');
+      else add('stream_lim_net');
+      if (labOn('fps')) add('stream_lab');
     }
   }
   flushHealth();

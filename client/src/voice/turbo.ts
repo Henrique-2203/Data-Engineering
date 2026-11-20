@@ -19,6 +19,18 @@ const CODECS = ['avc1.64002A', 'avc1.4D402A', 'avc1.42E02A', 'vp09.00.41.08', 'v
 const PART = 60_000; // tamanho de cada pedaço enviado (o limite do canal é 256 KB)
 const HEADER = 20;
 const HIGH_WATER = 1_500_000; // fila de envio acima disso: a internet desse espectador não está dando conta
+/** laboratório (camadas temporais): acima disso, quem assiste deixa de receber os quadros "extras" e cai para metade do FPS, sem travar */
+const SOFT_WATER = 500_000;
+
+/** teste de laboratório: simula a internet de quem assiste (n = ordem em que entrou → kbps). Só nos testes automáticos. */
+function simulatedKbps(n: number): number {
+  try {
+    const m = JSON.parse(localStorage.getItem('resenha.lab.netKbps') || '{}') as Record<string, number>;
+    return Number(m[String(n)]) || 0;
+  } catch {
+    return 0;
+  }
+}
 
 type Log = (msg: string) => void;
 
@@ -109,6 +121,12 @@ interface Viewer {
   bytes: number;
   /** FPS que ele está conseguindo mostrar (ele avisa a cada segundo) */
   shownFps: number;
+  /** laboratório: quadros "extras" (camada temporal 1) que ele deixou de receber para não travar */
+  tlDrops: number;
+  /** teste de laboratório: internet simulada (kbps) e a fila simulada */
+  simKbps: number;
+  simQ: number;
+  simAt: number;
 }
 
 export interface TurboSendStats {
@@ -123,7 +141,9 @@ export interface TurboSendStats {
   encodeMs: number;
   /** quadros que o codificador não conseguiu acompanhar (por segundo) */
   encoderDrops: number;
-  viewers: { id: string; fps: number; shownFps: number; skipped: number; mbps: number; height: number; want: StreamQuality }[];
+  viewers: { id: string; fps: number; shownFps: number; skipped: number; mbps: number; height: number; want: StreamQuality; tlDrops?: number }[];
+  /** laboratório: o codificador está com camadas temporais (L1T2)? */
+  temporal?: boolean;
   /** versões menores sendo codificadas agora (alturas) */
   layers: number[];
 }
@@ -152,11 +172,16 @@ export class TurboSender {
   private inFlight = new Map<number, number>();
   /** versões menores (720p/480p), só enquanto alguém assiste nelas */
   private layers = new Map<number, Layer>();
+  /** laboratório "FPS mais fixo": o codificador conseguiu camadas temporais (L1T2)? */
+  private temporal = false;
+  private joined = 0;
 
   constructor(
     private track: MediaStreamTrack,
     target: { fps: number; bitrate: number; maxHeight: number },
     private log: Log = () => {},
+    /** laboratório: camadas temporais + bitrate constante (só aparelhos da equipe, nunca para usuários) */
+    private lab = false,
   ) {
     this.target = target;
     void this.pump();
@@ -194,6 +219,10 @@ export class TurboSender {
       skipped: 0,
       bytes: 0,
       shownFps: 0,
+      tlDrops: 0,
+      simKbps: simulatedKbps(++this.joined),
+      simQ: 0,
+      simAt: performance.now(),
     };
     dc.onmessage = (e) => {
       if (typeof e.data !== 'string') return;
@@ -306,7 +335,7 @@ export class TurboSender {
         frameNo: 0,
         lastKeyReq: 0,
         encoder: new VideoEncoder({
-          output: (chunk) => this.onChunk(chunk, h),
+          output: (chunk, meta) => this.onChunk(chunk, h, (meta as { svc?: { temporalLayerId?: number } } | undefined)?.svc?.temporalLayerId ?? 0),
           error: (e) => {
             this.log(`turbo: erro na versão ${h}p: ${e}`);
             // a versão menor quebrou: quem estava nela volta para a original
@@ -360,32 +389,42 @@ export class TurboSender {
     const { width, height } = this.scaled(s.width ?? 1280, s.height ?? 720);
     const base = { width, height, bitrate: this.target.bitrate, framerate: this.target.fps, latencyMode: 'realtime' as const };
     const candidates = CODECS.filter((c) => decoders.includes(c));
-    let chosen: { codec: string; hw: boolean } | null = null;
-    for (const hw of [true, false]) {
-      for (const codec of candidates) {
-        const cfg: VideoEncoderConfig = {
-          ...base,
-          codec,
-          hardwareAcceleration: hw ? 'prefer-hardware' : 'prefer-software',
-          ...(codec.startsWith('avc1') ? { avc: { format: 'annexb' } } : {}),
-        };
-        try {
-          const r = await VideoEncoder.isConfigSupported(cfg);
-          if (r.supported) {
-            chosen = { codec, hw };
-            break;
+    let chosen: { codec: string; hw: boolean; extra: Partial<VideoEncoderConfig> } | null = null;
+    // laboratório: primeiro tenta com camadas temporais (L1T2) e bitrate constante; depois como sempre
+    const extras: Partial<VideoEncoderConfig>[] = this.lab
+      ? [{ scalabilityMode: 'L1T2', bitrateMode: 'constant' }, { scalabilityMode: 'L1T2' }, { bitrateMode: 'constant' }, {}]
+      : [{}];
+    for (const extra of extras) {
+      for (const hw of [true, false]) {
+        for (const codec of candidates) {
+          const cfg: VideoEncoderConfig = {
+            ...base,
+            ...extra,
+            codec,
+            hardwareAcceleration: hw ? 'prefer-hardware' : 'prefer-software',
+            ...(codec.startsWith('avc1') ? { avc: { format: 'annexb' } } : {}),
+          };
+          try {
+            const r = await VideoEncoder.isConfigSupported(cfg);
+            if (r.supported) {
+              chosen = { codec, hw, extra };
+              break;
+            }
+          } catch {
+            /* config inválida neste aparelho */
           }
-        } catch {
-          /* config inválida neste aparelho */
         }
+        if (chosen) break;
       }
       if (chosen) break;
     }
     if (!chosen) return false;
     // só sabemos que NÃO é placa de vídeo quando pedimos software
     this.hardware = chosen.hw ? null : false;
+    this.temporal = chosen.extra.scalabilityMode === 'L1T2';
+    if (this.lab) this.log(`turbo/lab: ${chosen.codec} ${chosen.extra.scalabilityMode ?? 'sem camadas'} ${chosen.extra.bitrateMode ?? 'vbr'}`);
     this.encoder = new VideoEncoder({
-      output: (chunk) => this.onChunk(chunk),
+      output: (chunk, meta) => this.onChunk(chunk, 0, (meta as { svc?: { temporalLayerId?: number } } | undefined)?.svc?.temporalLayerId ?? 0),
       error: (e) => {
         this.log(`turbo: erro no codificador: ${e}`);
         // recomeça com um codificador novo no próximo quadro
@@ -408,6 +447,7 @@ export class TurboSender {
     });
     this.config = {
       ...base,
+      ...chosen.extra,
       codec: chosen.codec,
       hardwareAcceleration: chosen.hw ? 'prefer-hardware' : 'prefer-software',
       ...(chosen.codec.startsWith('avc1') ? { avc: { format: 'annexb' } } : {}),
@@ -514,7 +554,16 @@ export class TurboSender {
     }
   }
 
-  private onChunk(chunk: EncodedVideoChunk, layerH = 0) {
+  /** fila de envio desse espectador (a real; nos testes, também a da internet simulada) */
+  private buffered(v: Viewer) {
+    if (!v.simKbps) return v.dc.bufferedAmount;
+    const now = performance.now();
+    v.simQ = Math.max(0, v.simQ - (now - v.simAt) * v.simKbps * 0.125);
+    v.simAt = now;
+    return Math.max(v.dc.bufferedAmount, v.simQ);
+  }
+
+  private onChunk(chunk: EncodedVideoChunk, layerH = 0, tl = 0) {
     if (!layerH) {
       this.counters.encoded++;
       const began = this.inFlight.get(chunk.timestamp);
@@ -537,8 +586,15 @@ export class TurboSender {
         v.skipped++;
         continue;
       }
+      const queued = this.buffered(v);
+      // laboratório: a fila começou a encher e este é um quadro "extra" (ninguém depende dele):
+      // pula só ele. Quem assiste cai para metade do FPS por um instante, sem travar nem esperar quadro-chave.
+      if (this.temporal && tl > 0 && queued > SOFT_WATER) {
+        v.tlDrops++;
+        continue;
+      }
       // fila de envio cheia (internet desse espectador): pula até o próximo quadro-chave só para ele
-      if (v.dc.bufferedAmount > HIGH_WATER) {
+      if (queued > HIGH_WATER) {
         v.waitKey = true;
         v.skipped++;
         v.netSkips++;
@@ -559,7 +615,7 @@ export class TurboSender {
         );
         v.needCfg = false;
       }
-      packets ??= this.packetize(data, seq, parts, key, chunk.timestamp);
+      packets ??= this.packetize(data, seq, parts, key, chunk.timestamp, tl);
       try {
         for (const p of packets) v.dc.send(p);
       } catch (err) {
@@ -572,6 +628,7 @@ export class TurboSender {
       v.waitKey = false;
       v.sentFrames++;
       v.bytes += data.byteLength;
+      if (v.simKbps) v.simQ += data.byteLength;
     }
   }
 
@@ -597,7 +654,10 @@ export class TurboSender {
     const now = performance.now();
     // compara com o que foi de fato ENVIADO para ela: se o PC de quem transmite está lento, todo mundo
     // recebe menos e isso não conta contra a internet de ninguém
-    const struggling = v.netSkips > 0 || (sentFps >= 10 && v.shownFps > 0 && v.shownFps < sentFps * 0.6);
+    // laboratório (FPS fixo): cortar quadros "extras" segura a imagem sem travar, mas o objetivo é o FPS
+    // escolhido; se ela continua sem receber todos, desce a RESOLUÇÃO só para ela (o FPS volta)
+    const tlStruggle = this.temporal && v.tlDrops >= Math.max(3, sentFps * 0.15);
+    const struggling = v.netSkips > 0 || tlStruggle || (sentFps >= 10 && v.shownFps > 0 && v.shownFps < sentFps * 0.6);
     v.netSkips = 0;
     if (struggling) {
       v.bad++;
@@ -609,7 +669,7 @@ export class TurboSender {
     const options = [0, ...QUALITY_HEIGHTS.filter((h) => h < this.mainH)];
     if (v.want === 'auto') {
       const i = Math.max(0, options.indexOf(this.effective(v)));
-      if (v.bad >= 4 && i < options.length - 1) {
+      if (v.bad >= (this.temporal ? 2 : 4) && i < options.length - 1) {
         // subiu há pouco e já voltou a sofrer: espera mais antes de tentar de novo
         if (now - v.lastUp < 20_000) v.upWait = Math.min(300, v.upWait * 2);
         v.autoH = options[i + 1];
@@ -631,7 +691,7 @@ export class TurboSender {
     }
   }
 
-  private packetize(data: Uint8Array, seq: number, parts: number, key: boolean, ts: number) {
+  private packetize(data: Uint8Array, seq: number, parts: number, key: boolean, ts: number, tl = 0) {
     const out: ArrayBuffer[] = [];
     for (let i = 0; i < parts; i++) {
       const slice = data.subarray(i * PART, Math.min(data.byteLength, (i + 1) * PART));
@@ -641,6 +701,7 @@ export class TurboSender {
       dv.setUint8(1, key ? 1 : 0);
       dv.setUint16(2, i);
       dv.setUint16(4, parts);
+      dv.setUint8(6, tl); // camada temporal (0 = base; 1 = quadro "extra" que pode ser pulado)
       dv.setUint32(8, seq);
       dv.setFloat64(12, ts);
       new Uint8Array(buf, HEADER).set(slice);
@@ -663,10 +724,12 @@ export class TurboSender {
         mbps: (v.bytes * 8) / secs / 1e6,
         height: v.layerH || this.mainH,
         want: v.want,
+        tlDrops: v.tlDrops,
       };
       this.adapt(v, r.fps);
       v.sentFrames = 0;
       v.skipped = 0;
+      v.tlDrops = 0;
       v.bytes = 0;
       return r;
     });
@@ -681,6 +744,7 @@ export class TurboSender {
       hardware: this.hardware,
       viewers,
       layers: [...this.layers.keys()],
+      temporal: this.temporal,
     };
     this.counters = { captured: 0, encoded: 0, encoderDrops: 0, layerDrops: 0, encodeMsSum: 0, at: now };
     return this.lastStats;
@@ -729,7 +793,7 @@ export class TurboReceiver {
   private codec = '';
   private waitKey = true;
   private parts: Uint8Array[] = [];
-  private cur = { seq: -1, total: 0, got: 0, key: false, ts: 0 };
+  private cur = { seq: -1, total: 0, got: 0, key: false, ts: 0, tl: 0 };
   private lastKeyReq = 0;
   private closed = false;
   readonly stream: MediaStream;
@@ -797,7 +861,7 @@ export class TurboReceiver {
     const seq = dv.getUint32(8);
     const ts = dv.getFloat64(12);
     if (part === 0) {
-      this.cur = { seq, total, got: 0, key, ts };
+      this.cur = { seq, total, got: 0, key, ts, tl: dv.getUint8(6) };
       this.parts = [];
     } else if (seq !== this.cur.seq) {
       return; // pedaço de um quadro que já foi descartado
@@ -833,7 +897,7 @@ export class TurboReceiver {
   }
 
   private decode() {
-    const { key, ts } = this.cur;
+    const { key, ts, tl } = this.cur;
     const size = this.parts.reduce((a, p) => a + p.byteLength, 0);
     const data = new Uint8Array(size);
     let o = 0;
@@ -844,6 +908,8 @@ export class TurboReceiver {
     this.parts = [];
     if (!this.decoder || this.decoder.state !== 'configured') return;
     if (this.waitKey && !key) return;
+    // aparelho lento: com camadas temporais, pula só o quadro "extra" (sem travar)
+    if (tl > 0 && this.decoder.decodeQueueSize > 2) return;
     // aparelho lento ficando para trás: pula até o próximo quadro-chave
     if (!key && this.decoder.decodeQueueSize > 3) {
       this.waitKey = true;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { toast } from '../store/app';
+import { labOn, setLab } from '../lib/lab';
 
 type Agg = Record<string, { sum: number; count: number }>;
 interface HealthData {
@@ -95,6 +96,13 @@ export function HealthPanel() {
   const encodeMs = avg(t, 'stream_encode_ms');
   const watchFps = avg(t, 'watch_fps');
   const watchLow = ratio(t, 'watch_low', 'watch_samples');
+  const target = avg(t, 'stream_target');
+  const viewers = avg(t, 'stream_viewers');
+  const atTarget = ratio(t, 'stream_at_target', 'stream_samples');
+  const limCap = ratio(t, 'stream_lim_capture', 'stream_samples');
+  const limEnc = ratio(t, 'stream_lim_encode', 'stream_samples');
+  const limNet = ratio(t, 'stream_lim_net', 'stream_samples');
+  const lab = ratio(t, 'stream_lab', 'stream_samples');
   const empty = !Object.keys(t).length;
 
   return (
@@ -144,6 +152,15 @@ export function HealthPanel() {
         <Tile label="Em modo turbo" value={pct(turbo)} lv={level(turbo, (v) => v >= 0.8, (v) => v < 0.4)} />
         <Tile label="Em versão leve" value={pct(light)} hint="resolução reduzida pelo modo desempenho" lv="none" />
       </div>
+      <h4>FPS escolhido × entregue</h4>
+      <div className="health-grid">
+        <Tile label="Bateu o FPS escolhido" value={pct(atTarget)} hint={`média escolhida: ${num(target)} FPS · ${num(viewers, '', 1)} assistindo`} lv={level(atTarget, (v) => v >= 0.9, (v) => v < 0.7)} />
+        <Tile label="Segurou: captura do PC" value={pct(limCap)} hint="o PC/navegador não entregou os quadros (jogo em tela cheia, tela parada)" lv="none" />
+        <Tile label="Segurou: codificação" value={pct(limEnc)} hint="o codificador não deu conta (processador/placa)" lv="none" />
+        <Tile label="Segurou: internet" value={pct(limNet)} hint="subida de quem transmite ou internet de quem assiste" lv="none" />
+        {lab !== null && lab > 0 && <Tile label="Minutos no laboratório" value={pct(lab)} hint="transmissões com o FPS fixo em teste (só aparelhos da equipe)" lv="none" />}
+      </div>
+      <LabToggles />
       <DailyBars data={data} label="Minutos de transmissão com 40+ FPS, por dia" metric={(a) => (a.stream_samples?.count ? (a.stream_ok40?.count ?? 0) / a.stream_samples.count : null)} />
 
       <h4>Assistindo</h4>
@@ -183,6 +200,27 @@ export function HealthPanel() {
         </table>
       )}
       <p className="muted small">Números somados por dia, sem identificar ninguém nem a call. Quem desligou em Privacidade e dados não entra.</p>
+    </div>
+  );
+}
+
+/** Laboratório: liga mudanças em teste SÓ neste aparelho (nenhum usuário recebe). */
+function LabToggles() {
+  const [fps, setFps] = useState(() => labOn('fps'));
+  return (
+    <div className="health-lab">
+      <strong>🧪 Laboratório (só neste aparelho)</strong>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={fps}
+          onChange={(e) => {
+            setLab('fps', e.target.checked);
+            setFps(e.target.checked);
+          }}
+        />{' '}
+        FPS mais fixo na transmissão (camadas temporais e bitrate constante). Vale na próxima vez que você transmitir.
+      </label>
     </div>
   );
 }

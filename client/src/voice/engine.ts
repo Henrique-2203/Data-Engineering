@@ -7,6 +7,7 @@ import { findChannel, findMember, selectChannel, toast, useApp } from '../store/
 import { updateSettings, useVoice, type MediaKind, type RemoteMedia } from '../store/voice';
 import { Peer, type SenderSlot } from './peer';
 import { preferCodec } from './sdp';
+import { labOn } from '../lib/lab';
 import { CODECS, type NoiseMode, effectiveBitrate, screenCodecFor, screenPresetFor } from './settings';
 import { type AiNoiseMode, type Denoiser, aiNoiseSupported, createDenoiser, resumeDenoise } from './denoise';
 import { desktop } from '../lib/desktop';
@@ -861,7 +862,7 @@ class VoiceEngine {
     }
     // transmissão turbo: codifica uma vez só para todo mundo (quando o navegador permite)
     this.turbo?.stop();
-    this.turbo = turboCanSend() && settings.turbo !== false ? new TurboSender(videoTrack, this.turboTarget(), (m) => this.dbg(m)) : null;
+    this.turbo = turboCanSend() && settings.turbo !== false ? new TurboSender(videoTrack, this.turboTarget(), (m) => this.dbg(m), labOn('fps')) : null;
     this.startTurboStats();
     this.sendAudience();
     setV({ screen: true, localScreen: stream, screenLight: false });
@@ -1176,6 +1177,11 @@ class VoiceEngine {
       if (!worst || s.fps < worst.fps) worst = s;
     }
     return worst;
+  }
+
+  /** Quantas pessoas estão assistindo a minha tela agora. */
+  screenViewerCount() {
+    return this.turbo?.active ? (this.turboStats?.viewers.length ?? 0) : this.screenWatchers.size;
   }
 
   /** Quantas pessoas estão recebendo minha tela via TURN agora. */
