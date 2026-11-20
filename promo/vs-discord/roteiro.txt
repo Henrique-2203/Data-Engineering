@@ -1,0 +1,7 @@
+Todo mundo fala que o Discord pesa no PC. Então eu fui medir.
+O Discord só aberto, sem call nenhuma: setecentos e sessenta megas de memória.
+Agora o Resenha, em call com quatro amigos, assistindo a transmissão do jogo:
+quatrocentos e vinte e um megas.
+E olha a transmissão: rodando lisinha.
+Quarenta e cinco por cento menos memória, fazendo muito mais.
+Resenha é grátis. Chama a galera, o link tá na bio.

@@ -1,0 +1,40 @@
+# CodeQL: análise de segurança do código (injeção, XSS, caminhos inseguros, segredos expostos...).
+# Os achados aparecem em Security → Code scanning no GitHub. Grátis em repositório público.
+name: Análise de segurança (CodeQL)
+
+on:
+  push:
+    branches: [main, claude/screen-sharing-app-w2m6ft]
+    paths-ignore: ['promo/**', '**/*.md']
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '23 6 * * 1' # toda segunda de manhã, mesmo sem mudanças (regras novas)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analisar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+          config: |
+            paths-ignore:
+              - promo
+              - e2e
+              - '**/dist'
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:javascript-typescript

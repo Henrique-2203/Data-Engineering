@@ -1,0 +1,41 @@
+# Verificações a cada envio: tipos (TypeScript), build do site, testes de unidade e bibliotecas com
+# falhas de segurança conhecidas (npm audit). Se algo falhar, o GitHub marca o commit com ❌.
+name: Verificações
+
+on:
+  push:
+    branches: [main, claude/screen-sharing-app-w2m6ft]
+    paths-ignore: ['promo/**', '**/*.md']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tipos (TypeScript)
+        run: npm run typecheck
+      - name: Build do site
+        run: npm run build
+      - name: Testes de unidade (arquivos, links, lixeira, backup)
+        run: node --import tsx e2e/files-unit.ts
+      - name: Bibliotecas com falhas conhecidas (site e servidor)
+        run: npm audit --omit=dev --audit-level=high
+      - name: Bibliotecas com falhas conhecidas (app de desktop)
+        working-directory: desktop
+        run: npm audit --omit=dev --audit-level=high

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'self'" />
+    <title>Escolha o que transmitir</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #111318; color: #e6e8ee; font: 14px/1.4 system-ui, 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; }
+      header { padding: 16px 20px 8px; }
+      h1 { margin: 0 0 10px; font-size: 18px; }
+      .tabs { display: flex; gap: 6px; }
+      .tabs button { padding: 7px 14px; border-radius: 8px; border: 0; background: transparent; color: #a7adbb; font: inherit; font-weight: 600; cursor: pointer; }
+      .tabs button[aria-selected='true'] { background: #272c37; color: #e6e8ee; }
+      main { flex: 1; overflow-y: auto; padding: 12px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; align-content: start; }
+      .source { border: 2px solid transparent; border-radius: 10px; background: #1e222b; padding: 8px; cursor: pointer; text-align: left; color: inherit; font: inherit; }
+      .source:hover { border-color: #3a4150; }
+      .source[aria-pressed='true'] { border-color: #3ddc97; }
+      .thumb { aspect-ratio: 16 / 9; background: #000; border-radius: 6px; display: grid; place-items: center; overflow: hidden; }
+      .thumb img { width: 100%; height: 100%; object-fit: contain; }
+      .name { display: flex; gap: 6px; align-items: center; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .name img { width: 16px; height: 16px; }
+      footer { display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-top: 1px solid #2a2f3a; }
+      footer label { flex: 1; display: flex; gap: 8px; align-items: center; }
+      footer .hint { color: #a7adbb; font-size: 12.5px; }
+      .btn { padding: 9px 16px; border-radius: 8px; border: 0; font: inherit; font-weight: 600; cursor: pointer; background: #272c37; color: #e6e8ee; }
+      .btn.primary { background: #3ddc97; color: #06281a; }
+      .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .empty { color: #a7adbb; grid-column: 1 / -1; }
+      .head-row { display: flex; align-items: center; gap: 8px; }
+      .head-row .tabs { flex: 1; }
+      .refresh { padding: 7px 12px; border-radius: 8px; border: 1px solid #2a2f3a; background: transparent; color: #a7adbb; font: inherit; cursor: pointer; }
+      .refresh:hover { color: #e6e8ee; border-color: #3a4150; }
+      #game-hint { margin: 8px 20px 0; padding: 10px 14px; border-radius: 10px; background: #2a1f0f; border: 1px solid #f5b942; color: #f5d48a; font-size: 13px; }
+      #game-hint p { margin: 4px 0 0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Escolha o que transmitir</h1>
+      <div class="head-row">
+        <div class="tabs" role="tablist">
+          <button role="tab" data-type="screen" aria-selected="true">Tela inteira</button>
+          <button role="tab" data-type="window" aria-selected="false">Janela (jogo, programa)</button>
+        </div>
+        <button class="refresh" id="refresh" title="Atualizar a lista">↻ Atualizar</button>
+      </div>
+    </header>
+    <div id="game-hint" role="status" hidden></div>
+    <main id="list"><p class="empty">Carregando…</p></main>
+    <footer>
+      <label>
+        <input type="checkbox" id="audio" checked />
+        <span>Transmitir o áudio do computador <span class="hint">(no Windows)</span></span>
+      </label>
+      <button class="btn" id="cancel">Cancelar</button>
+      <button class="btn primary" id="go" disabled>Transmitir</button>
+    </footer>
+    <script src="picker.js"></script>
+  </body>
+</html>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<title>Resenha — posts fixados</title>
+<style>
+  /* 3 posts 3:4 (1080x1440) lado a lado = 3240x1440. O notebook atravessa as divisões:
+     no perfil vira uma imagem só; cada post sozinho ainda faz sentido. */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 3240px; height: 1440px; overflow: hidden; background: #07080b; font-family: 'Inter Display', Inter, 'Noto Color Emoji', sans-serif; color: #fff; }
+  #stage { position: relative; width: 3240px; height: 1440px; overflow: hidden; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(170px); opacity: .55; }
+  #grid { position: absolute; inset: 0; opacity: .35;
+    background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+    background-size: 80px 80px; -webkit-mask-image: radial-gradient(ellipse at 50% 55%, #000 30%, transparent 80%); }
+  /* post 1: marca */
+  #brand { position: absolute; left: 100px; top: 300px; width: 600px; }
+  #brand .icon { width: 230px; height: 230px; filter: drop-shadow(0 30px 60px rgba(61,220,151,.35)); }
+  #brand .icon svg { width: 100%; height: 100%; }
+  #brand h1 { margin-top: 46px; font-weight: 900; font-size: 138px; letter-spacing: -5px; line-height: .95; }
+  #brand p { margin-top: 34px; font-weight: 600; font-size: 54px; line-height: 1.18; color: rgba(255,255,255,.82); letter-spacing: -1px; }
+  #brand p b { color: #3ddc97; font-weight: 800; }
+  .pills { margin-top: 56px; display: flex; flex-wrap: wrap; gap: 16px; }
+  .pill { padding: 14px 28px; border-radius: 999px; font-weight: 800; font-size: 36px; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.14); }
+  .pill.green { background: #3ddc97; color: #06281a; border-color: #3ddc97; }
+  /* notebook com a tela real */
+  #laptop { position: absolute; left: 760px; top: 250px; width: 1720px; }
+  #screen { position: relative; width: 1720px; height: 1075px; border-radius: 34px; background: #0d0f14; padding: 26px;
+    box-shadow: 0 0 0 3px rgba(255,255,255,.10), 0 60px 140px rgba(0,0,0,.7), 0 0 160px rgba(61,220,151,.22); }
+  #screen img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; display: block; }
+  #base { margin: 0 auto; width: 1960px; margin-left: -120px; height: 40px; border-radius: 0 0 40px 40px;
+    background: linear-gradient(#2a2e38, #15171d); box-shadow: 0 30px 60px rgba(0,0,0,.6); }
+  #base i { display: block; width: 260px; height: 14px; margin: 0 auto; border-radius: 0 0 14px 14px; background: #0c0d11; }
+  /* selos reais sobre a tela */
+  .chip { position: absolute; padding: 16px 28px; border-radius: 18px; font-weight: 800; font-size: 34px; white-space: nowrap;
+    background: rgba(15,17,22,.92); border: 2px solid rgba(255,255,255,.12); box-shadow: 0 20px 50px rgba(0,0,0,.55); }
+  .chip.g { border-color: rgba(61,220,151,.6); }
+  /* post 3: o que tem + chamada */
+  #feat { position: absolute; left: 2590px; top: 270px; width: 580px; }
+  #feat h2 { font-weight: 900; font-size: 74px; letter-spacing: -2px; line-height: 1.02; }
+  #feat ul { list-style: none; margin-top: 50px; display: flex; flex-direction: column; gap: 30px; }
+  #feat li { display: flex; gap: 22px; align-items: flex-start; font-size: 40px; font-weight: 700; line-height: 1.15; color: rgba(255,255,255,.92); }
+  #feat li span.e { font-size: 46px; width: 58px; flex: none; text-align: center; }
+  #feat li small { display: block; font-size: 29px; font-weight: 500; color: rgba(255,255,255,.6); margin-top: 6px; }
+  #cta { margin-top: 64px; padding: 30px 34px; border-radius: 26px; background: #3ddc97; color: #06281a; font-weight: 900; font-size: 44px; line-height: 1.1;
+    box-shadow: 0 25px 70px rgba(61,220,151,.35); }
+  #cta small { display: block; margin-top: 8px; font-weight: 700; font-size: 30px; opacity: .8; }
+</style></head>
+<body><div id="stage">
+  <div class="blob" style="width:1100px;height:1100px;left:-300px;top:-200px;background:#3ddc97;opacity:.28"></div>
+  <div class="blob" style="width:1200px;height:1000px;left:1100px;top:500px;background:#7c3aed;opacity:.45"></div>
+  <div class="blob" style="width:1000px;height:1000px;left:2500px;top:-250px;background:#ff3d7f;opacity:.25"></div>
+  <div id="grid"></div>
+
+  <div id="brand">
+    <div class="icon" id="icon"></div>
+    <h1>Resenha</h1>
+    <p>Call, chat e tela com a galera, <b>leve e de graça</b>.</p>
+    <div class="pills"><span class="pill green">100% grátis</span><span class="pill">sem anúncios</span></div>
+  </div>
+
+  <div id="laptop">
+    <div id="screen"><img id="shot" src="../out/eco/shots/matheus-assistindo.png" alt=""></div>
+    <div id="base"><i></i></div>
+    <div class="chip g" style="left:380px;top:985px">🔒 Chamada criptografada</div>
+    <div class="chip" style="left:900px;top:-36px">🖥️ Tela em até 4K 60 FPS</div>
+  </div>
+
+  <div id="feat">
+    <h2>Feito pra jogar junto.</h2>
+    <ul>
+      <li><span class="e">🎙️</span><div>Voz limpa<small>a IA tira o barulho do teclado</small></div></li>
+      <li><span class="e">🖥️</span><div>Transmissão leve<small>sua voz não volta pra quem assiste</small></div></li>
+      <li><span class="e">🍿</span><div>Assistir juntos<small>YouTube sincronizado na call</small></div></li>
+      <li><span class="e">🔒</span><div>Você escolhe quem vê<small>sua tela, suas regras</small></div></li>
+    </ul>
+    <div id="cta">Entre na lista de espera<small>o link tá na bio 💚</small></div>
+  </div>
+</div>
+<script type="module">
+const icons = await (await fetch('../out/reels/icons.json')).json();
+document.getElementById('icon').innerHTML = icons.find((i) => i.id === 'classic').svg;
+await document.getElementById('shot').decode().catch(() => {});
+await document.fonts.ready;
+window.ready = true;
+</script>
+</body></html>

@@ -1,0 +1,97 @@
+# Gera o APK do app Android (android/) a cada mudança e publica como "pré-lançamento" (versão de teste)
+# nas Releases deste repositório. Ninguém recebe a versão de teste sozinho: o app só oferece atualização
+# quando android/release.json (servido em /api/app/android) aponta para ela, depois da aprovação.
+#
+# Assinatura: o APK precisa ser sempre assinado com a MESMA chave, senão o celular não aceita a atualização.
+# A chave fica no repositório só criptografada (android/keystore.p12.enc); quem abre é o segredo
+# ANDROID_KEY_PASS (Settings > Secrets and variables > Actions). Na primeira vez com o segredo, o próprio
+# workflow cria a chave, criptografa e salva. Sem o segredo, gera um APK de teste com chave temporária.
+name: App Android (APK)
+
+on:
+  push:
+    branches: [main, claude/screen-sharing-app-w2m6ft]
+    paths: ['android/**', '.github/workflows/android.yml', '!android/release.json']
+  workflow_dispatch:
+
+permissions:
+  contents: write # salvar a chave criptografada e criar a Release de teste
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Chave de assinatura
+        env:
+          PASS: ${{ secrets.ANDROID_KEY_PASS }}
+        run: |
+          KS="$RUNNER_TEMP/resenha.p12"
+          if [ -z "$PASS" ]; then
+            echo "::warning::Sem o segredo ANDROID_KEY_PASS: APK assinado com chave TEMPORÁRIA (só para teste; a versão oficial vai pedir para desinstalar esta)."
+            PASS="temporaria-$(openssl rand -hex 16)"
+            keytool -genkeypair -storetype PKCS12 -keystore "$KS" -alias resenha -keyalg RSA -keysize 2048 -validity 3650 \
+              -dname "CN=Resenha (teste), O=Resenha, C=BR" -storepass "$PASS" -keypass "$PASS" -noprompt
+            echo "TEMPKEY=1" >> "$GITHUB_ENV"
+          elif [ -f android/keystore.p12.enc ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in android/keystore.p12.enc -out "$KS" -pass env:PASS
+          else
+            echo "Primeira vez com o segredo: criando a chave oficial do app."
+            keytool -genkeypair -storetype PKCS12 -keystore "$KS" -alias resenha -keyalg RSA -keysize 4096 -validity 36500 \
+              -dname "CN=Resenha, O=Resenha, C=BR" -storepass "$PASS" -keypass "$PASS" -noprompt
+            openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -in "$KS" -out android/keystore.p12.enc -pass env:PASS
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add android/keystore.p12.enc
+            git commit -m "App Android: chave de assinatura (criptografada)"
+            git push
+          fi
+          echo "::add-mask::$PASS"
+          echo "ANDROID_KEYSTORE=$KS" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASS=$PASS" >> "$GITHUB_ENV"
+
+      - name: Gerar o APK
+        working-directory: android
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Nome e versão
+        id: ver
+        run: |
+          VN=$(grep -oP "versionName '\K[^']+" android/app/build.gradle)
+          VC=$(grep -oP "versionCode \K[0-9]+" android/app/build.gradle)
+          SUF=""; [ "${TEMPKEY:-}" = "1" ] && SUF="-chave-temporaria"
+          NAME="Resenha-$VN$SUF.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "vn=$VN" >> "$GITHUB_OUTPUT"
+          echo "vc=$VC" >> "$GITHUB_OUTPUT"
+          "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$NAME" | head -5 || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.ver.outputs.name }}
+          path: ${{ steps.ver.outputs.name }}
+
+      - name: Publicar versão de teste (pré-lançamento)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="android-v${{ steps.ver.outputs.vn }}-teste${{ github.run_number }}"
+          gh release create "$TAG" "${{ steps.ver.outputs.name }}" --prerelease --target "$GITHUB_SHA" \
+            --title "Android ${{ steps.ver.outputs.vn }} (teste ${{ github.run_number }})" \
+            --notes "Versão de TESTE do app Android (versionCode ${{ steps.ver.outputs.vc }}). Baixe o .apk abaixo no celular e instale. Só vai para o site depois de aprovada."

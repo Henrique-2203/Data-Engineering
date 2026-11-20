@@ -1,0 +1,50 @@
+<!doctype html><meta charset="utf-8"><title>filtro offline</title>
+<script type="module">
+// O MESMO filtro do app (client/src/voice/denoise.ts): GTCRN ("Forte (IA)") + ganho + limitador + proteção de picos.
+import { GtcrnWorkletNode, loadGtcrn } from '/node_modules/@sapphi-red/web-noise-suppressor/dist/index.js';
+window.run = async (url) => {
+  // fora do tempo real (sem estalos): pausa no começo até o modelo carregar dentro do worklet
+  const probe = new OfflineAudioContext(1, 48000, 48000);
+  const buf = await probe.decodeAudioData(await (await fetch(url)).arrayBuffer());
+  const PRE = 1; // 1 s de silêncio antes
+  const c = new OfflineAudioContext(2, buf.length + (PRE + 0.5) * 48000, 48000);
+  await c.audioWorklet.addModule('/node_modules/@sapphi-red/web-noise-suppressor/dist/gtcrn/workletProcessor.js');
+  const wasmBinary = await loadGtcrn({ url: '/node_modules/@sapphi-red/web-noise-suppressor/dist/gtcrn.wasm' });
+  const node = new GtcrnWorkletNode(c, { wasmBinary, maxChannels: 1 });
+  const makeup = c.createGain();
+  makeup.gain.value = 2.0;
+  const lim = c.createDynamicsCompressor();
+  lim.threshold.value = -10; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.08;
+  const merge = c.createChannelMerger(2);
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  src.connect(merge, 0, 0); // canal 0: original
+  // proteção final do app (client/src/voice/denoise.ts: softClipCurve)
+  const half = c.createGain(); half.gain.value = 0.5;
+  const shaper = c.createWaveShaper(); shaper.oversample = '2x';
+  const n = 4096, curve = new Float32Array(n), knee = 0.89, room = 0.98 - knee;
+  for (let i = 0; i < n; i++) { const v = ((i / (n - 1)) * 2 - 1) * 2, a = Math.abs(v); curve[i] = a <= knee ? v : Math.sign(v) * (knee + room * Math.tanh((a - knee) / room)); }
+  shaper.curve = curve;
+  src.connect(node); node.connect(makeup); makeup.connect(lim); lim.connect(half); half.connect(shaper); shaper.connect(merge, 0, 1); // canal 1: filtrado
+  merge.connect(c.destination);
+  src.start(PRE);
+  c.suspend(0.05).then(async () => {
+    await new Promise((r) => setTimeout(r, 3000));
+    c.resume();
+  });
+  const out = await c.startRendering();
+  const cut = (d) => d.subarray(PRE * 48000);
+  const enc = (d) => {
+    const b = new DataView(new ArrayBuffer(44 + d.length * 2));
+    const w = (o, s) => [...s].forEach((ch, i) => b.setUint8(o + i, ch.charCodeAt(0)));
+    w(0, 'RIFF'); b.setUint32(4, 36 + d.length * 2, true); w(8, 'WAVEfmt '); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
+    b.setUint32(24, 48000, true); b.setUint32(28, 96000, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); w(36, 'data'); b.setUint32(40, d.length * 2, true);
+    for (let i = 0; i < d.length; i++) b.setInt16(44 + i * 2, Math.max(-1, Math.min(1, d[i])) * 32767, true);
+    let s = ''; const u = new Uint8Array(b.buffer);
+    for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode(...u.subarray(i, i + 32768));
+    return btoa(s);
+  };
+  return { raw: enc(cut(out.getChannelData(0))), filtered: enc(cut(out.getChannelData(1))) };
+};
+window.ready = true;
+</script>
