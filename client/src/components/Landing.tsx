@@ -316,9 +316,19 @@ export function Landing() {
 function Trailer() {
   const ref = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(true);
+  // o vídeo só começa a baixar quando aparece na tela (quem não rola até ele não gasta internet nenhuma)
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || visible) return;
+    if (!('IntersectionObserver' in window)) return setVisible(true);
+    const io = new IntersectionObserver((e) => e.some((x) => x.isIntersecting) && setVisible(true), { rootMargin: '200px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible]);
   return (
     <div className="lp-trailer">
-      <video ref={ref} src="/landing/trailer.mp4" poster="/landing/trailer-poster.jpg" autoPlay muted loop playsInline preload="metadata" aria-label="Vídeo: amigos numa call do Resenha assistindo uma transmissão de gameplay" />
+      <video ref={ref} src={visible ? '/landing/trailer.mp4' : undefined} poster="/landing/trailer-poster.jpg" autoPlay muted loop playsInline preload="none" aria-label="Vídeo: amigos numa call do Resenha assistindo uma transmissão de gameplay" />
       <button
         className="lp-sound"
         onClick={() => {
