@@ -99,6 +99,7 @@ interface Capacity {
   cpu: { avgPct: number; peakPct: number; limitPct: number };
   memory: { usedMb: number; limitMb: number };
   turn: { monthMb: number; quotaMb: number | null; cloudflareLimitMb?: number | null; paused?: boolean };
+  bandwidth?: { monthMb: number; freeMb: number; alertMb: number; priceUsdPerGb: number; costUsd: number };
   live: { online: number; inVoice: number; calls: number; streaming: number };
   warnings: string[];
   embeddedDb: boolean;
@@ -146,6 +147,19 @@ function CapacityCard() {
           <Bar used={c.memory.usedMb} total={c.memory.limitMb} />
           <span className="stat-note">de {c.memory.limitMb} MB</span>
         </div>
+        {c.bandwidth && (
+          <div className="stat-tile">
+            <span className="stat-label">Internet do servidor este mês</span>
+            <strong className="stat-value">{(c.bandwidth.monthMb / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} GB</strong>
+            <Bar used={c.bandwidth.monthMb} total={c.bandwidth.alertMb} />
+            <span className="stat-note">
+              {c.bandwidth.monthMb <= c.bandwidth.freeMb
+                ? `dentro dos ${c.bandwidth.freeMb / 1000} GB grátis do Render · sem custo`
+                : `passou dos ${c.bandwidth.freeMb / 1000} GB grátis · custo estimado US$ ${c.bandwidth.costUsd.toFixed(2)} (US$ ${c.bandwidth.priceUsdPerGb} por GB)`}
+            </span>
+            <span className="stat-note">aviso por e-mail aos 80% de {c.bandwidth.alertMb / 1000} GB · o número oficial é o do Render (Billing)</span>
+          </div>
+        )}
         <div className="stat-tile">
           <span className="stat-label">TURN este mês</span>
           <strong className="stat-value">{mbOrGb(c.turn.monthMb)}</strong>

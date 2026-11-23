@@ -14,6 +14,7 @@ import { sameOriginOnly } from './auth.ts';
 import { startStorageJobs } from './storage.ts';
 import { startBackups } from './backup.ts';
 import { trustProxy } from './proxy.ts';
+import { flushBandwidth, startBandwidthMeter } from './bandwidth.ts';
 
 const db = await createDb();
 const app = express();
@@ -23,6 +24,7 @@ startEventReminders(db, rt);
 startCapacityAlerts(db, rt);
 startStorageJobs(db);
 startBackups(db);
+startBandwidthMeter(http, db);
 
 app.set('trust proxy', trustProxy);
 app.disable('x-powered-by');
@@ -124,6 +126,7 @@ const shutdown = async () => {
   await new Promise((r) => setTimeout(r, 300));
   rt.io.close();
   http.close();
+  await flushBandwidth(db).catch(() => {}); // grava a internet gasta antes de sair
   await db.close().catch(() => {});
   process.exit(0);
 };

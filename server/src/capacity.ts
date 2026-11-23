@@ -4,6 +4,7 @@ import { config } from './config.ts';
 import { storageUsage } from './access.ts';
 import { alertUser } from './account.ts';
 import { cloudflareConfigured } from './ice.ts';
+import { bandwidthAlertGb, bandwidthFreeGb, bandwidthMonthMb, bandwidthPriceUsd } from './bandwidth.ts';
 
 /**
  * Capacidade (Painel da equipe → Sistema): quanto já foi usado de cada limite do plano grátis, para
@@ -34,6 +35,8 @@ export interface Capacity {
   database: { usedMb: number; limitMb: number };
   files: { usedMb: number; limitMb: number; where: 'r2' | 'db' };
   turn: { monthMb: number; quotaMb: number | null; cloudflareLimitMb: number | null; paused: boolean };
+  /** internet que o servidor gastou no mês (o Render cobra o que passar da parte grátis) */
+  bandwidth: { monthMb: number; freeMb: number; alertMb: number; priceUsdPerGb: number; costUsd: number };
   live: { online: number; inVoice: number; calls: number; streaming: number };
   /** banco embutido (sem DATABASE_URL): ele roda dentro do servidor e soma no processador e na memória */
   embeddedDb: boolean;
@@ -57,6 +60,17 @@ export async function capacity(db: Db, rt: Realtime): Promise<Capacity> {
       cloudflareLimitMb: cloudflareConfigured() ? config.cloudflareTurn.limitMb : null,
       paused: cloudflareConfigured() && month >= config.cloudflareTurn.limitMb,
     },
+    bandwidth: await (async () => {
+      const monthMb = await bandwidthMonthMb(db);
+      const freeMb = bandwidthFreeGb * 1000;
+      return {
+        monthMb,
+        freeMb,
+        alertMb: bandwidthAlertGb * 1000,
+        priceUsdPerGb: bandwidthPriceUsd,
+        costUsd: Math.round(Math.max(0, monthMb - freeMb) / 1000 * bandwidthPriceUsd * 100) / 100,
+      };
+    })(),
     live: rt.liveCounts(),
     embeddedDb: !config.databaseUrl,
   };
@@ -72,6 +86,11 @@ export function overLimits(c: Capacity): { key: string; text: string }[] {
   if (p(c.memory.usedMb, c.memory.limitMb) >= 0.8) out.push({ key: 'memory', text: `Memória: ${c.memory.usedMb} MB de ${c.memory.limitMb} MB.` });
   if (p(c.database.usedMb, c.database.limitMb) >= 0.8) out.push({ key: 'database', text: `Banco de dados: ${c.database.usedMb} MB de ${c.database.limitMb} MB.` });
   if (p(c.files.usedMb, c.files.limitMb) >= 0.8) out.push({ key: 'files', text: `Arquivos: ${c.files.usedMb} MB de ${c.files.limitMb} MB.` });
+  if (c.bandwidth.alertMb && p(c.bandwidth.monthMb, c.bandwidth.alertMb) >= 0.8)
+    out.push({
+      key: 'bandwidth',
+      text: `Internet do servidor: ${(c.bandwidth.monthMb / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} GB este mês (aviso em ${c.bandwidth.alertMb / 1000} GB). Custo estimado no Render até agora: US$ ${c.bandwidth.costUsd.toFixed(2)}.`,
+    });
   if (c.turn.quotaMb && p(c.turn.monthMb, c.turn.quotaMb) >= 0.8) out.push({ key: 'turn', text: `TURN: ${c.turn.monthMb} MB de ${c.turn.quotaMb} MB este mês.` });
   const gb = (mb: number) => `${(mb / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} GB`;
   if (c.turn.cloudflareLimitMb && c.turn.paused)

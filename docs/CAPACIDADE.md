@@ -66,14 +66,27 @@ para a qualidade e não custa nada de servidor, mas cada pessoa envia uma cópia
   com a Cloudflare, `1000000` (1.000 GB).
 - Transmissões via TURN já vão em qualidade reduzida para economizar.
 
-## 5. Avisos automáticos
+## 5. Internet do servidor (Render)
+
+- O plano Hobby do Render dá **5 GB de internet por mês**; o que passar custa **US$ 0,15 por GB** (com cartão
+  cadastrado). Sem cartão, ao passar dos 5 GB o Render **suspende o site** até o mês virar (aconteceu em 21/11/2026).
+- Painel da equipe → Sistema → **Internet do servidor este mês**: quanto saiu do servidor (páginas, app, API e
+  WebSocket) e o custo estimado. É uma estimativa nossa; o oficial é o do Render (Billing → Included Bandwidth).
+- Aviso por e-mail aos 80% de `BANDWIDTH_ALERT_GB` (padrão 20 GB, ~US$ 2,25 de custo). Também: `BANDWIDTH_FREE_GB` (5)
+  e `BANDWIDTH_PRICE_USD` (0.15), se o plano mudar.
+- Para gastar pouco: o site vai compactado (brotli) e a **Cloudflare (nuvem laranja) entrega da cópia dela** o app,
+  as imagens e o vídeo do site (regra de cache "Arquivos do Resenha": `/assets/`, `/landing/`, `/api/images/`,
+  `/api/emojis/`, respeitando o Cache-Control do servidor). Com a Cloudflare na frente, o IP de cada pessoa vem do
+  cabeçalho que ela manda, só quando o pedido vem de um endereço oficial dela (`server/src/proxy.ts`).
+
+## 6. Avisos automáticos
 
 Painel da equipe → Sistema → **Limites do plano (agora)**: processador, memória, TURN e quem está conectado. Banco e
 arquivos ficam logo abaixo. Passou de **80%** em algum limite, a equipe recebe um **e-mail** (no máximo um por dia por
 limite). Variáveis (no Render, se o plano mudar): `CPU_LIMIT` (núcleos, padrão 0.1), `MEMORY_LIMIT_MB` (512),
 `TURN_QUOTA_MB` (sem padrão).
 
-## 6. Quando pagar o quê
+## 7. Quando pagar o quê
 
 | Sinal | O que fazer |
 |---|---|
