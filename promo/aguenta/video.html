@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>O Resenha aguenta?</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #07080b; font-family: Inter, 'Noto Color Emoji', sans-serif; color: #fff; }
+  #s { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(160px); opacity: .42; transition: background .25s; }
+  .grid { position: absolute; inset: 0; opacity: .4;
+    background-image: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size: 72px 72px; }
+  .layer { position: absolute; inset: 0; }
+  .g { color: #3ddc97; } .r { color: #ff5d6c; }
+  .head { position: absolute; top: 230px; left: 0; right: 0; text-align: center; }
+  .head .k { font-weight: 900; font-size: 64px; letter-spacing: -2px; text-shadow: 0 8px 0 rgba(0,0,0,.45); }
+  .pill { display: inline-block; margin-top: 14px; padding: 10px 26px; border-radius: 999px; font-weight: 900; font-size: 30px; background: #3ddc97; color: #06281a; }
+  .dots { display: flex; gap: 14px; justify-content: center; margin-top: 22px; }
+  .dots i { width: 18px; height: 18px; border-radius: 50%; background: rgba(255,255,255,.18); }
+  .dots i.on { background: #3ddc97; box-shadow: 0 0 18px rgba(61,220,151,.7); }
+  .dots i.cur { background: #fff; }
+  /* quadro da call */
+  .tile { position: absolute; left: 110px; width: 860px; top: 560px; height: 560px; border-radius: 40px; background: #1a1d24; border: 3px solid rgba(255,255,255,.08);
+    display: grid; place-items: center; box-shadow: 0 40px 80px rgba(0,0,0,.5); overflow: hidden; }
+  .tile .ring { position: absolute; inset: 0; border-radius: 40px; border: 8px solid #3ddc97; opacity: 0; }
+  .ava { width: 260px; height: 260px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 120px; background: linear-gradient(135deg,#3ddc97,#1f9e6a); color: #06281a; position: relative; }
+  .ava .halo { position: absolute; inset: -18px; border-radius: 50%; border: 10px solid #3ddc97; opacity: 0; }
+  .nm { position: absolute; left: 30px; bottom: 26px; padding: 10px 22px; border-radius: 14px; background: rgba(0,0,0,.55); font-weight: 800; font-size: 34px; }
+  .chip { position: absolute; left: 50%; transform: translateX(-50%); top: 470px; white-space: nowrap; padding: 18px 40px; border-radius: 999px; font-weight: 900; font-size: 48px; letter-spacing: 1px; }
+  .chip.sem { background: #ff5d6c; color: #2b0006; box-shadow: 0 0 50px rgba(255,93,108,.55); }
+  .chip.com { background: #3ddc97; color: #06281a; box-shadow: 0 0 50px rgba(61,220,151,.55); }
+  .meter { position: absolute; left: 110px; right: 110px; top: 1170px; height: 170px; display: flex; align-items: center; gap: 8px; }
+  .meter i { flex: 1; border-radius: 8px; min-height: 10px; }
+  .cap { position: absolute; left: 70px; right: 70px; top: 1390px; text-align: center; font-weight: 900; font-size: 58px; line-height: 1.15; text-shadow: 0 8px 0 rgba(0,0,0,.5); }
+  img.st { position: absolute; filter: drop-shadow(0 30px 40px rgba(0,0,0,.6)); }
+  .stamp { position: absolute; left: 50%; top: 760px; transform: translate(-50%,-50%) rotate(-8deg); padding: 26px 56px; border-radius: 28px; border: 10px solid #3ddc97;
+    color: #3ddc97; font-weight: 900; font-size: 110px; letter-spacing: 2px; background: rgba(7,8,11,.82); white-space: nowrap; text-shadow: 0 0 40px rgba(61,220,151,.6); }
+  .card { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 10px; background: rgba(7,8,11,.88); text-align: center; }
+  .card .n { font-weight: 900; font-size: 56px; color: #3ddc97; letter-spacing: 6px; }
+  .card .e { font-size: 230px; line-height: 1.1; }
+  .card .t { font-weight: 900; font-size: 92px; letter-spacing: -2px; padding: 0 60px; line-height: 1.05; }
+  .big { position: absolute; left: 60px; right: 60px; text-align: center; font-weight: 900; letter-spacing: -3px; line-height: 1.02; text-shadow: 0 10px 0 rgba(0,0,0,.45); }
+  .sub { position: absolute; left: 90px; right: 90px; text-align: center; font-weight: 800; font-size: 46px; line-height: 1.25; color: rgba(255,255,255,.88); }
+  .brand { position: absolute; left: 0; right: 0; bottom: 230px; display: flex; justify-content: center; align-items: center; gap: 18px; font-weight: 900; font-size: 42px; }
+  .brand .ic { width: 66px; height: 66px; } .brand .ic svg { width: 100%; height: 100%; }
+  .cta { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 20px 44px; border-radius: 999px; background: #3ddc97; color: #06281a; font-weight: 900; font-size: 44px; box-shadow: 0 0 60px rgba(61,220,151,.45); }
+</style>
+</head>
+<body>
+<div id="s">
+  <div class="blob" id="b1" style="width:900px;height:900px;background:#3ddc97;left:-300px;top:-200px"></div>
+  <div class="blob" style="width:800px;height:800px;background:#7c3aed;right:-300px;top:700px"></div>
+  <div class="blob" style="width:700px;height:700px;background:#ffcc33;left:-200px;bottom:-250px;opacity:.22"></div>
+  <div class="grid"></div>
+  <div class="layer" id="v"></div>
+</div>
+<script type="module">
+const q = new URLSearchParams(location.search);
+const D = await (await fetch(`../out/aguenta/${q.get('d') ?? 'ep1'}/data.json`)).json();
+const icons = await (await fetch('../out/reels/icons.json')).json();
+const logo = icons.find((i) => i.id === 'classic').svg;
+const F = (x) => `../out/mascote/figurinhas/resenha-${x}.png`;
+// pré-carrega as figurinhas (o quadro é desenhado de novo a cada instante)
+await Promise.all(['bravo', 'joinha', 'curioso', 'oculos', 'coracao'].map((x) => new Promise((ok) => { const i = new Image(); i.onload = i.onerror = ok; i.src = F(x); })));
+const v = document.getElementById('v');
+const b1 = document.getElementById('b1');
+const ease = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+const pop = (x) => { x = Math.min(1, Math.max(0, x)); const c = 1.7; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const lvl = (arr, t) => arr[Math.min(arr.length - 1, Math.max(0, Math.floor(t / D.step)))] ?? 0;
+const N = D.rounds.length;
+
+function head(done, cur) {
+  return `<div class="head"><div class="k">O Resenha <span class="g">aguenta?</span></div><span class="pill">EP. ${D.ep}</span>
+    <div class="dots">${D.rounds.map((_, i) => `<i class="${i < done ? 'on' : i === cur ? 'cur' : ''}"></i>`).join('')}</div></div>`;
+}
+function meter(env, t, color) {
+  const bars = 28;
+  let h = '';
+  for (let i = 0; i < bars; i++) {
+    const a = lvl(env, Math.max(0, t - (bars - 1 - i) * 0.03)); // as barras "andam" para a esquerda
+    const px = Math.min(170, 10 + Math.sqrt(a) * 520);
+    h += `<i style="height:${px}px;background:${color};opacity:${0.45 + 0.55 * (i / bars)}"></i>`;
+  }
+  return `<div class="meter">${h}</div>`;
+}
+function tile(level, mode) {
+  const on = Math.min(1, level * 9);
+  return `<div class="tile"><div class="ring" style="opacity:${mode === 'com' ? on : 0}"></div>
+    <div class="ava">${D.speaker[0]}<div class="halo" style="opacity:${on};transform:scale(${1 + on * 0.06});border-color:${mode === 'sem' ? '#ff5d6c' : '#3ddc97'}"></div></div>
+    <div class="nm">${D.speaker} 🎙️</div></div>`;
+}
+
+window.seek = (t) => {
+  let h = '';
+  b1.style.background = '#3ddc97';
+  if (t < D.hook[1]) {
+    // gancho: barulho alto logo no 1º segundo + a pergunta
+    const k = ease(t / 0.35);
+    b1.style.background = '#ff5d6c';
+    h += `<div class="big" style="top:300px;font-size:${132 * pop(t / 0.45)}px;white-space:nowrap;opacity:${k}">O Resenha<br/><span class="g">aguenta?</span> 😳</div>`;
+    h += `<div class="sub" style="top:700px;opacity:${ease((t - 0.5) / 0.4)}">testamos o filtro de ruído<br/>com barulhos <b class="r">cada vez piores</b></div>`;
+    h += `<img class="st" src="${F('curioso')}" style="width:520px;left:280px;top:${1000 + (1 - ease((t - 0.3) / 0.5)) * 300}px;opacity:${ease((t - 0.3) / 0.3)}" />`;
+    h += `<div class="pill" style="position:absolute;left:50%;top:1580px;transform:translateX(-50%);font-size:40px;opacity:${ease((t - 1.2) / 0.3)}">EP. ${D.ep} · ${N} rodadas 🔥</div>`;
+  } else if (t >= D.end[0]) {
+    const u = t - D.end[0];
+    h += `<div class="big" style="top:300px;font-size:${128 * pop(u / 0.45)}px">${N} de ${N} <span class="g">✅</span></div>`;
+    h += `<div class="sub" style="top:470px;opacity:${ease((u - 0.2) / 0.3)}">o Resenha <b class="g">aguentou tudo</b></div>`;
+    h += `<img class="st" src="${F('oculos')}" style="width:500px;left:290px;top:${640 + (1 - ease(u / 0.5)) * 200}px;opacity:${ease(u / 0.3)}" />`;
+    h += `<div class="sub" style="top:1190px;font-size:52px;opacity:${ease((u - 0.8) / 0.3)}">qual barulho a gente testa<br/>no <b class="g">EP. ${D.ep + 1}</b>? comenta 👇</div>`;
+    h += `<div class="cta" style="top:1450px;opacity:${ease((u - 1.4) / 0.3)}">grátis · chama a galera 🎧</div>`;
+    h += `<div class="brand" style="opacity:${ease((u - 1.4) / 0.3)}"><span class="ic">${logo}</span>resenhabr.com.br</div>`;
+  } else {
+    const i = D.rounds.findIndex((r) => t < r.stamp[1]);
+    const r = D.rounds[i];
+    if (t < r.title[1]) {
+      const u = t - r.title[0];
+      h += head(i, i);
+      h += tile(0, 'sem');
+      h += `<div class="card" style="opacity:${Math.min(ease(u / 0.15), 1 - ease((u - (r.title[1] - r.title[0]) + 0.18) / 0.18))}"><div class="n">RODADA ${i + 1}</div>
+        <div class="e" style="transform:scale(${pop(u / 0.4)})">${r.emoji}</div><div class="t">${r.name}</div></div>`;
+    } else if (t < r.sem[1]) {
+      const u = t - r.sem[0];
+      const a = lvl(r.envSem, u);
+      b1.style.background = '#ff5d6c';
+      h += head(i, i) + tile(a, 'sem') + `<div class="chip sem" style="transform:translateX(-50%) scale(${pop(u / 0.3)})">🔇 SEM FILTRO</div>`;
+      h += meter(r.envSem, u, '#ff5d6c');
+      h += `<div class="cap" style="opacity:${ease(u / 0.2)}">${r.emoji} ${r.text}</div>`;
+      h += `<img class="st" src="${F('bravo')}" style="width:300px;left:${40 - (1 - ease(u / 0.35)) * 340}px;top:1540px;transform:rotate(-8deg) translateX(${Math.sin(u * 40) * a * 40}px)" />`;
+    } else {
+      // com o filtro (e o carimbo no fim)
+      const u = t - r.com[0];
+      const a = lvl(r.envCom, u);
+      h += head(t >= r.stamp[0] ? i + 1 : i, i) + tile(a, 'com') + `<div class="chip com" style="transform:translateX(-50%) scale(${pop(u / 0.3)})">🎙️ COM O RESENHA</div>`;
+      h += meter(r.envCom, u, '#3ddc97');
+      h += `<div class="cap" style="opacity:${ease(u / 0.2)}">só a <span class="g">voz</span> 🎙️</div>`;
+      h += `<img class="st" src="${F('joinha')}" style="width:300px;right:${40 - (1 - ease(u / 0.35)) * 340}px;top:1540px;transform:rotate(8deg)" />`;
+      if (t >= r.stamp[0]) {
+        const s = t - r.stamp[0];
+        h += `<div class="stamp" style="transform:translate(-50%,-50%) rotate(-8deg) scale(${(2.2 - 1.2 * pop(s / 0.25))});opacity:${ease(s / 0.08)}">AGUENTOU ✅</div>`;
+      }
+    }
+  }
+  v.innerHTML = h;
+};
+window.seek(0);
+await document.fonts.ready;
+window.ready = true;
+</script>
+</body>
+</html>

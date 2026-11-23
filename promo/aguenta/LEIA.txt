@@ -1,0 +1,28 @@
+O RESENHA AGUENTA? — como gravar um episódio
+==============================================
+
+O vídeo só funciona porque é de verdade: o barulho é real e o "COM O RESENHA" é o mesmo trecho passado
+pelo MESMO filtro do app (Forte (IA)). Nada de editar o áudio na mão.
+
+1. GRAVAR (no celular ou no PC, gravador de voz comum)
+   - Uma gravação por barulho, de 8 a 15 segundos.
+   - Fale normal, perto do microfone, como numa call ("bora uma ranked? tô entrando agora...").
+   - O barulho tem que estar ALTO e PERTO: liquidificador ligado do lado, furadeira, alguém gritando
+     "o almoço tá na mesa", cachorro latindo, moto passando, panela caindo...
+   - Comece a falar 1 segundo depois de começar a gravar. Não corte, não aplique filtro do celular.
+   - Salve como gravacoes/liquidificador.m4a (ou .wav/.mp3), furadeira..., mae... (qualquer formato serve).
+
+2. CONFIGURAR: edite ep1.json (nome, emoji, frase de cada rodada e o arquivo). "at" é o segundo da
+   gravação em que começa o melhor trecho de 3 s (barulho alto + você falando).
+
+3. GERAR
+   node promo/aguenta/prep.mjs promo/aguenta/ep1.json
+   node promo/aguenta/render.mjs ep1 --preview 1,5,9     (confere os quadros)
+   node promo/aguenta/render.mjs ep1                      (vídeo final, ~3 min)
+   Saída: promo/out/aguenta/ep1/resenha-aguenta-ep1.mp4 e a capa.
+
+4. POSTAR (TikTok, Reels e Shorts, o mesmo vídeo)
+   - Legenda: "O Resenha aguenta? EP. 1 🔥 qual barulho a gente testa no próximo? 👇"
+   - Música: escolha um áudio em alta no próprio app, em volume BAIXO (o barulho e a voz são o vídeo).
+   - Responda os comentários com sugestões: o EP. 2 sai das ideias da galera (isso faz o vídeo circular).
+   - Não poste a prévia (previa.json): ela reaproveita o áudio do teclado só para mostrar o formato.

@@ -1,0 +1,10 @@
+{
+  "ep": 1,
+  "speaker": "Henrique",
+  "_como": "Cada rodada: 'file' = gravação crua (o prep passa pelo filtro Forte (IA) do app) OU 'antes'+'depois' já prontos. 'at' = segundo da gravação em que começa o trecho de 3 s.",
+  "rounds": [
+    { "name": "Liquidificador", "emoji": "🥤", "sem": "liquidificador ligado do lado do mic…", "file": "gravacoes/liquidificador.wav", "at": 1.0 },
+    { "name": "Furadeira do vizinho", "emoji": "🔨", "sem": "o vizinho resolveu furar a parede…", "file": "gravacoes/furadeira.wav", "at": 1.0 },
+    { "name": "Mãe chamando pro almoço", "emoji": "🍽️", "sem": "\"O ALMOÇO TÁ NA MESAAA!\"", "file": "gravacoes/mae.wav", "at": 1.0 }
+  ]
+}
