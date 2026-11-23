@@ -132,7 +132,8 @@ try {
   await pe.getByRole('button', { name: 'Confirmar', exact: true }).click();
   await pe.getByText('Selo entregue para @ana').waitFor();
   await pe.getByText('Apoiadores: 1 de 10').waitFor();
-  await pe.getByText('R$ 10 de R$ 100').waitFor();
+  await pe.locator('.apoio-goal-row', { hasText: 'Valor anotado' }).getByText('R$ 10 de R$ 100').waitFor();
+  await pe.locator('.apoio-goal-row', { hasText: 'Este mês' }).getByText('R$ 10 de R$ 100').waitFor(); // meta do mês (todos veem o total)
   await pe.screenshot({ path: path.join(shots, 'apoio-painel.png') });
   await pa.getByText('Seu selo e seus anéis de Fundador chegaram!').waitFor({ timeout: 5000 });
   await dlg.getByText('Obrigado de verdade!').waitFor();

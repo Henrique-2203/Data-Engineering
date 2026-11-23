@@ -1,6 +1,7 @@
 import type { Socket } from 'socket.io-client';
 import type { PublicUser, RtcSignal } from '../../../shared/types';
 import { api } from '../lib/api';
+import { countCallJoined } from '../lib/apoioCard';
 import { playSound } from '../lib/sounds';
 import { getSocket, onSocketReady } from '../lib/socket';
 import { findChannel, findMember, selectChannel, toast, useApp } from '../store/app';
@@ -275,6 +276,7 @@ class VoiceEngine {
       if (getV().channelId !== channelId) return; // saiu enquanto conectava
 
       setV({ status: 'connected' });
+      countCallJoined();
       startHealthSampler();
       together.sync();
       callChat.sync();

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Copy, Heart } from 'lucide-react';
+import { Copy, Heart, X } from 'lucide-react';
+import { useVoice } from '../store/voice';
+import { callsJoined } from '../lib/apoioCard';
 import { api } from '../lib/api';
 import { openModal, toast, useApp } from '../store/app';
 import { Modal } from './Modals';
@@ -8,11 +10,14 @@ import type { FounderRing } from '../../../shared/types';
 
 /**
  * "Apoie o Resenha": apoio voluntário por Pix até a data limite, em troca do selo "Apoiador Fundador"
- * (e mais nada). Ninguém além da equipe vê valores. Ver server/src/apoio.ts.
+ * (e mais nada). Nomes e o valor de cada pessoa só a equipe vê; o total do mês aparece numa barra de meta.
+ * O card "depois de gostar" (ApoioCard) só aparece para quem já usa o Resenha, uma vez por mês. Ver server/src/apoio.ts.
  */
 type Status = 'none' | 'pending' | 'confirmed' | 'rejected';
 interface ApoioState {
   open: boolean;
+  card?: boolean;
+  monthly?: { cents: number; goalCents: number } | null;
   deadline: string;
   minCents: number;
   me: { code: string; status: Status; showBadge: boolean; ring: FounderRing | 'none' | null } | null;
@@ -33,6 +38,70 @@ const copy = (text: string, what: string) =>
     () => toast(`${what} copiado!`),
     () => toast('Não deu para copiar. Selecione e copie manualmente.'),
   );
+
+const monthName = () => new Date().toLocaleDateString('pt-BR', { month: 'long', timeZone: 'America/Sao_Paulo' });
+
+/** barra da meta do mês: só o total (sem nomes nem valores de cada pessoa) */
+export function MonthlyGoal({ cents, goalCents }: { cents: number; goalCents: number }) {
+  const pct = Math.min(100, Math.round((cents / Math.max(1, goalCents)) * 100));
+  return (
+    <div className="apoio-month" role="group" aria-label="Meta do mês">
+      <div className="apoio-month-top">
+        <span>
+          Meta de {monthName()}: <strong>{brl(cents)}</strong> de {brl(goalCents)}
+        </span>
+        <b>{pct}%</b>
+      </div>
+      <div className="apoio-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={`${pct}% da meta do mês`}>
+        <i style={{ width: `${pct}%` }} />
+      </div>
+      <span className="muted small">É o custo dos servidores no mês. Mostramos só o total, nunca quem apoiou nem quanto.</span>
+    </div>
+  );
+}
+
+/**
+ * Card "depois de gostar": aparece sozinho só para quem já usa o Resenha de verdade (o servidor decide),
+ * no máximo uma vez por mês, e some de vez ao fechar. Nunca no primeiro dia, nunca em cima de uma call.
+ */
+export function ApoioCard() {
+  const [st, setSt] = useState<ApoioState | null>(null);
+  const inCall = useVoice((s) => s.status !== 'idle');
+  useEffect(() => {
+    // espera a pessoa usar um pouco antes de perguntar
+    const t = setTimeout(() => void api<ApoioState>(`/apoio?calls=${callsJoined()}`).then((r) => r.card && setSt(r), () => {}), 45_000);
+    return () => clearTimeout(t);
+  }, []);
+  if (!st || inCall) return null;
+  const seen = () => {
+    setSt(null);
+    void api('/apoio/card-seen', { body: {} }).catch(() => {});
+  };
+  return (
+    <aside className="apoio-card" role="dialog" aria-label="Apoie o Resenha">
+      <button className="apoio-card-x" aria-label="Fechar" onClick={seen}>
+        <X size={16} />
+      </button>
+      <p className="apoio-card-title">Curtindo o Resenha? 💚</p>
+      <p className="apoio-card-text">Ele é grátis e vai continuar grátis. Quem mantém os servidores no ar é a própria galera.</p>
+      {st.monthly && <MonthlyGoal {...st.monthly} />}
+      <div className="apoio-card-btns">
+        <button
+          className="btn primary"
+          onClick={() => {
+            seen();
+            openModal({ kind: 'apoio' });
+          }}
+        >
+          Quero apoiar
+        </button>
+        <button className="btn ghost" onClick={seen}>
+          Agora não
+        </button>
+      </div>
+    </aside>
+  );
+}
 
 /** o selo (leve: só texto e cor, sem imagem nem animação) */
 export function FounderBadge({ small }: { small?: boolean }) {
@@ -155,6 +224,8 @@ export function ApoioModal() {
               </p>
             </div>
 
+            {st.monthly && <MonthlyGoal {...st.monthly} />}
+
             <div className="apoio-reward">
               <div>
                 <strong>Quem apoiar até {dayMonth(st.deadline)} ganha</strong>
@@ -196,7 +267,7 @@ export function ApoioModal() {
                     </div>
                   </label>
                   <p className="muted small">
-                    Quem recebe: <strong>{st.pix.receiver}</strong>. Como em qualquer Pix, seu nome aparece para quem recebe. Só a equipe do Resenha vê os apoios; ninguém mais vê quem deu nem quanto.
+                    Quem recebe: <strong>{st.pix.receiver}</strong>. Como em qualquer Pix, seu nome aparece para quem recebe. Só a equipe do Resenha vê quem apoiou e quanto cada um deu; para todo mundo aparece só o total do mês.
                   </p>
                 </div>
               </div>
@@ -251,6 +322,8 @@ interface Settings {
   minCents: number;
   goalSupporters: number;
   goalCents: number;
+  monthlyGoalCents: number;
+  showMonthly: boolean;
 }
 interface Supporter {
   userId: string;
@@ -271,7 +344,7 @@ const toCents = (v: string) => {
 };
 
 export function ApoioAdmin() {
-  const [data, setData] = useState<{ settings: Settings; open: boolean; supporters: Supporter[]; totals: { confirmed: number; pending: number; cents: number } } | null>(null);
+  const [data, setData] = useState<{ settings: Settings; open: boolean; supporters: Supporter[]; totals: { confirmed: number; pending: number; cents: number; monthCents: number } } | null>(null);
   const [form, setForm] = useState<Settings | null>(null);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const pending = useApp((s) => s.pendingApoio);
@@ -310,7 +383,7 @@ export function ApoioAdmin() {
   return (
     <div className="apoio-admin">
       <section className="apoio-goal">
-        <h3>Meta (só a equipe vê)</h3>
+        <h3>Metas</h3>
         {[
           ['Apoiadores', t.confirmed, goal.goalSupporters, String(t.confirmed)],
           ['Valor anotado', t.cents, goal.goalCents, brl(t.cents)],
@@ -324,6 +397,15 @@ export function ApoioAdmin() {
             </div>
           </div>
         ))}
+        <div className="apoio-goal-row">
+          <span>
+            Este mês (todos veem, sem nomes): <strong>{brl(t.monthCents)}</strong> de {brl(goal.monthlyGoalCents ?? 10_000)}
+            {!goal.showMonthly && ' · barra escondida'}
+          </span>
+          <div className="apoio-bar">
+            <i style={{ width: `${Math.min(100, (t.monthCents / Math.max(1, goal.monthlyGoalCents ?? 10_000)) * 100)}%` }} />
+          </div>
+        </div>
         <p className="muted small">
           {data.open ? `Aberto até ${dayMonth(goal.deadline)} (23:59).` : goal.enabled ? 'Ligado, mas fechado (data passou ou falta preencher algo).' : 'Desligado: ninguém vê o botão de apoio.'} Deu certo se chegar a {goal.goalSupporters} apoiadores ou {brl(goal.goalCents)}.
         </p>
@@ -385,7 +467,7 @@ export function ApoioAdmin() {
             ))}
           </div>
         )}
-        <p className="muted small">Confira cada Pix no extrato do banco (procure o código RSN-… na mensagem ou no identificador). O valor é opcional e só serve para a sua meta.</p>
+        <p className="muted small">Confira cada Pix no extrato do banco (procure o código RSN-… na mensagem ou no identificador). Anote o valor ao confirmar: é ele que entra na barra da meta do mês que todo mundo vê.</p>
       </section>
 
       <section className="apoio-settings">
@@ -423,7 +505,14 @@ export function ApoioAdmin() {
             Meta em R$
             <input inputMode="decimal" value={String(form.goalCents / 100).replace('.', ',')} onChange={(e) => set('goalCents', toCents(e.target.value) ?? form.goalCents)} />
           </label>
+          <label>
+            Meta do mês, que todos veem (R$)
+            <input inputMode="decimal" value={String((form.monthlyGoalCents ?? 10_000) / 100).replace('.', ',')} onChange={(e) => set('monthlyGoalCents', toCents(e.target.value) ?? form.monthlyGoalCents)} />
+          </label>
         </div>
+        <label className="check">
+          <input type="checkbox" checked={form.showMonthly ?? true} onChange={(e) => set('showMonthly', e.target.checked)} /> Mostrar para todos a barra com o total do mês (sem nomes nem valores de cada pessoa)
+        </label>
         <button className="btn primary" onClick={() => void save()}>
           Salvar
         </button>

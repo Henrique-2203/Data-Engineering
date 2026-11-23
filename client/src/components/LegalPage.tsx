@@ -375,7 +375,7 @@ function Terms({ contact }: { contact: ReactNode }) {
         <li>
           <strong>Apoio voluntário:</strong> você pode apoiar o Resenha com um Pix, por vontade própria, para ajudar a pagar os servidores. O apoio
           não libera nenhuma função; quem apoia durante a campanha de fundadores ganha só enfeites: o selo "Apoiador Fundador" e os anéis de Fundador para a foto,
-          oferecidos apenas até a data informada na tela de apoio e que nunca vão ser vendidos. Fez por engano? Fale com o Suporte em até 7 dias que devolvemos.
+          oferecidos apenas até a data informada na tela de apoio e que nunca vão ser vendidos. Quem apoiou e quanto cada pessoa deu fica só com a equipe; o que aparece para todos é apenas o <strong>total arrecadado no mês</strong>, numa barra de meta. Fez por engano? Fale com o Suporte em até 7 dias que devolvemos.
         </li>
         <li>
           No futuro poderemos oferecer itens visuais <strong>novos</strong>, criados pelo Resenha e opcionais (como efeitos animados). Eles nunca

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { findChannel, markRead, useApp } from '../store/app';
 import { ServerRail } from './ServerRail';
+import { ApoioCard } from './Apoio';
 import { ChannelSidebar } from './ChannelSidebar';
 import { ChatView } from './ChatView';
 import { VoiceStage } from './VoiceStage';
@@ -79,6 +80,7 @@ export function Layout({ onLogout }: { onLogout(): void }) {
       <UpdateNotice />
       <ChangelogWatcher />
       <CallUserMenuHost />
+      <ApoioCard />
       <Modals onLogout={onLogout} />
       {!connected && (
         <div className="offline-bar">

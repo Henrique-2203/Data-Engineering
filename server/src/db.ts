@@ -509,6 +509,8 @@ alter table channels add column if not exists announce boolean not null default 
 alter table guilds add column if not exists rules text not null default '';
 alter table guilds add column if not exists rules_required boolean not null default false;
 alter table members add column if not exists rules_accepted_at timestamptz;
+-- v45: card de apoio (no máximo um por mês para cada pessoa)
+alter table users add column if not exists apoio_card_month text;
 -- v43: "Apoie o Resenha" (apoio voluntário por Pix; selo de Apoiador Fundador)
 create table if not exists supporters (
   user_id text primary key references users(id) on delete cascade,
