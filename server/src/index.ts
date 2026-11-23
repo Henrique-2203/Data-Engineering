@@ -13,6 +13,7 @@ import { securityHeaders } from './security.ts';
 import { sameOriginOnly } from './auth.ts';
 import { startStorageJobs } from './storage.ts';
 import { startBackups } from './backup.ts';
+import { trustProxy } from './proxy.ts';
 
 const db = await createDb();
 const app = express();
@@ -23,7 +24,7 @@ startCapacityAlerts(db, rt);
 startStorageJobs(db);
 startBackups(db);
 
-app.set('trust proxy', 1);
+app.set('trust proxy', trustProxy);
 app.disable('x-powered-by');
 app.use(securityHeaders);
 // Respostas da API compactadas (JSON de mensagens, membros, servidores...): bem menos internet gasta no Render.
