@@ -20,6 +20,15 @@ export interface RemoteMedia {
   v: number;
 }
 
+/** idle: nada · waiting: QR Code na tela · connecting: celular leu o QR · connected: no ar · ended: acabou (motivo em `error`) */
+export interface PhoneCamState {
+  status: 'idle' | 'waiting' | 'connecting' | 'connected' | 'ended';
+  url?: string;
+  qrSvg?: string;
+  expiresAt?: number;
+  error?: string;
+}
+
 export interface VoiceStore {
   status: 'idle' | 'connecting' | 'connected';
   guildId: string | null;
@@ -50,6 +59,10 @@ export interface VoiceStore {
   noiseActive: NoiseMode | null;
   noMic: boolean;
   localCamera: MediaStream | null;
+  /** de onde vem a minha câmera: do computador ou do celular (QR Code; em teste) */
+  camSource: 'pc' | 'phone';
+  /** pareamento da câmera do celular */
+  phoneCam: PhoneCamState;
   localScreen: MediaStream | null;
   remotes: Record<string, RemoteMedia>; // socketId -> mídia
   speaking: Record<string, boolean>; // 'me' | socketId
@@ -89,6 +102,8 @@ export const useVoice = create<VoiceStore>(() => ({
   callChat: [],
   noMic: false,
   localCamera: null,
+  camSource: 'pc',
+  phoneCam: { status: 'idle' },
   localScreen: null,
   remotes: {},
   speaking: {},

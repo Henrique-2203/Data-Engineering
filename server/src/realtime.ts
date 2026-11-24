@@ -12,6 +12,7 @@ import { audit } from './audit.ts';
 import { randomUUID } from 'node:crypto';
 import type { PublicUser, RtcSignal, VoiceState, Activity, TogetherState, CallChatMessage, ScreenAudience } from '../../shared/types.ts';
 import { checkAutomod } from './community.ts';
+import { PhoneCamHub } from './phoneCam.ts';
 import { HttpError } from './http.ts';
 import { limit } from './security.ts';
 
@@ -58,6 +59,8 @@ export class Realtime {
   private dmMembers = new Map<string, string[]>();
   /** canais de voz privados de servidor: quem pode ver (null/ausente = todos do servidor) */
   private voiceAudience = new Map<string, string[] | null>();
+  /** câmera do celular como câmera do computador (recurso em teste) */
+  private phoneCam!: PhoneCamHub;
   /** chamadas tocando: canal da DM -> quem ligou, quem recebe e o tempo limite */
   private rings = new Map<string, { caller: PublicUser; callerSocket: string; callee: string; timer: ReturnType<typeof setTimeout> }>();
 
@@ -81,6 +84,7 @@ export class Realtime {
       pingTimeout: 20000,
     });
 
+    this.phoneCam = new PhoneCamHub(this.io, this.db, (sid) => this.voice.has(sid));
     this.io.use(async (socket, next) => {
       try {
         // o site entra pelo cookie protegido; clientes sem navegador mandam o token
@@ -214,6 +218,7 @@ export class Realtime {
   private async onConnection(socket: Socket) {
     const user = socket.data.user as PublicUser;
     socket.join(`user:${user.id}`);
+    this.phoneCam.attach(socket, user);
 
     const rows = await this.db.query<{ guild_id: string }>(
       'select guild_id from members where user_id = $1',
@@ -424,6 +429,7 @@ export class Realtime {
       // servidor desligando para atualizar: NÃO avisa que todo mundo saiu da call (os apps mantêm a
       // voz, que é direta entre os aparelhos, e voltam sozinhos para o servidor novo)
       if (this.shuttingDown) return;
+      this.phoneCam.end(socket.id, 'closed');
       this.leaveVoice(socket.id);
       this.setActive(user.id, socket.id, false);
       const left = (this.online.get(user.id) ?? 1) - 1;
@@ -639,6 +645,7 @@ export class Realtime {
   }
 
   private leaveVoice(socketId: string) {
+    this.phoneCam.end(socketId, 'left-call'); // saiu da call: a câmera do celular desliga junto
     const state = this.voice.get(socketId);
     if (!state) return;
     this.voice.delete(socketId);

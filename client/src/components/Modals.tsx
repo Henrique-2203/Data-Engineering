@@ -40,6 +40,7 @@ import { SupportModal } from './Support';
 import { CallReportModal } from './CallReport';
 import { ChangelogModal } from './Changelog';
 import { ScreenShareModal } from './ScreenShareModal';
+import { CameraModal } from './PhoneCam';
 import { ChatWallpaperModal } from './AppearanceSettings';
 import { slowLabel } from './AuditLog';
 
@@ -79,6 +80,8 @@ export function Modals({ onLogout }: { onLogout(): void }) {
       return <AddEmailPrompt />;
     case 'screenShare':
       return <ScreenShareModal />;
+    case 'camera':
+      return <CameraModal />;
     case 'wallpaper':
       return <ChatWallpaperModal channelId={modal.channelId} />;
     case 'image':

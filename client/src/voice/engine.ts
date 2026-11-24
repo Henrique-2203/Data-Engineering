@@ -8,6 +8,7 @@ import { getSocket, onSocketReady } from '../lib/socket';
 import { findChannel, findMember, selectChannel, toast, useApp } from '../store/app';
 import { updateSettings, useVoice, type MediaKind, type RemoteMedia } from '../store/voice';
 import { Peer, type SenderSlot } from './peer';
+import { PhoneLink } from './phonecam';
 import { preferCodec } from './sdp';
 import { labOn } from '../lib/lab';
 import { CODECS, type NoiseMode, effectiveBitrate, screenCodecFor, screenPresetFor } from './settings';
@@ -136,6 +137,7 @@ class VoiceEngine {
     if (this.boundSockets.has(socket)) return;
     this.boundSockets.add(socket);
 
+    this.bindPhoneCam(socket);
     socket.on('voice:peer-joined', ({ socketId, userId }: { socketId: string; userId: string }) => {
       this.dbg(`peer-joined ${socketId} status=${getV().status}`);
       if (getV().status === 'idle') return;
@@ -316,6 +318,7 @@ class VoiceEngine {
     this.bgAndroid = null;
     setV({ noiseActive: null });
     this.camTrack?.stop();
+    this.closePhoneLink(false);
     if (this.screenStream) desktop?.setStreaming?.(false);
     this.stopTurbo();
     for (const r of this.turboRecv.values()) r.close();
@@ -341,6 +344,8 @@ class VoiceEngine {
       screen: false,
       noMic: false,
       localCamera: null,
+      camSource: 'pc',
+      phoneCam: { status: 'idle' },
       localScreen: null,
       remotes: {},
       speaking: {},
@@ -775,8 +780,9 @@ class VoiceEngine {
     if (this.camTrack) {
       this.camTrack.stop();
       this.camTrack = null;
+      this.closePhoneLink(true);
       for (const p of this.peers.values()) await p.setTrack('camera', null, this.msid.camera);
-      setV({ camera: false, localCamera: null });
+      setV({ camera: false, localCamera: null, camSource: 'pc' });
       getSocket()?.emit('voice:update', { camera: false });
       return;
     }
@@ -789,12 +795,96 @@ class VoiceEngine {
         if (this.camTrack) void this.toggleCamera();
       };
       for (const p of this.peers.values()) await this.addCamera(p);
-      setV({ camera: true, localCamera: stream });
+      setV({ camera: true, localCamera: stream, camSource: 'pc' });
       getSocket()?.emit('voice:update', { camera: true });
     } catch (err) {
       console.warn(err);
       toast('Não foi possível acessar a câmera.');
     }
+  }
+
+  // ---------------- câmera do celular (QR Code; em teste) ----------------
+
+  private phoneLink: PhoneLink | null = null;
+
+  /** Pede o QR Code ao servidor (precisa estar numa call). O resto acontece pelos eventos phonecam:*. */
+  async phoneCamStart() {
+    const socket = getSocket();
+    if (!socket) return;
+    this.closePhoneLink(true);
+    if (this.camTrack) await this.toggleCamera(); // troca a câmera do computador pela do celular
+    setV({ phoneCam: { status: 'waiting' } });
+    const res = await new Promise<{ ok: boolean; url?: string; qrSvg?: string; expiresInSec?: number; error?: string }>((resolve) => {
+      const t = setTimeout(() => resolve({ ok: false, error: 'O servidor não respondeu. Tente de novo.' }), 8000);
+      socket.emit('phonecam:create', {}, (r: any) => {
+        clearTimeout(t);
+        resolve(r ?? { ok: false });
+      });
+    });
+    if (!res.ok || !res.url || !res.qrSvg) setV({ phoneCam: { status: 'ended', error: res.error ?? 'Não foi possível gerar o QR Code.' } });
+    else setV({ phoneCam: { status: 'waiting', url: res.url, qrSvg: res.qrSvg, expiresAt: Date.now() + (res.expiresInSec ?? 120) * 1000 } });
+  }
+
+  /** Fecha a ligação com o celular. `tell`: avisa o servidor (e o celular) que acabou. */
+  private closePhoneLink(tell: boolean) {
+    const had = !!this.phoneLink || getV().phoneCam.status !== 'idle';
+    this.phoneLink?.close();
+    this.phoneLink = null;
+    if (tell && had) getSocket()?.emit('phonecam:stop');
+    if (had) setV({ phoneCam: { status: 'idle' } });
+  }
+
+  /** Cancelar o QR Code (ou desligar a câmera do celular). */
+  phoneCamCancel() {
+    if (getV().camSource === 'phone' && this.camTrack) void this.toggleCamera();
+    else this.closePhoneLink(true);
+  }
+
+  /** A imagem do celular chegou: vira a minha câmera na call. */
+  private async useCameraStream(stream: MediaStream) {
+    const track = stream.getVideoTracks()[0];
+    if (!track || (this.camTrack === track && getV().camera)) return;
+    this.camTrack = track;
+    for (const p of this.peers.values()) await this.addCamera(p);
+    setV({ camera: true, localCamera: stream, camSource: 'phone', phoneCam: { status: 'connected' } });
+    getSocket()?.emit('voice:update', { camera: true });
+  }
+
+  private bindPhoneCam(socket: Socket) {
+    // o celular leu o QR Code: prepara a ligação (o celular manda a oferta)
+    socket.on('phonecam:paired', ({ phone }: { phone: string }) => {
+      this.phoneLink?.close();
+      setV({ phoneCam: { status: 'connecting' } });
+      this.phoneLink = new PhoneLink(socket, phone, this.iceServers ?? [], {
+        onStream: (stream) => void this.useCameraStream(stream),
+        onState: (st) => {
+          if (st === 'failed') this.phoneCamEnded('A conexão com o celular falhou. Gere um QR Code novo.');
+        },
+      });
+    });
+    socket.on('phonecam:signal', ({ from, data }: { from: string; data: RtcSignal }) => {
+      if (this.phoneLink && this.phoneLink.to === from) void this.phoneLink.handle(data).catch((err) => console.warn('[phonecam]', err));
+    });
+    socket.on('phonecam:ended', ({ reason }: { reason: string }) => {
+      if (reason === 'replaced') return;
+      this.phoneCamEnded(reason === 'stopped' || reason === 'closed' ? 'A câmera do celular foi desligada.' : undefined);
+    });
+  }
+
+  /** o celular parou, caiu ou falhou: a câmera do celular some da call */
+  private phoneCamEnded(message?: string) {
+    const wasLive = getV().camSource === 'phone' && !!this.camTrack;
+    this.phoneLink?.close();
+    this.phoneLink = null;
+    if (wasLive) {
+      this.camTrack?.stop();
+      this.camTrack = null;
+      for (const p of this.peers.values()) void p.setTrack('camera', null, this.msid.camera);
+      setV({ camera: false, localCamera: null, camSource: 'pc' });
+      getSocket()?.emit('voice:update', { camera: false });
+    }
+    setV({ phoneCam: message ? { status: 'ended', error: message } : { status: 'idle' } });
+    if (wasLive && message) toast(message);
   }
 
   private async addCamera(peer: Peer) {

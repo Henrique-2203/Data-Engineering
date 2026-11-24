@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { PhoneCamera } from './components/PhoneCam';
 import type { DmChannel, Friend, Guild, PublicUser } from '../../shared/types';
 import { api, hasSession, markSession, migrateLegacySession, setUnauthorizedHandler } from './lib/api';
 import { connectSocket, disconnectSocket } from './lib/socket';
@@ -40,6 +41,9 @@ function takeChannelFromUrl(): string | null {
   return id;
 }
 const pendingChannel = { id: takeChannelFromUrl() };
+/** /app?camera=TOKEN: veio do QR Code da câmera do celular (em teste) */
+const pendingCamera = { token: new URLSearchParams(location.search).get('camera') };
+if (pendingCamera.token) history.replaceState(null, '', location.pathname);
 const pendingSupport = { open: new URLSearchParams(location.search).has('suporte') };
 if (pendingSupport.open) history.replaceState(null, '', location.pathname);
 
@@ -68,6 +72,7 @@ export function App() {
 
 function MainApp() {
   const me = useApp((s) => s.me);
+  const [camToken, setCamToken] = useState(pendingCamera.token);
   const [booting, setBooting] = useState(hasSession());
   const [bootError, setBootError] = useState<string | null>(null);
 
@@ -226,5 +231,16 @@ function MainApp() {
     );
   }
 
+  if (camToken) {
+    return (
+      <PhoneCamera
+        token={camToken}
+        onExit={() => {
+          pendingCamera.token = null;
+          setCamToken(null);
+        }}
+      />
+    );
+  }
   return <Layout onLogout={logout} />;
 }

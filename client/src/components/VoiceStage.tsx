@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useCameraButton } from './PhoneCam';
 import {
   Eye,
   EyeOff,
@@ -418,6 +419,7 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
     );
   }
 
+  const camSource = useVoice((s) => s.camSource);
   const camStream = tile.isMe ? localCamera : remote?.camera;
   const showCam = tile.state.camera && camStream && camStream.getVideoTracks().length > 0;
   const connecting = !tile.isMe && remote && remote.connection !== 'connected' && remote.connection !== 'new';
@@ -433,7 +435,7 @@ function TileView({ tile, big }: { tile: Tile; big?: boolean }) {
     >
       {!showCam && <CallBannerBackground banner={user?.callBanner} pos={user?.callBannerPos} />}
       {showCam ? (
-        <VideoEl stream={camStream!} version={remote?.v} mirror={tile.isMe} />
+        <VideoEl stream={camStream!} version={remote?.v} mirror={tile.isMe && camSource === 'pc'} />
       ) : (
         <div className="tile-center">
           <Avatar user={user} size={big ? 96 : 64} />
@@ -956,6 +958,7 @@ function VoiceControls() {
   const muted = useVoice((s) => s.muted);
   const deafened = useVoice((s) => s.deafened);
   const camera = useVoice((s) => s.camera);
+  const onCameraClick = useCameraButton();
   const screen = useVoice((s) => s.screen);
   const shareSupported = canShareScreen();
   const streamAllowed = useApp((s) => {
@@ -974,7 +977,7 @@ function VoiceControls() {
       <button className={`round-btn${deafened ? ' off' : ''}`} aria-label={deafened ? 'Ativar áudio' : 'Desativar áudio'} title={deafened ? 'Ativar áudio' : 'Desativar áudio'} onClick={() => voice.setDeafened(!deafened)}>
         {deafened ? <HeadphoneOff /> : <Headphones />}
       </button>
-      <button className={`round-btn${camera ? ' on' : ''}`} aria-label={camera ? 'Desligar câmera' : 'Ligar câmera'} title={camera ? 'Desligar câmera' : 'Ligar câmera'} onClick={() => void voice.toggleCamera()}>
+      <button className={`round-btn${camera ? ' on' : ''}`} aria-label={camera ? 'Desligar câmera' : 'Ligar câmera'} title={camera ? 'Desligar câmera' : 'Ligar câmera'} onClick={onCameraClick}>
         {camera ? <Video /> : <VideoOff />}
       </button>
       <button

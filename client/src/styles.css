@@ -9329,3 +9329,21 @@ body.dm-call-full .chat .voice-stage.embedded .stage > .tiles {
   display: flex;
   flex-direction: column;
 }
+
+/* ---------- câmera do celular (QR Code) ---------- */
+.cam-choose, .cam-phone { display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+.cam-option { display: flex; gap: 14px; align-items: center; text-align: left; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg-2); color: inherit; font: inherit; cursor: pointer; }
+.cam-option:hover, .cam-option:focus-visible { border-color: var(--accent); }
+.cam-option > span { display: flex; flex-direction: column; gap: 2px; }
+.cam-steps { margin: 0; padding-left: 20px; line-height: 1.6; }
+.cam-qr { align-self: center; }
+.cam-qr.expired { opacity: 0.2; }
+.cam-ok { font-weight: 800; color: var(--accent); margin: 0; }
+.cam-phone a { word-break: break-all; }
+.phonecam { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); background: var(--bg-1, #0f1115); color: var(--text, #fff); }
+.phonecam header { display: flex; align-items: center; gap: 10px; font-size: 18px; }
+.phonecam-video { width: 100%; max-width: 520px; max-height: 68dvh; object-fit: cover; border-radius: 16px; background: #000; }
+.phonecam-video.mirror { transform: scaleX(-1); }
+.phonecam-status { margin: 0; font-weight: 700; text-align: center; }
+.phonecam-status.ok { color: var(--accent); }
+.phonecam-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }

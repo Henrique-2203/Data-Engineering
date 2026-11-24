@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useCameraButton } from './PhoneCam';
 import { EventsButton } from './Community';
 import {
   UserPen,
@@ -492,6 +493,7 @@ function VoicePanel() {
   const status = useVoice((s) => s.status);
   const channelId = useVoice((s) => s.channelId);
   const camera = useVoice((s) => s.camera);
+  const onCameraClick = useCameraButton();
   const screen = useVoice((s) => s.screen);
   const streamAllowed = useApp((s) => {
     const gid = channelId ? findChannel(channelId)?.guildId : null;
@@ -521,7 +523,7 @@ function VoicePanel() {
         </button>
       </div>
       <div className="voice-panel-actions">
-        <button className={`btn small${camera ? ' on' : ''}`} onClick={() => void voice.toggleCamera()}>
+        <button className={`btn small${camera ? ' on' : ''}`} onClick={onCameraClick}>
           {camera ? <VideoOff size={16} /> : <Video size={16} />} Câmera
         </button>
         {canShareScreen() && (streamAllowed || screen) && (
