@@ -214,6 +214,8 @@ export interface TogetherState {
   /** quem colocou o vídeo atual */
   by: string;
   queue: { videoId: string; title: string | null; by: string }[];
+  /** tocando pelo Resenha Bot (DJ): aparece como participante da call, só o áudio, e cada um silencia para si */
+  dj?: boolean;
   /** votação para pular o vídeo atual (só aparece enquanto há votos) */
   skip?: { votes: number; needed: number } | null;
 }

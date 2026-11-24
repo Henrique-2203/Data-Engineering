@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Captions, CaptionsOff, ListPlus, Maximize2, Minimize2, Pause, Play, Settings, SkipForward, Square, Trash2, Tv, Volume2, VolumeX, X } from 'lucide-react';
+import { Bot, Captions, CaptionsOff, ListPlus, Maximize2, Minimize2, Pause, Play, Settings, SkipForward, Square, Trash2, Tv, Volume2, VolumeX, X } from 'lucide-react';
 import type { TogetherState } from '../../../shared/types';
 import { parseEmbedUrl } from '../../../shared/embedUrl';
 import { findMember, toast, useApp } from '../store/app';
@@ -99,7 +99,18 @@ export function TogetherTile({ big }: { big?: boolean }) {
   }, [native]);
   const [, redraw] = useState(0);
   const [volume, setVolume] = useState(() => Number(pref('resenha.togetherVolume') ?? 80));
-  const [muted, setMuted] = useState(false);
+  // DJ do bot: lembra se a pessoa silenciou a música (vale para as próximas) e silencia sozinho quando ela ensurdece na call
+  const dj = !!state.dj;
+  const deafened = useVoice((s) => s.deafened);
+  const [mutedPref, setMutedPref] = useState(() => dj && pref('resenha.djMuted') === '1');
+  const muted = mutedPref || (dj && deafened);
+  const setMuted = (fn: (m: boolean) => boolean) => {
+    setMutedPref((m) => {
+      const next = fn(m);
+      if (dj) savePref('resenha.djMuted', next ? '1' : '0');
+      return next;
+    });
+  };
   const [showQueue, setShowQueue] = useState(false);
   // barras somem sozinhas depois de 3 s sem mexer o mouse (continuam com o vídeo pausado)
   const [awake, setAwake] = useState(true);
@@ -322,6 +333,51 @@ export function TogetherTile({ big }: { big?: boolean }) {
       )}
     </button>
   );
+
+  // ---------- DJ do bot: só a música, como um participante da call ----------
+  if (dj) {
+    return (
+      <div className="tile together dj" aria-label="Resenha Bot tocando música">
+        <iframe
+          key="dj"
+          ref={frame}
+          title={state.title ?? 'Música'}
+          src={src}
+          allow="autoplay; encrypted-media"
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+        <div className="dj-top">
+          <span className="dj-badge">
+            <Bot size={13} /> Resenha Bot · DJ
+          </span>
+          <button className="icon-btn overlay" aria-label="Fechar a música só para mim" title="Fechar só para mim (a música continua para os outros; volta pelo botão da TV)" onClick={() => together.hide()}>
+            <X size={15} />
+          </button>
+        </div>
+        <div className="dj-bar">
+          <div className="dj-title">
+            <strong className="ellipsis">🎵 {state.title ?? 'Música do YouTube'}</strong>
+            <span className="muted small ellipsis">pedido por {by}</span>
+          </div>
+          <div className="dj-actions">
+            <button
+              className={`icon-btn overlay${muted ? ' active' : ''}`}
+              aria-label={muted ? 'Ativar a música (só para você)' : 'Silenciar a música (só para você)'}
+              aria-pressed={muted}
+              title={deafened && !mutedPref ? 'Você está com o áudio da call desativado' : muted ? 'Ativar a música (só para você)' : 'Silenciar a música (só para você)'}
+              onClick={() => setMuted((m) => !m)}
+            >
+              {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+            <input type="range" className="together-volume" min={0} max={100} value={volume} aria-label="Volume da música (só para você)" onChange={(e) => setVolume(Number(e.target.value))} />
+            {nextBtn}
+            {queueBtn}
+          </div>
+        </div>
+        {showQueue && <TogetherQueue state={state} />}
+      </div>
+    );
+  }
 
   return (
     <div

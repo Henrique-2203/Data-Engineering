@@ -9365,3 +9365,13 @@ body.dm-call-full .chat .voice-stage.embedded .stage > .tiles {
 .bot-commands { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .bot-commands code { font-family: ui-monospace, monospace; }
 .member-text .bot-tag { align-self: flex-start; margin: 2px 0 0; }
+
+/* ---------- DJ do Resenha Bot: só a música, como um participante da call ---------- */
+.tile.together.dj { min-width: 200px; min-height: 200px; background: radial-gradient(circle at 50% 35%, #12302a, #0b0d12); }
+.tile.together.dj iframe { opacity: 0.95; }
+.dj-top { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; align-items: center; justify-content: space-between; z-index: 1; }
+.dj-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 800; }
+.dj-bar { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(0, 0, 0, 0.68); color: #fff; z-index: 1; }
+.dj-title { display: flex; flex-direction: column; min-width: 0; }
+.dj-actions { display: flex; align-items: center; gap: 8px; }
+.dj-actions .together-volume { flex: 1; min-width: 40px; }

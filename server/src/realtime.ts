@@ -679,7 +679,7 @@ export class Realtime {
   dj(userId: string, guildId: string, payload: unknown): { ok: boolean; error?: string; skipped?: boolean; votes?: number; needed?: number; state?: TogetherState | null } {
     const v = this.voiceOfUser(userId).find((s) => s.guildId === guildId);
     if (!v) return { ok: false, error: 'Entre num canal de voz deste servidor para usar o DJ.' };
-    const r = this.applyTogether(v.channelId, userId, payload);
+    const r = this.applyTogether(v.channelId, userId, payload, 'dj');
     return { ...r, state: this.together.get(v.channelId) ?? null };
   }
 
@@ -704,7 +704,7 @@ export class Realtime {
   /** votos para pular o vídeo atual, por call (zeram quando troca o vídeo) */
   private skipVotes = new Map<string, { videoId: string; voters: Set<string> }>();
 
-  private applyTogether(channelId: string, user: string, payload: unknown): { ok: boolean; error?: string; skipped?: boolean; votes?: number; needed?: number } {
+  private applyTogether(channelId: string, user: string, payload: unknown, origin: 'user' | 'dj' = 'user'): { ok: boolean; error?: string; skipped?: boolean; votes?: number; needed?: number } {
     const id = z.string().regex(/^[A-Za-z0-9_-]{11}$/);
     const pos = z.number().min(0).max(86_400);
     const parsed = z
@@ -726,7 +726,8 @@ export class Realtime {
     const now = Date.now();
     const cur = this.together.get(channelId) ?? null;
     let next: TogetherState | null = cur;
-    const start = (videoId: string, title: string | null, by: string, position = 0, queue = cur?.queue ?? []): TogetherState => ({
+    // dj: a música foi pedida ao Resenha Bot (toca só o áudio, como um participante da call); a fila avançando mantém o modo
+    const start = (videoId: string, title: string | null, by: string, position = 0, queue = cur?.queue ?? [], dj = origin === 'dj'): TogetherState => ({
       videoId,
       title,
       playing: true,
@@ -734,6 +735,7 @@ export class Realtime {
       at: now,
       by,
       queue,
+      ...(dj ? { dj: true } : {}),
     });
     switch (a.action) {
       case 'play':
@@ -759,7 +761,7 @@ export class Realtime {
         if (votes >= needed || cur.by === user) {
           this.skipVotes.delete(channelId);
           const q = cur.queue;
-          next = q.length ? start(q[0].videoId, q[0].title, q[0].by, 0, q.slice(1)) : null;
+          next = q.length ? start(q[0].videoId, q[0].title, q[0].by, 0, q.slice(1), !!cur.dj) : null;
           this.togetherEmit(channelId, next, now, user, 'next');
           return { ok: true, skipped: true, votes, needed };
         }
@@ -786,7 +788,7 @@ export class Realtime {
       // eslint-disable-next-line no-fallthrough
       case 'next': {
         const q = cur?.queue ?? [];
-        next = q.length ? start(q[0].videoId, q[0].title, q[0].by, 0, q.slice(1)) : null;
+        next = q.length ? start(q[0].videoId, q[0].title, q[0].by, 0, q.slice(1), !!cur?.dj) : null;
         break;
       }
       case 'remove':

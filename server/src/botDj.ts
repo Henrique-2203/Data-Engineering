@@ -69,7 +69,7 @@ async function add(c: Ctx, front: boolean) {
   const v = await findVideo(c.db, c.user.id, c.args);
   if (!info.state) {
     ok(c.rt.dj(c.user.id, c.channel.guildId, { action: 'play', videoId: v.videoId, title: v.title }));
-    return { embed: embed('🎵 Tocando agora', `${link(v.videoId, v.title)}\nPedido por **${c.user.displayName}**. A música toca para todo mundo da call.`) };
+    return { embed: embed('🎵 Tocando agora', `${link(v.videoId, v.title)}\nPedido por **${c.user.displayName}**. Toca para todo mundo da call (cada um pode silenciar só para si no cartão do DJ).`) };
   }
   ok(c.rt.dj(c.user.id, c.channel.guildId, { action: 'enqueue', videoId: v.videoId, title: v.title, front }));
   const pos = front ? 1 : info.state.queue.length + 1;

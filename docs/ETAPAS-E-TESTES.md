@@ -412,7 +412,9 @@ salvar um não apaga os outros). Os nomes ficam no banco, nunca no código.
    automática e pelo modo lento do servidor.
 4. **Mais comandos do Resenha Bot** (todos ligam/desligam em Integrações):
    - **DJ**: `/tocar` (link do YouTube ou nome), `/proxima`, `/pular` (a call vota; quem pediu pula na hora), `/fila`, `/agora`,
-     `/parar`, `/remover`. Usa o "Assistir juntos" (o vídeo toca igual para todos). A busca pelo nome precisa de
+     `/parar`, `/remover`. Aparece na call como um cartão **"Resenha Bot · DJ"** (só a música, sem o Assistir juntos grande);
+     cada pessoa silencia ou ajusta o volume só para si (a escolha fica guardada) e vota para pular pelo próprio cartão.
+     A busca pelo nome precisa de
      `YOUTUBE_API_KEY` no Render (chave grátis da API do YouTube); sem ela, só com link.
    - **Tickets**: `/ticket abrir assunto` cria um canal privado só de quem abriu + dono + administradores + cargos
      marcados em Integrações; `/ticket fechar`, `/ticket adicionar @pessoa`, `/ticket lista`.
