@@ -534,6 +534,30 @@ create table if not exists backups (
   verified boolean,
   error text
 );
+
+-- v60: bots da casa (recurso em teste). O bot é um usuário especial (is_bot) que ninguém consegue usar para entrar.
+alter table users add column if not exists is_bot boolean not null default false;
+create table if not exists guild_bots (
+  guild_id text not null references guilds(id) on delete cascade,
+  bot_id text not null references users(id) on delete cascade,
+  installed_by text references users(id) on delete set null,
+  installed_at timestamptz not null default now(),
+  disabled_commands text[] not null default '{}',
+  primary key (guild_id, bot_id)
+);
+-- quem usou o comando (a mensagem do bot mostra "@fulano usou /dado") e o cartão da resposta
+alter table messages add column if not exists interaction jsonb;
+alter table messages add column if not exists embeds jsonb;
+create table if not exists bot_reminders (
+  id text primary key,
+  guild_id text not null references guilds(id) on delete cascade,
+  channel_id text not null references channels(id) on delete cascade,
+  user_id text not null references users(id) on delete cascade,
+  text text not null,
+  due_at timestamptz not null,
+  sent_at timestamptz
+);
+create index if not exists bot_reminders_due_idx on bot_reminders(due_at) where sent_at is null;
 `;
 
 export async function createDb(): Promise<Db> {

@@ -9347,3 +9347,21 @@ body.dm-call-full .chat .voice-stage.embedded .stage > .tiles {
 .phonecam-status { margin: 0; font-weight: 700; text-align: center; }
 .phonecam-status.ok { color: var(--accent); }
 .phonecam-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+/* ---------- bots ---------- */
+.bot-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 5px; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 900; letter-spacing: 0.5px; vertical-align: 1px; }
+.interaction-line { font-size: 12.5px; color: var(--text-3, rgba(255, 255, 255, 0.55)); margin-bottom: 2px; }
+.interaction-line code { color: var(--accent); }
+.bot-embed { margin: 4px 0; max-width: 460px; padding: 10px 14px; border-radius: 8px; border-left: 4px solid var(--accent); background: var(--bg-2); display: flex; flex-direction: column; gap: 4px; }
+.bot-embed-title { font-weight: 800; }
+.bot-embed-text { white-space: pre-wrap; word-break: break-word; }
+.bot-embed-fields { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.bot-embed-field { display: flex; flex-direction: column; font-size: 13px; }
+.bot-embed-field span { color: var(--text-2, rgba(255, 255, 255, 0.75)); word-break: break-word; }
+.slash-hint { padding: 4px 12px; font-size: 12.5px; color: var(--text-3, rgba(255, 255, 255, 0.6)); }
+.bots-settings h3 { margin: 18px 0 8px; }
+.bot-card { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg-2); }
+.bot-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bot-commands { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.bot-commands code { font-family: ui-monospace, monospace; }
+.member-text .bot-tag { align-self: flex-start; margin: 2px 0 0; }

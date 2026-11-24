@@ -123,11 +123,11 @@ export function registerStatsRoutes(r: Router, d: Db, auth: ReturnType<typeof re
         [days],
       );
       const [totals] = await d.query<{ users: number; waitlist: number; active7: number; active30: number; invited: number }>(
-        `select (select count(*)::int from users) as users,
+        `select (select count(*)::int from users where not is_bot) as users,
            (select count(*)::int from waitlist) as waitlist,
            (select count(*)::int from waitlist where invited_at is not null) as invited,
-           (select count(*)::int from users where last_active_on > ${TODAY} - 7) as active7,
-           (select count(*)::int from users where last_active_on > ${TODAY} - 30) as active30`,
+           (select count(*)::int from users where not is_bot and last_active_on > ${TODAY} - 7) as active7,
+           (select count(*)::int from users where not is_bot and last_active_on > ${TODAY} - 30) as active30`,
       );
       return {
         days: Object.entries(series).map(([day, v]) => ({ day, ...v })),

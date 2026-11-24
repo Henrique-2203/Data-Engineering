@@ -194,11 +194,11 @@ export function registerSignupCodeRoutes(r: Router, db: Db, auth: ReturnType<typ
                 count(*) filter (where ${LOCAL} > ${TODAY} - 30)::int as month,
                 count(*)::int as total,
                 count(*) filter (where u.email_verified_at is not null)::int as verified
-         from users u`,
+         from users u where not u.is_bot`,
       );
       const byDay = await db.query<{ day: string; n: number }>(
         `select to_char(${LOCAL}, 'YYYY-MM-DD') as day, count(*)::int as n from users u
-         where ${LOCAL} > ${TODAY} - 30 group by 1 order by 1`,
+         where not u.is_bot and ${LOCAL} > ${TODAY} - 30 group by 1 order by 1`,
       );
       const users = await db.query(
         `select u.id, u.username, u.display_name as "displayName", u.avatar_color as "avatarColor", u.avatar_id as "avatarId",
@@ -208,7 +208,7 @@ export function registerSignupCodeRoutes(r: Router, db: Db, auth: ReturnType<typ
          from users u
          left join signup_codes c on c.code = u.signup_code
          left join users o on o.id = c.owner_id
-         where ($1 = '' or u.username like '%' || $1 || '%' or lower(u.display_name) like '%' || $1 || '%')
+         where not u.is_bot and ($1 = '' or u.username like '%' || $1 || '%' or lower(u.display_name) like '%' || $1 || '%')
          order by u.created_at desc limit $2`,
         [q, limitN],
       );

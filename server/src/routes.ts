@@ -57,6 +57,7 @@ import { registerApoioRoutes } from './apoio.ts';
 import { registerAndroidRoutes } from './android.ts';
 import { registerSfuRoutes } from './sfu.ts';
 import { betaFeaturesFor, registerBetaRoutes } from './beta.ts';
+import { registerBotRoutes } from './bots.ts';
 import { ensureOfficialMember, registerOfficialRoutes } from './official.ts';
 import { registerExploreRoutes } from './explore.ts';
 import { configureWelcome } from './welcome.ts';
@@ -166,7 +167,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   /** Mensagem completa: autor, trecho respondido, reações agrupadas por emoji e imagens. */
   const MESSAGE_SELECT = `select msg.id, msg.channel_id as "channelId", msg.content,
       msg.created_at as "createdAt", msg.edited_at as "editedAt", msg.mention_everyone as "mentionEveryone",
-      msg.pinned_at as "pinnedAt", ${POLL_SELECT} as poll, msg.system,
+      msg.pinned_at as "pinnedAt", ${POLL_SELECT} as poll, msg.system, msg.interaction, msg.embeds,
       ${userJson('u')} as author,
       case
         when msg.reply_to_id is null then null
@@ -759,6 +760,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerAndroidRoutes(r);
   registerSfuRoutes(r, db, rt, auth);
   registerBetaRoutes(r, db, rt, auth);
+  registerBotRoutes(r, db, rt, auth, { channelForMember, emitToChannel, messageSelect: MESSAGE_SELECT });
   registerOfficialRoutes(r, db, rt, auth);
   registerExploreRoutes(r, db, rt, auth);
   registerHealthRoutes(r, db, rt, auth);

@@ -1,7 +1,8 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type Ref } from 'react';
+import { loadCommands } from '../../lib/botCommands';
 import { BarChart3, Bold, Code, EyeOff, Heading, Italic, List, Loader2, Paperclip, Plus, Quote, SendHorizontal, Smile, Sticker, Strikethrough, Type, Underline, X } from 'lucide-react';
 import { FileIcon } from './Attachments';
-import type { Attachment, Channel, Expression, Message, PublicUser } from '../../../../shared/types';
+import type { Attachment, BotCommandInfo, Channel, Expression, Message, PublicUser } from '../../../../shared/types';
 import { api } from '../../lib/api';
 import { mentionQuery } from '../../lib/mentions';
 import { getSocket } from '../../lib/socket';
@@ -169,6 +170,21 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
     if (!canSend) return;
     setSending(true);
     try {
+      // comando de bot (ex.: /dado d20): só vale se o servidor tem o bot e o comando está ligado
+      const cm = channel.guildId ? /^\/([\p{L}]+)(?:\s+([\s\S]*))?$/u.exec(text.trim()) : null;
+      if (cm) {
+        const list = cmds.length ? cmds : await loadCommands(channel.guildId);
+        const known = list.find((c) => c.name === cm[1].toLowerCase());
+        if (known) {
+          await api(`/channels/${channel.id}/interactions`, { body: { command: known.name, args: cm[2] ?? '' } });
+          setText('');
+          setSentAnim((n) => n + 1);
+          lastSent.set(channel.id, Date.now());
+          setNow(Date.now());
+          onSent();
+          return;
+        }
+      }
       await api(`/channels/${channel.id}/messages`, {
         body: { content: encodeChannels(encodeEmojis(text.trim(), channel.guildId), channel.guildId), replyToId: replyTo?.id, attachmentIds: ready.map((p) => p.attachment!.id) },
       });
@@ -238,6 +254,28 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
     setCaret(nextBefore.length);
   }
 
+  // ---------- comandos de bot: digitar "/" mostra a lista ----------
+  const slashing = text.startsWith('/') && !!channel.guildId;
+  const [cmds, setCmds] = useState<BotCommandInfo[]>([]);
+  useEffect(() => {
+    if (!slashing) return;
+    let alive = true;
+    void loadCommands(channel.guildId).then((l) => alive && setCmds(l));
+    return () => {
+      alive = false;
+    };
+  }, [slashing, channel.guildId]);
+  const sQuery = slashing && !mentionClosed ? (/^\/([\p{L}]*)$/u.exec(text)?.[1] ?? null) : null;
+  const slashMatches = sQuery === null ? [] : cmds.filter((c) => c.name.startsWith(sQuery.toLowerCase())).slice(0, 8);
+  // já digitou o nome inteiro: não precisa da lista (o Enter envia)
+  const showSlash = slashMatches.length > 0 && !slashMatches.some((c) => c.name === (sQuery ?? '').toLowerCase());
+  const typedCommand = slashing ? cmds.find((c) => new RegExp(`^/${c.name}(\\s|$)`, 'i').test(text)) : undefined;
+  function pickSlash(c: BotCommandInfo) {
+    pendingCaret.current = c.name.length + 2;
+    setText(`/${c.name} `);
+    setCaret(c.name.length + 2);
+  }
+
   // ---------- autocompletar @menções ----------
   const query = mentionClosed ? null : mentionQuery(text.slice(0, caret));
   const matches =
@@ -298,6 +336,23 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (showSlash) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIdx((i) => (i + (e.key === 'ArrowDown' ? 1 : slashMatches.length - 1)) % slashMatches.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        pickSlash(slashMatches[Math.min(mentionIdx, slashMatches.length - 1)]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionClosed(true);
+        return;
+      }
+    }
     if (showChannels) {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -385,6 +440,33 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
 
   return (
     <div className="composer-wrap">
+      {showSlash && (
+        <ul className="mention-popup" role="listbox" aria-label="Comandos">
+          {slashMatches.map((c, i) => (
+            <li key={c.name}>
+              <button
+                role="option"
+                aria-selected={i === mentionIdx}
+                className={i === mentionIdx ? 'active' : ''}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pickSlash(c);
+                }}
+                onMouseEnter={() => setMentionIdx(i)}
+              >
+                <span className="mention-all">/</span>
+                <strong>/{c.name}</strong>
+                <span className="muted small">{c.description}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {typedCommand && !showSlash && (
+        <div className="slash-hint" aria-live="polite">
+          <code>{typedCommand.usage}</code>
+        </div>
+      )}
       {showMentions && (
         <ul className="mention-popup" role="listbox" aria-label="Mencionar">
           {matches.map((c, i) => (

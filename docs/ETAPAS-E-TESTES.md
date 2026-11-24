@@ -397,6 +397,22 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 
 ---
 
+## Recursos em teste: câmera do celular e bots
+
+Só aparecem para as contas liberadas em **Painel da equipe → Saúde → Recursos em teste** (um campo por recurso;
+salvar um não apaga os outros). Os nomes ficam no banco, nunca no código.
+
+1. Libere as contas e clique em **Criar servidor de testes**: nasce o servidor privado *Laboratório Resenha* com todas elas.
+   Pode clicar de novo depois de liberar mais contas (só entram as novas).
+2. **Câmera do celular** (`phonecam`): entre numa call no computador → botão **Câmera** → **Câmera do celular** →
+   leia o QR Code com o celular (mesma conta, no navegador) → permita a câmera. O QR vale 2 minutos e funciona uma vez.
+   No celular: **Virar câmera** (frontal/traseira) e **Parar**. Desligar a câmera no computador ou sair da call derruba o celular.
+3. **Bots** (`bots`): Configurações do servidor → **Integrações** → *Adicionar ao servidor*. No chat digite `/` para ver
+   os comandos. Dá para desligar comandos individualmente e remover o bot. O texto dos comandos passa pela moderação
+   automática e pelo modo lento do servidor.
+4. Testes automáticos: `node e2e/beta-features.mjs`, `node e2e/phonecam.mjs`, `node e2e/bots.mjs`
+   (rode `npm run build` antes).
+
 ## Se algo der errado
 
 Anote **o que fez**, **o que esperava** e **o que aconteceu** (um print ajuda muito) e me mande.

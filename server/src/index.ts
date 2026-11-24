@@ -4,6 +4,7 @@ import path from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import compression from 'compression';
 import { config } from './config.ts';
+import { ensureBotUser } from './bots.ts';
 import { createDb } from './db.ts';
 import { Realtime } from './realtime.ts';
 import { HttpError, createRoutes } from './routes.ts';
@@ -17,6 +18,7 @@ import { trustProxy } from './proxy.ts';
 import { flushBandwidth, startBandwidthMeter } from './bandwidth.ts';
 
 const db = await createDb();
+await ensureBotUser(db);
 const app = express();
 const http = createServer(app);
 const rt = new Realtime(http, db);

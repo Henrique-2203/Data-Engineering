@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { BotsSettings } from './Bots';
+import { useHasFeature } from '../lib/layoutMode';
 import { RulesSettings, WelcomeSettings } from './Official';
 import { CommunitySettings } from './Explore';
 import { ArrowDown, ArrowUp, ImagePlus, Trash2, X } from 'lucide-react';
@@ -16,7 +18,7 @@ import { AuditLog } from './AuditLog';
 import { AutomodPanel } from './Community';
 import { cropImage } from './ImageCropper';
 
-type Tab = 'overview' | 'community' | 'welcome' | 'rules' | 'roles' | 'members' | 'bans' | 'expressions' | 'automod' | 'audit';
+type Tab = 'overview' | 'community' | 'welcome' | 'rules' | 'roles' | 'members' | 'bans' | 'expressions' | 'automod' | 'audit' | 'bots';
 
 const ROLE_COLORS = ['#ed4245', '#f97316', '#faa61a', '#3ba55d', '#14b8a6', '#5865f2', '#9b59b6', '#eb459e', '#99aab5'];
 
@@ -33,6 +35,7 @@ async function run<T>(fn: () => Promise<T>, okMsg?: string): Promise<T | undefin
 export function GuildSettings({ guildId, initialTab }: { guildId: string; initialTab?: Tab }) {
   const guild = useApp((s) => s.guilds[guildId]);
   const perms = usePerms(guildId);
+  const botsOn = useHasFeature('bots');
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: 'overview', label: 'Visão geral', show: has(perms, Perm.MANAGE_GUILD) },
     { id: 'community', label: 'Comunidade', show: has(perms, Perm.MANAGE_GUILD) },
@@ -44,6 +47,7 @@ export function GuildSettings({ guildId, initialTab }: { guildId: string; initia
     { id: 'bans', label: 'Banimentos', show: has(perms, Perm.BAN) },
     { id: 'automod', label: 'Moderação automática', show: has(perms, Perm.MANAGE_GUILD) },
     { id: 'audit', label: 'Registro', show: has(perms, Perm.VIEW_AUDIT_LOG) },
+    { id: 'bots', label: 'Integrações', show: has(perms, Perm.MANAGE_GUILD) && botsOn },
   ];
   const visible = tabs.filter((t) => t.show);
   const [tab, setTab] = useState<Tab>(initialTab && visible.some((t) => t.id === initialTab) ? initialTab : (visible[0]?.id ?? 'overview'));
@@ -79,6 +83,7 @@ export function GuildSettings({ guildId, initialTab }: { guildId: string; initia
         {tab === 'expressions' && <ExpressionSettings guild={guild} />}
         {tab === 'automod' && <AutomodPanel guild={guild} />}
         {tab === 'audit' && <AuditLog guild={guild} />}
+        {tab === 'bots' && <BotsSettings guild={guild} />}
       </section>
     </div>
   );

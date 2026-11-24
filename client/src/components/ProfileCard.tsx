@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { BotTag } from './Bots';
 import { FounderBadge } from './Apoio';
 import { MessageCircle, Pencil, UserCheck, UserPlus, Flag } from 'lucide-react';
 import type { Profile } from '../../../shared/types';
@@ -75,9 +76,10 @@ export function ProfileCard({ userId, guildId, onAction }: { userId: string; gui
           {member?.nick && profile && profile.user.displayName !== member.nick ? ` · ${profile.user.displayName}` : ''}
           {profile?.pronouns ? ` · ${profile.pronouns}` : ''}
         </div>
-        {profile?.supporter && (
+        {(profile?.supporter || user.bot) && (
           <div className="profile-badges">
-            <FounderBadge small />
+            {user.bot && <BotTag />}
+            {profile?.supporter && <FounderBadge small />}
           </div>
         )}
 

@@ -1,4 +1,5 @@
 import { Fragment, memo, useEffect, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
+import { BotTag, EmbedView } from '../Bots';
 import { createPortal } from 'react-dom';
 import { Copy, CornerUpLeft, Flag, Image as ImageIcon, Pencil, Pin, PinOff, Reply, SmilePlus, Trash2, X } from 'lucide-react';
 import { PollView, togglePin, useCanPin } from '../Community';
@@ -150,11 +151,17 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
         </button>
       )}
       <div className="message-body">
+        {message.interaction && (
+          <div className="interaction-line">
+            ↪ <strong>{message.interaction.displayName}</strong> usou <code>/{message.interaction.command}</code>
+          </div>
+        )}
         {!grouped && (
           <div className="message-head">
             <button className="author-name" style={{ color: nameColor }} onClick={() => openModal({ kind: 'profile', userId: author.id, guildId: channel.guildId || null })}>
               {author.displayName}
             </button>
+            {author.bot && <BotTag />}
             <span className="muted small">{formatDateTime(message.createdAt)}</span>
             {message.pinnedAt && (
               <span className="pinned-tag" title="Mensagem fixada">
@@ -201,6 +208,8 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
         )}
 
         {message.content && !editing && <LinkEmbeds content={message.content} />}
+
+        {message.embeds?.map((e, i) => <EmbedView key={i} embed={e} />)}
 
         {message.poll && <PollView message={message} channel={channel} />}
 

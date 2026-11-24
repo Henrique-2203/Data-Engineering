@@ -67,8 +67,9 @@ export function registerSocialRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
       const me = req.user!;
       limit(`friend:${me.id}`, 20, 60_000, 'Muitos pedidos de amizade seguidos. Espere um minuto.');
       const { username } = parse(z.object({ username: z.string().trim().toLowerCase().min(1, 'Informe o usuário.') }), req.body);
-      const [target] = await db.query<{ id: string }>('select id from users where username = $1', [username.replace(/^@/, '')]);
+      const [target] = await db.query<{ id: string; is_bot: boolean }>('select id, is_bot from users where username = $1', [username.replace(/^@/, '')]);
       if (!target) throw new HttpError(404, 'Não encontramos ninguém com esse usuário. Confira a grafia.');
+      if (target.is_bot) throw new HttpError(400, 'Bots não aceitam pedido de amizade.');
       if (target.id === me.id) throw new HttpError(400, 'Você não pode adicionar a si mesmo.');
       const [existing] = await db.query<{ requester_id: string; status: string }>(
         `select requester_id, status from friendships
@@ -129,6 +130,8 @@ export function registerSocialRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
       const me = req.user!.id;
       const { userId } = parse(z.object({ userId: z.string().min(1) }), req.body);
       if (userId === me) throw new HttpError(400, 'Você não pode mandar mensagem para si mesmo.');
+      const [isBot] = await db.query('select 1 from users where id = $1 and is_bot', [userId]);
+      if (isBot) throw new HttpError(400, 'Bots ainda não recebem mensagem privada. Use os comandos com / no servidor.');
       const [allowed] = await db.query(
         `select 1 where exists (
            select 1 from friendships

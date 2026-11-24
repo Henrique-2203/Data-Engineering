@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { BotTag } from './Bots';
 import { Crown } from 'lucide-react';
 import type { Member } from '../../../shared/types';
 import { useApp } from '../store/app';
@@ -15,8 +16,9 @@ export function MemberList({ guildId }: { guildId: string }) {
   const openId = open?.id ?? null;
   if (!guild) return null;
   const sorted = [...guild.members].sort((a, b) => a.displayName.localeCompare(b.displayName, 'pt-BR'));
-  const on = sorted.filter((m) => online[m.id]);
-  const off = sorted.filter((m) => !online[m.id]);
+  // o bot está sempre disponível (roda dentro do Resenha)
+  const on = sorted.filter((m) => online[m.id] || m.bot);
+  const off = sorted.filter((m) => !online[m.id] && !m.bot);
 
   return (
     <aside className="members" aria-label="Membros">
@@ -46,6 +48,7 @@ export function MemberList({ guildId }: { guildId: string }) {
                       <span className="ellipsis" style={{ color: memberColor(guild, m.id, 'inherit') }}>
                         {m.displayName}
                       </span>
+                      {m.bot && <BotTag />}
                       {presenceLine(m, activities[m.id]) && <span className="member-sub ellipsis">{presenceLine(m, activities[m.id])}</span>}
                     </span>
                     {m.id === guild.ownerId && (

@@ -63,6 +63,10 @@ function describe(e: AuditEntry): { icon: string; text: string; extra?: string }
       return { icon: '🗑️', text: `apagou o cargo ${t}` };
     case 'role_move':
       return { icon: '↕️', text: `${d.direction === 'up' ? 'subiu' : 'desceu'} o cargo ${t} na hierarquia` };
+    case 'bot_add':
+      return { icon: '🤖', text: `adicionou o bot ${t} ao servidor` };
+    case 'bot_remove':
+      return { icon: '🤖', text: `removeu o bot ${t} do servidor` };
     case 'member_join':
       return { icon: '👋', text: 'entrou no servidor pelo convite' };
     case 'member_leave':

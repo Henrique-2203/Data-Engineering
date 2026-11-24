@@ -86,7 +86,7 @@ export type ModalState =
   | { kind: 'joinGuild'; code?: string }
   | { kind: 'invite'; guildId: string }
   | { kind: 'createChannel'; guildId: string; type: 'text' | 'voice'; categoryId?: string | null }
-  | { kind: 'guildSettings'; guildId: string; tab?: 'overview' | 'community' | 'welcome' | 'rules' | 'roles' | 'members' | 'bans' | 'expressions' | 'automod' }
+  | { kind: 'guildSettings'; guildId: string; tab?: 'overview' | 'community' | 'welcome' | 'rules' | 'roles' | 'members' | 'bans' | 'expressions' | 'automod' | 'audit' | 'bots' }
   | { kind: 'channelSettings'; channelId: string }
   | { kind: 'createCategory'; guildId: string }
   | { kind: 'categorySettings'; guildId: string; categoryId: string }

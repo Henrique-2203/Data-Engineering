@@ -23,6 +23,8 @@ export interface PublicUser {
   callBannerPos?: number;
   /** anel de Fundador (só de quem teve o apoio confirmado; null = sem anel) */
   ring?: FounderRing | null;
+  /** conta de bot (selo BOT) */
+  bot?: boolean;
 }
 
 export type FounderRing = 'raiz' | 'aurora' | 'selo';
@@ -312,6 +314,26 @@ export interface Message {
   poll?: Poll | null;
   /** aviso automático (ex.: 'join' = a pessoa entrou no servidor) */
   system?: 'join' | null;
+  /** resposta de um bot a um comando: quem usou e qual */
+  interaction?: { userId: string; username: string; displayName: string; command: string } | null;
+  /** cartões de um bot (título, texto, campos) */
+  embeds?: BotEmbed[] | null;
+}
+
+export interface BotEmbed {
+  title?: string;
+  description?: string;
+  /** cor da barra lateral, ex. #3ddc97 */
+  color?: string;
+  fields?: { name: string; value: string; inline?: boolean }[];
+}
+
+/** Comando de bot disponível no servidor (popup do "/") */
+export interface BotCommandInfo {
+  name: string;
+  description: string;
+  usage: string;
+  enabled: boolean;
 }
 
 export interface VoiceState {
@@ -389,6 +411,8 @@ export type AuditAction =
   | 'role_update'
   | 'role_delete'
   | 'role_move'
+  | 'bot_add'
+  | 'bot_remove'
   | 'member_join'
   | 'member_leave'
   | 'member_kick'
