@@ -758,7 +758,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerApoioRoutes(r, db, rt, auth);
   registerAndroidRoutes(r);
   registerSfuRoutes(r, db, rt, auth);
-  registerBetaRoutes(r, db, auth);
+  registerBetaRoutes(r, db, rt, auth);
   registerOfficialRoutes(r, db, rt, auth);
   registerExploreRoutes(r, db, rt, auth);
   registerHealthRoutes(r, db, rt, auth);

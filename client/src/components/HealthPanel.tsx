@@ -207,35 +207,77 @@ export function HealthPanel() {
 
 /** Laboratório: liga mudanças em teste SÓ neste aparelho (nenhum usuário recebe). */
 /** Recursos em teste liberados só para algumas contas (vale para a conta, em qualquer aparelho). */
+type BetaLists = { layout2: string[]; phonecam: string[]; bots: string[] };
+const BETA_FIELDS: { id: keyof BetaLists; title: string; hint: string; label: string; done: string }[] = [
+  { id: 'layout2', title: 'Layout novo', hint: 'Veem a opção "Layout: Novo" em Configurações → Aparência.', label: 'Contas com o layout novo', done: 'Layout novo' },
+  { id: 'phonecam', title: 'Câmera do celular', hint: 'Podem usar o celular como câmera do computador na call (QR Code).', label: 'Contas com a câmera do celular', done: 'Câmera do celular' },
+  { id: 'bots', title: 'Bots', hint: 'Veem a aba Integrações no servidor e os comandos com "/".', label: 'Contas com bots', done: 'Bots' },
+];
+const toText = (l: string[]) => l.map((u) => `@${u}`).join(', ');
+
 function BetaAccounts() {
-  const [text, setText] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [text, setText] = useState<Record<keyof BetaLists, string> | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => {
-    void api<{ beta: { layout2: string[] } }>('/admin/beta').then((r) => setText(r.beta.layout2.map((u) => `@${u}`).join(', ')), () => setText(''));
+    void api<{ beta: BetaLists }>('/admin/beta').then(
+      (r) => setText({ layout2: toText(r.beta.layout2), phonecam: toText(r.beta.phonecam), bots: toText(r.beta.bots) }),
+      () => setText({ layout2: '', phonecam: '', bots: '' }),
+    );
   }, []);
   if (text === null) return null;
-  async function save() {
-    setBusy(true);
+  async function save(f: (typeof BETA_FIELDS)[number]) {
+    setBusy(f.id);
     try {
-      const r = await api<{ beta: { layout2: string[] } }>('/admin/beta', { method: 'PUT', body: { layout2: (text ?? '').split(/[\s,;]+/).filter(Boolean) } });
-      setText(r.beta.layout2.map((u) => `@${u}`).join(', '));
-      toast(r.beta.layout2.length ? `Layout novo liberado para ${r.beta.layout2.length} conta(s). Elas escolhem em Configurações → Aparência.` : 'Layout novo desligado para todos.');
+      const r = await api<{ beta: BetaLists }>('/admin/beta', { method: 'PUT', body: { [f.id]: (text![f.id] ?? '').split(/[\s,;]+/).filter(Boolean) } });
+      setText((t) => ({ ...t!, [f.id]: toText(r.beta[f.id]) }));
+      toast(r.beta[f.id].length ? `${f.done} liberado para ${r.beta[f.id].length} conta(s).` : `${f.done} desligado para todos.`);
     } catch (err) {
       toast((err as Error).message);
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  }
+  async function testGuild() {
+    setBusy('guild');
+    try {
+      const r = await api<{ created: boolean; added: string[] }>('/admin/test-guild', { method: 'POST', body: {} });
+      toast(
+        r.created
+          ? `Servidor "Laboratório Resenha" criado${r.added.length ? ` com ${r.added.map((u) => '@' + u).join(', ')}` : ''}. Veja na coluna de servidores.`
+          : r.added.length
+            ? `Entraram no Laboratório: ${r.added.map((u) => '@' + u).join(', ')}.`
+            : 'O Laboratório Resenha já está pronto, com todas as contas liberadas.',
+      );
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(null);
     }
   }
   return (
     <div className="health-lab">
-      <strong>🧪 Layout novo: contas liberadas</strong>
-      <label>
-        <span className="muted small">Só estas contas veem a opção "Layout: Novo" em Configurações → Aparência (separe por vírgula).</span>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="@conta1, @conta2" aria-label="Contas com o layout novo" spellCheck={false} />
-      </label>
-      <button className="btn primary small" type="button" disabled={busy} onClick={() => void save()}>
-        Salvar
-      </button>
+      <strong>🧪 Recursos em teste: contas liberadas</strong>
+      {BETA_FIELDS.map((f) => (
+        <div key={f.id} className="beta-row">
+          <label>
+            <span className="muted small">
+              <strong>{f.title}.</strong> {f.hint} (separe por vírgula)
+            </span>
+            <input value={text[f.id]} onChange={(e) => setText({ ...text, [f.id]: e.target.value })} placeholder="@conta1, @conta2" aria-label={f.label} spellCheck={false} />
+          </label>
+          <button className="btn primary small" type="button" disabled={busy !== null} onClick={() => void save(f)} aria-label={`Salvar ${f.title}`}>
+            Salvar
+          </button>
+        </div>
+      ))}
+      <div className="beta-row">
+        <span className="muted small">
+          Servidor privado só para testar: cria o <strong>Laboratório Resenha</strong> e coloca nele as contas liberadas para a câmera do celular e para bots. Pode clicar de novo depois de liberar mais contas.
+        </span>
+        <button className="btn small" type="button" disabled={busy !== null} onClick={() => void testGuild()}>
+          Criar servidor de testes
+        </button>
+      </div>
     </div>
   );
 }

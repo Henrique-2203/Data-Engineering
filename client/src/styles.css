@@ -8219,6 +8219,8 @@ body.call-expanded .layout > .members,
 body.call-expanded .layout > .side-panel { display: none !important; }
 body.call-expanded .icon-btn.active { color: var(--accent); }
 .health-lab { margin: 10px 0 6px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--line); background: var(--bg-2); display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+.health-lab .beta-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--line); }
+.health-lab .beta-row > label, .health-lab .beta-row > span { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 4px; }
 
 /* ---------- card de apoio "depois de gostar" e barra da meta do mês ---------- */
 .apoio-month { display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; background: rgba(61, 220, 151, .08); border: 1px solid rgba(61, 220, 151, .25); margin: 10px 0; }
