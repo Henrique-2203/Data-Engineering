@@ -1,7 +1,7 @@
-import { useEffect, useRef, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { create } from 'zustand';
-import { Bell, ChevronLeft, ChevronRight, Compass, Hash, Home, LayoutGrid, MessageSquare, Mic, MicOff, PhoneOff, Plus, Volume2, X } from 'lucide-react';
-import { findChannel, goHome, openModal, selectChannel, selectGuild, useApp } from '../store/app';
+import { Bell, ChevronLeft, ChevronRight, Compass, Hash, Home, LayoutGrid, MessageSquare, Mic, MicOff, PhoneOff, Pin, Plus, Volume2, X } from 'lucide-react';
+import { findChannel, goHome, openModal, selectChannel, selectGuild, toast, useApp } from '../store/app';
 import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { Avatar } from './Avatar';
@@ -18,12 +18,19 @@ import { Happening } from './HomeSidebar';
 
 // ---------------- estado (fica guardado neste aparelho) ----------------
 
-const TABS_KEY = 'resenha.tabs';
+// v2: as abas agora só existem se a pessoa arrastar para fixar (as abertas automaticamente da 1ª versão ficam para trás)
+const TABS_KEY = 'resenha.tabs2';
+/** tipo do arraste de "fixar em aba" (canal, conversa direta ou servidor) */
+export const TAB_DRAG = 'application/x-resenha-tab';
+/** id de aba de um servidor inteiro (abre o último canal dele) */
+const GUILD_TAB = 'g:';
 const MAX_TABS = 12;
 export type MobileSection = 'inicio' | 'servidores' | 'mensagens' | 'avisos' | 'voce';
 interface NovoState {
-  /** canais abertos em abas (o Início é fixo e não entra aqui) */
+  /** abas fixadas: id de canal/conversa ou "g:<servidor>" (o Início é fixo e não entra aqui) */
   tabs: string[];
+  /** algo que pode virar aba está sendo arrastado */
+  dragging: boolean;
   section: MobileSection;
   /** em Servidores: a grade ou os canais do servidor escolhido */
   serversView: 'grid' | 'guild';
@@ -36,7 +43,7 @@ const loadTabs = (): string[] => {
     return [];
   }
 };
-export const useNovo = create<NovoState>(() => ({ tabs: loadTabs(), section: 'inicio', serversView: 'grid' }));
+export const useNovo = create<NovoState>(() => ({ tabs: loadTabs(), dragging: false, section: 'inicio', serversView: 'grid' }));
 useNovo.subscribe((s, prev) => {
   if (s.tabs === prev.tabs) return;
   try {
@@ -46,27 +53,37 @@ useNovo.subscribe((s, prev) => {
   }
 });
 
-function openTab(channelId: string) {
-  const { tabs } = useNovo.getState();
-  if (tabs.includes(channelId)) return;
-  // passou do limite: sai a aba mais antiga que não é a aberta agora
-  const next = [...tabs, channelId];
-  if (next.length > MAX_TABS) next.splice(next.findIndex((id) => id !== channelId), 1);
-  useNovo.setState({ tabs: next });
+/** atributos para algo da lista poder ser arrastado para a barra de abas (só no layout novo) */
+export const tabDrag = (id: string, novo: boolean) => (novo ? { 'data-tab': id, draggable: true } : {});
+export const guildTabId = (guildId: string) => GUILD_TAB + guildId;
+
+const tabExists = (id: string) => (id.startsWith(GUILD_TAB) ? !!useApp.getState().guilds[id.slice(GUILD_TAB.length)] : !!findChannel(id));
+
+/** fixa (ou move para antes de `before`) */
+function pinTab(id: string, before?: string) {
+  if (!tabExists(id)) return;
+  const tabs = useNovo.getState().tabs.filter((t) => t !== id);
+  const at = before ? tabs.indexOf(before) : -1;
+  if (at >= 0) tabs.splice(at, 0, id);
+  else tabs.push(id);
+  if (tabs.length > MAX_TABS) {
+    toast(`Dá para fixar até ${MAX_TABS} abas. Feche uma para fixar outra.`);
+    return;
+  }
+  useNovo.setState({ tabs });
+}
+
+function openTabTarget(id: string) {
+  if (id.startsWith(GUILD_TAB)) selectGuild(id.slice(GUILD_TAB.length));
+  else selectChannel(id);
 }
 
 function closeTab(channelId: string) {
   const { tabs } = useNovo.getState();
   const i = tabs.indexOf(channelId);
   if (i < 0) return;
-  const next = tabs.filter((id) => id !== channelId);
-  useNovo.setState({ tabs: next });
-  // fechou a aba aberta: vai para a vizinha (ou o Início)
-  if (useApp.getState().selectedChannelId === channelId) {
-    const neighbor = next[i] ?? next[i - 1];
-    if (neighbor && findChannel(neighbor)) selectChannel(neighbor);
-    else goHome(null);
-  }
+  // desafixar não muda a tela: a conversa continua aberta, só sai da barra
+  useNovo.setState({ tabs: tabs.filter((id) => id !== channelId) });
 }
 
 // ---------------- computador: abas no topo ----------------
@@ -103,36 +120,68 @@ function CallControls({ compact }: { compact?: boolean }) {
   );
 }
 
-function TabIcon({ channelId }: { channelId: string }) {
-  const c = useApp(() => findChannel(channelId));
+function TabIcon({ id }: { id: string }) {
+  const c = useApp(() => (id.startsWith(GUILD_TAB) ? undefined : findChannel(id)));
+  const g = useApp((s) => (id.startsWith(GUILD_TAB) ? s.guilds[id.slice(GUILD_TAB.length)] : undefined));
+  if (g) return <span className="novo-tab-guild">{g.iconId ? <img src={`/api/images/${g.iconId}`} alt="" /> : g.name.slice(0, 1).toUpperCase()}</span>;
   if (!c) return null;
   if (c.type === 'dm') return <Avatar user={(c as DmChannel).recipient} size={20} />;
   if (c.type === 'voice') return <Volume2 size={16} className="novo-tab-voice" />;
   return <Hash size={16} />;
 }
 
-function Tab({ channelId, active }: { channelId: string; active: boolean }) {
-  const c = useApp(() => findChannel(channelId));
-  const guildName = useApp((s) => (c && c.type !== 'dm' ? s.guilds[c.guildId]?.name : undefined));
-  const unread = useApp((s) => s.unread[channelId] ?? 0);
-  const mention = useApp((s) => s.mentions[channelId] ?? 0);
-  if (!c) return null;
-  const label = c.type === 'dm' ? (c as DmChannel).recipient.displayName : c.name;
+function Tab({ id, active }: { id: string; active: boolean }) {
+  const isGuild = id.startsWith(GUILD_TAB);
+  const gid = isGuild ? id.slice(GUILD_TAB.length) : null;
+  const c = useApp(() => (isGuild ? undefined : findChannel(id)));
+  const guild = useApp((s) => (gid ? s.guilds[gid] : c && c.type !== 'dm' ? s.guilds[c.guildId] : undefined));
+  const unread = useApp((s) => (gid ? (s.guilds[gid]?.channels ?? []).reduce((n, x) => n + (s.unread[x.id] ?? 0), 0) : s.unread[id] ?? 0));
+  const mention = useApp((s) => (gid ? (s.guilds[gid]?.channels ?? []).reduce((n, x) => n + (s.mentions[x.id] ?? 0), 0) : s.mentions[id] ?? 0));
+  const [over, setOver] = useState(false);
+  if (!c && !isGuild) return null;
+  if (isGuild && !guild) return null;
+  const label = isGuild ? guild!.name : c!.type === 'dm' ? (c as DmChannel).recipient.displayName : c!.name;
+  const where = !isGuild && c!.type !== 'dm' ? guild?.name : undefined;
   const onAux = (e: MouseEvent) => {
     if (e.button === 1) {
       e.preventDefault();
-      closeTab(channelId);
+      closeTab(id);
     }
   };
   return (
-    <div className={`novo-tab${active ? ' active' : ''}`} onAuxClick={onAux} onMouseDown={(e) => e.button === 1 && e.preventDefault()}>
-      <button type="button" className="novo-tab-btn" aria-current={active ? 'page' : undefined} onClick={() => selectChannel(channelId)} title={guildName ? `${label} · ${guildName}` : label}>
-        <TabIcon channelId={channelId} />
+    <div
+      className={`novo-tab${active ? ' active' : ''}${over ? ' drop-before' : ''}`}
+      onAuxClick={onAux}
+      onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData(TAB_DRAG, id);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes(TAB_DRAG)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        const dragged = e.dataTransfer.getData(TAB_DRAG);
+        setOver(false);
+        if (!dragged) return;
+        e.preventDefault();
+        e.stopPropagation();
+        useNovo.setState({ dragging: false });
+        if (dragged !== id) pinTab(dragged, id);
+      }}
+    >
+      <button type="button" className="novo-tab-btn" aria-current={active ? 'page' : undefined} onClick={() => openTabTarget(id)} title={where ? `${label} · ${where}` : label}>
+        <TabIcon id={id} />
         <span className="novo-tab-label ellipsis">{label}</span>
-        {guildName && <span className="novo-tab-where ellipsis">{guildName}</span>}
+        {where && <span className="novo-tab-where ellipsis">{where}</span>}
         {!active && (mention > 0 || unread > 0) && <span className={`novo-badge${mention ? ' mention' : ''}`}>{mention || (unread > 99 ? '99+' : unread)}</span>}
       </button>
-      <button type="button" className="novo-tab-x" aria-label={`Fechar aba ${label}`} onClick={() => closeTab(channelId)}>
+      <button type="button" className="novo-tab-x" aria-label={`Desafixar aba ${label}`} title="Desafixar" onClick={() => closeTab(id)}>
         <X size={14} />
       </button>
     </div>
@@ -141,31 +190,64 @@ function Tab({ channelId, active }: { channelId: string; active: boolean }) {
 
 export function TabsBar() {
   const tabs = useNovo((s) => s.tabs);
+  const dragging = useNovo((s) => s.dragging);
   const selectedGuildId = useApp((s) => s.selectedGuildId);
   const selectedChannelId = useApp((s) => s.selectedChannelId);
   const channelsKey = useApp((s) => s.guildOrder.join() + Object.keys(s.dms).length);
   const homeAlerts = useApp((s) => s.friends.filter((f) => f.status === 'incoming').length);
   const stripRef = useRef<HTMLDivElement>(null);
+  const [over, setOver] = useState(false);
   const selected = selectedChannelId ? findChannel(selectedChannelId) : undefined;
   const homeActive = !selectedGuildId && selected?.type !== 'dm';
+  // aba acesa: o canal aberto, se fixado; senão o servidor dele, se fixado
+  const activeId = homeActive ? null : selectedChannelId && tabs.includes(selectedChannelId) ? selectedChannelId : selectedGuildId && tabs.includes(guildTabId(selectedGuildId)) ? guildTabId(selectedGuildId) : null;
 
-  // abriu uma conversa (pela lista, pela busca, por uma notificação…): vira aba
+  // qualquer coisa da lista marcada com data-tab pode ser arrastada para cá (servidor, canal, call, conversa)
   useEffect(() => {
-    if (selectedChannelId && selected) openTab(selectedChannelId);
-  }, [selectedChannelId, selected]);
-  // canais apagados ou sem acesso somem das abas
+    const start = (e: DragEvent) => {
+      const id = (e.target as HTMLElement | null)?.dataset?.tab;
+      if (!id || !e.dataTransfer) return;
+      e.dataTransfer.setData(TAB_DRAG, id);
+      useNovo.setState({ dragging: true });
+    };
+    const end = () => useNovo.setState({ dragging: false });
+    document.addEventListener('dragstart', start, true);
+    document.addEventListener('dragend', end, true);
+    return () => {
+      document.removeEventListener('dragstart', start, true);
+      document.removeEventListener('dragend', end, true);
+    };
+  }, []);
+  // canais apagados, sem acesso, ou servidores que saí: somem das abas
   useEffect(() => {
-    const valid = useNovo.getState().tabs.filter((id) => !!findChannel(id));
+    const valid = useNovo.getState().tabs.filter(tabExists);
     if (valid.length !== useNovo.getState().tabs.length) useNovo.setState({ tabs: valid });
   }, [channelsKey]);
-  // a aba aberta fica à vista
   useEffect(() => {
     stripRef.current?.querySelector('.novo-tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }, [selectedChannelId]);
+  }, [activeId]);
 
   return (
-    <header className="novo-tabsbar">
-      <nav className="novo-tabs" aria-label="Abas abertas" ref={stripRef}>
+    <header
+      className={`novo-tabsbar${dragging ? ' dragging' : ''}${over ? ' over' : ''}`}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes(TAB_DRAG)) return;
+        e.preventDefault();
+        // o canal pode vir com "mover" (reordenar canais): aceita o que o arraste permitir
+        e.dataTransfer.dropEffect = e.dataTransfer.effectAllowed === 'move' ? 'move' : 'copy';
+        setOver(true);
+      }}
+      onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setOver(false)}
+      onDrop={(e) => {
+        const id = e.dataTransfer.getData(TAB_DRAG);
+        setOver(false);
+        useNovo.setState({ dragging: false });
+        if (!id) return;
+        e.preventDefault();
+        pinTab(id);
+      }}
+    >
+      <nav className="novo-tabs" aria-label="Abas fixadas" ref={stripRef}>
         <div className={`novo-tab home${homeActive ? ' active' : ''}`}>
           <button type="button" className="novo-tab-btn" aria-current={homeActive ? 'page' : undefined} onClick={() => goHome(null)}>
             <Home size={16} />
@@ -174,8 +256,13 @@ export function TabsBar() {
           </button>
         </div>
         {tabs.map((id) => (
-          <Tab key={id} channelId={id} active={id === selectedChannelId && !homeActive} />
+          <Tab key={id} id={id} active={id === activeId} />
         ))}
+        {(dragging || tabs.length === 0) && (
+          <span className={`novo-tabs-hint${dragging ? ' live' : ''}`} aria-live="polite">
+            <Pin size={14} /> {dragging ? 'Solte aqui para fixar em aba' : 'Arraste um servidor, canal, call ou conversa para cá para fixar'}
+          </span>
+        )}
       </nav>
       <CallControls />
     </header>

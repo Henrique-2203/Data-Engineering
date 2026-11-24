@@ -5,10 +5,13 @@ import { openDm } from '../lib/social';
 import { selectChannel, selectGuild } from '../store/app';
 import { goHome, useApp } from '../store/app';
 import { Avatar } from './Avatar';
+import { useNovoLayout } from '../lib/layoutMode';
+import { tabDrag } from './NovoLayout';
 
 /** Barra lateral do Início: atalho para Amigos e a lista de conversas diretas. */
 export function HomeSidebar() {
   const selected = useApp((s) => s.selectedChannelId);
+  const novo = useNovoLayout();
   const dmOrder = useApp((s) => s.dmOrder);
   const dms = useApp((s) => s.dms);
   const online = useApp((s) => s.online);
@@ -37,7 +40,7 @@ export function HomeSidebar() {
         const dm = dms[id];
         if (!dm) return null;
         return (
-          <div key={id} className={`channel dm-item${selected === id ? ' active' : ''}${unread[id] ? ' unread' : ''}`}>
+          <div key={id} className={`channel dm-item${selected === id ? ' active' : ''}${unread[id] ? ' unread' : ''}`} {...tabDrag(id, novo)}>
             <button className="channel-main" onClick={() => goHome(id)}>
               <Avatar user={dm.recipient} size={30} online={!!online[dm.recipient.id]} />
               <span className="ellipsis">{dm.recipient.displayName}</span>

@@ -3,6 +3,8 @@ import { ApoioButton } from './Apoio';
 import { Compass } from 'lucide-react';
 import { goHome, openModal, selectGuild, useApp } from '../store/app';
 import { useVoice } from '../store/voice';
+import { useNovoLayout } from '../lib/layoutMode';
+import { guildTabId, tabDrag } from './NovoLayout';
 
 const initials = (name: string) =>
   name
@@ -16,6 +18,7 @@ export function ServerRail() {
   const guildOrder = useApp((s) => s.guildOrder);
   const guilds = useApp((s) => s.guilds);
   const selected = useApp((s) => s.selectedGuildId);
+  const novo = useNovoLayout();
   const unread = useApp((s) => s.unread);
   const mentions = useApp((s) => s.mentions);
   // em call: ícone de som no servidor da call (ou no Início, se for call de mensagem direta)
@@ -58,6 +61,7 @@ export function ServerRail() {
           <button
             key={id}
             className={`rail-item${selected === id ? ' active' : ''}`}
+            {...tabDrag(guildTabId(id), novo)}
             title={g.name}
             aria-label={g.name}
             onClick={() => selectGuild(id)}

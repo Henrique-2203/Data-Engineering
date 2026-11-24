@@ -8749,3 +8749,110 @@ body.call-expanded .icon-btn.active { color: var(--accent); }
     margin: 0;
   }
 }
+
+/* abas fixadas arrastando */
+.novo-tabsbar.dragging .novo-tabs {
+  outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: -2px;
+  border-radius: 10px 10px 0 0;
+}
+.novo-tabsbar.over .novo-tabs {
+  background: var(--accent-soft);
+}
+.novo-tabs-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.novo-tabs-hint.live {
+  color: var(--accent);
+  font-weight: 700;
+}
+.novo-tab.drop-before {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.novo-tab[draggable='true'] {
+  cursor: grab;
+}
+.novo-tab-guild {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  overflow: hidden;
+  flex: none;
+}
+.novo-tab-guild img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ver imagem: zoom e arrastar */
+.lightbox.viewer {
+  padding: 0;
+  display: block;
+  background: rgba(0, 0, 0, 0.95);
+}
+.viewer-stage {
+  position: absolute;
+  inset: 0 0 calc(72px + var(--safe-bottom)) 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  touch-action: none;
+  cursor: zoom-in;
+  user-select: none;
+}
+.viewer-stage.zoomed {
+  cursor: grab;
+}
+.viewer-stage.dragging {
+  cursor: grabbing;
+}
+.lightbox.viewer .viewer-stage img {
+  /* em % não funciona dentro da grade (altura indefinida): a imagem passava da tela */
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 72px - var(--safe-bottom) - 24px);
+  border-radius: 6px;
+  object-fit: contain;
+  transform-origin: center center;
+  will-change: transform;
+}
+.lightbox.viewer .viewer-stage img.smooth {
+  transition: transform 0.12s ease-out;
+}
+.viewer-zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+.viewer-pct {
+  min-width: 46px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.viewer-name {
+  max-width: 220px;
+}
+@media (max-width: 600px) {
+  .viewer-name {
+    display: none;
+  }
+}

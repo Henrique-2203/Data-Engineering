@@ -94,42 +94,56 @@ try {
   await pa.getByRole('button', { name: 'Aparência', exact: true }).click();
   await pa.getByRole('radiogroup', { name: 'Layout' }).getByRole('radio', { name: /Novo/ }).click();
   await pa.keyboard.press('Escape');
-  const tabs = pa.getByRole('navigation', { name: 'Abas abertas' });
+  const tabs = pa.getByRole('navigation', { name: 'Abas fixadas' });
   await tabs.waitFor();
+  const pinned = () => tabs.locator('.novo-tab:not(.home)');
+  const tab = (name) => pinned().filter({ has: pa.locator('.novo-tab-label', { hasText: new RegExp(`^${name}$`) }) });
   await pa.getByRole('button', { name: 'Galera' }).first().click();
-  await pa.getByText('clipes', { exact: true }).first().click();
-  await pa.getByText('geral', { exact: true }).first().click();
-  await tabs.locator('.novo-tab', { hasText: 'clipes' }).waitFor();
-  await tabs.locator('.novo-tab.active', { hasText: 'geral' }).waitFor();
-  step('Aparência → Layout: Novo; cada canal aberto vira uma aba (com o nome do servidor)');
+  await pa.locator('.sidebar').getByText('clipes', { exact: true }).first().click();
+  await pa.locator('.sidebar').getByText('geral', { exact: true }).first().click();
+  await sleep(300);
+  assert((await pinned().count()) === 0, 'abrir canais não cria aba sozinho');
+  await tabs.getByText('Arraste um servidor, canal, call ou conversa para cá para fixar').waitFor();
+  step('Aparência → Layout: Novo; abrir canais NÃO cria abas (só o Início e a dica de arrastar)');
 
-  // mensagem nova num canal que não está aberto: a aba mostra
+  // arrastar para fixar: canal, servidor e conversa
+  const bar = pa.locator('.novo-tabsbar');
+  await pa.locator('.sidebar .channel[data-tab]', { hasText: 'clipes' }).dragTo(bar);
+  await tab('clipes').waitFor();
+  await pa.locator('.rail-item[data-tab]', { hasText: /G/ }).first().dragTo(bar);
+  await tab('Galera').waitFor();
+  // estou no #geral (não fixado): a aba acesa é a do servidor
+  await tabs.locator('.novo-tab.active', { hasText: 'Galera' }).waitFor();
+  await pa.getByRole('button', { name: 'Início' }).first().click();
+  await pa.locator('.dm-item[data-tab]', { hasText: 'Bia' }).dragTo(bar);
+  await tab('Bia').waitFor();
+  assert((await pinned().count()) === 3, 'três abas fixadas');
+  step('arrastar um canal, um servidor ou uma conversa até a barra fixa a aba');
+
+  // mensagem nova num canal fixado que não está aberto: a aba mostra
   assert(clipesId, `id do canal clipes (${JSON.stringify(clipes).slice(0, 120)})`);
   for (let i = 0; i < 2; i++) await api(`/channels/${clipesId}/messages`, { content: `clipe novo ${i}` }, bia.token);
-  await tabs.locator('.novo-tab', { hasText: 'clipes' }).locator('.novo-badge').waitFor({ timeout: 5000 });
-  step('mensagens novas aparecem na aba que não está aberta');
-
-  // a conversa com a Bia também vira aba; clicar nas abas troca
-  await pa.getByRole('button', { name: 'Início' }).first().click();
-  await pa.getByText('Bia', { exact: true }).first().click();
-  await tabs.locator('.novo-tab.active', { hasText: 'Bia' }).waitFor({ timeout: 5000 });
-  await tabs.locator('.novo-tab', { hasText: 'geral' }).locator('.novo-tab-btn').click();
-  await pa.locator('.main').getByText('geral').first().waitFor();
+  await tab('clipes').locator('.novo-badge').waitFor({ timeout: 5000 });
+  // clicar troca; arrastar uma aba para antes de outra muda a ordem
+  await tab('Galera').locator('.novo-tab-btn').click();
+  await pa.locator('.sidebar').getByText('geral', { exact: true }).first().waitFor();
+  await tab('Bia').dragTo(tab('clipes'));
+  const order = await pinned().locator('.novo-tab-label').allInnerTexts();
+  assert(order.join(',') === 'Bia,clipes,Galera', `reordenar arrastando (${order.join(',')})`);
   await sleep(300);
   await pa.screenshot({ path: path.join(shots, 'layout-novo-abas.png') });
-  // clique do meio fecha; X na aba aberta fecha e vai para a vizinha
-  await tabs.locator('.novo-tab', { hasText: 'clipes' }).locator('.novo-tab-btn').click({ button: 'middle' });
-  await tabs.locator('.novo-tab', { hasText: 'clipes' }).waitFor({ state: 'detached' });
-  await tabs.getByRole('button', { name: 'Fechar aba geral' }).click();
-  await tabs.locator('.novo-tab', { hasText: 'geral' }).waitFor({ state: 'detached' });
-  await tabs.locator('.novo-tab.active').waitFor();
-  step('clicar troca de aba; clique do meio fecha; fechar a aba aberta vai para a vizinha');
+  // desafixar: clique do meio ou X (a conversa continua aberta)
+  await tab('clipes').locator('.novo-tab-btn').click({ button: 'middle' });
+  await tab('clipes').waitFor({ state: 'detached' });
+  await tabs.getByRole('button', { name: 'Desafixar aba Galera' }).click();
+  await tab('Galera').waitFor({ state: 'detached' });
+  assert(await pa.locator('.sidebar').getByText('geral', { exact: true }).first().isVisible(), 'desafixar não fecha a conversa aberta');
+  step('mensagens novas na aba; clicar troca; arrastar reordena; clique do meio ou X desafixa (sem fechar a conversa)');
 
-  // a call fica no topo, em qualquer aba
-  await pa.getByRole('button', { name: 'Galera' }).first().click();
+  // a call fica no topo, em qualquer tela
   await pa.getByRole('button', { name: 'Sala de voz' }).first().click();
   await pa.getByText('Voz conectada').waitFor({ timeout: 15000 });
-  await pa.getByText('geral', { exact: true }).first().click();
+  await pa.locator('.sidebar').getByText('geral', { exact: true }).first().click();
   const call = pa.locator('.novo-tabsbar').getByRole('group', { name: 'Call em andamento' });
   await call.waitFor();
   await call.getByRole('button', { name: 'Silenciar microfone' }).click();
@@ -138,10 +152,10 @@ try {
   await pa.screenshot({ path: path.join(shots, 'layout-novo-call.png') });
   await call.getByRole('button', { name: 'Sair da call' }).click();
   await call.waitFor({ state: 'detached' });
-  // as abas ficam guardadas no aparelho
+  // as abas fixadas ficam guardadas no aparelho
   await pa.reload();
-  await tabs.locator('.novo-tab', { hasText: 'Sala de voz' }).waitFor({ timeout: 10000 });
-  step('a call fica no topo em qualquer aba (silenciar e sair); as abas voltam depois de recarregar');
+  await tab('Bia').waitFor({ timeout: 10000 });
+  step('a call fica no topo (silenciar e sair); as abas fixadas voltam depois de recarregar');
 
   // ---------- celular ----------
   const pm = await open(ana.token, devices['Pixel 7'], 'novo');

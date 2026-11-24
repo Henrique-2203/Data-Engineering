@@ -28,7 +28,7 @@ import {
 import type { Channel, VoiceState } from '../../../shared/types';
 import { api } from '../lib/api';
 import { useNovoLayout } from '../lib/layoutMode';
-import { BackToServersButton } from './NovoLayout';
+import { BackToServersButton, tabDrag } from './NovoLayout';
 import { findChannel, findMember, openModal, selectChannel, toast, updateGuildChannels, useApp } from '../store/app';
 import { Perm, has, imageUrl, memberColor, myPermissions, usePerms } from '../lib/perms';
 import { refreshGuild } from '../lib/socket';
@@ -317,9 +317,11 @@ function TextChannelItem({ channel, canEdit, drag }: { channel: Channel; canEdit
   const unreadN = useApp((s) => s.unread[channel.id] ?? 0);
   const unread = unreadN > 0;
   const mentions = useApp((s) => s.mentions[channel.id] ?? 0);
+  const novo = useNovoLayout();
   return (
     <div
       className={`channel${active ? ' active' : ''}${unread ? ' unread' : ''}${drag?.dragging ? ' dragging' : ''}${drag?.over ? ' drop-before' : ''}`}
+      {...tabDrag(channel.id, novo)}
       {...dragAttrs(drag)}
     >
       <button className="channel-main" onClick={() => selectChannel(channel.id)}>
@@ -364,11 +366,13 @@ function VoiceChannelItem({ channel, canEdit, drag }: { channel: Channel; canEdi
   const myChannel = useVoice((s) => s.channelId);
   const limit = channel.userLimit ?? 0;
   const [dropMove, setDropMove] = useState(false);
+  const novo = useNovoLayout();
 
   return (
     <>
       <div
         className={`channel${active ? ' active' : ''}${myChannel === channel.id ? ' connected' : ''}${drag?.dragging ? ' dragging' : ''}${drag?.over ? ' drop-before' : ''}`}
+        {...tabDrag(channel.id, novo)}
         {...dragAttrs(drag)}
       >
         <button

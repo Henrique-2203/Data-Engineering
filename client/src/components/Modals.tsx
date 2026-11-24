@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ApoioModal } from './Apoio';
+import { ImageViewer } from './ImageViewer';
 import { ExploreModal } from './Explore';
 import { CATEGORY_LABEL, GUILD_CATEGORIES } from '../../../shared/explore';
 import { GuildWelcomeModal, OfficialWelcomeModal, RulesModal, afterJoin } from './Official';
@@ -81,7 +82,7 @@ export function Modals({ onLogout }: { onLogout(): void }) {
     case 'wallpaper':
       return <ChatWallpaperModal channelId={modal.channelId} />;
     case 'image':
-      return <Lightbox src={modal.src} name={modal.name} />;
+      return <ImageViewer src={modal.src} name={modal.name} />;
     case 'profile':
       return (
         <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && closeModal()}>
@@ -152,23 +153,6 @@ function AddEmailPrompt() {
         </div>
       </div>
     </Modal>
-  );
-}
-
-function Lightbox({ src, name }: { src: string; name: string }) {
-  return (
-    <div className="lightbox" role="dialog" aria-modal="true" aria-label={name} onClick={closeModal}>
-      <img src={src} alt={name} onClick={(e) => e.stopPropagation()} />
-      <div className="lightbox-bar" onClick={(e) => e.stopPropagation()}>
-        <span className="ellipsis">{name}</span>
-        <a href={src} target="_blank" rel="noopener noreferrer" className="btn small">
-          Abrir original
-        </a>
-        <button className="icon-btn" aria-label="Fechar" onClick={closeModal}>
-          <X size={20} />
-        </button>
-      </div>
-    </div>
   );
 }
 
