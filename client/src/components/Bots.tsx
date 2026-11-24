@@ -111,21 +111,27 @@ export function BotsSettings({ guild }: { guild: Guild }) {
       </div>
       {st.installed && (
         <>
-          <h3>Comandos</h3>
-          <ul className="bot-commands">
-            {st.commands.map((c) => (
-              <li key={c.name}>
-                <label className="check">
-                  <input type="checkbox" checked={c.enabled} onChange={(e) => void setCommand(c.name, e.target.checked)} aria-label={`Comando /${c.name}`} />
-                  <span>
-                    <strong>/{c.name}</strong> <span className="muted">{c.description}</span>
-                    <br />
-                    <code className="muted small">{c.usage}</code>
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
+          {[...new Set(st.commands.map((c) => c.group))].map((group) => (
+            <div key={group}>
+              <h3>{group}</h3>
+              <ul className="bot-commands">
+                {st.commands
+                  .filter((c) => c.group === group)
+                  .map((c) => (
+                    <li key={c.name}>
+                      <label className="check">
+                        <input type="checkbox" checked={c.enabled} onChange={(e) => void setCommand(c.name, e.target.checked)} aria-label={`Comando /${c.name}`} />
+                        <span>
+                          <strong>/{c.name}</strong> <span className="muted">{c.description}</span>
+                          <br />
+                          <code className="muted small">{c.usage}</code>
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ))}
         </>
       )}
     </div>

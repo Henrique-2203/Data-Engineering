@@ -13,7 +13,9 @@ import { withFileLinks } from './attachments.ts';
 import { bump } from './stats.ts';
 import { USER_COLUMNS, type requireAuth } from './auth.ts';
 import { Perm, has } from '../../shared/permissions.ts';
-import type { BotCommandInfo, BotEmbed, Member, Message, PublicUser } from '../../shared/types.ts';
+import type { BotCommandInfo, Member, Message, PublicUser } from '../../shared/types.ts';
+import { BOT_COLOR as COLOR, bad, embed, type BotCommand, type Reply } from './botKit.ts';
+import { DJ_COMMANDS } from './botDj.ts';
 
 /**
  * Bots da casa (em teste: recurso "bots"). O "Resenha Bot" roda DENTRO do servidor do Resenha:
@@ -25,7 +27,6 @@ import type { BotCommandInfo, BotEmbed, Member, Message, PublicUser } from '../.
  * A API para bots de terceiros (token, webhooks) fica para depois.
  */
 export const BOT_ID = 'bot_resenha';
-const COLOR = '#3ddc97';
 
 /** Cria o usuário do bot (uma vez). Sem senha utilizável: ninguém consegue entrar como ele. */
 export async function ensureBotUser(db: Db) {
@@ -44,30 +45,6 @@ export async function ensureBotUser(db: Db) {
   console.warn('[bots] não foi possível criar o usuário do bot: todos os nomes já estão em uso');
 }
 
-const embed = (title: string, description: string, fields?: BotEmbed['fields']): BotEmbed => ({ title, description, color: COLOR, ...(fields ? { fields } : {}) });
-
-interface Reply {
-  content?: string;
-  embed?: BotEmbed;
-  poll?: z.infer<typeof pollSchema>;
-}
-interface Ctx {
-  db: Db;
-  args: string;
-  user: PublicUser;
-  channel: { id: string; guildId: string };
-  /** comandos ligados neste servidor (para /ajuda) */
-  enabled: BotCommandInfo[];
-}
-interface BotCommand {
-  name: string;
-  description: string;
-  usage: string;
-  run(ctx: Ctx): Promise<Reply> | Reply;
-}
-
-const bad = (msg: string) => new HttpError(400, msg);
-
 const DICE_HELP = 'Use assim: /dado d20 ou /dado 2d6 (até 20 dados, de 2 a 1000 lados).';
 const UNITS: Record<string, { ms: number; one: string; many: string }> = {
   m: { ms: 60_000, one: 'minuto', many: 'minutos' },
@@ -79,6 +56,7 @@ const UNITS: Record<string, { ms: number; one: string; many: string }> = {
 export const COMMANDS: BotCommand[] = [
   {
     name: 'dado',
+    group: 'Diversão',
     description: 'Rola um ou mais dados',
     usage: '/dado d20  ·  /dado 2d6',
     run: ({ args }) => {
@@ -95,12 +73,14 @@ export const COMMANDS: BotCommand[] = [
   },
   {
     name: 'moeda',
+    group: 'Diversão',
     description: 'Cara ou coroa',
     usage: '/moeda',
     run: () => ({ embed: embed('🪙 Cara ou coroa', `Deu **${randomInt(2) ? 'cara' : 'coroa'}**!`) }),
   },
   {
     name: 'sortear',
+    group: 'Diversão',
     description: 'Sorteia uma das opções (separe por vírgula)',
     usage: '/sortear pizza, hambúrguer, sushi',
     run: ({ args }) => {
@@ -112,6 +92,7 @@ export const COMMANDS: BotCommand[] = [
   },
   {
     name: 'enquete',
+    group: 'Utilidades',
     description: 'Cria uma enquete (separe com |)',
     usage: '/enquete Qual jogo hoje? | Valorant | CS | Minecraft',
     run: ({ args }) => {
@@ -123,6 +104,7 @@ export const COMMANDS: BotCommand[] = [
   },
   {
     name: 'lembrar',
+    group: 'Utilidades',
     description: 'Eu aviso você daqui a pouco (de 1 minuto a 7 dias)',
     usage: '/lembrar 10m tirar a pizza do forno',
     run: async ({ db, args, user, channel }) => {
@@ -147,16 +129,18 @@ export const COMMANDS: BotCommand[] = [
   },
   {
     name: 'ajuda',
+    group: 'Utilidades',
     description: 'Mostra os comandos do bot',
     usage: '/ajuda',
     run: ({ enabled }) => ({
       embed: embed('🤖 Comandos do Resenha Bot', 'Digite **/** no campo de mensagem para ver a lista.', enabled.map((c) => ({ name: c.usage, value: c.description }))),
     }),
   },
+  ...DJ_COMMANDS,
 ];
 
 const commandInfo = (disabled: string[]): BotCommandInfo[] =>
-  COMMANDS.map((c) => ({ name: c.name, description: c.description, usage: c.usage, enabled: !disabled.includes(c.name) }));
+  COMMANDS.map((c) => ({ name: c.name, group: c.group, description: c.description, usage: c.usage, enabled: !disabled.includes(c.name) }));
 
 interface Deps {
   channelForMember(channelId: string, userId: string): Promise<ChannelRow & { access: MemberAccess | null; slowmode?: number }>;
@@ -313,9 +297,12 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
       await checkAutomod(db, { guildId: c.guildId, channelName: c.name, access: c.access, userId: me.id, inviteCode: g?.code ?? '', texts: [body.args] });
       const reply = await cmd.run({
         db,
+        rt,
         args: body.args.trim(),
         user: me,
-        channel: { id: c.id, guildId: c.guildId },
+        channel: { id: c.id, guildId: c.guildId, name: c.name },
+        perms: c.access.perms,
+        isOwner: c.access.isOwner,
         enabled: commandInfo(row.disabled).filter((x) => x.enabled),
       });
       const message = await post(c, reply, { userId: me.id, username: me.username, displayName: me.displayName, command: cmd.name });

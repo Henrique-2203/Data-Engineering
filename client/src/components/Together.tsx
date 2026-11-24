@@ -308,8 +308,18 @@ export function TogetherTile({ big }: { big?: boolean }) {
     </button>
   );
   const nextBtn = (
-    <button className="icon-btn overlay" aria-label="Próximo da fila" title="Próximo da fila" disabled={!state.queue.length} onClick={() => together.next()}>
+    <button
+      className="icon-btn overlay"
+      aria-label="Pular (votação)"
+      title={state.skip ? `Votos para pular: ${state.skip.votes}/${state.skip.needed}. Clique para votar também.` : 'Pular: a maioria da call vota (quem colocou o vídeo pula na hora)'}
+      onClick={() => together.voteSkip()}
+    >
       <SkipForward size={16} />
+      {state.skip && (
+        <span className="together-count">
+          {state.skip.votes}/{state.skip.needed}
+        </span>
+      )}
     </button>
   );
 

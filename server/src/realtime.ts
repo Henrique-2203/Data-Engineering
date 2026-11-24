@@ -669,12 +669,43 @@ export class Realtime {
   private onTogether(socket: Socket, payload: unknown) {
     const v = this.voice.get(socket.id);
     if (!v) return { ok: false, error: 'Entre na call primeiro.' };
+    return this.applyTogether(v.channelId, (socket.data.user as PublicUser).id, payload);
+  }
+
+  /**
+   * DJ do bot: age no "Assistir juntos" da call em que a pessoa está (precisa ser num canal de voz do servidor `guildId`).
+   * `perms`: permissões da pessoa no servidor (quem administra pode parar a música dos outros).
+   */
+  dj(userId: string, guildId: string, payload: unknown): { ok: boolean; error?: string; skipped?: boolean; votes?: number; needed?: number; state?: TogetherState | null } {
+    const v = this.voiceOfUser(userId).find((s) => s.guildId === guildId);
+    if (!v) return { ok: false, error: 'Entre num canal de voz deste servidor para usar o DJ.' };
+    const r = this.applyTogether(v.channelId, userId, payload);
+    return { ...r, state: this.together.get(v.channelId) ?? null };
+  }
+
+  /** O que está tocando na call (ou null), para os comandos do DJ. */
+  togetherOf(userId: string, guildId: string): { state: TogetherState | null; people: number; channelId: string } | null {
+    const v = this.voiceOfUser(userId).find((s) => s.guildId === guildId);
+    if (!v) return null;
+    return { state: this.together.get(v.channelId) ?? null, people: this.callPeople(v.channelId).size, channelId: v.channelId };
+  }
+
+  /** pessoas (contas) na call; quem entrou por dois aparelhos conta uma vez */
+  private callPeople(channelId: string) {
+    return new Set([...this.voice.values()].filter((s) => s.channelId === channelId).map((s) => s.userId));
+  }
+
+  /** votos para pular o vídeo atual, por call (zeram quando troca o vídeo) */
+  private skipVotes = new Map<string, { videoId: string; voters: Set<string> }>();
+
+  private applyTogether(channelId: string, user: string, payload: unknown): { ok: boolean; error?: string; skipped?: boolean; votes?: number; needed?: number } {
     const id = z.string().regex(/^[A-Za-z0-9_-]{11}$/);
     const pos = z.number().min(0).max(86_400);
     const parsed = z
       .discriminatedUnion('action', [
         z.object({ action: z.literal('play'), videoId: id, title: z.string().max(200).nullable().optional(), position: pos.optional() }),
-        z.object({ action: z.literal('enqueue'), videoId: id, title: z.string().max(200).nullable().optional() }),
+        z.object({ action: z.literal('enqueue'), videoId: id, title: z.string().max(200).nullable().optional(), front: z.boolean().optional() }),
+        z.object({ action: z.literal('voteskip') }),
         z.object({ action: z.literal('pause'), position: pos }),
         z.object({ action: z.literal('resume'), position: pos }),
         z.object({ action: z.literal('seek'), position: pos }),
@@ -686,9 +717,8 @@ export class Realtime {
       .safeParse(payload);
     if (!parsed.success) return { ok: false, error: 'Pedido inválido.' };
     const a = parsed.data;
-    const user = (socket.data.user as PublicUser).id;
     const now = Date.now();
-    const cur = this.together.get(v.channelId) ?? null;
+    const cur = this.together.get(channelId) ?? null;
     let next: TogetherState | null = cur;
     const start = (videoId: string, title: string | null, by: string, position = 0, queue = cur?.queue ?? []): TogetherState => ({
       videoId,
@@ -706,8 +736,32 @@ export class Realtime {
       case 'enqueue':
         if (!cur) next = start(a.videoId, a.title ?? null, user);
         else if (cur.queue.length >= 50) return { ok: false, error: 'A fila já tem 50 vídeos.' };
-        else next = { ...cur, queue: [...cur.queue, { videoId: a.videoId, title: a.title ?? null, by: user }] };
+        else {
+          const item = { videoId: a.videoId, title: a.title ?? null, by: user };
+          next = { ...cur, queue: a.front ? [item, ...cur.queue] : [...cur.queue, item] };
+        }
         break;
+      case 'voteskip': {
+        if (!cur) return { ok: false, error: 'Não tem nada tocando agora.' };
+        const people = this.callPeople(channelId);
+        const needed = Math.floor(people.size / 2) + 1; // maioria da call
+        const prev = this.skipVotes.get(channelId);
+        const entry = prev && prev.videoId === cur.videoId ? prev : { videoId: cur.videoId, voters: new Set<string>() };
+        entry.voters.add(user);
+        const votes = [...entry.voters].filter((u) => people.has(u)).length;
+        // quem colocou o vídeo pode pular na hora; senão, maioria
+        if (votes >= needed || cur.by === user) {
+          this.skipVotes.delete(channelId);
+          const q = cur.queue;
+          next = q.length ? start(q[0].videoId, q[0].title, q[0].by, 0, q.slice(1)) : null;
+          this.togetherEmit(channelId, next, now, user, 'next');
+          return { ok: true, skipped: true, votes, needed };
+        }
+        this.skipVotes.set(channelId, entry);
+        next = { ...cur, skip: { votes, needed } };
+        this.togetherEmit(channelId, next, now, user, 'voteskip');
+        return { ok: true, skipped: false, votes, needed };
+      }
       case 'pause':
       case 'resume':
       case 'seek':
@@ -737,12 +791,19 @@ export class Realtime {
         next = null;
         break;
     }
-    if (next) this.together.set(v.channelId, next);
-    else this.together.delete(v.channelId);
+    // trocou o vídeo: os votos de pular do anterior não valem
+    if (!next || next.videoId !== cur?.videoId) this.skipVotes.delete(channelId);
+    if (next && next.videoId !== cur?.videoId && next.skip) next = { ...next, skip: null };
     // avisa no chat privado da call o que foi colocado para tocar
-    if (a.action === 'play' || a.action === 'enqueue') this.pushCallChat(v.channelId, { userId: user, content: a.title?.trim() || 'um vídeo do YouTube', kind: 'together' });
-    this.io.to(`voice:${v.channelId}`).emit('together:state', { channelId: v.channelId, state: next, now, by: user, action: a.action });
+    if (a.action === 'play' || a.action === 'enqueue') this.pushCallChat(channelId, { userId: user, content: a.title?.trim() || 'um vídeo do YouTube', kind: 'together' });
+    this.togetherEmit(channelId, next, now, user, a.action);
     return { ok: true };
+  }
+
+  private togetherEmit(channelId: string, next: TogetherState | null, now: number, by: string, action: string) {
+    if (next) this.together.set(channelId, next);
+    else this.together.delete(channelId);
+    this.io.to(`voice:${channelId}`).emit('together:state', { channelId, state: next, now, by, action });
   }
 
   /** A pessoa (userId) pode assistir a transmissão de quem está no socket `streamerSid`? */

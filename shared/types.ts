@@ -214,6 +214,8 @@ export interface TogetherState {
   /** quem colocou o vídeo atual */
   by: string;
   queue: { videoId: string; title: string | null; by: string }[];
+  /** votação para pular o vídeo atual (só aparece enquanto há votos) */
+  skip?: { votes: number; needed: number } | null;
 }
 
 /**
@@ -331,6 +333,8 @@ export interface BotEmbed {
 /** Comando de bot disponível no servidor (popup do "/") */
 export interface BotCommandInfo {
   name: string;
+  /** grupo na tela Integrações (Diversão, DJ…) */
+  group: string;
   description: string;
   usage: string;
   enabled: boolean;

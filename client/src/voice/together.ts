@@ -13,7 +13,7 @@ type Action =
   | { action: 'play'; videoId: string; title?: string | null; position?: number }
   | { action: 'enqueue'; videoId: string; title?: string | null }
   | { action: 'pause' | 'resume' | 'seek'; position: number }
-  | { action: 'next' | 'stop' }
+  | { action: 'next' | 'stop' | 'voteskip' }
   | { action: 'ended'; videoId: string; position?: number; duration?: number }
   | { action: 'remove'; index: number };
 
@@ -46,6 +46,8 @@ export const together = {
   resume: (position: number) => send({ action: 'resume', position }),
   seek: (position: number) => send({ action: 'seek', position }),
   next: () => send({ action: 'next' }),
+  /** pular com votação: a maioria da call decide (quem colocou o vídeo pula na hora) */
+  voteSkip: () => send({ action: 'voteskip' }),
   ended: (videoId: string, position: number, duration: number) => send({ action: 'ended', videoId, position, duration }),
   /** fecha só para mim (o vídeo continua para os outros) */
   hide: () => useVoice.setState((s) => ({ togetherHidden: true, focus: s.focus === 'together' ? null : s.focus })),
