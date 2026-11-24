@@ -15,7 +15,7 @@ const BASE = `http://localhost:${PORT}`;
 const shots = path.resolve('e2e/screenshots');
 mkdirSync(shots, { recursive: true });
 const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: tempDir('resenha-lp-'), PLATFORM_ADMINS: 'equipe' },
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: tempDir('resenha-lp-'), PLATFORM_ADMINS: 'equipe', REGISTRATION_CODE: 'galera2026' }, // cadastro fechado: a página mostra a lista de espera (o cadastro aberto é testado em e2e/launch.mjs)
   stdio: ['ignore', 'ignore', 'pipe'],
 });
 server.stderr.on('data', (d) => process.stderr.write(`[server] ${d}`));
@@ -48,13 +48,13 @@ try {
 
   // ---------- apresentação ----------
   await page.getByRole('heading', { name: /Sua call\. Sua tela\./ }).waitFor();
-  await page.getByText('O Resenha está em desenvolvimento (beta).').waitFor();
+  await page.getByText('Já tem convite?').waitFor();
   const video = await page.waitForFunction(() => {
     const v = document.querySelector('.lp-trailer video');
     return v && v.readyState >= 2 && !v.paused ? `${v.videoWidth}x${v.videoHeight}, ${Math.round(v.duration)} s` : null;
   }, null, { timeout: 10000 });
   await page.screenshot({ path: `${shots}/35-pagina-inicial.png` });
-  step(`página inicial com aviso de beta e vídeo tocando sozinho (${await video.jsonValue()})`);
+  step(`página inicial (cadastro fechado) e vídeo tocando sozinho (${await video.jsonValue()})`);
 
   // prints dos recursos carregam (rola a página para animar a entrada)
   await page.evaluate(async () => {
@@ -102,8 +102,8 @@ try {
   step('mesmo e-mail não duplica; robôs (campo invisível), e-mail inválido e sem consentimento são recusados');
 
   // ---------- painel da equipe ----------
-  const equipe = await api('/auth/register', { username: 'equipe', password: 'segredo123', acceptTerms: true });
-  const notAdmin = await api('/admin/waitlist', null, (await api('/auth/register', { username: 'zeca', password: 'segredo123' })).token);
+  const equipe = await api('/auth/register', { username: 'equipe', password: 'segredo123', acceptTerms: true, registrationCode: 'galera2026' });
+  const notAdmin = await api('/admin/waitlist', null, (await api('/auth/register', { username: 'zeca', password: 'segredo123', acceptTerms: true, registrationCode: 'galera2026' })).token);
   if (notAdmin.status !== 404) throw new Error('lista de espera visível para quem não é da equipe');
   const pa = await (await browser.newContext({ viewport: { width: 1366, height: 860 } })).newPage();
   await pa.addInitScript((t) => localStorage.setItem('resenha.token', t), equipe.token);

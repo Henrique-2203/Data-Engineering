@@ -58,7 +58,7 @@ function Usage({ uses, max }: { uses: number; max: number | null }) {
 
 /** Painel da equipe → Convites */
 export function InviteCodesAdmin() {
-  const [data, setData] = useState<{ codes: AdminCode[]; totals: { withCode: number; total: number }; needsCode: boolean } | null>(null);
+  const [data, setData] = useState<{ codes: AdminCode[]; totals: { withCode: number; total: number }; needsCode: boolean; open?: boolean } | null>(null);
   const [owner, setOwner] = useState('');
   const [label, setLabel] = useState('');
   const [maxUses, setMaxUses] = useState(5);
@@ -111,8 +111,8 @@ export function InviteCodesAdmin() {
     <div className="invite-admin">
       {data && !data.needsCode && (
         <p className="notice small">
-          O cadastro está <strong>aberto para todos</strong> (não existe a variável REGISTRATION_CODE no Render), então os códigos não são pedidos. Para
-          exigir convite, crie essa variável no Render.
+          O cadastro está <strong>aberto para todos</strong>, então o código não é pedido (quem digitar um ainda fica registrado como convidado por ele).
+          Para voltar a exigir convite, desligue "Cadastro aberto" em Novas contas.
         </p>
       )}
       <p className="muted small">

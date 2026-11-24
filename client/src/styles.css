@@ -3715,6 +3715,11 @@ input.switch:disabled {
   border-bottom: 1px solid rgba(245, 185, 66, 0.3);
   color: #f5d48a;
 }
+.lp-beta.lp-launch {
+  background: linear-gradient(90deg, rgba(88, 101, 242, 0.16), rgba(46, 204, 113, 0.14));
+  border-bottom-color: rgba(120, 140, 255, 0.3);
+  color: #dfe4ff;
+}
 .lp-nav {
   position: sticky;
   top: 0;
@@ -9211,4 +9216,114 @@ body.dm-call-full .chat .voice-stage.embedded .stage {
 body.dm-call-full .chat .voice-stage.embedded .stage > .tiles {
   height: 100%;
   grid-auto-rows: minmax(0, 1fr);
+}
+
+/* Painel da equipe → Novas contas */
+.signup-open {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  cursor: pointer;
+}
+.signup-open.on {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: var(--accent-soft);
+}
+.signup-open > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.signup-open input {
+  margin-top: 3px;
+  width: 18px;
+  height: 18px;
+}
+.signup-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 140px;
+  margin: 14px 0 18px;
+  padding: 10px 10px 0;
+  border-radius: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+.signup-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.signup-bar i {
+  width: 100%;
+  max-width: 22px;
+  border-radius: 4px 4px 0 0;
+  background: var(--accent);
+}
+.signup-bar i.zero {
+  background: var(--line);
+}
+.signup-bar b {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-2);
+}
+.signup-bar small {
+  min-height: 14px;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--text-3);
+  padding-bottom: 4px;
+}
+.signup-search input {
+  width: 100%;
+  max-width: 360px;
+  margin-bottom: 10px;
+}
+.signup-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.signup-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.signup-table th,
+.signup-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.signup-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  background: var(--bg-2);
+}
+.signup-table tr.suspended {
+  opacity: 0.55;
+}
+.signup-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.signup-user > span {
+  display: flex;
+  flex-direction: column;
 }

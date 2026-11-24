@@ -209,11 +209,11 @@ export function createRoutes(db: Db, rt: Realtime) {
     res.json({ version: siteVersion(), env: config.appEnv, commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? null });
   });
 
-  r.get('/config', (_req, res) => {
+  r.get('/config', async (_req, res) => {
     res.json({
       turnstileSiteKey: turnstileEnabled() ? config.turnstile.siteKey : null,
       emailEnabled: emailEnabled(),
-      registrationRequiresCode: registrationNeedsCode(),
+      registrationRequiresCode: await registrationNeedsCode(db),
       env: config.appEnv,
       officialUrl: config.appEnv === 'staging' ? config.officialUrl : null,
       privacyContact: config.privacyContact,

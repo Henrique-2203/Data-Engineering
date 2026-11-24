@@ -7,7 +7,7 @@ import { useApp } from '../store/app';
  * da semana, qualidade das calls e sistema). Cada cartão leva para a seção com os detalhes.
  * Só junta o que as outras seções já mostram (mesmas rotas), nada de dado novo sobre ninguém.
  */
-export type AdminTab = 'overview' | 'stats' | 'health' | 'open' | 'closed' | 'support' | 'waitlist' | 'invites' | 'apoio' | 'official' | 'public' | 'system';
+export type AdminTab = 'overview' | 'signups' | 'stats' | 'health' | 'open' | 'closed' | 'support' | 'waitlist' | 'invites' | 'apoio' | 'official' | 'public' | 'system';
 
 type Agg = Record<string, { sum: number; count: number }>;
 interface Data {
@@ -149,7 +149,7 @@ export function AdminOverview({ go }: { go(t: AdminTab): void }) {
         <div className="ov-grid">
           <Card go={go} to="stats" label="Visitas à página" value={nf.format(sum('landing_view'))} spark={series('landing_view')} />
           <Card go={go} to="waitlist" label="Entraram na lista" value={nf.format(sum('waitlist'))} spark={series('waitlist')} hint={`${nf.format(d.stats?.totals.waitlist ?? 0)} na lista no total`} />
-          <Card go={go} to="stats" label="Contas criadas" value={nf.format(sum('signup'))} spark={series('signup')} hint={`${nf.format(d.stats?.totals.users ?? 0)} contas no total`} />
+          <Card go={go} to="signups" label="Contas criadas" value={nf.format(sum('signup'))} spark={series('signup')} hint={`${nf.format(d.stats?.totals.users ?? 0)} contas no total`} />
           <Card go={go} to="stats" label="Pessoas que usaram" value={nf.format(d.stats?.totals.active7 ?? 0)} spark={series('active_user')} hint={`${nf.format(d.stats?.totals.active30 ?? 0)} nos últimos 30 dias`} />
           <Card go={go} to="invites" label="Entraram por convite" value={nf.format(d.codes?.totals.withCode ?? 0)} hint={`de ${nf.format(d.codes?.totals.total ?? 0)} contas`} />
           <Card go={go} to="stats" label="Mensagens" value={nf.format(sum('messages'))} spark={series('messages')} />

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AdminSupport } from './Support';
 import { HealthPanel } from './HealthPanel';
-import { Activity, Archive, BarChart3, ClipboardList, Compass, Crown, Flag, Heart, LayoutDashboard, LifeBuoy, Server, ShieldAlert, Ticket, X } from 'lucide-react';
+import { Activity, Archive, BarChart3, ClipboardList, Compass, Crown, Flag, Heart, LayoutDashboard, LifeBuoy, Server, ShieldAlert, Ticket, UserPlus, X } from 'lucide-react';
 import { ApoioAdmin } from './Apoio';
 import { OfficialAdmin } from './Official';
 import { PublicGuildsAdmin, ReportContext } from './Explore';
@@ -11,6 +11,7 @@ import { askText , askSuspension } from '../lib/ask';
 import { StatsPanel } from './StatsPanel';
 import { SystemPanel } from './SystemPanel';
 import { InviteCodesAdmin } from './InviteCodes';
+import { SignupsAdmin } from './SignupsAdmin';
 import { closeModal, toast, useApp } from '../store/app';
 import { fileUrl } from '../lib/expressions';
 
@@ -173,6 +174,7 @@ const ADMIN_GROUPS: { title?: string; items: { id: AdminTab; label: string; icon
   {
     title: 'Crescimento',
     items: [
+      { id: 'signups', label: 'Novas contas', icon: <UserPlus size={18} />, description: 'Quem entrou no Resenha e quando. Aqui também abre ou fecha o cadastro.' },
       { id: 'stats', label: 'Números', icon: <BarChart3 size={18} />, description: 'Visitas, inscrições, contas e uso por dia (somados, sem identificar ninguém).' },
       { id: 'waitlist', label: 'Lista de espera', icon: <ClipboardList size={18} />, description: 'Quem pediu convite. Mande o código por e-mail ou deixe o convite automático ligado.' },
       { id: 'invites', label: 'Convites', icon: <Ticket size={18} />, description: 'Códigos de convite, limites e quem trouxe quem.' },
@@ -259,6 +261,7 @@ export function AdminReports() {
             <p className="muted">{current.description}</p>
           </header>
           {tab === 'overview' && <AdminOverview go={setTab} />}
+          {tab === 'signups' && <SignupsAdmin />}
           {tab === 'waitlist' && <WaitlistAdmin />}
           {tab === 'invites' && <InviteCodesAdmin />}
           {tab === 'support' && <AdminSupport />}

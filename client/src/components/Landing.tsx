@@ -18,11 +18,28 @@ function useReveal() {
   }, []);
 }
 
+/**
+ * Cadastro aberto (lançamento oficial): sem código de convite nem lista de espera. Se a equipe fechar o
+ * cadastro de novo no painel, a página volta a mostrar a lista de espera sozinha.
+ */
+function useSignupOpen() {
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    void api<{ registrationRequiresCode: boolean }>('/config').then(
+      (c) => setOpen(!c.registrationRequiresCode),
+      () => {},
+    );
+  }, []);
+  return open;
+}
+const SIGNUP_URL = '/app?cadastro=1';
+
 const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-/** Página inicial pública: apresentação, download, lista de espera. */
+/** Página inicial pública: apresentação, download e cadastro (ou lista de espera, se o cadastro estiver fechado). */
 export function Landing() {
   useReveal();
+  const open = useSignupOpen();
   useEffect(() => {
     document.title = 'Resenha · Call, chat e tela em Full HD de graça';
     // conta a visita (só um total por dia e a origem; nada que identifique a pessoa)
@@ -54,13 +71,15 @@ export function Landing() {
         <i className="lp-blob c" />
       </div>
 
-      <div className="lp-beta" role="note">
-        🚧 <strong>O Resenha está em desenvolvimento (beta).</strong> Pode ter bugs, e sua opinião ajuda a construir.
-      </div>
+      {open && (
+        <div className="lp-beta lp-launch" role="note">
+          🎉 <strong>Lançamento oficial!</strong> O Resenha saiu do beta: cadastro aberto, sem código de convite.
+        </div>
+      )}
 
       <header className="lp-nav">
         <a href="/" className="lp-logo">
-          <img src="/icon.svg" alt="" width={34} height={34} /> Resenha <span className="lp-tag">BETA</span>
+          <img src="/icon.svg" alt="" width={34} height={34} /> Resenha
         </a>
         <nav>
           <button onClick={() => scrollTo('recursos')}>Recursos</button>
@@ -89,20 +108,34 @@ export function Landing() {
               nos outros apps é pago, aqui é <strong>de graça</strong>. E com o jeitinho que você já conhece.
             </p>
             <div className="lp-cta">
-              <button className="lp-btn primary" onClick={() => scrollTo('lista')}>
-                Entrar na lista de espera
-              </button>
+              {open ? (
+                <a className="lp-btn primary" href={hasSession() ? '/app' : SIGNUP_URL}>
+                  {hasSession() ? 'Abrir o Resenha' : 'Criar conta grátis'}
+                </a>
+              ) : (
+                <button className="lp-btn primary" onClick={() => scrollTo('lista')}>
+                  Entrar na lista de espera
+                </button>
+              )}
               {isAndroidPhone() ? (
                 <AndroidDownloadButton />
               ) : (
                 <a className="lp-btn" href="/api/download/windows">
-                  <Download size={18} /> Baixar para Windows <span className="lp-beta-chip">beta</span>
+                  <Download size={18} /> Baixar para Windows
                 </a>
               )}
               {!isAndroidPhone() && <InstallButton />}
             </div>
             <p className="lp-small">
-              Já tem convite? <a href="/app">Use no navegador</a>, sem instalar nada.
+              {open ? (
+                <>
+                  Leva 1 minuto e <a href={SIGNUP_URL}>funciona no navegador</a>, sem instalar nada.
+                </>
+              ) : (
+                <>
+                  Já tem convite? <a href="/app">Use no navegador</a>, sem instalar nada.
+                </>
+              )}
             </p>
           </div>
           <div className="lp-hero-video lp-reveal">
@@ -185,7 +218,7 @@ export function Landing() {
             <DownloadCard
               icon={<Monitor size={28} />}
               title="Windows"
-              badge="Beta disponível"
+              badge="Disponível"
               text="Push-to-talk com o jogo em primeiro plano, transmissão sem travas do navegador e ícone na bandeja. Atualiza sozinho."
               action={<WindowsButton />}
               note='Na 1ª vez, o Windows pode mostrar "O Windows protegeu seu computador": clique em Mais informações → Executar assim mesmo.'
@@ -212,6 +245,7 @@ export function Landing() {
           </div>
         </section>
 
+        {!open && (
         <section id="lista" className="lp-waitlist lp-reveal">
           <div className="lp-waitlist-text">
             <h2>Entre na lista de espera</h2>
@@ -233,6 +267,7 @@ export function Landing() {
           </div>
           <WaitlistForm />
         </section>
+        )}
 
         <section id="privacidade" className="lp-privacy">
           <h2 className="lp-reveal">Seus dados são seus</h2>
@@ -264,8 +299,13 @@ export function Landing() {
             o que você já usa continua grátis.
           </Faq>
           <Faq q="Está pronto?">
-            Ainda não: o Resenha está em <strong>beta</strong>. Já dá para conversar, falar, transmitir a tela e usar tudo da página, mas pode
-            aparecer algum bug. Se encontrar, use o botão de denúncia ou fale com a gente.
+            Sim! O Resenha saiu do beta e foi <strong>lançado oficialmente</strong>: conversar, falar, transmitir a tela e tudo que está nesta
+            página já funciona. Ele continua melhorando toda semana, e se achar algum problema é só usar o botão de denúncia ou falar com a gente.
+          </Faq>
+          <Faq q="Preciso de convite?">
+            {open
+              ? 'Não. O cadastro está aberto: é só criar a conta com um nome de usuário e senha e chamar a galera.'
+              : 'Por enquanto sim: entre na lista de espera e o convite chega no seu e-mail (ou peça um código para um amigo que já usa).'}
           </Faq>
           <Faq q="Preciso instalar?">
             Não. Funciona no navegador do PC e do celular. O app de Windows é opcional e serve para o push-to-talk funcionar com o jogo em
@@ -274,18 +314,26 @@ export function Landing() {
           <Faq q="Funciona com quem joga no console?">
             Sim, pelo celular: a pessoa entra na call pelo navegador do celular e joga no console normalmente.
           </Faq>
-          <Faq q="Como recebo o convite da lista de espera?">
-            Pelo e-mail (ou WhatsApp, se você informar) que deixou na lista. Fique de olho também na caixa de spam.
-          </Faq>
+          {!open && (
+            <Faq q="Como recebo o convite da lista de espera?">
+              Pelo e-mail (ou WhatsApp, se você informar) que deixou na lista. Fique de olho também na caixa de spam.
+            </Faq>
+          )}
         </section>
 
         <section className="lp-final lp-reveal">
           <img src="/icon.svg" alt="" width={84} height={84} />
           <h2>Chama a resenha.</h2>
           <div className="lp-cta center">
-            <button className="lp-btn primary" onClick={() => scrollTo('lista')}>
-              Entrar na lista de espera
-            </button>
+            {open ? (
+              <a className="lp-btn primary" href={hasSession() ? '/app' : SIGNUP_URL}>
+                {hasSession() ? 'Abrir o Resenha' : 'Criar conta grátis'}
+              </a>
+            ) : (
+              <button className="lp-btn primary" onClick={() => scrollTo('lista')}>
+                Entrar na lista de espera
+              </button>
+            )}
             <a className="lp-btn" href="/api/download/windows">
               <Download size={18} /> Baixar para Windows
             </a>
@@ -296,7 +344,7 @@ export function Landing() {
 
       <footer className="lp-footer">
         <span>
-          <img src="/icon.svg" alt="" width={20} height={20} /> Resenha · beta
+          <img src="/icon.svg" alt="" width={20} height={20} /> Resenha
         </span>
         <nav>
           <a href="/privacidade">Privacidade</a>

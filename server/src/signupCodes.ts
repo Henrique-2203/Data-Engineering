@@ -13,7 +13,9 @@ import type { requireAuth } from './auth.ts';
  * (ex.: 5 amigos). Assim a equipe controla quantas contas entram e sabe quem trouxe quem.
  * O código geral antigo (variável REGISTRATION_CODE) continua valendo, sem limite, como mais um código
  * da lista — e pode ser desligado no painel sem mexer no Render.
- * O cadastro só pede código quando REGISTRATION_CODE existe (sem ela, o cadastro é aberto para todos).
+ * O cadastro só pede código quando REGISTRATION_CODE existe E a equipe não abriu o cadastro no painel
+ * (Painel da equipe → Convites → "Cadastro aberto"). Com o cadastro aberto, o código vira opcional:
+ * quem digitar um código válido ainda fica registrado como "trazido" por ele.
  */
 
 /** "galera 2026" -> "GALERA2026"; aceita letras, números e hífen */
@@ -28,7 +30,16 @@ export const normalizeCode = (raw: string | undefined | null) =>
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const randomPart = (n: number) => Array.from({ length: n }, () => ALPHABET[randomInt(ALPHABET.length)]).join('');
 
-export const registrationNeedsCode = () => !!config.registrationCode;
+/** a equipe abriu o cadastro para todos (lançamento oficial), sem precisar mexer no Render */
+let openCache: { at: number; open: boolean } | null = null;
+export async function signupOpen(db: Db): Promise<boolean> {
+  if (openCache && Date.now() - openCache.at < 15_000) return openCache.open;
+  const [row] = await db.query<{ value: { open?: boolean } }>(`select value from app_settings where name = 'signup'`);
+  const open = !!row?.value?.open;
+  openCache = { at: Date.now(), open };
+  return open;
+}
+export const registrationNeedsCode = async (db: Db) => !!config.registrationCode && !(await signupOpen(db));
 
 /** o código geral (REGISTRATION_CODE) vira uma linha da lista na primeira vez */
 let generalReady: Promise<void> | null = null;
@@ -60,7 +71,13 @@ interface CodeRow {
  * quando o cadastro está aberto. Erros contam para o limite de tentativas (evita adivinhar códigos).
  */
 export async function checkSignupCode(db: Db, raw: string | undefined, ip: string): Promise<string | null> {
-  if (!registrationNeedsCode()) return null;
+  if (!(await registrationNeedsCode(db))) {
+    // cadastro aberto: o código é opcional; se for válido, a conta fica ligada a quem convidou
+    const code = normalizeCode(raw);
+    if (!code) return null;
+    const [row] = await db.query<CodeRow>('select code, max_uses, uses, active from signup_codes where code = $1', [code]);
+    return row && row.active && (row.max_uses === null || row.uses < row.max_uses) ? row.code : null;
+  }
   await ensureGeneral(db);
   const code = normalizeCode(raw);
   const fail = (msg: string): never => {
@@ -140,7 +157,63 @@ export function registerSignupCodeRoutes(r: Router, db: Db, auth: ReturnType<typ
       const [totals] = await db.query<{ withCode: number; total: number }>(
         `select count(*) filter (where signup_code is not null)::int as "withCode", count(*)::int as total from users`,
       );
-      return { codes, totals, needsCode: registrationNeedsCode() };
+      return { codes, totals, needsCode: await registrationNeedsCode(db), open: await signupOpen(db), hasEnvCode: !!config.registrationCode };
+    }),
+  );
+
+  /** abrir ou fechar o cadastro para todos (sem código de convite) */
+  r.put(
+    '/admin/signup-open',
+    auth,
+    wrap(async (req) => {
+      requireAdmin(req.user!.username);
+      const { open } = parse(z.object({ open: z.boolean() }), req.body);
+      await db.query(
+        `insert into app_settings (name, value, updated_at) values ('signup', $1, now())
+         on conflict (name) do update set value = excluded.value, updated_at = now()`,
+        [JSON.stringify({ open, by: req.user!.username, at: new Date().toISOString() })],
+      );
+      openCache = null;
+      return { open, needsCode: await registrationNeedsCode(db) };
+    }),
+  );
+
+  /** quem entrou no Resenha: contas novas por período e a lista (mais novas primeiro) */
+  r.get(
+    '/admin/signups',
+    auth,
+    wrap(async (req) => {
+      requireAdmin(req.user!.username);
+      const q = String(req.query.q ?? '').trim().toLowerCase().slice(0, 40);
+      const limitN = Math.min(500, Math.max(20, Number(req.query.limit) || 100));
+      const TODAY = `(now() at time zone 'America/Sao_Paulo')::date`;
+      const LOCAL = `(u.created_at at time zone 'America/Sao_Paulo')::date`;
+      const [totals] = await db.query<{ today: number; week: number; month: number; total: number; verified: number }>(
+        `select count(*) filter (where ${LOCAL} = ${TODAY})::int as today,
+                count(*) filter (where ${LOCAL} > ${TODAY} - 7)::int as week,
+                count(*) filter (where ${LOCAL} > ${TODAY} - 30)::int as month,
+                count(*)::int as total,
+                count(*) filter (where u.email_verified_at is not null)::int as verified
+         from users u`,
+      );
+      const byDay = await db.query<{ day: string; n: number }>(
+        `select to_char(${LOCAL}, 'YYYY-MM-DD') as day, count(*)::int as n from users u
+         where ${LOCAL} > ${TODAY} - 30 group by 1 order by 1`,
+      );
+      const users = await db.query(
+        `select u.id, u.username, u.display_name as "displayName", u.avatar_color as "avatarColor", u.avatar_id as "avatarId",
+                u.created_at as "createdAt", u.email_verified_at is not null as "emailVerified", u.signup_code as "signupCode",
+                o.username as "invitedBy", to_char(u.last_active_on, 'YYYY-MM-DD') as "lastActiveOn", u.suspended_at is not null as suspended,
+                (select count(*)::int from members m where m.user_id = u.id) as guilds
+         from users u
+         left join signup_codes c on c.code = u.signup_code
+         left join users o on o.id = c.owner_id
+         where ($1 = '' or u.username like '%' || $1 || '%' or lower(u.display_name) like '%' || $1 || '%')
+         order by u.created_at desc limit $2`,
+        [q, limitN],
+      );
+      // open = cadastro aberto na prática (sem REGISTRATION_CODE no Render ele já é aberto e não dá para fechar aqui)
+      return { totals, byDay, users, open: !(await registrationNeedsCode(db)), hasEnvCode: !!config.registrationCode };
     }),
   );
 

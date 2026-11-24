@@ -57,8 +57,17 @@ const codeFromUrl = (() => {
   }
 })();
 
+/** botão "Criar conta" da página inicial: /app?cadastro=1 já abre o cadastro */
+const signupFromUrl = (() => {
+  try {
+    return new URLSearchParams(location.search).has('cadastro');
+  } catch {
+    return false;
+  }
+})();
+
 export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
-  const [mode, setMode] = useState<Mode>(hasInvite || codeFromUrl ? 'register' : 'login');
+  const [mode, setMode] = useState<Mode>(hasInvite || codeFromUrl || signupFromUrl ? 'register' : 'login');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
