@@ -15,8 +15,10 @@ import { USER_COLUMNS, type requireAuth } from './auth.ts';
 import { Perm, has } from '../../shared/permissions.ts';
 import type { BotCommandInfo, Member, Message, PublicUser } from '../../shared/types.ts';
 import { BOT_COLOR as COLOR, bad, embed, type BotCommand, type Reply } from './botKit.ts';
+import { aiConfigured } from './ai.ts';
 import { DJ_COMMANDS } from './botDj.ts';
 import { TICKET_COMMANDS } from './botTickets.ts';
+import { AI_COMMANDS } from './botAi.ts';
 
 /**
  * Bots da casa (em teste: recurso "bots"). O "Resenha Bot" roda DENTRO do servidor do Resenha:
@@ -139,10 +141,19 @@ export const COMMANDS: BotCommand[] = [
   },
   ...DJ_COMMANDS,
   ...TICKET_COMMANDS,
+  ...AI_COMMANDS,
 ];
 
-const commandInfo = (disabled: string[]): BotCommandInfo[] =>
-  COMMANDS.map((c) => ({ name: c.name, group: c.group, description: c.description, usage: c.usage, enabled: !disabled.includes(c.name) }));
+const commandInfo = (disabled: string[], aiEnabled = false): BotCommandInfo[] =>
+  COMMANDS.map((c) => ({
+    name: c.name,
+    group: c.group,
+    description: c.description,
+    usage: c.usage,
+    enabled: !disabled.includes(c.name),
+    ...(c.ai ? { ai: true, locked: !aiEnabled } : {}),
+  }));
+const usable = (list: BotCommandInfo[]) => list.filter((c) => c.enabled && !c.locked);
 
 interface Deps {
   channelForMember(channelId: string, userId: string): Promise<ChannelRow & { access: MemberAccess | null; slowmode?: number }>;
@@ -153,7 +164,7 @@ interface Deps {
 export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnType<typeof requireAuth>, deps: Deps) {
   const botUser = async () => (await db.query<PublicUser>(`select ${USER_COLUMNS} from users u where u.id = $1`, [BOT_ID]))[0];
   const install = async (guildId: string) =>
-    (await db.query<{ disabled: string[]; config: { ticketRoleIds?: string[] } }>('select disabled_commands as disabled, config from guild_bots where guild_id = $1 and bot_id = $2', [guildId, BOT_ID]))[0];
+    (await db.query<{ disabled: string[]; config: { ticketRoleIds?: string[]; aiEnabled?: boolean } }>('select disabled_commands as disabled, config from guild_bots where guild_id = $1 and bot_id = $2', [guildId, BOT_ID]))[0];
 
   /** posta uma mensagem como o bot e avisa o canal */
   async function post(c: { id: string; guildId: string | null }, reply: Reply, interaction: Message['interaction'] | null) {
@@ -194,7 +205,12 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
       const guildId = String(req.params.id);
       await manage(req.user!.id, req.user!.username, guildId);
       const row = await install(guildId);
-      return { bot: await botUser(), installed: !!row, commands: commandInfo(row?.disabled ?? []), config: { ticketRoleIds: row?.config?.ticketRoleIds ?? [] } };
+      return {
+        bot: await botUser(),
+        installed: !!row,
+        commands: commandInfo(row?.disabled ?? [], !!row?.config?.aiEnabled),
+        config: { ticketRoleIds: row?.config?.ticketRoleIds ?? [], aiEnabled: !!row?.config?.aiEnabled, aiAvailable: aiConfigured() },
+      };
     }),
   );
 
@@ -217,7 +233,7 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
       );
       if (member) rt.emitGuild(guildId, 'member:join', { guildId, member });
       await audit(db, guildId, req.user!.id, 'bot_add', { type: 'user', id: BOT_ID, label: 'Resenha Bot' });
-      return { installed: true, commands: commandInfo([]) };
+      return { installed: true, commands: commandInfo([], false) };
     }),
   );
 
@@ -250,31 +266,39 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
       if (!row) throw new HttpError(404, 'O Resenha Bot não está neste servidor.');
       const disabled = body.enabled ? row.disabled.filter((n) => n !== body.name) : [...new Set([...row.disabled, body.name])];
       await db.query('update guild_bots set disabled_commands = $3 where guild_id = $1 and bot_id = $2', [guildId, BOT_ID, disabled]);
-      return { commands: commandInfo(disabled) };
+      return { commands: commandInfo(disabled, !!row.config?.aiEnabled) };
     }),
   );
 
-  /** cargos que atendem os tickets (além do dono e dos administradores) */
+  /** configuração do bot neste servidor: cargos que atendem tickets e a chave dos comandos de IA */
   r.patch(
     '/guilds/:id/bots/config',
     auth,
     wrap(async (req) => {
       const guildId = String(req.params.id);
       await manage(req.user!.id, req.user!.username, guildId);
-      const body = parse(z.object({ ticketRoleIds: z.array(z.string().max(64)).max(20) }), req.body);
-      if (!(await install(guildId))) throw new HttpError(404, 'O Resenha Bot não está neste servidor.');
-      const valid = body.ticketRoleIds.length
-        ? (await db.query<{ id: string }>('select id from roles where guild_id = $1 and id = any($2)', [guildId, body.ticketRoleIds])).map((x) => x.id)
-        : [];
-      if (valid.length !== new Set(body.ticketRoleIds).size) throw new HttpError(400, 'Cargo inválido.');
-      await db.query(`update guild_bots set config = jsonb_set(config, '{ticketRoleIds}', $3::jsonb) where guild_id = $1 and bot_id = $2`, [guildId, BOT_ID, JSON.stringify(valid)]);
-      // os tickets abertos passam a ser vistos por esses cargos também
-      await db.query(
-        `update channels set allowed_role_ids = $2 where id in (select channel_id from tickets where guild_id = $1 and status = 'open' and channel_id is not null)`,
-        [guildId, valid],
-      );
-      rt.guildChanged(guildId);
-      return { config: { ticketRoleIds: valid } };
+      const body = parse(z.object({ ticketRoleIds: z.array(z.string().max(64)).max(20).optional(), aiEnabled: z.boolean().optional() }), req.body);
+      const row = await install(guildId);
+      if (!row) throw new HttpError(404, 'O Resenha Bot não está neste servidor.');
+      if (body.ticketRoleIds) {
+        const valid = body.ticketRoleIds.length
+          ? (await db.query<{ id: string }>('select id from roles where guild_id = $1 and id = any($2)', [guildId, body.ticketRoleIds])).map((x) => x.id)
+          : [];
+        if (valid.length !== new Set(body.ticketRoleIds).size) throw new HttpError(400, 'Cargo inválido.');
+        await db.query(`update guild_bots set config = jsonb_set(config, '{ticketRoleIds}', $3::jsonb) where guild_id = $1 and bot_id = $2`, [guildId, BOT_ID, JSON.stringify(valid)]);
+        // os tickets abertos passam a ser vistos por esses cargos também
+        await db.query(
+          `update channels set allowed_role_ids = $2 where id in (select channel_id from tickets where guild_id = $1 and status = 'open' and channel_id is not null)`,
+          [guildId, valid],
+        );
+        rt.guildChanged(guildId);
+      }
+      if (body.aiEnabled !== undefined) {
+        await db.query(`update guild_bots set config = jsonb_set(config, '{aiEnabled}', $3::jsonb) where guild_id = $1 and bot_id = $2`, [guildId, BOT_ID, JSON.stringify(body.aiEnabled)]);
+        await audit(db, guildId, req.user!.id, 'bot_update', { type: 'user', id: BOT_ID, label: 'Resenha Bot' }, { ai: body.aiEnabled });
+      }
+      const next = await install(guildId);
+      return { config: { ticketRoleIds: next?.config?.ticketRoleIds ?? [], aiEnabled: !!next?.config?.aiEnabled, aiAvailable: aiConfigured() }, commands: commandInfo(next?.disabled ?? [], !!next?.config?.aiEnabled) };
     }),
   );
 
@@ -287,7 +311,7 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
       const guildId = String(req.params.id);
       await requireMember(db, guildId, req.user!.id);
       const row = await install(guildId);
-      return { commands: row ? commandInfo(row.disabled).filter((c) => c.enabled) : [] };
+      return { commands: row ? usable(commandInfo(row.disabled, !!row.config?.aiEnabled)) : [] };
     }),
   );
 
@@ -306,6 +330,7 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
       const cmd = COMMANDS.find((x) => x.name === body.command);
       if (!cmd) throw new HttpError(404, 'Comando não encontrado. Digite / para ver a lista.');
       if (row.disabled.includes(cmd.name)) throw bad('Este comando está desligado neste servidor.');
+      if (cmd.ai && !row.config?.aiEnabled) throw bad('Os comandos de IA estão desligados neste servidor. Quem administra liga em Configurações do servidor → Integrações.');
       if (c.announce && !has(c.access.perms, Perm.MANAGE_GUILD) && !has(c.access.perms, Perm.MANAGE_MESSAGES)) {
         throw new HttpError(403, 'Este é um canal de avisos: só a equipe do servidor publica aqui.');
       }
@@ -333,7 +358,8 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
         },
         perms: c.access.perms,
         isOwner: c.access.isOwner,
-        enabled: commandInfo(row.disabled).filter((x) => x.enabled),
+        enabled: usable(commandInfo(row.disabled, !!row.config?.aiEnabled)),
+        aiEnabled: !!row.config?.aiEnabled,
       });
       const message = await post(c, reply, { userId: me.id, username: me.username, displayName: me.displayName, command: cmd.name });
       return { message };

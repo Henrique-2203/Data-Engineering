@@ -58,6 +58,7 @@ import { registerAndroidRoutes } from './android.ts';
 import { registerSfuRoutes } from './sfu.ts';
 import { betaFeaturesFor, registerBetaRoutes } from './beta.ts';
 import { registerBotRoutes } from './bots.ts';
+import { registerAiRoutes } from './ai.ts';
 import { ensureOfficialMember, registerOfficialRoutes } from './official.ts';
 import { registerExploreRoutes } from './explore.ts';
 import { configureWelcome } from './welcome.ts';
@@ -760,6 +761,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerAndroidRoutes(r);
   registerSfuRoutes(r, db, rt, auth);
   registerBetaRoutes(r, db, rt, auth);
+  registerAiRoutes(r, db, auth);
   registerBotRoutes(r, db, rt, auth, { channelForMember, emitToChannel, messageSelect: MESSAGE_SELECT });
   registerOfficialRoutes(r, db, rt, auth);
   registerExploreRoutes(r, db, rt, auth);

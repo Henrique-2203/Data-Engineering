@@ -3,7 +3,7 @@ import { ArrowLeft, Lock, ShieldCheck } from 'lucide-react';
 import { api } from '../lib/api';
 
 export const SOURCE_URL = 'https://github.com/Henrique-2203/Data-Engineering';
-const UPDATED = '13 de novembro de 2026';
+const UPDATED = '24 de novembro de 2026';
 
 export type LegalKind = 'privacidade' | 'termos' | 'seguranca' | 'suporte';
 
@@ -242,6 +242,11 @@ function Privacy({ contact }: { contact: ReactNode }) {
         </li>
         <li>
           <strong>GitHub</strong>: distribui o instalador e as atualizações do app de desktop.
+        </li>
+        <li>
+          <strong>Anthropic</strong> (serviço de inteligência artificial, EUA): só entra em ação se o servidor ligar os comandos de IA do
+          Resenha Bot (/ia, /traduzir e /resumo) e alguém usar um deles. Aí enviamos o texto do comando e, no /resumo, as últimas
+          mensagens do canal, só para gerar a resposta. Mensagens privadas nunca são enviadas, e nada é enviado se ninguém usar esses comandos.
         </li>
       </ul>
       <p>

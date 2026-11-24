@@ -47,7 +47,7 @@ interface BotState {
   bot: PublicUser | undefined;
   installed: boolean;
   commands: BotCommandInfo[];
-  config?: { ticketRoleIds: string[] };
+  config?: { ticketRoleIds: string[]; aiEnabled?: boolean; aiAvailable?: boolean };
 }
 
 /** Configurações do servidor → Integrações: adicionar o Resenha Bot e escolher os comandos (em teste). */
@@ -91,6 +91,16 @@ export function BotsSettings({ guild }: { guild: Guild }) {
     }
   }
 
+  async function setAi(on: boolean) {
+    if (on && !confirm('Ligar a IA neste servidor? Quando alguém usar /ia, /traduzir ou /resumo, o texto do comando (e, no /resumo, as últimas mensagens do canal) é enviado a um serviço de IA externo para gerar a resposta. Mensagens privadas nunca são enviadas.')) return;
+    try {
+      const r = await api<{ config: NonNullable<BotState['config']>; commands: BotCommandInfo[] }>(`/guilds/${guild.id}/bots/config`, { method: 'PATCH', body: { aiEnabled: on } });
+      clearCommands(guild.id);
+      setSt((s) => (s ? { ...s, config: r.config, commands: r.commands } : s));
+    } catch (err) {
+      toast((err as Error).message);
+    }
+  }
   async function setTicketRoles(ids: string[]) {
     try {
       const r = await api<{ config: { ticketRoleIds: string[] } }>(`/guilds/${guild.id}/bots/config`, { method: 'PATCH', body: { ticketRoleIds: ids } });
@@ -124,6 +134,21 @@ export function BotsSettings({ guild }: { guild: Guild }) {
           {[...new Set(st.commands.map((c) => c.group))].map((group) => (
             <div key={group}>
               <h3>{group}</h3>
+              {group.startsWith('IA') && (
+                <div className="ai-notice">
+                  <p className="muted small">
+                    Estes comandos mandam texto para um <strong>serviço de IA externo</strong> (Anthropic, EUA) para gerar a resposta: o que a pessoa escreve no comando e, no /resumo, as últimas mensagens do canal.
+                    Mensagens privadas nunca são enviadas, e nada é enviado se ninguém usar os comandos. Há limite de uso por pessoa e por dia.
+                  </p>
+                  {st.config?.aiAvailable === false && <p className="muted small">A IA ainda não está ligada no Resenha (falta a chave do serviço no servidor). Ao ligar aqui, os comandos avisam isso.</p>}
+                  <label className="check">
+                    <input type="checkbox" checked={!!st.config?.aiEnabled} onChange={(e) => void setAi(e.target.checked)} aria-label="Permitir comandos de IA neste servidor" />
+                    <span>
+                      <strong>Permitir comandos de IA neste servidor</strong>
+                    </span>
+                  </label>
+                </div>
+              )}
               {group === 'Tickets de ajuda' && (
                 <div className="ticket-roles">
                   <p className="muted small">
@@ -149,7 +174,7 @@ export function BotsSettings({ guild }: { guild: Guild }) {
                   .map((c) => (
                     <li key={c.name}>
                       <label className="check">
-                        <input type="checkbox" checked={c.enabled} onChange={(e) => void setCommand(c.name, e.target.checked)} aria-label={`Comando /${c.name}`} />
+                        <input type="checkbox" checked={c.enabled && !c.locked} disabled={c.locked} onChange={(e) => void setCommand(c.name, e.target.checked)} aria-label={`Comando /${c.name}`} />
                         <span>
                           <strong>/{c.name}</strong> <span className="muted">{c.description}</span>
                           <br />

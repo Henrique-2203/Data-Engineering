@@ -162,6 +162,7 @@ export function HealthPanel() {
       </div>
       <LabToggles />
       <BetaAccounts />
+      <AiUsage />
       <DailyBars data={data} label="Minutos de transmissão com 40+ FPS, por dia" metric={(a) => (a.stream_samples?.count ? (a.stream_ok40?.count ?? 0) / a.stream_samples.count : null)} />
 
       <h4>Assistindo</h4>
@@ -278,6 +279,27 @@ function BetaAccounts() {
           Criar servidor de testes
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Quanto a IA dos bots gastou no mês (teto configurado no Render) */
+function AiUsage() {
+  const [u, setU] = useState<{ configured: boolean; model: string; requests: number; costUsd: number; budgetUsd: number; month: string } | null>(null);
+  useEffect(() => {
+    void api<NonNullable<typeof u>>('/admin/ai').then(setU, () => {});
+  }, []);
+  if (!u) return null;
+  return (
+    <div className="health-lab">
+      <strong>🤖 IA dos bots (/ia, /traduzir, /resumo)</strong>
+      {u.configured ? (
+        <span className="muted small">
+          {u.month}: {u.requests} pedidos, gasto estimado US$ {u.costUsd.toFixed(2)} de US$ {u.budgetUsd.toFixed(2)} (modelo {u.model}). Passou do teto, a IA para até o mês seguinte.
+        </span>
+      ) : (
+        <span className="muted small">Desligada: falta a variável ANTHROPIC_API_KEY no Render. Os comandos avisam que a IA ainda não está ligada.</span>
+      )}
     </div>
   );
 }

@@ -30,6 +30,8 @@ export interface Ctx {
   /** permissões da pessoa no servidor */
   perms: number;
   isOwner: boolean;
+  /** o servidor ligou os comandos de IA */
+  aiEnabled: boolean;
   /** comandos ligados neste servidor (para /ajuda) */
   enabled: { name: string; description: string; usage: string }[];
 }
@@ -38,6 +40,8 @@ export interface BotCommand {
   name: string;
   /** grupo na tela Integrações */
   group: string;
+  /** manda texto para um serviço de IA externo: só roda se o servidor ligar a IA em Integrações */
+  ai?: boolean;
   description: string;
   usage: string;
   run(ctx: Ctx): Promise<Reply> | Reply;

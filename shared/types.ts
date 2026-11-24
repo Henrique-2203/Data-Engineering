@@ -338,6 +338,10 @@ export interface BotCommandInfo {
   description: string;
   usage: string;
   enabled: boolean;
+  /** comando de IA (manda texto para um serviço externo) */
+  ai?: boolean;
+  /** comando de IA ainda desligado pelo servidor */
+  locked?: boolean;
 }
 
 export interface VoiceState {
@@ -416,6 +420,7 @@ export type AuditAction =
   | 'role_delete'
   | 'role_move'
   | 'bot_add'
+  | 'bot_update'
   | 'bot_remove'
   | 'member_join'
   | 'member_leave'
