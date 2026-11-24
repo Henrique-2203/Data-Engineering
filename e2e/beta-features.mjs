@@ -12,6 +12,7 @@ import { tempDir } from './_tmp.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
+const { io } = require('socket.io-client');
 const PORT = 3267;
 const BASE = `http://localhost:${PORT}`;
 const shots = path.resolve('e2e/screenshots');
@@ -64,8 +65,22 @@ try {
   assert((await bf(equipe.token)).length === 0, 'a equipe não ganha recurso sozinha: precisa estar na lista');
   step('salvar uma lista mantém as outras; só a equipe muda; cada conta recebe só os seus recursos');
 
-  // servidor de testes
+  // servidor de testes (os aplicativos abertos recebem o aviso para mostrar o servidor na hora)
+  const watch = (token) =>
+    new Promise((resolve) => {
+      const s = io(BASE, { auth: { token }, transports: ['websocket'] });
+      const got = [];
+      s.onAny((ev, d) => ev === 'guild:refresh' && got.push(d.guildId));
+      s.on('ready', () => resolve({ s, got }));
+    });
+  const wEquipe = await watch(equipe.token);
+  const wBia = await watch(bia.token);
   const t1 = await api('/admin/test-guild', {}, equipe.token);
+  await sleep(500);
+  assert(wEquipe.got.includes(t1.guildId), 'quem clicou recebe o aviso de servidor novo');
+  assert(wBia.got.includes(t1.guildId), 'quem foi adicionado recebe o aviso de servidor novo');
+  wEquipe.s.close();
+  wBia.s.close();
   assert(t1.status === 200 && t1.created && t1.guildId, `criou: ${JSON.stringify(t1)}`);
   assert([...t1.added].sort().join() === 'ana,bia,caio', `entraram as 3 contas liberadas: ${t1.added}`);
   const g = await api(`/guilds/${t1.guildId}`, null, equipe.token);
@@ -83,8 +98,24 @@ try {
   assert((await api(`/guilds/${t1.guildId}`, null, dudu2.token)).status === 200, 'leo já entrou');
   step('servidor de testes: privado, só com as contas liberadas, repetir não duplica e acrescenta quem foi liberado depois');
 
-  // tela do painel
+  // quem está com o app aberto vê o servidor aparecer sozinho, sem recarregar
   browser = await chromium.launch();
+  await reg('mia');
+  const mctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const mpage = await mctx.newPage();
+  await mpage.goto(`${BASE}/app`);
+  await mpage.getByLabel(/Usuário ou e-mail|Nome de usuário/).first().fill('mia');
+  await mpage.getByLabel('Senha', { exact: true }).fill('Cor-Forte-Xis-42');
+  await mpage.getByRole('button', { name: /^Entrar$/ }).click();
+  await mpage.getByRole('dialog', { name: 'Novidades do Resenha' }).getByRole('button', { name: 'Entendi' }).click({ timeout: 5000 }).catch(() => {});
+  await mpage.getByRole('button', { name: 'Criar servidor' }).first().waitFor();
+  await api('/admin/beta', { phonecam: ['bia', 'leo', 'mia'] }, equipe.token, 'PUT');
+  await api('/admin/test-guild', {}, equipe.token);
+  await mpage.getByRole('button', { name: 'Laboratório Resenha' }).first().waitFor({ timeout: 10000 });
+  await mctx.close();
+  step('quem está com o app aberto vê o Laboratório Resenha aparecer na coluna de servidores, sem recarregar');
+
+  // tela do painel
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
   const page = await ctx.newPage();
   const errors = [];

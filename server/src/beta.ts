@@ -117,6 +117,14 @@ export function registerBetaRoutes(r: Router, db: Db, rt: Realtime, auth: Return
           [JSON.stringify({ id: guildId })],
         );
       }
+      // quem clicou também precisa estar no servidor (pode ser outra conta da equipe, se ele já existia)
+      const [mine] = await db.query('select 1 from members where guild_id = $1 and user_id = $2', [guildId, me]);
+      if (!mine) {
+        await db.query('insert into members (guild_id, user_id) values ($1, $2) on conflict do nothing', [guildId, me]);
+        await memberJoined(db, rt, guildId, me);
+      }
+      // os aplicativos abertos ainda não sabem do servidor novo: avisa para ele aparecer na coluna de servidores na hora
+      rt.emitUser(me, 'guild:refresh', { guildId });
       // todas as contas liberadas para algum recurso que ainda não estão no servidor
       const beta = await getBeta(db);
       const names = [...new Set([...beta.phonecam, ...beta.bots])];
@@ -132,6 +140,7 @@ export function registerBetaRoutes(r: Router, db: Db, rt: Realtime, auth: Return
           await db.query('insert into members (guild_id, user_id) values ($1, $2) on conflict do nothing', [guildId, u.id]);
           await memberJoined(db, rt, guildId, u.id);
           added.push(u.username);
+          rt.emitUser(u.id, 'guild:refresh', { guildId });
         }
       }
       return { guildId, created, added };
