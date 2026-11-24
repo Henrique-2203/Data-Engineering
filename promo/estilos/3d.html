@@ -1,0 +1,62 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Teste 3D</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}html,body{width:1080px;height:1920px;overflow:hidden;background:#07080b;font-family:Inter,sans-serif;color:#fff}
+canvas{position:absolute;inset:0}
+.h{position:absolute;left:50px;right:50px;top:230px;text-align:center;font-weight:900;font-size:130px;line-height:.98;letter-spacing:-5px;text-shadow:0 10px 30px rgba(0,0,0,.5)}
+.w{display:inline-block}.g{background:linear-gradient(90deg,#3ddc97,#7df9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+</style></head><body>
+<div class="h"><span class="w" id="a">Transmite a tela</span><br><span class="w" id="b">em <span class="g">Full HD</span></span></div>
+<script type="module">
+import * as THREE from './three.module.js';
+const W=1080,H=1920;
+const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});r.setSize(W,H);r.setPixelRatio(1);document.body.prepend(r.domElement);
+r.toneMapping=THREE.ACESFilmicToneMapping;r.shadowMap.enabled=true;
+const scene=new THREE.Scene();
+// fundo em degradê
+const bg=document.createElement('canvas');bg.width=64;bg.height=256;const g=bg.getContext('2d');const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#0f3a2c');gr.addColorStop(.5,'#0a0d12');gr.addColorStop(1,'#1a1040');g.fillStyle=gr;g.fillRect(0,0,64,256);
+scene.background=new THREE.CanvasTexture(bg);
+const cam=new THREE.PerspectiveCamera(32,W/H,.1,100);cam.position.set(0,.6,19);
+scene.add(new THREE.HemisphereLight(0x9ff5d0,0x1a1040,1.1));
+const key=new THREE.DirectionalLight(0xffffff,2.6);key.position.set(4,6,8);key.castShadow=true;scene.add(key);
+const rim=new THREE.PointLight(0x7c3aed,120,30);rim.position.set(-6,2,-3);scene.add(rim);
+const mascot=new THREE.Group();scene.add(mascot);
+// corpo: balão de fala em 3D (extrusão com chanfro)
+const sh=new THREE.Shape();const x0=-1.6,y0=-1.2,w=3.2,h=2.8,rad=.6;
+sh.moveTo(x0+rad,y0);sh.lineTo(x0+w-rad,y0);sh.quadraticCurveTo(x0+w,y0,x0+w,y0+rad);sh.lineTo(x0+w,y0+h-rad);sh.quadraticCurveTo(x0+w,y0+h,x0+w-rad,y0+h);sh.lineTo(x0+rad,y0+h);sh.quadraticCurveTo(x0,y0+h,x0,y0+h-rad);sh.lineTo(x0,y0+rad);sh.quadraticCurveTo(x0,y0,x0+rad,y0);
+const bodyGeo=new THREE.ExtrudeGeometry(sh,{depth:1.1,bevelEnabled:true,bevelSize:.22,bevelThickness:.22,bevelSegments:8,curveSegments:24});bodyGeo.center();
+const body=new THREE.Mesh(bodyGeo,new THREE.MeshPhysicalMaterial({color:0x151a22,metalness:.2,roughness:.28,clearcoat:1,clearcoatRoughness:.1}));body.castShadow=true;mascot.add(body);
+const tailSh=new THREE.Shape();tailSh.moveTo(0,0);tailSh.lineTo(1.1,0);tailSh.lineTo(0,-1.2);tailSh.closePath();
+const tail=new THREE.Mesh(new THREE.ExtrudeGeometry(tailSh,{depth:.7,bevelEnabled:true,bevelSize:.14,bevelThickness:.14,bevelSegments:6}),body.material);tail.position.set(-1.3,-1.35,-.35);tail.rotation.z=.05;mascot.add(tail);
+// contorno verde brilhante
+const ring=new THREE.Mesh(new THREE.TorusGeometry(.0,0,4,4),new THREE.MeshBasicMaterial());mascot.add(ring);
+const glow=new THREE.Mesh(bodyGeo.clone(),new THREE.MeshBasicMaterial({color:0x3ddc97,side:THREE.BackSide}));glow.scale.set(1.045,1.045,1.0);mascot.add(glow);
+// olhos
+const eyeMat=new THREE.MeshStandardMaterial({color:0x3ddc97,emissive:0x3ddc97,emissiveIntensity:1.6});
+const eyes=[-.62,.62].map(x=>{const e=new THREE.Mesh(new THREE.SphereGeometry(.34,32,32),eyeMat);e.scale.set(1,1.3,.5);e.position.set(x,.2,.92);mascot.add(e);return e});
+const mouth=new THREE.Mesh(new THREE.TorusGeometry(.32,.06,16,40,Math.PI),new THREE.MeshStandardMaterial({color:0x3ddc97,emissive:0x3ddc97,emissiveIntensity:1.2}));mouth.rotation.z=Math.PI;mouth.position.set(0,-.35,.95);mascot.add(mouth);
+mascot.position.set(0,-2.6,0);mascot.scale.setScalar(1.0);
+// tela flutuante em perspectiva (o "monitor" da transmissão)
+const cv=document.createElement('canvas');cv.width=1024;cv.height=576;const c=cv.getContext('2d');
+const gg=c.createLinearGradient(0,0,0,576);gg.addColorStop(0,'#1b0b3a');gg.addColorStop(.55,'#ff6b9a');gg.addColorStop(.56,'#120726');gg.addColorStop(1,'#090313');c.fillStyle=gg;c.fillRect(0,0,1024,576);
+c.fillStyle='#ffd43b';c.beginPath();c.arc(512,250,120,0,7);c.fill();c.strokeStyle='rgba(255,107,154,.9)';c.lineWidth=3;for(let i=0;i<12;i++){c.beginPath();c.moveTo(512,320);c.lineTo(i*100-80,576);c.stroke()}for(let j=0;j<6;j++){c.beginPath();c.moveTo(0,330+j*j*8);c.lineTo(1024,330+j*j*8);c.stroke()}
+c.fillStyle='#ff3b4e';c.fillRect(24,24,170,52);c.fillStyle='#fff';c.font='bold 30px Inter';c.fillText('● AO VIVO',38,60);
+c.fillStyle='rgba(0,0,0,.6)';c.fillRect(740,24,260,52);c.fillStyle='#fff';c.fillText('1920×1080 · 40 FPS',752,60);
+const tex=new THREE.CanvasTexture(cv);tex.colorSpace=THREE.SRGBColorSpace;
+const screen=new THREE.Group();const frame=new THREE.Mesh(new THREE.BoxGeometry(5.1,2.95,.18),new THREE.MeshStandardMaterial({color:0x20252f,metalness:.6,roughness:.3}));screen.add(frame);
+const face=new THREE.Mesh(new THREE.PlaneGeometry(4.9,2.76),new THREE.MeshBasicMaterial({map:tex}));face.position.z=.1;screen.add(face);scene.add(screen);
+// partículas
+const parts=[];for(let i=0;i<40;i++){const m=new THREE.Mesh(new THREE.IcosahedronGeometry(.07+Math.random()*.08,0),new THREE.MeshBasicMaterial({color:[0x3ddc97,0x7df9ff,0xb388ff][i%3]}));m.userData={x:(Math.random()-.5)*9,y:(Math.random()-.5)*14,z:-2+Math.random()*5,s:.2+Math.random()*.5};scene.add(m);parts.push(m)}
+const cl=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)),p=(t,t0,d)=>cl((t-t0)/d),eo=x=>1-Math.pow(1-x,3),back=x=>{const k=1.70158;return x<=0?0:1+(k+1)*Math.pow(x-1,3)+k*Math.pow(x-1,2)};
+const word=(id,t,t0)=>{const k=p(t,t0,.35),e=document.getElementById(id).style;e.opacity=eo(k);e.transform=`translateY(${(1-back(k))*70}px) scale(${.9+.1*back(k)})`};
+window.seek=t=>{
+ word('a',t,.1);word('b',t,.45);
+ const k=p(t,.2,.8);const jump=k<1?Math.abs(Math.sin(k*Math.PI*2))*(1-k)*1.6:0;
+ mascot.position.y=-2.6+jump-(1-eo(k))*3;mascot.rotation.y=Math.sin(t*1.3)*.55+(1-eo(k))*3.2;mascot.rotation.x=Math.sin(t*1.7)*.06;
+ const bl=(t%2.6)>2.5?.1:1;eyes.forEach(e=>e.scale.y=1.3*bl);
+ const talk=t>1.2&&t<5.4?Math.abs(Math.sin(t*11)):0;mouth.scale.y=1+talk*.9;
+ const s=p(t,2.0,.8);screen.position.set(0,1.5-(1-eo(s))*1.5,-.5);screen.rotation.y=-.35+Math.sin(t*1.1)*.12+(1-eo(s))*1.2;screen.rotation.x=.08;screen.scale.setScalar((.35+.65*back(s))*.95);screen.visible=s>0;
+ parts.forEach((m,i)=>{m.position.set(m.userData.x+Math.sin(t*m.userData.s+i)*.3,((m.userData.y+t*m.userData.s*1.5+10)%14)-7,m.userData.z)});
+ cam.position.x=Math.sin(t*.5)*.8;cam.lookAt(0,0,0);
+ r.render(scene,cam);
+};window.ready=true;
+</script></body></html>
