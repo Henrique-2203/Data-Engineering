@@ -75,7 +75,7 @@ try {
   const before = await api(`/guilds/${guild.id}/commands`, null, bia.token);
   assert(before.commands.length === 0, 'sem bot instalado não há comandos');
   const inst = await api(`/guilds/${guild.id}/bots`, {}, ana.token);
-  assert(inst.status === 200 && inst.installed && inst.commands.length === 13, `instalou: ${JSON.stringify(inst).slice(0, 120)}`);
+  assert(inst.status === 200 && inst.installed && inst.commands.length === 14, `instalou: ${JSON.stringify(inst).slice(0, 120)}`);
   assert((await api(`/guilds/${guild.id}/bots`, {}, ana.token)).status === 409, 'instalar duas vezes: 409');
   const g = (await api(`/guilds/${guild.id}`, null, bia.token)).guild;
   const botMember = g.members.find((m) => m.bot);
@@ -112,7 +112,7 @@ try {
   assert(vote.status === 200 && vote.message.poll.options[1].userIds[0] === caio.user.id, 'dá para votar na enquete do bot');
   assert((await cmd(bia.token, 'enquete', 'sem opções')).status === 400, 'enquete precisa de opções');
   r = await cmd(bia.token, 'ajuda');
-  assert(r.message.embeds[0].fields.length === 13, 'ajuda lista os 13 comandos');
+  assert(r.message.embeds[0].fields.length === 14, 'ajuda lista os 14 comandos');
   assert((await cmd(bia.token, 'naoexiste')).status === 404, 'comando inexistente');
   step('comandos /dado /moeda /sortear /enquete /ajuda funcionam, com limites e erros claros');
 

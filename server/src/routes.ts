@@ -153,7 +153,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   }
 
   /** Entrega um evento de mensagem só a quem vê o canal: servidor todo, só os cargos do canal privado, ou os dois da DM. */
-  async function emitToChannel(c: { id: string; guildId: string | null; allowedRoleIds: string[] | null }, event: string, payload: object) {
+  async function emitToChannel(c: { id: string; guildId: string | null; allowedRoleIds: string[] | null; allowedUserIds?: string[] | null }, event: string, payload: object) {
     if (c.guildId) {
       const audience = await channelAudience(db, c);
       if (audience === null) rt.emitGuild(c.guildId, event, { guildId: c.guildId, ...payload });

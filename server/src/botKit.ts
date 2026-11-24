@@ -25,6 +25,8 @@ export interface Ctx {
   args: string;
   user: PublicUser;
   channel: { id: string; guildId: string; name: string };
+  /** posta uma mensagem do bot em outro canal do servidor (ex.: dentro do ticket que acabou de abrir) */
+  postTo(channelId: string, reply: Reply): Promise<void>;
   /** permissões da pessoa no servidor */
   perms: number;
   isOwner: boolean;

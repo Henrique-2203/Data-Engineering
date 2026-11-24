@@ -558,6 +558,24 @@ create table if not exists bot_reminders (
   sent_at timestamptz
 );
 create index if not exists bot_reminders_due_idx on bot_reminders(due_at) where sent_at is null;
+
+-- v61: tickets de ajuda/suporte do servidor (o canal do ticket é privado: autor + dono + administradores + cargos escolhidos)
+alter table channels add column if not exists allowed_user_ids text[];
+alter table guild_bots add column if not exists config jsonb not null default '{}';
+create table if not exists tickets (
+  id text primary key,
+  guild_id text not null references guilds(id) on delete cascade,
+  channel_id text references channels(id) on delete set null,
+  number integer not null,
+  opener_id text not null references users(id) on delete cascade,
+  subject text not null,
+  status text not null default 'open',
+  created_at timestamptz not null default now(),
+  closed_at timestamptz,
+  closed_by text references users(id) on delete set null,
+  unique (guild_id, number)
+);
+create index if not exists tickets_channel_idx on tickets(channel_id);
 `;
 
 export async function createDb(): Promise<Db> {

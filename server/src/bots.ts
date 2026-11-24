@@ -16,6 +16,7 @@ import { Perm, has } from '../../shared/permissions.ts';
 import type { BotCommandInfo, Member, Message, PublicUser } from '../../shared/types.ts';
 import { BOT_COLOR as COLOR, bad, embed, type BotCommand, type Reply } from './botKit.ts';
 import { DJ_COMMANDS } from './botDj.ts';
+import { TICKET_COMMANDS } from './botTickets.ts';
 
 /**
  * Bots da casa (em teste: recurso "bots"). O "Resenha Bot" roda DENTRO do servidor do Resenha:
@@ -137,6 +138,7 @@ export const COMMANDS: BotCommand[] = [
     }),
   },
   ...DJ_COMMANDS,
+  ...TICKET_COMMANDS,
 ];
 
 const commandInfo = (disabled: string[]): BotCommandInfo[] =>
@@ -151,7 +153,7 @@ interface Deps {
 export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnType<typeof requireAuth>, deps: Deps) {
   const botUser = async () => (await db.query<PublicUser>(`select ${USER_COLUMNS} from users u where u.id = $1`, [BOT_ID]))[0];
   const install = async (guildId: string) =>
-    (await db.query<{ disabled: string[] }>('select disabled_commands as disabled from guild_bots where guild_id = $1 and bot_id = $2', [guildId, BOT_ID]))[0];
+    (await db.query<{ disabled: string[]; config: { ticketRoleIds?: string[] } }>('select disabled_commands as disabled, config from guild_bots where guild_id = $1 and bot_id = $2', [guildId, BOT_ID]))[0];
 
   /** posta uma mensagem como o bot e avisa o canal */
   async function post(c: { id: string; guildId: string | null }, reply: Reply, interaction: Message['interaction'] | null) {
@@ -192,7 +194,7 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
       const guildId = String(req.params.id);
       await manage(req.user!.id, req.user!.username, guildId);
       const row = await install(guildId);
-      return { bot: await botUser(), installed: !!row, commands: commandInfo(row?.disabled ?? []) };
+      return { bot: await botUser(), installed: !!row, commands: commandInfo(row?.disabled ?? []), config: { ticketRoleIds: row?.config?.ticketRoleIds ?? [] } };
     }),
   );
 
@@ -252,6 +254,30 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
     }),
   );
 
+  /** cargos que atendem os tickets (além do dono e dos administradores) */
+  r.patch(
+    '/guilds/:id/bots/config',
+    auth,
+    wrap(async (req) => {
+      const guildId = String(req.params.id);
+      await manage(req.user!.id, req.user!.username, guildId);
+      const body = parse(z.object({ ticketRoleIds: z.array(z.string().max(64)).max(20) }), req.body);
+      if (!(await install(guildId))) throw new HttpError(404, 'O Resenha Bot não está neste servidor.');
+      const valid = body.ticketRoleIds.length
+        ? (await db.query<{ id: string }>('select id from roles where guild_id = $1 and id = any($2)', [guildId, body.ticketRoleIds])).map((x) => x.id)
+        : [];
+      if (valid.length !== new Set(body.ticketRoleIds).size) throw new HttpError(400, 'Cargo inválido.');
+      await db.query(`update guild_bots set config = jsonb_set(config, '{ticketRoleIds}', $3::jsonb) where guild_id = $1 and bot_id = $2`, [guildId, BOT_ID, JSON.stringify(valid)]);
+      // os tickets abertos passam a ser vistos por esses cargos também
+      await db.query(
+        `update channels set allowed_role_ids = $2 where id in (select channel_id from tickets where guild_id = $1 and status = 'open' and channel_id is not null)`,
+        [guildId, valid],
+      );
+      rt.guildChanged(guildId);
+      return { config: { ticketRoleIds: valid } };
+    }),
+  );
+
   // ---------- usar ----------
   /** comandos ligados neste servidor (alimenta o popup do "/" para qualquer membro) */
   r.get(
@@ -301,6 +327,10 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
         args: body.args.trim(),
         user: me,
         channel: { id: c.id, guildId: c.guildId, name: c.name },
+        postTo: async (channelId, r) => {
+          const target = await loadChannel(db, channelId);
+          if (target?.guildId === c.guildId) await post(target, r, null);
+        },
         perms: c.access.perms,
         isOwner: c.access.isOwner,
         enabled: commandInfo(row.disabled).filter((x) => x.enabled),

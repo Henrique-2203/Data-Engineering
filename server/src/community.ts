@@ -217,7 +217,7 @@ const eventSchema = z.object({
 
 interface Deps {
   channelForMember(channelId: string, userId: string): Promise<ChannelRow & { access: MemberAccess | null; slowmode?: number }>;
-  emitToChannel(c: { id: string; guildId: string | null; allowedRoleIds: string[] | null }, event: string, payload: object): Promise<void>;
+  emitToChannel(c: { id: string; guildId: string | null; allowedRoleIds: string[] | null; allowedUserIds?: string[] | null }, event: string, payload: object): Promise<void>;
   messageSelect: string;
 }
 
@@ -263,7 +263,7 @@ export function registerCommunityRoutes(r: Router, db: Db, rt: Realtime, auth: R
       } else {
         const access = await requireMember(db, q.guildId!, uid);
         const rows = await db.query<ChannelRow>(
-          `select id, guild_id as "guildId", allowed_role_ids as "allowedRoleIds" from channels where guild_id = $1`,
+          `select id, guild_id as "guildId", allowed_role_ids as "allowedRoleIds", allowed_user_ids as "allowedUserIds" from channels where guild_id = $1`,
           [q.guildId],
         );
         channelIds = rows.filter((c) => canSee(access, c)).map((c) => c.id);
@@ -422,7 +422,7 @@ export function registerCommunityRoutes(r: Router, db: Db, rt: Realtime, auth: R
     if (body.endsAt && new Date(body.endsAt).getTime() - starts > 7 * 86_400_000) throw new HttpError(400, 'Um evento pode durar no máximo 7 dias.');
     if (body.channelId) {
       const [c] = await db.query<ChannelRow>(
-        `select id, type, allowed_role_ids as "allowedRoleIds" from channels where id = $1 and guild_id = $2`,
+        `select id, type, allowed_role_ids as "allowedRoleIds", allowed_user_ids as "allowedUserIds" from channels where id = $1 and guild_id = $2`,
         [body.channelId, guildId],
       );
       if (!c || c.type !== 'voice' || !canSee(a, c)) throw new HttpError(400, 'Canal de voz inválido.');

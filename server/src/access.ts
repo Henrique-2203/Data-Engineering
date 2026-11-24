@@ -36,6 +36,8 @@ export interface ChannelRow {
   position: number;
   categoryId: string | null;
   allowedRoleIds: string[] | null;
+  /** pessoas liberadas uma a uma num canal privado (tickets) */
+  allowedUserIds?: string[] | null;
   bitrate: number;
   userLimit: number;
   slowmode: number;
@@ -44,7 +46,7 @@ export interface ChannelRow {
 }
 
 export const CHANNEL_COLUMNS = `c.id, c.guild_id as "guildId", c.name, c.type, c.position, c.category_id as "categoryId",
-  c.allowed_role_ids as "allowedRoleIds", c.bitrate, c.user_limit as "userLimit", c.slowmode, c.announce`;
+  c.allowed_role_ids as "allowedRoleIds", c.allowed_user_ids as "allowedUserIds", c.bitrate, c.user_limit as "userLimit", c.slowmode, c.announce`;
 
 export async function guildContext(db: Db, guildId: string): Promise<PermissionContext | null> {
   const [g] = await db.query<{ ownerId: string; everyonePermissions: number }>(
@@ -133,7 +135,7 @@ export async function requireOutranks(db: Db, guildId: string, actor: MemberAcce
   }
 }
 
-export function canSee(a: MemberAccess, channel: Pick<ChannelRow, 'allowedRoleIds'>) {
+export function canSee(a: MemberAccess, channel: Pick<ChannelRow, 'allowedRoleIds' | 'allowedUserIds'>) {
   return canSeeChannel(a.ctx, channel, a.userId, a.roleIds);
 }
 
@@ -141,7 +143,7 @@ export function canSee(a: MemberAccess, channel: Pick<ChannelRow, 'allowedRoleId
  * Quem pode ver um canal de servidor: null = todos os membros; senão a lista de usuários
  * (para canais privados, eventos vão só para essas pessoas).
  */
-export async function channelAudience(db: Db, channel: Pick<ChannelRow, 'guildId' | 'allowedRoleIds'>): Promise<string[] | null> {
+export async function channelAudience(db: Db, channel: Pick<ChannelRow, 'guildId' | 'allowedRoleIds' | 'allowedUserIds'>): Promise<string[] | null> {
   if (!channel.guildId || !channel.allowedRoleIds) return null; // lista vazia = privado só para dono/admins
   const ctx = await guildContext(db, channel.guildId);
   if (!ctx) return [];

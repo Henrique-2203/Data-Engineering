@@ -14,7 +14,7 @@ import { loadChannel } from './access.ts';
  */
 type Deps = {
   messageSelect: string;
-  emitToChannel(c: { id: string; guildId: string | null; allowedRoleIds: string[] | null }, event: string, payload: object): Promise<void>;
+  emitToChannel(c: { id: string; guildId: string | null; allowedRoleIds: string[] | null; allowedUserIds?: string[] | null }, event: string, payload: object): Promise<void>;
 };
 let deps: Deps | null = null;
 export function configureWelcome(d: Deps) {

@@ -101,11 +101,13 @@ export function displayRole(ctx: Pick<PermissionContext, 'roles'>, roleIds: stri
  */
 export function canSeeChannel(
   ctx: PermissionContext,
-  channel: { allowedRoleIds: string[] | null },
+  channel: { allowedRoleIds: string[] | null; allowedUserIds?: string[] | null },
   userId: string,
   roleIds: string[],
 ): boolean {
   if (!channel.allowedRoleIds) return true;
+  // pessoas liberadas uma a uma (ex.: quem abriu um ticket)
+  if (channel.allowedUserIds?.includes(userId)) return true;
   if (has(memberPermissions(ctx, userId, roleIds), Perm.ADMIN)) return true;
   return roleIds.some((r) => channel.allowedRoleIds!.includes(r));
 }

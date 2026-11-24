@@ -47,6 +47,7 @@ interface BotState {
   bot: PublicUser | undefined;
   installed: boolean;
   commands: BotCommandInfo[];
+  config?: { ticketRoleIds: string[] };
 }
 
 /** Configurações do servidor → Integrações: adicionar o Resenha Bot e escolher os comandos (em teste). */
@@ -90,6 +91,15 @@ export function BotsSettings({ guild }: { guild: Guild }) {
     }
   }
 
+  async function setTicketRoles(ids: string[]) {
+    try {
+      const r = await api<{ config: { ticketRoleIds: string[] } }>(`/guilds/${guild.id}/bots/config`, { method: 'PATCH', body: { ticketRoleIds: ids } });
+      setSt((s) => (s ? { ...s, config: r.config } : s));
+    } catch (err) {
+      toast((err as Error).message);
+    }
+  }
+
   if (!st) return <p className="muted">Carregando…</p>;
   return (
     <div className="bots-settings">
@@ -114,6 +124,25 @@ export function BotsSettings({ guild }: { guild: Guild }) {
           {[...new Set(st.commands.map((c) => c.group))].map((group) => (
             <div key={group}>
               <h3>{group}</h3>
+              {group === 'Tickets de ajuda' && (
+                <div className="ticket-roles">
+                  <p className="muted small">
+                    O canal de cada ticket é privado: só quem abriu, o dono e os administradores veem. Marque cargos que também atendem os tickets:
+                  </p>
+                  {guild.roles.length === 0 && <p className="muted small">Este servidor ainda não tem cargos.</p>}
+                  {guild.roles.map((role) => (
+                    <label key={role.id} className="check">
+                      <input
+                        type="checkbox"
+                        checked={st.config?.ticketRoleIds.includes(role.id) ?? false}
+                        onChange={(e) => void setTicketRoles(e.target.checked ? [...(st.config?.ticketRoleIds ?? []), role.id] : (st.config?.ticketRoleIds ?? []).filter((x) => x !== role.id))}
+                        aria-label={`Cargo ${role.name} atende tickets`}
+                      />
+                      <span>{role.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
               <ul className="bot-commands">
                 {st.commands
                   .filter((c) => c.group === group)
