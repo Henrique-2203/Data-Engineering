@@ -28,6 +28,8 @@ export const HEALTH_METRICS = [
   'voice_bad',
   'relayed_samples',
   'turn_mb',
+  // transmissão pelo servidor de mídia da Cloudflare (divide a mesma franquia grátis do TURN)
+  'sfu_mb',
   // minha transmissão (amostras de 1 minuto)
   'stream_samples',
   'stream_capture',

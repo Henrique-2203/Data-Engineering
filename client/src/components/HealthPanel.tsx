@@ -207,6 +207,11 @@ export function HealthPanel() {
 /** Laboratório: liga mudanças em teste SÓ neste aparelho (nenhum usuário recebe). */
 function LabToggles() {
   const [fps, setFps] = useState(() => labOn('fps'));
+  const [sfu, setSfu] = useState(() => labOn('sfu'));
+  const [sfuOk, setSfuOk] = useState<boolean | null>(null);
+  useEffect(() => {
+    void api<{ enabled: boolean }>('/sfu/status').then((r) => setSfuOk(r.enabled), () => setSfuOk(false));
+  }, []);
   return (
     <div className="health-lab">
       <strong>🧪 Laboratório (só neste aparelho)</strong>
@@ -221,6 +226,24 @@ function LabToggles() {
         />{' '}
         FPS mais fixo na transmissão (camadas temporais e bitrate constante). Vale na próxima vez que você transmitir.
       </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={sfu}
+          onChange={(e) => {
+            setLab('sfu', e.target.checked);
+            setSfu(e.target.checked);
+          }}
+        />{' '}
+        Transmitir pelo servidor de mídia da Cloudflare (etapa 3): você manda 1 cópia em 3 qualidades e cada pessoa recebe a que a
+        internet dela aguenta, no FPS escolhido. Se falhar, volta sozinho para o direto.
+      </label>
+      {sfuOk === false && (
+        <p className="muted small">
+          ⚠️ Servidor de mídia desligado: configure CLOUDFLARE_SFU_APP_ID e CLOUDFLARE_SFU_APP_TOKEN no Render (ou o limite do mês da
+          Cloudflare chegou). Enquanto isso, a transmissão segue pelo direto.
+        </p>
+      )}
     </div>
   );
 }

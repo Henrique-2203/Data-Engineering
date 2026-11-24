@@ -84,5 +84,12 @@ export const config = {
     /** limite de segurança do mês (MB): ao chegar nele, o TURN da Cloudflare pausa até o mês virar (1.000 GB grátis; padrão 500 GB) */
     limitMb: Number(process.env.CLOUDFLARE_TURN_LIMIT_MB) || 500_000,
   },
+  /** Servidor de mídia da Cloudflare (Realtime SFU): quem transmite manda 1 cópia só; ver server/src/sfu.ts */
+  cloudflareSfu: {
+    appId: process.env.CLOUDFLARE_SFU_APP_ID || null,
+    appToken: process.env.CLOUDFLARE_SFU_APP_TOKEN || null,
+    /** os testes apontam para um SFU de mentira */
+    baseUrl: process.env.CLOUDFLARE_SFU_BASE_URL || 'https://rtc.live.cloudflare.com/v1',
+  },
   clientDist: fileURLToPath(new URL('../../client/dist', import.meta.url)),
 };

@@ -21,6 +21,7 @@ type Metric =
   | 'voice_bad'
   | 'relayed_samples'
   | 'turn_mb'
+  | 'sfu_mb'
   | 'stream_samples'
   | 'stream_capture'
   | 'stream_sent'
@@ -178,6 +179,7 @@ async function sample() {
     if (v.watching[p.socketId]) {
       const t = voice.turboRecvStats(p.socketId);
       let fps = t?.fps ?? null;
+      if (fps === null) fps = (await voice.sfuRecvStats(p.socketId))?.fps ?? null; // pelo servidor de mídia
       if (fps === null) {
         snap.forEach((r) => {
           if (r.type === 'inbound-rtp' && r.kind === 'video' && r.framesPerSecond !== undefined) fps = Math.max(fps ?? 0, r.framesPerSecond);
@@ -191,6 +193,9 @@ async function sample() {
     }
   }
   prev = next;
+  // transmissões que assisto pelo servidor de mídia (divide a franquia grátis da Cloudflare com o TURN)
+  const sfuMb = await voice.sfuMbSinceLast();
+  if (sfuMb > 0) add('sfu_mb', sfuMb, 0);
 
   // minha transmissão
   if (v.screen) {
@@ -215,7 +220,7 @@ async function sample() {
       else if (st.captureFps < target * 0.9) add('stream_lim_capture');
       else if (st.fps < st.captureFps * 0.9 || st.limitedBy === 'cpu') add('stream_lim_encode');
       else add('stream_lim_net');
-      if (labOn('fps')) add('stream_lab');
+      if (labOn('fps') || labOn('sfu')) add('stream_lab');
     }
   }
   flushHealth();

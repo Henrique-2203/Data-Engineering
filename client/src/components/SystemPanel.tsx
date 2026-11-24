@@ -161,7 +161,7 @@ function CapacityCard() {
           </div>
         )}
         <div className="stat-tile">
-          <span className="stat-label">TURN este mês</span>
+          <span className="stat-label">Cloudflare este mês (TURN + servidor de mídia)</span>
           <strong className="stat-value">{mbOrGb(c.turn.monthMb)}</strong>
           {c.turn.quotaMb ? <Bar used={c.turn.monthMb} total={c.turn.quotaMb} /> : null}
           <span className="stat-note">

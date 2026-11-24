@@ -55,6 +55,7 @@ import { registerPushRoutes, sendPush } from './push.ts';
 import { registerSupportRoutes } from './support.ts';
 import { registerApoioRoutes } from './apoio.ts';
 import { registerAndroidRoutes } from './android.ts';
+import { registerSfuRoutes } from './sfu.ts';
 import { ensureOfficialMember, registerOfficialRoutes } from './official.ts';
 import { registerExploreRoutes } from './explore.ts';
 import { configureWelcome } from './welcome.ts';
@@ -753,6 +754,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerSupportRoutes(r, db, rt, auth);
   registerApoioRoutes(r, db, rt, auth);
   registerAndroidRoutes(r);
+  registerSfuRoutes(r, db, rt, auth);
   registerOfficialRoutes(r, db, rt, auth);
   registerExploreRoutes(r, db, rt, auth);
   registerHealthRoutes(r, db, rt, auth);

@@ -446,6 +446,16 @@ export class Realtime {
     else this.activeSockets.delete(userId);
   }
 
+  /** As calls em que a pessoa está agora (normalmente uma). */
+  voiceOfUser(userId: string): VoiceState[] {
+    return [...this.voice.values()].filter((s) => s.userId === userId);
+  }
+
+  /** A pessoa pode assistir a transmissão de quem está no socket `streamerSid`? (mesma regra do P2P) */
+  canWatch(streamerSid: string, viewerUserId: string) {
+    return this.canWatchScreen(streamerSid, viewerUserId);
+  }
+
   /** Agora: pessoas online, em call, calls abertas e transmissões (Painel da equipe → Saúde). */
   liveCounts() {
     const states = [...this.voice.values()];

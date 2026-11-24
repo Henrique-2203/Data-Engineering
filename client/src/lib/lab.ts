@@ -3,7 +3,7 @@
  * Painel da equipe → Saúde → Laboratório (ou nos testes automáticos). Desligado = o Resenha de sempre.
  *  - 'fps': transmissão com FPS mais fixo (camadas temporais e bitrate constante na transmissão turbo)
  */
-export type LabFlag = 'fps';
+export type LabFlag = 'fps' | 'sfu';
 const KEY = 'resenha.lab';
 
 function read(): LabFlag[] {

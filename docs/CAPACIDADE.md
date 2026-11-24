@@ -51,6 +51,20 @@ para a qualidade e não custa nada de servidor, mas cada pessoa envia uma cópia
   uma cópia só e o servidor repassa. Isso gasta banda de servidor, que custa dinheiro. Opções para estudar quando chegar a hora:
   Cloudflare Calls (tem uma franquia grande de tráfego grátis por mês) ou um servidor próprio barato.
 
+### Servidor de mídia (etapa 3, só no laboratório)
+
+- **Cloudflare Realtime SFU**: quem transmite manda **uma cópia** em 3 qualidades (simulcast: original, ~720p e ~360p,
+  todas no FPS escolhido) e a Cloudflare entrega a cada pessoa a que a internet dela aguenta. O upload de quem transmite
+  não cresce com o número de espectadores.
+- Liga em Painel da equipe → Saúde → 🧪 Laboratório → "Transmitir pelo servidor de mídia" (só no aparelho de quem
+  transmite). Se falhar, quem assiste volta sozinho para o direto (P2P/turbo).
+- Variáveis no Render: `CLOUDFLARE_SFU_APP_ID` e `CLOUDFLARE_SFU_APP_TOKEN` (Cloudflare → Realtime → SFU → criar app).
+  A chave só fica no servidor; o Resenha confere dono da sessão, call e "quem pode assistir" (`server/src/sfu.ts`).
+- Custo: **a mesma franquia grátis do TURN** (1.000 GB por mês somando os dois; depois US$ 0,05 por GB, só o que a
+  Cloudflare entrega). O limite de segurança `CLOUDFLARE_TURN_LIMIT_MB` (500 GB) agora soma TURN + SFU: chegou nele,
+  os dois pausam até o mês virar e todo mundo fica no direto, sem cobrança. 1080p60 ≈ 2,7 GB por hora **por espectador**.
+- Teste automático: `e2e/stream-sfu.mjs` (com um SFU de mentira, `e2e/mock-sfu.mjs`, que fala a mesma API).
+
 ## 4. TURN (quem não tem conexão direta: 4G/5G, CGNAT)
 
 - **Provedor principal: Cloudflare Realtime** (TURN Server): **1.000 GB por mês grátis**, depois US$ 0,05 por GB.

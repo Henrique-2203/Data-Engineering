@@ -2,6 +2,7 @@ import type { Socket } from 'socket.io-client';
 import type { PublicUser, RtcSignal } from '../../../shared/types';
 import { api } from '../lib/api';
 import { countCallJoined } from '../lib/apoioCard';
+import { SfuPublisher, SfuViewer, sfuAvailable, type SfuInfo } from './sfu';
 import { playSound } from '../lib/sounds';
 import { getSocket, onSocketReady } from '../lib/socket';
 import { findChannel, findMember, selectChannel, toast, useApp } from '../store/app';
@@ -319,6 +320,10 @@ class VoiceEngine {
     this.stopTurbo();
     for (const r of this.turboRecv.values()) r.close();
     this.turboRecv.clear();
+    this.stopSfu();
+    for (const id of [...this.sfuViews.keys()]) this.closeSfuView(id);
+    this.sfuFailed.clear();
+    this.sfuCapable.clear();
     this.stopPerfGuard();
     this.lightLevel = 0;
     this.screenStream?.getTracks().forEach((t) => t.stop());
@@ -631,7 +636,8 @@ class VoiceEngine {
         healthPeerState(socketId, connection);
         if (connection === 'connected' && this.oldPeers.size) this.replaceOldPeer(socketId, userId);
       },
-      onWatch: (on, decoders, quality) => this.onWatchRequest(socketId, on, decoders, quality),
+      onWatch: (on, decoders, quality, sfu) => this.onWatchRequest(socketId, on, decoders, quality, sfu),
+      onSfu: (info) => void this.onSfuInfo(socketId, info),
       onQuality: (q) => this.onQualityRequest(socketId, q),
       onDataChannel: (dc) => this.onScreenChannel(socketId, dc),
       onStable: () => this.applyEncodings(peer),
@@ -671,6 +677,8 @@ class VoiceEngine {
     this.peers.get(socketId)?.close();
     this.peers.delete(socketId);
     this.screenWatchers.delete(socketId);
+    this.sfuWatchers.delete(socketId);
+    this.closeSfuView(socketId);
     this.peerWant.delete(socketId);
     const m = this.meters.get(socketId);
     if (m) {
@@ -701,6 +709,8 @@ class VoiceEngine {
   }
 
   private onRemoteStream(socketId: string, kind: MediaKind, stream: MediaStream | null) {
+    // assistindo pelo servidor de mídia: a tela vem de lá, não do direto
+    if (kind === 'screen' && this.sfuViews.has(socketId)) return;
     this.patchRemote(socketId, (r) => ({ [kind]: stream ?? undefined, v: r.v + 1 }));
     if (kind === 'mic' && stream) this.monitor(socketId, stream);
   }
@@ -866,6 +876,7 @@ class VoiceEngine {
     this.turbo?.stop();
     this.turbo = turboCanSend() && settings.turbo !== false ? new TurboSender(videoTrack, this.turboTarget(), (m) => this.dbg(m), labOn('fps')) : null;
     this.startTurboStats();
+    void this.startSfu(stream);
     this.sendAudience();
     setV({ screen: true, localScreen: stream, screenLight: false });
     getSocket()?.emit('voice:update', { screen: true, screenAudioMode: this.screenAudioMode });
@@ -948,7 +959,7 @@ class VoiceEngine {
     this.turboDrops.set(socketId, d);
     setTimeout(() => {
       const streaming = useApp.getState().voiceStates[socketId]?.screen;
-      if (!getV().watching[socketId] || !this.peers.has(socketId) || !streaming || this.turboRecv.has(socketId)) return;
+      if (!getV().watching[socketId] || !this.peers.has(socketId) || !streaming || this.turboRecv.has(socketId) || this.sfuViews.has(socketId) || this.sfuPending.has(socketId)) return;
       const turbo = d.n < 3;
       this.dbg(`turbo: a transmissão de ${socketId.slice(0, 6)} caiu (${d.n}x): pedindo de novo${turbo ? '' : ' pela transmissão normal'}`);
       this.sendWatch(socketId, true, turbo);
@@ -1037,6 +1048,7 @@ class VoiceEngine {
     if (!this.screenStream) return;
     desktop?.setStreaming?.(false);
     this.stopTurbo();
+    this.stopSfu();
     this.stopPerfGuard();
     this.lightLevel = 0;
     this.stopScreenTracks();
@@ -1248,7 +1260,7 @@ class VoiceEngine {
     }
   }
 
-  private onWatchRequest(socketId: string, on: boolean, decoders?: string[], quality?: StreamQuality) {
+  private onWatchRequest(socketId: string, on: boolean, decoders?: string[], quality?: StreamQuality, sfu?: boolean) {
     const peer = this.peers.get(socketId);
     if (!peer) return;
     if (quality) this.peerWant.set(socketId, quality);
@@ -1256,6 +1268,15 @@ class VoiceEngine {
       this.dbg(`pedido para assistir de ${socketId.slice(0, 6)} recusado (fora de quem pode assistir)`);
       return;
     }
+    if (sfu) this.sfuCapable.add(socketId);
+    else this.sfuCapable.delete(socketId);
+    // laboratório 'sfu': quem assiste puxa do servidor de mídia (nada sai direto do meu PC para essa pessoa)
+    if (on && sfu && this.sfuPub) {
+      this.screenWatchers.add(socketId);
+      this.sendSfuTo(peer);
+      return;
+    }
+    if (!on) this.sfuWatchers.delete(socketId);
     if (on) {
       this.screenWatchers.add(socketId);
       const { settings } = getV();
@@ -1306,6 +1327,7 @@ class VoiceEngine {
       const watching = { ...s.watching };
       if (on) watching[socketId] = true;
       else delete watching[socketId];
+      if (!on) this.sfuFailed.delete(socketId);
       return { watching, focus: on ? `${socketId}:screen` : s.focus === `${socketId}:screen` ? null : s.focus };
     });
     this.sendWatch(socketId, on);
@@ -1313,6 +1335,7 @@ class VoiceEngine {
 
   /** Quem assiste: escolhe a qualidade da transmissão de alguém (só para si). */
   setStreamQuality(socketId: string, q: StreamQuality) {
+    void this.sfuViews.get(socketId)?.setQuality(q);
     setV((s) => {
       const streamHint = { ...s.streamHint };
       delete streamHint[socketId];
@@ -1330,16 +1353,140 @@ class VoiceEngine {
     });
   }
 
-  private sendWatch(socketId: string, on: boolean, turbo = true) {
+  private sendWatch(socketId: string, on: boolean, turbo = true, sfu = true) {
     const quality = getV().streamQuality[socketId];
-    const send = (decoders?: string[]) =>
+    if (!on) this.closeSfuView(socketId);
+    const send = (decoders?: string[], viaSfu = false) =>
       getSocket()?.emit('rtc:signal', {
         to: socketId,
-        data: { type: 'watch', on, ...(decoders?.length ? { decoders } : {}), ...(on && quality ? { quality } : {}) } satisfies RtcSignal,
+        data: { type: 'watch', on, ...(decoders?.length ? { decoders } : {}), ...(on && quality ? { quality } : {}), ...(viaSfu ? { sfu: true } : {}) } satisfies RtcSignal,
       });
-    // aceito a transmissão turbo se este aparelho decodifica (e a pessoa não desligou)
-    if (on && turbo && turboCanReceive() && getV().settings.turbo !== false) void decodableCodecs().then(send, () => send());
-    else send();
+    // aceito o servidor de mídia (se estiver ligado) e a transmissão turbo (se este aparelho decodifica)
+    const withSfu = (decoders?: string[]) =>
+      on && sfu && !this.sfuFailed.has(socketId) ? void sfuAvailable().then((ok) => send(decoders, ok), () => send(decoders)) : send(decoders);
+    if (on && turbo && turboCanReceive() && getV().settings.turbo !== false) void decodableCodecs().then(withSfu, () => withSfu());
+    else withSfu();
+  }
+
+  // ---------------- servidor de mídia (laboratório 'sfu', etapa 3) ----------------
+
+  private sfuPub: SfuPublisher | null = null;
+  /** quem assiste a minha tela pelo servidor de mídia */
+  private sfuWatchers = new Set<string>();
+  /** quem disse que consegue assistir pelo servidor de mídia */
+  private sfuCapable = new Set<string>();
+  /** transmissões que estou assistindo pelo servidor de mídia */
+  private sfuViews = new Map<string, SfuViewer>();
+  /** transmissões em que o servidor de mídia falhou para mim (fico no direto até parar de assistir) */
+  private sfuFailed = new Set<string>();
+  private sfuBytesSeen = 0;
+  /** pedidos ao servidor de mídia em andamento (quem transmite → sessão) */
+  private sfuPending = new Map<string, string>();
+
+  private async startSfu(stream: MediaStream) {
+    if (!labOn('sfu') || !(await sfuAvailable())) return;
+    const video = stream.getVideoTracks()[0];
+    if (!video) return;
+    const s = getV().settings;
+    const preset = screenPresetFor(s);
+    try {
+      const pub = await SfuPublisher.start(video, stream.getAudioTracks()[0] ?? null, { fps: preset.fps, bitrate: effectiveBitrate(s), codec: screenCodecFor(s) }, (m) => this.dbg(m));
+      if (this.screenStream !== stream) return pub.close(); // parou de transmitir enquanto conectava
+      this.sfuPub = pub;
+      pub.pc.addEventListener('connectionstatechange', () => {
+        if (this.sfuPub === pub && (pub.pc.connectionState === 'failed' || pub.pc.connectionState === 'closed')) {
+          this.dbg('sfu: conexão caiu; quem assiste volta para o direto');
+          this.stopSfu();
+        }
+      });
+      // quem já assistia e aceita o servidor de mídia passa para ele
+      for (const id of this.screenWatchers) {
+        const p = this.peers.get(id);
+        if (p && this.sfuCapable.has(id)) this.sendSfuTo(p);
+      }
+    } catch (err) {
+      this.dbg(`sfu: não deu para publicar (${(err as Error).message}); segue no direto`);
+    }
+  }
+
+  private sendSfuTo(peer: Peer) {
+    if (!this.sfuPub) return;
+    this.sfuWatchers.add(peer.id);
+    this.turbo?.removeViewer(peer.id);
+    void peer.setTrack('screenVideo', null, this.msid.screen);
+    void peer.setTrack('screenAudio', null, this.msid.screen);
+    getSocket()?.emit('rtc:signal', { to: peer.id, data: { type: 'sfu', info: this.sfuPub.info } satisfies RtcSignal });
+  }
+
+  private stopSfu() {
+    const pub = this.sfuPub;
+    this.sfuPub = null;
+    if (!pub) return;
+    pub.close();
+    // quem assistia por ele volta para o direto (se eu ainda estiver transmitindo)
+    for (const id of [...this.sfuWatchers]) {
+      this.sfuWatchers.delete(id);
+      getSocket()?.emit('rtc:signal', { to: id, data: { type: 'sfu', info: null } satisfies RtcSignal });
+    }
+  }
+
+  /** quem assiste: chegou onde puxar a tela (ou null: voltar para o direto) */
+  private async onSfuInfo(socketId: string, info: SfuInfo | null) {
+    // a mesma transmissão já está chegando (pedido repetido): não puxa duas vezes
+    if (info && (this.sfuPending.get(socketId) === info.sessionId || this.sfuViews.get(socketId)?.remote.sessionId === info.sessionId)) return;
+    this.closeSfuView(socketId);
+    if (!getV().watching[socketId]) return;
+    if (!info) {
+      this.sendWatch(socketId, true, true, false);
+      return;
+    }
+    this.sfuPending.set(socketId, info.sessionId);
+    try {
+      const view = await SfuViewer.pull(info, getV().streamQuality[socketId] ?? 'auto', (m) => this.dbg(`[${socketId.slice(0, 6)}] ${m}`)).finally(() => {
+        if (this.sfuPending.get(socketId) === info.sessionId) this.sfuPending.delete(socketId);
+      });
+      if (!getV().watching[socketId] || !this.peers.has(socketId) || this.sfuViews.has(socketId)) return view.close();
+      this.sfuViews.set(socketId, view);
+      this.patchRemote(socketId, (r) => ({ screen: view.stream, v: r.v + 1 }));
+      view.pc.addEventListener('connectionstatechange', () => {
+        if (this.sfuViews.get(socketId) === view && (view.pc.connectionState === 'failed' || view.pc.connectionState === 'closed')) {
+          this.closeSfuView(socketId);
+          this.sfuFailed.add(socketId);
+          if (getV().watching[socketId]) this.sendWatch(socketId, true, true, false);
+        }
+      });
+    } catch (err) {
+      this.dbg(`[${socketId.slice(0, 6)}] sfu: não deu para assistir (${(err as Error).message}); pedindo pelo direto`);
+      this.sfuFailed.add(socketId);
+      if (getV().watching[socketId]) this.sendWatch(socketId, true, true, false);
+    }
+  }
+
+  private closeSfuView(socketId: string) {
+    const view = this.sfuViews.get(socketId);
+    if (!view) return;
+    this.sfuViews.delete(socketId);
+    view.close();
+    this.patchRemote(socketId, (r) => (r.screen === view.stream ? { screen: undefined, v: r.v + 1 } : {}));
+  }
+
+  /** diagnóstico e painel de saúde: FPS da transmissão que assisto pelo servidor de mídia */
+  async sfuRecvStats(socketId: string) {
+    return (await this.sfuViews.get(socketId)?.stats()) ?? null;
+  }
+
+  /** MB recebidos pelo servidor de mídia desde a última pergunta (franquia da Cloudflare) */
+  async sfuMbSinceLast() {
+    let total = 0;
+    for (const v of this.sfuViews.values()) total += (await v.stats()).bytes;
+    const d = Math.max(0, total - this.sfuBytesSeen);
+    this.sfuBytesSeen = total;
+    return d / 1e6;
+  }
+
+  /** quem transmite: estou publicando no servidor de mídia? (e as qualidades) */
+  async sfuSendStats() {
+    return this.sfuPub ? { watchers: this.sfuWatchers.size, ...(await this.sfuPub.stats()) } : null;
   }
 
   /** Diagnóstico: nível do áudio recebido de cada participante (0..1, via getStats). */

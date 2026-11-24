@@ -46,7 +46,7 @@ export async function capacity(db: Db, rt: Realtime): Promise<Capacity> {
   const s = await storageUsage(db);
   const [{ month }] = await db.query<{ month: number }>(
     `select coalesce(sum(sum), 0)::float as month from call_health
-     where metric = 'turn_mb' and date_trunc('month', day) = date_trunc('month', (now() at time zone 'America/Sao_Paulo')::date)`,
+     where metric in ('turn_mb', 'sfu_mb') and date_trunc('month', day) = date_trunc('month', (now() at time zone 'America/Sao_Paulo')::date)`,
   );
   const avg = window.length ? window.reduce((a, b) => a + b, 0) / window.length : 0;
   return {

@@ -81,13 +81,13 @@ if (!hasTurn()) {
  * Cloudflare não estiver configurada ou falhar: se os dois fossem juntos, o navegador poderia escolher
  * o Metered e gastar a cota dele à toa.
  */
-/** TURN usado no mês (MB, estimado pelos aparelhos; ver client/src/lib/health.ts), guardado por 5 min */
+/** TURN + servidor de mídia no mês (MB, estimado pelos aparelhos): a franquia grátis da Cloudflare é uma só para os dois. Guardado por 5 min */
 let monthCache: { mb: number; at: number } | null = null;
 export async function turnMonthMb(db: Db, fresh = false): Promise<number> {
   if (!fresh && monthCache && Date.now() - monthCache.at < 5 * 60_000) return monthCache.mb;
   const [{ month }] = await db.query<{ month: number }>(
     `select coalesce(sum(sum), 0)::float as month from call_health
-     where metric = 'turn_mb' and date_trunc('month', day) = date_trunc('month', (now() at time zone 'America/Sao_Paulo')::date)`,
+     where metric in ('turn_mb', 'sfu_mb') and date_trunc('month', day) = date_trunc('month', (now() at time zone 'America/Sao_Paulo')::date)`,
   );
   monthCache = { mb: month, at: Date.now() };
   return month;

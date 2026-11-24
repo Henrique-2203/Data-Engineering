@@ -18,7 +18,9 @@ export interface PeerCallbacks {
   onStream(kind: MediaKind, stream: MediaStream | null): void;
   onStreamChanged(): void;
   onConnectionState(state: RTCPeerConnectionState): void;
-  onWatch(on: boolean, decoders?: string[], quality?: StreamQuality): void;
+  onWatch(on: boolean, decoders?: string[], quality?: StreamQuality, sfu?: boolean): void;
+  /** quem transmite mandou onde puxar a tela no servidor de mídia (ou null) */
+  onSfu?(info: { sessionId: string; video: string; audio?: string } | null): void;
   onQuality(q: StreamQuality): void;
   /** quem transmite abriu o canal da transmissão turbo */
   onDataChannel?(dc: RTCDataChannel): void;
@@ -173,7 +175,12 @@ export class Peer {
           data.on,
           Array.isArray(data.decoders) ? data.decoders.filter((d) => typeof d === 'string').slice(0, 10) : undefined,
           STREAM_QUALITIES.includes(data.quality as StreamQuality) ? data.quality : undefined,
+          data.sfu === true,
         );
+      } else if (data.type === 'sfu') {
+        const i = data.info;
+        const ok = (x: unknown) => typeof x === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(x);
+        this.cb.onSfu?.(i && ok(i.sessionId) && ok(i.video) && (i.audio === undefined || ok(i.audio)) ? { sessionId: i.sessionId, video: i.video, audio: i.audio } : null);
       } else if (data.type === 'quality') {
         if (STREAM_QUALITIES.includes(data.q)) this.cb.onQuality(data.q);
       }

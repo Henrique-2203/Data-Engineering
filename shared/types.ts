@@ -372,7 +372,9 @@ export type RtcSignal =
   | { type: 'candidate'; candidate: unknown }
   | { type: 'meta'; streams: Record<string, 'mic' | 'camera' | 'screen'> }
   /** `decoders`: quem assiste aceita a transmissão turbo (codecs que consegue decodificar) */
-  | { type: 'watch'; on: boolean; decoders?: string[]; quality?: StreamQuality }
+  | { type: 'watch'; on: boolean; decoders?: string[]; quality?: StreamQuality; sfu?: boolean }
+  /** quem transmite pelo servidor de mídia (laboratório): onde puxar a tela; null = voltou para o direto */
+  | { type: 'sfu'; info: { sessionId: string; video: string; audio?: string } | null }
   /** quem assiste trocou a qualidade */
   | { type: 'quality'; q: StreamQuality };
 
