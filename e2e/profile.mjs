@@ -102,9 +102,26 @@ try {
   await pa.getByRole('button', { name: 'Configurações', exact: true }).click();
   await pa.getByRole('navigation', { name: 'Categorias' }).getByRole('button', { name: 'Perfil', exact: true }).click();
   const inputs = pa.locator('.profile-editor-preview input[type=file]');
+  // ajustar a imagem antes de enviar: cancelar não envia nada
   await inputs.nth(0).setInputFiles(avatarFile);
+  const crop = pa.getByRole('dialog', { name: 'Ajustar a foto de perfil' });
+  await crop.getByRole('button', { name: 'Cancelar' }).click();
+  await crop.waitFor({ state: 'detached' });
+  // de novo: aproxima, arrasta e aplica
+  await inputs.nth(0).setInputFiles(avatarFile);
+  await crop.getByLabel('Zoom').fill('2');
+  const fr = await crop.locator('.cropper-frame').boundingBox();
+  const imgBefore = await crop.locator('.cropper-frame img').boundingBox();
+  await pa.mouse.move(fr.x + fr.width / 2, fr.y + fr.height / 2);
+  await pa.mouse.down();
+  await pa.mouse.move(fr.x + fr.width / 2 + 40, fr.y + fr.height / 2 + 30, { steps: 5 });
+  await pa.mouse.up();
+  const imgAfter = await crop.locator('.cropper-frame img').boundingBox();
+  if (!(imgAfter.x > imgBefore.x + 20)) throw new Error(`arrastar move a imagem no ajuste (${imgBefore.x} → ${imgAfter.x})`);
+  await crop.getByRole('button', { name: 'Aplicar' }).click();
   await pa.getByText(/Foto atualizado \(\d+ KB\)/).waitFor({ timeout: 10000 });
   await inputs.nth(1).setInputFiles(bannerFile);
+  await pa.getByRole('dialog', { name: 'Ajustar o banner do perfil' }).getByRole('button', { name: 'Aplicar' }).click();
   const bannerMsg = await pa.getByText(/Banner atualizado \(\d+ KB\)/).textContent({ timeout: 10000 });
   await pa.getByLabel('Pronomes').fill('ela/dela');
   await pa.getByLabel(/^Bio/).fill('Main Sage no Valorant 💚');

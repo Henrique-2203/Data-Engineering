@@ -88,8 +88,10 @@ try {
   await pa.locator('.guild-name').click();
   await pa.getByRole('button', { name: 'Configurações do servidor' }).click();
   await pa.locator('.settings-page input[type=file]').first().setInputFiles(iconFile);
+  await pa.getByRole('dialog', { name: 'Ajustar o ícone do servidor' }).getByRole('button', { name: 'Aplicar' }).click();
   await pa.getByText(/Ícone atualizado \(\d+ KB\)/).waitFor({ timeout: 10000 });
   await pa.locator('.settings-page input[type=file]').nth(1).setInputFiles(bannerFile);
+  await pa.getByRole('dialog', { name: 'Ajustar o banner do servidor' }).getByRole('button', { name: 'Aplicar' }).click();
   const bannerToast = await pa.getByText(/Banner atualizado \(\d+ KB\)/).textContent({ timeout: 10000 });
   await pa.getByLabel('Descrição').fill('A resenha da galera 🎮');
   await pa.getByRole('button', { name: 'Salvar', exact: true }).click();

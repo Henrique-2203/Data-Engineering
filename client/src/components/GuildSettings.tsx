@@ -14,6 +14,7 @@ import { Avatar } from './Avatar';
 import { ExpressionSettings } from './ExpressionSettings';
 import { AuditLog } from './AuditLog';
 import { AutomodPanel } from './Community';
+import { cropImage } from './ImageCropper';
 
 type Tab = 'overview' | 'community' | 'welcome' | 'rules' | 'roles' | 'members' | 'bans' | 'expressions' | 'automod' | 'audit';
 
@@ -97,7 +98,16 @@ function Overview({ guild }: { guild: Guild }) {
   const loadStorage = () => void api<{ usedBytes: number; files: number; quotaBytes: number }>(`/guilds/${guild.id}/storage`).then(setStorage, () => {});
   useEffect(loadStorage, [guild.id]);
 
-  async function upload(kind: 'icon' | 'banner', file: File | undefined) {
+  async function upload(kind: 'icon' | 'banner', picked: File | undefined) {
+    if (iconInput.current) iconInput.current.value = '';
+    if (bannerInput.current) bannerInput.current.value = '';
+    if (!picked) return;
+    const file = await cropImage(
+      picked,
+      kind === 'icon'
+        ? { aspect: 1, shape: 'rounded', title: 'Ajustar o ícone do servidor', outWidth: 512 }
+        : { aspect: 960 / 400, shape: 'rect', title: 'Ajustar o banner do servidor', outWidth: 1920 },
+    );
     if (!file) return;
     setBusy(kind);
     const r = await run(() => uploadGuildImage(guild.id, kind, file));
@@ -140,7 +150,7 @@ function Overview({ guild }: { guild: Guild }) {
         </div>
         <div className="field banner-field">
           <span>Banner (topo da lista de canais)</span>
-          <span className="muted small img-sizes">📐 Tamanho ideal: <strong>960 × 400</strong> (proporção 12 : 5). Ícone: <strong>512 × 512</strong> (quadrado).</span>
+          <span className="muted small img-sizes">📐 Qualquer tamanho serve: ao escolher, você <strong>ajusta a parte que aparece</strong> (banner ideal 960 × 400; ícone quadrado).</span>
           <div className="banner-preview" style={guild.bannerId ? { backgroundImage: `url(${imageUrl(guild.bannerId)})` } : undefined}>
             {!guild.bannerId && <span className="muted small">Sem banner</span>}
           </div>

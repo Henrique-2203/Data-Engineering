@@ -9096,3 +9096,119 @@ body.novo-resizing video {
     display: none;
   }
 }
+
+/* amigos online: espaço para o anel de Fundador brilhar sem ser cortado (a fileira rola de lado e cortava) */
+.home-online-row {
+  padding: 14px 12px 14px;
+  margin: -8px 0 -6px;
+  gap: 8px;
+}
+.home-online-item {
+  width: 66px;
+  padding: 6px 0;
+}
+.home-online-av {
+  padding: 2px;
+}
+
+/* @menção clicável (abre o perfil) */
+.mention-btn {
+  border: 0;
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+.mention-btn:hover {
+  text-decoration: underline;
+}
+
+/* ligação na conversa privada: ampliar */
+.voice-stage.embedded {
+  position: relative;
+}
+.dm-call-expand {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg-0) 80%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+body.dm-call-full .chat .voice-stage.embedded {
+  flex: 1 1 auto;
+  height: auto;
+  border-bottom: 0;
+}
+body.dm-call-full .chat > .messages-wrap,
+body.dm-call-full .chat > .composer-wrap,
+body.dm-call-full .chat > .typing {
+  display: none;
+}
+
+/* ajustar imagem antes de enviar */
+.cropper-backdrop {
+  z-index: 95;
+}
+.modal.cropper {
+  width: auto;
+  max-width: calc(100vw - 24px);
+}
+.cropper-stage {
+  max-width: 100%;
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: repeating-conic-gradient(var(--bg-3) 0 25%, var(--bg-2) 0 50%) 0 0 / 16px 16px;
+  overflow: hidden;
+}
+.cropper-frame {
+  position: relative;
+  overflow: visible;
+  cursor: grab;
+  touch-action: none;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.62);
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  z-index: 1;
+}
+.cropper-frame:active {
+  cursor: grabbing;
+}
+.cropper-frame img {
+  position: absolute;
+  max-width: none;
+  user-select: none;
+  pointer-events: none;
+  z-index: -1;
+}
+.cropper-zoom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px auto 0;
+  max-width: 360px;
+  color: var(--text-2);
+}
+.cropper-zoom input {
+  flex: 1;
+}
+body.dm-call-full .chat .voice-stage.embedded .stage {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+body.dm-call-full .chat .voice-stage.embedded .stage > .tiles {
+  height: 100%;
+  grid-auto-rows: minmax(0, 1fr);
+}

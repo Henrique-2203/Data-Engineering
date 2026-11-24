@@ -214,6 +214,7 @@ try {
   const dialog = pb.getByRole('dialog', { name: 'Meu perfil neste servidor' });
   await dialog.getByLabel('Apelido neste servidor').fill('Bia Sniper');
   await dialog.locator('input[type=file]').setInputFiles(avatarFile);
+  await pb.getByRole('dialog', { name: 'Ajustar a foto deste servidor' }).getByRole('button', { name: 'Aplicar' }).click();
   await pb.getByText(/Foto do servidor atualizada/).waitFor({ timeout: 10000 });
   await dialog.getByRole('button', { name: 'Salvar apelido' }).click();
   await pb.getByText('Perfil do servidor salvo.').waitFor();

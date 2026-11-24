@@ -10,6 +10,7 @@ import { closeModal, toast, updateUserEverywhere, useApp } from '../store/app';
 import { Avatar } from './Avatar';
 import { EmojiPicker } from './EmojiPicker';
 import { CallBannerEditor } from './CallBannerEditor';
+import { cropImage } from './ImageCropper';
 
 const COLORS = ['#f97316', '#ef4444', '#eab308', '#22c55e', '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
 
@@ -58,7 +59,17 @@ export function ProfileEditor() {
     void load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function upload(kind: 'avatar' | 'banner', file?: File) {
+  async function upload(kind: 'avatar' | 'banner', picked?: File) {
+    if (avatarInput.current) avatarInput.current.value = '';
+    if (bannerInput.current) bannerInput.current.value = '';
+    if (!picked) return;
+    // a pessoa escolhe a parte da imagem que aparece (qualquer tamanho)
+    const file = await cropImage(
+      picked,
+      kind === 'avatar'
+        ? { aspect: 1, shape: 'circle', title: 'Ajustar a foto de perfil', outWidth: 512 }
+        : { aspect: 960 / 340, shape: 'rect', title: 'Ajustar o banner do perfil', outWidth: 1920 },
+    );
     if (!file) return;
     setBusy(kind);
     try {
@@ -122,7 +133,8 @@ export function ProfileEditor() {
         <input ref={bannerInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => void upload('banner', e.target.files?.[0])} />
       </div>
       <p className="muted small img-sizes">
-        📐 Tamanho ideal: <strong>foto 512 × 512</strong> (quadrada) · <strong>banner 1920 × 680</strong> (proporção 2,8 : 1, uma faixa larga). Outros tamanhos são cortados no meio.
+        📐 Qualquer tamanho serve (1920 × 1080 também): ao escolher, você <strong>ajusta a parte que aparece</strong>. Fica melhor com <strong>foto quadrada</strong> e
+        <strong> banner largo</strong> (ideal 1920 × 680).
       </p>
       <p className="muted small">As imagens são recortadas e comprimidas antes de enviar (GIF até 1,5 MB), e trocar apaga a anterior.</p>
 
@@ -301,7 +313,10 @@ export function GuildProfileModal({ guildId }: { guildId: string }) {
     setBusy(false);
   }
 
-  async function uploadAvatar(file?: File) {
+  async function uploadAvatar(picked?: File) {
+    if (input.current) input.current.value = '';
+    if (!picked) return;
+    const file = await cropImage(picked, { aspect: 1, shape: 'circle', title: 'Ajustar a foto deste servidor', outWidth: 512 });
     if (!file) return;
     setBusy(true);
     try {

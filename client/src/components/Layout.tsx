@@ -18,6 +18,7 @@ import { SidePanel } from './Community';
 import { ChangelogWatcher } from './Changelog';
 import { useMobileSwipe } from '../lib/swipe';
 import { CallUserMenuHost } from './CallUserMenu';
+import { ImageCropHost } from './ImageCropper';
 import { BottomNav, MobileSectionScreen, NovoHome, SplitDropZone, SplitView, TabsBar, useNovo } from './NovoLayout';
 import { useIsDesktop, useNovoLayout } from '../lib/layoutMode';
 
@@ -93,6 +94,7 @@ export function Layout({ onLogout }: { onLogout(): void }) {
       <UpdateNotice />
       <ChangelogWatcher />
       <CallUserMenuHost />
+      <ImageCropHost />
       <ApoioCard />
       <Modals onLogout={onLogout} />
       {!connected && (

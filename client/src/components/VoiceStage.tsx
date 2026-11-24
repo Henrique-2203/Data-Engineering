@@ -188,6 +188,7 @@ export function VoiceStage({ channelId, embedded = false }: { channelId: string;
           </div>
           <TogetherHiddenChip />
           <PttHint />
+          {embedded && <DmCallExpand />}
           <VoiceControls />
         </>
       )}
@@ -999,6 +1000,26 @@ function VoiceControls() {
         <PhoneOff />
       </button>
     </div>
+  );
+}
+
+/**
+ * Ligação dentro da conversa privada: ampliar para a call ocupar a conversa toda (e voltar a ver as
+ * mensagens). Sugestão da comunidade: no celular a conversa ficava com metade da tela.
+ */
+function DmCallExpand() {
+  const [on, setOn] = useState(() => document.body.classList.contains('dm-call-full'));
+  useEffect(() => () => document.body.classList.remove('dm-call-full'), []);
+  const toggle = () => {
+    const next = !document.body.classList.contains('dm-call-full');
+    document.body.classList.toggle('dm-call-full', next);
+    setOn(next);
+  };
+  return (
+    <button type="button" className="dm-call-expand" onClick={toggle} aria-pressed={on} aria-label={on ? 'Ver a conversa' : 'Ampliar a ligação'} title={on ? 'Ver a conversa' : 'Ampliar a ligação'}>
+      {on ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+      <span>{on ? 'Ver a conversa' : 'Ampliar'}</span>
+    </button>
   );
 }
 

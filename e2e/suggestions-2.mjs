@@ -85,7 +85,8 @@ try {
   // ---------- tamanho ideal do banner ----------
   await page.getByRole('button', { name: 'Configurações', exact: true }).click();
   await page.getByRole('button', { name: 'Perfil', exact: true }).click();
-  await page.getByText(/banner 1920 × 680/).waitFor();
+  await page.getByText(/ajusta a parte que aparece/).first().waitFor();
+  await page.getByText(/1920 × 680/).first().waitFor();
   await page.getByText(/1280 × 720/).waitFor();
   await page.keyboard.press('Escape');
   step('o tamanho ideal aparece ao lado de enviar foto, banner do perfil e banner da call');
