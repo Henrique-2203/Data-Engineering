@@ -205,7 +205,11 @@ export function TabsBar() {
   // qualquer coisa da lista marcada com data-tab pode ser arrastada para cá (servidor, canal, call, conversa)
   useEffect(() => {
     const start = (e: DragEvent) => {
-      const id = (e.target as HTMLElement | null)?.dataset?.tab;
+      // começou a arrastar na foto/ícone de dentro (o navegador arrasta a imagem): vale o item que tem data-tab.
+      // Algo arrastável sem data-tab no caminho (ex.: pessoa na call, para mover) não vira aba.
+      const t = e.target instanceof Element ? e.target : null;
+      const src = t?.closest<HTMLElement>('[data-tab], [draggable="true"]');
+      const id = src?.dataset.tab;
       if (!id || !e.dataTransfer) return;
       e.dataTransfer.setData(TAB_DRAG, id);
       useNovo.setState({ dragging: true });
@@ -272,12 +276,11 @@ export function TabsBar() {
 // ---------------- celular: barra de baixo e as seções ----------------
 
 function goSection(section: MobileSection) {
-  const st = useNovo.getState();
   if (section === 'inicio') {
     useApp.setState({ selectedGuildId: null, selectedChannelId: null, mobilePanel: 'nav' });
   } else if (section === 'servidores') {
-    // tocou de novo em Servidores (já dentro de um): volta para a grade
-    useNovo.setState({ serversView: st.section === 'servidores' ? 'grid' : st.serversView });
+    // Servidores sempre abre a lista de servidores (tocar num cartão entra no servidor)
+    useNovo.setState({ serversView: 'grid' });
     useApp.setState({ mobilePanel: 'nav' });
   } else {
     useApp.setState({ mobilePanel: 'nav' });

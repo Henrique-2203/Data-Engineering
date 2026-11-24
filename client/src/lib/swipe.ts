@@ -11,7 +11,7 @@ import { findChannel, useApp } from '../store/app';
 const MOBILE = '(max-width: 900px)';
 /** onde arrastar para o lado é do próprio conteúdo (rolar fileiras, digitar, janelas, vídeo) */
 const IGNORE =
-  'input, textarea, select, [contenteditable], .format-bar, .home-online-row, .strip, .emoji-picker, .sticker-picker, .composer-picker, .attach-menu, .modal-backdrop, .msg-sheet-backdrop, .lp-modal, .together, .yt-player, .tile.screen, [data-no-swipe]';
+  'input, textarea, select, [contenteditable], .format-bar, .home-online-row, .strip, .emoji-picker, .sticker-picker, .composer-picker, .attach-menu, .modal-backdrop, .msg-sheet-backdrop, .lp-modal, .together, .yt-player, .tile.screen, [data-no-swipe], .novo-bottom, .novo-section';
 
 export function useMobileSwipe() {
   useEffect(() => {

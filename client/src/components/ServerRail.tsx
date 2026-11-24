@@ -68,7 +68,7 @@ export function ServerRail() {
           >
             {hasUnread && selected !== id && <span className="rail-pill" />}
             <span className="rail-icon">
-              {g.iconId ? <img src={`/api/images/${g.iconId}`} alt="" className="rail-img" /> : initials(g.name)}
+              {g.iconId ? <img src={`/api/images/${g.iconId}`} alt="" className="rail-img" draggable={false} /> : initials(g.name)}
             </span>
             {voiceGuild === id && (
               <span className="rail-voice" title="Você está numa call neste servidor" aria-label="Em call neste servidor">

@@ -110,7 +110,16 @@ try {
   const bar = pa.locator('.novo-tabsbar');
   await pa.locator('.sidebar .channel[data-tab]', { hasText: 'clipes' }).dragTo(bar);
   await tab('clipes').waitFor();
-  await pa.locator('.rail-item[data-tab]', { hasText: /G/ }).first().dragTo(bar);
+  // servidor com foto: o arraste começa na imagem (o navegador arrastaria só a imagem)
+  await pa.evaluate(() => {
+    const icon = document.querySelector('.rail-item[data-tab] .rail-icon');
+    const img = document.createElement('img');
+    img.src = '/icon.svg';
+    img.className = 'rail-img';
+    img.setAttribute('draggable', 'false');
+    icon.replaceChildren(img);
+  });
+  await pa.locator('.rail-item[data-tab] .rail-img').first().dragTo(bar);
   await tab('Galera').waitFor();
   // estou no #geral (não fixado): a aba acesa é a do servidor
   await tabs.locator('.novo-tab.active', { hasText: 'Galera' }).waitFor();
@@ -146,6 +155,10 @@ try {
   await pa.locator('.sidebar').getByText('geral', { exact: true }).first().click();
   const call = pa.locator('.novo-tabsbar').getByRole('group', { name: 'Call em andamento' });
   await call.waitFor();
+  // clicar no nome da call abre a call
+  await call.getByRole('button', { name: /Sala de voz/ }).click();
+  await pa.locator('.voice-stage').first().waitFor({ timeout: 5000 });
+  await pa.locator('.sidebar').getByText('geral', { exact: true }).first().click();
   await call.getByRole('button', { name: 'Silenciar microfone' }).click();
   await call.getByRole('button', { name: 'Ligar microfone' }).waitFor();
   await sleep(300);
@@ -175,6 +188,24 @@ try {
   await bottom.waitFor();
   await pm.getByRole('button', { name: 'Voltar para os servidores' }).click();
   await pm.locator('.novo-server-card').first().waitFor();
+  // dentro de um servidor, ir para outra seção e voltar em Servidores mostra a lista de servidores
+  await pm.locator('.novo-server-card', { hasText: 'Galera' }).click();
+  await pm.getByRole('button', { name: 'Voltar para os servidores' }).waitFor();
+  await bottom.getByRole('button', { name: 'Mensagens' }).click();
+  await bottom.getByRole('button', { name: 'Servidores' }).click();
+  await pm.locator('.novo-server-card').first().waitFor({ timeout: 2000 });
+  // um toque com o dedo escorregando um pouco para o lado não é "arrastar a tela"
+  const nb = await bottom.getByRole('button', { name: 'Avisos' }).boundingBox();
+  const cdp = await pm.context().newCDPSession(pm);
+  const tx = nb.x + nb.width / 2;
+  const ty = nb.y + nb.height / 2;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: tx, y: ty, id: 1 }] });
+  for (let i = 1; i <= 4; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: tx - i * 8, y: ty, id: 1 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await sleep(400);
+  assert((await bottom.count()) === 1, 'o toque escorregado não fecha a barra de baixo');
+  await bottom.getByRole('button', { name: 'Avisos' }).tap();
+  await pm.locator('.novo-section').getByRole('heading', { name: 'Avisos' }).waitFor({ timeout: 2000 });
   step('celular: Servidores em cartões → canais (com voltar) → conversa sem a barra → volta');
   await bottom.getByRole('button', { name: 'Mensagens' }).click();
   await pm.locator('.novo-section').getByText('Bia').first().waitFor();
