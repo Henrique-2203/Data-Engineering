@@ -90,6 +90,7 @@ function MainApp() {
       selectedChannelId: null,
       isPlatformAdmin: false,
       openReports: 0,
+      features: [],
     });
   }, []);
 
@@ -99,6 +100,7 @@ function MainApp() {
         user: PublicUser;
         guilds: Guild[];
         isPlatformAdmin?: boolean;
+        features?: string[];
         account?: { emailVerified: boolean; emailEnabled: boolean };
         changelog?: { seen: string | null; accountCreatedAt: string | null };
         supportUnread?: number;
@@ -115,6 +117,7 @@ function MainApp() {
       me: data.user,
       mobilePanel: 'nav',
       isPlatformAdmin: !!data.isPlatformAdmin,
+      features: Array.isArray(data.features) ? data.features : [],
       supportUnread: data.supportUnread ?? 0,
       unread: data.unread ?? {},
       pendingChangelog: data.changelog ? pendingChangelog(data.changelog.seen, data.changelog.accountCreatedAt) : [],

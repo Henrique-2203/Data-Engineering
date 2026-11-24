@@ -8230,3 +8230,522 @@ body.call-expanded .icon-btn.active { color: var(--accent); }
 @keyframes apoio-card-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 @media (max-width: 768px) { .apoio-card { right: 16px; left: 16px; width: auto; bottom: calc(16px + env(safe-area-inset-bottom)); } }
 @media (prefers-reduced-motion: reduce) { .apoio-card { animation: none; } }
+
+/* ======================================================================
+   Layout novo (em teste): abas no topo (computador) e barra de baixo (celular)
+   ====================================================================== */
+.layout.layout-novo {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.layout-novo > .novo-tabsbar {
+  grid-column: 1 / -1;
+}
+.novo-tabsbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 8px 12px 0;
+  background: var(--bg-0);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.novo-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.novo-tabs::-webkit-scrollbar {
+  display: none;
+}
+.novo-tab {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  max-width: 240px;
+  flex: 0 1 auto;
+  min-width: 0;
+  border-radius: 10px 10px 0 0;
+  color: var(--text-2);
+}
+.novo-tab:hover {
+  background: var(--bg-2);
+  color: var(--text);
+}
+.novo-tab.active {
+  background: var(--bg-1);
+  color: var(--text);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.novo-tab.home {
+  flex: none;
+}
+.novo-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 6px 0 12px;
+  min-width: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.novo-tab.home .novo-tab-btn {
+  padding-right: 12px;
+}
+.novo-tab-label {
+  min-width: 0;
+}
+.novo-tab-where {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+  min-width: 0;
+  max-width: 110px;
+}
+.novo-tab-voice {
+  color: var(--accent);
+}
+.novo-tab-x {
+  width: 26px;
+  height: 26px;
+  margin-right: 6px;
+  border-radius: 7px;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+  opacity: 0;
+}
+.novo-tab:hover .novo-tab-x,
+.novo-tab.active .novo-tab-x,
+.novo-tab-x:focus-visible {
+  opacity: 1;
+}
+.novo-tab-x:hover {
+  background: var(--bg-4);
+  color: var(--text);
+}
+.novo-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: var(--bg-4);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+}
+.novo-badge.mention {
+  background: var(--danger);
+  color: #fff;
+}
+.novo-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text);
+}
+/* a call sempre à mão */
+.novo-call {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  margin-bottom: 4px;
+  padding: 0 4px 0 12px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  flex: none;
+  max-width: 320px;
+  min-width: 0;
+}
+.novo-call-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+.novo-call-dot.connecting {
+  background: var(--warn);
+}
+.novo-call-name {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 6px;
+  background: none;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.novo-call-count {
+  color: var(--text-2);
+  font-weight: 600;
+  flex: none;
+}
+.novo-call-btn {
+  width: 30px;
+  height: 28px;
+  border-radius: 8px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+}
+.novo-call-btn:hover {
+  background: var(--bg-4);
+}
+.novo-call-btn.on {
+  color: var(--danger);
+}
+.novo-call-btn.leave {
+  background: var(--danger);
+  color: #fff;
+}
+/* celular: escondidos no computador */
+.novo-bottom,
+.novo-section,
+.novo-back {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .layout.layout-novo {
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .novo-tabsbar {
+    display: none;
+  }
+  /* os servidores têm a seção própria: a coluna de ícones some */
+  .layout-novo .nav-drawer .rail {
+    display: none;
+  }
+  .layout-novo.panel-nav .nav-drawer {
+    bottom: calc(68px + var(--safe-bottom));
+  }
+  .layout-novo .novo-back {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    margin-right: 4px;
+    border-radius: 10px;
+    border: 0;
+    background: none;
+    color: inherit;
+    flex: none;
+  }
+  .novo-bottom {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 15;
+    background: var(--bg-0);
+    border-top: 1px solid var(--line);
+    padding-bottom: var(--safe-bottom);
+  }
+  .novo-bottom .novo-call {
+    margin: 8px 10px 0;
+    height: 48px;
+    max-width: none;
+    border-radius: 14px;
+  }
+  .novo-bottom .novo-call-name {
+    flex: 1;
+    font-size: 14px;
+  }
+  .novo-bottom .novo-call-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+  .novo-bottomnav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    height: 68px;
+  }
+  .novo-bottomnav button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border: 0;
+    background: none;
+    color: var(--text-3);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 0;
+  }
+  .novo-bottomnav button.active {
+    color: var(--text);
+  }
+  .novo-bn-icon {
+    position: relative;
+    width: 56px;
+    height: 32px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+  }
+  .novo-bottomnav button.active .novo-bn-icon {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .novo-bn-icon .novo-badge {
+    position: absolute;
+    top: -2px;
+    left: 32px;
+    box-shadow: 0 0 0 2px var(--bg-0);
+  }
+  .novo-bn-icon .novo-dot {
+    position: absolute;
+    top: 2px;
+    left: 36px;
+  }
+  /* as seções do celular, por cima da gaveta */
+  .novo-section {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: calc(68px + var(--safe-bottom));
+    z-index: 12;
+    background: var(--bg-1);
+    overflow-y: auto;
+    padding-top: var(--safe-top);
+  }
+  .novo-screen {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 16px 24px;
+  }
+  .novo-screen-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .novo-screen-head h1 {
+    flex: 1;
+    margin: 0;
+    font-size: 24px;
+    font-weight: 800;
+  }
+  .novo-head-btn {
+    min-width: 44px;
+    height: 44px;
+    padding: 0 14px;
+    border-radius: 14px;
+    border: 0;
+    background: var(--bg-3);
+    color: var(--text);
+    font: inherit;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+  }
+  .novo-head-btn.primary {
+    padding: 0;
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  .novo-server-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .novo-server-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    min-height: 136px;
+    padding: 14px;
+    border-radius: 18px;
+    border: 1px solid var(--line);
+    background: var(--bg-2);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+  }
+  .novo-server-card strong {
+    font-size: 15px;
+    line-height: 1.25;
+  }
+  .ellipsis2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .novo-server-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 16px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    overflow: hidden;
+  }
+  .novo-server-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .novo-live {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .novo-dot.corner {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+  }
+  .novo-explore {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 0 16px;
+    border-radius: 16px;
+    border: 1px dashed var(--line);
+    background: none;
+    color: var(--text-2);
+    font: inherit;
+    font-weight: 600;
+  }
+  .novo-explore svg {
+    color: var(--accent);
+  }
+  .novo-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .novo-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 62px;
+    padding: 6px 4px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+  }
+  .novo-row-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+  .novo-row.unread strong {
+    font-weight: 800;
+  }
+  .novo-screen.voce {
+    padding: 0 0 24px;
+    gap: 0;
+  }
+  .novo-voce-banner {
+    height: 110px;
+    opacity: 0.55;
+  }
+  .novo-voce-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 16px;
+    margin-top: -42px;
+  }
+  .novo-voce-head h1 {
+    margin: 10px 0 0;
+    font-size: 22px;
+    font-weight: 800;
+  }
+  .novo-voce-btns {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .novo-voce-btns .btn {
+    flex: 1;
+    min-height: 44px;
+  }
+  .novo-settings {
+    list-style: none;
+    margin: 16px 16px 0;
+    padding: 0;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: var(--bg-2);
+    overflow: hidden;
+  }
+  .novo-settings li + li {
+    border-top: 1px solid var(--line);
+  }
+  .novo-settings button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 52px;
+    padding: 0 14px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    text-align: left;
+  }
+  .novo-settings button span {
+    flex: 1;
+  }
+  .novo-settings button svg {
+    color: var(--text-3);
+  }
+  .novo-settings button.accent {
+    color: var(--accent);
+  }
+  .novo-settings button.danger {
+    color: var(--danger);
+  }
+  .novo-section .home-happening {
+    margin: 0;
+  }
+}

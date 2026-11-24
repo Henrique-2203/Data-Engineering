@@ -161,6 +161,7 @@ export function HealthPanel() {
         {lab !== null && lab > 0 && <Tile label="Minutos no laboratório" value={pct(lab)} hint="transmissões com o FPS fixo em teste (só aparelhos da equipe)" lv="none" />}
       </div>
       <LabToggles />
+      <BetaAccounts />
       <DailyBars data={data} label="Minutos de transmissão com 40+ FPS, por dia" metric={(a) => (a.stream_samples?.count ? (a.stream_ok40?.count ?? 0) / a.stream_samples.count : null)} />
 
       <h4>Assistindo</h4>
@@ -205,6 +206,40 @@ export function HealthPanel() {
 }
 
 /** Laboratório: liga mudanças em teste SÓ neste aparelho (nenhum usuário recebe). */
+/** Recursos em teste liberados só para algumas contas (vale para a conta, em qualquer aparelho). */
+function BetaAccounts() {
+  const [text, setText] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void api<{ beta: { layout2: string[] } }>('/admin/beta').then((r) => setText(r.beta.layout2.map((u) => `@${u}`).join(', ')), () => setText(''));
+  }, []);
+  if (text === null) return null;
+  async function save() {
+    setBusy(true);
+    try {
+      const r = await api<{ beta: { layout2: string[] } }>('/admin/beta', { method: 'PUT', body: { layout2: (text ?? '').split(/[\s,;]+/).filter(Boolean) } });
+      setText(r.beta.layout2.map((u) => `@${u}`).join(', '));
+      toast(r.beta.layout2.length ? `Layout novo liberado para ${r.beta.layout2.length} conta(s). Elas escolhem em Configurações → Aparência.` : 'Layout novo desligado para todos.');
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="health-lab">
+      <strong>🧪 Layout novo: contas liberadas</strong>
+      <label>
+        <span className="muted small">Só estas contas veem a opção "Layout: Novo" em Configurações → Aparência (separe por vírgula).</span>
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="@conta1, @conta2" aria-label="Contas com o layout novo" spellCheck={false} />
+      </label>
+      <button className="btn primary small" type="button" disabled={busy} onClick={() => void save()}>
+        Salvar
+      </button>
+    </div>
+  );
+}
+
 function LabToggles() {
   const [fps, setFps] = useState(() => labOn('fps'));
   const [sfu, setSfu] = useState(() => labOn('sfu'));

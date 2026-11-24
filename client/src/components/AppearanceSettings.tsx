@@ -20,12 +20,43 @@ import { desktop } from '../lib/desktop';
 import { APP_ICONS } from '../../../shared/appIcons';
 import { Modal } from './Modals';
 import { InfoTip } from './ScreenShareModal';
+import { setLayoutChoice, useHasFeature, useLayoutChoice } from '../lib/layoutMode';
 
 const MODES: { id: ThemeMode; label: string; icon: React.ReactNode }[] = [
   { id: 'dark', label: 'Escuro', icon: <Moon size={18} /> },
   { id: 'light', label: 'Claro', icon: <Sun size={18} /> },
   { id: 'system', label: 'Seguir o sistema', icon: <Monitor size={18} /> },
 ];
+
+/** Layout novo (em teste): só aparece para as contas liberadas pela equipe. */
+function LayoutChoiceCard() {
+  const allowed = useHasFeature('layout2');
+  const choice = useLayoutChoice((s) => s.choice);
+  if (!allowed) return null;
+  const opts = [
+    { id: 'classic' as const, label: 'Clássico', sub: 'O de sempre: servidores à esquerda' },
+    { id: 'novo' as const, label: 'Novo (em teste)', sub: 'Abas no topo no computador; barra de baixo no celular' },
+  ];
+  return (
+    <div className="settings-card">
+      <div className="share-head">
+        <h3>Layout</h3>
+        <InfoTip label="Layout">
+          Em teste, só para algumas contas. No computador, cada conversa que você abre vira uma aba no topo e a call fica sempre à mão. No celular, uma barra embaixo
+          com Início, Servidores, Mensagens, Avisos e Você. Vale só neste aparelho.
+        </InfoTip>
+      </div>
+      <div className="audience-modes" role="radiogroup" aria-label="Layout">
+        {opts.map((o) => (
+          <button key={o.id} type="button" role="radio" aria-checked={choice === o.id} className={choice === o.id ? 'selected' : ''} onClick={() => setLayoutChoice(o.id)}>
+            <span>{o.label}</span>
+            <small className="muted">{o.sub}</small>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /** Configurações → Aparência. */
 export function AppearanceSettings() {
@@ -37,6 +68,7 @@ export function AppearanceSettings() {
 
   return (
     <>
+      <LayoutChoiceCard />
       <div className="settings-card">
         <div className="share-head">
           <h3>Modo</h3>

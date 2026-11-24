@@ -56,6 +56,7 @@ import { registerSupportRoutes } from './support.ts';
 import { registerApoioRoutes } from './apoio.ts';
 import { registerAndroidRoutes } from './android.ts';
 import { registerSfuRoutes } from './sfu.ts';
+import { betaFeaturesFor, registerBetaRoutes } from './beta.ts';
 import { ensureOfficialMember, registerOfficialRoutes } from './official.ts';
 import { registerExploreRoutes } from './explore.ts';
 import { configureWelcome } from './welcome.ts';
@@ -497,6 +498,8 @@ export function createRoutes(db: Db, rt: Realtime) {
         unread,
         joinedOfficial,
         isPlatformAdmin: isPlatformAdmin(req.user!.username),
+        // recursos em teste liberados para esta conta (ex.: layout novo)
+        features: await betaFeaturesFor(db, req.user!.username).catch(() => []),
         // contas antigas sem e-mail recebem o convite para adicionar um (recuperação e alertas)
         account: { emailVerified: !!acc?.emailVerified, emailEnabled: emailEnabled() },
         // novidades: a última que a pessoa confirmou que leu (vale para todos os aparelhos dela)
@@ -755,6 +758,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerApoioRoutes(r, db, rt, auth);
   registerAndroidRoutes(r);
   registerSfuRoutes(r, db, rt, auth);
+  registerBetaRoutes(r, db, auth);
   registerOfficialRoutes(r, db, rt, auth);
   registerExploreRoutes(r, db, rt, auth);
   registerHealthRoutes(r, db, rt, auth);

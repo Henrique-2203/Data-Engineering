@@ -63,6 +63,8 @@ export interface AppState {
   pendingChangelog: { id: string; title: string; items: [string, string][] }[];
   /** denúncias abertas (só para a equipe) */
   openReports: number;
+  /** recursos em teste liberados para esta conta (ex.: 'layout2') */
+  features: string[];
 }
 
 export type SidePanel =
@@ -90,7 +92,7 @@ export type ModalState =
   | { kind: 'categorySettings'; guildId: string; categoryId: string }
   | {
       kind: 'userSettings';
-      section?: 'account' | 'profile' | 'security' | 'privacy' | 'voice' | 'notifications' | 'shortcuts';
+      section?: 'account' | 'profile' | 'appearance' | 'security' | 'privacy' | 'voice' | 'notifications' | 'shortcuts';
       /** abre já um painel (ex.: adicionar e-mail) */
       panel?: 'email';
     }
@@ -135,6 +137,7 @@ export const useApp = create<AppState>(() => ({
   toast: null,
   isPlatformAdmin: false,
   openReports: 0,
+  features: [],
   supportUnread: 0,
   openSupport: 0,
   pendingApoio: 0,

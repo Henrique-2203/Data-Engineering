@@ -106,7 +106,7 @@ interface Item {
 }
 
 /** Prévia do que está rolando: calls com gente, menções, mensagens novas, amigos jogando e pedidos de amizade. */
-function Happening() {
+export function Happening({ empty }: { empty?: ReactNode } = {}) {
   const guilds = useApp((s) => s.guilds);
   const guildOrder = useApp((s) => s.guildOrder);
   const voiceStates = useApp((s) => s.voiceStates);
@@ -198,7 +198,7 @@ function Happening() {
       onClick: () => void openDm(f.user.id),
     });
   }
-  if (!items.length) return null;
+  if (!items.length) return empty ? <>{empty}</> : null;
   return (
     <section className="home-happening" aria-label="Acontecendo agora">
       <div className="section-title">

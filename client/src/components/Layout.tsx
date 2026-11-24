@@ -18,6 +18,8 @@ import { SidePanel } from './Community';
 import { ChangelogWatcher } from './Changelog';
 import { useMobileSwipe } from '../lib/swipe';
 import { CallUserMenuHost } from './CallUserMenu';
+import { BottomNav, MobileSectionScreen, TabsBar } from './NovoLayout';
+import { useNovoLayout } from '../lib/layoutMode';
 
 export function Layout({ onLogout }: { onLogout(): void }) {
   const mobilePanel = useApp((s) => s.mobilePanel);
@@ -30,6 +32,7 @@ export function Layout({ onLogout }: { onLogout(): void }) {
   // reavalia quando os canais mudam
   const channel = useApp(() => findChannel(selectedChannelId));
   useMobileSwipe();
+  const novo = useNovoLayout();
 
   useEffect(() => {
     const onVisible = () => {
@@ -62,7 +65,8 @@ export function Layout({ onLogout }: { onLogout(): void }) {
   const membersVisible = !panelVisible && showMembers && channel?.type === 'text';
 
   return (
-    <div className={`layout panel-${mobilePanel}${membersVisible ? ' with-members' : ''}${panelVisible ? ' with-panel' : ''}`}>
+    <div className={`layout panel-${mobilePanel}${membersVisible ? ' with-members' : ''}${panelVisible ? ' with-panel' : ''}${novo ? ' layout-novo' : ''}`}>
+      {novo && <TabsBar />}
       <nav className="nav-drawer" aria-label="Servidores e canais">
         <ServerRail />
         <ChannelSidebar onLogout={onLogout} />
@@ -73,6 +77,8 @@ export function Layout({ onLogout }: { onLogout(): void }) {
       {mobilePanel === 'members' && (
         <div className="backdrop" onClick={() => useApp.setState({ mobilePanel: 'main' })} />
       )}
+      {novo && <MobileSectionScreen onLogout={onLogout} />}
+      {novo && mobilePanel === 'nav' && <BottomNav />}
       <VoiceAudio />
       <Hotkeys />
       <CallOverlay />

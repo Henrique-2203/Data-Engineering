@@ -27,6 +27,8 @@ import {
 } from 'lucide-react';
 import type { Channel, VoiceState } from '../../../shared/types';
 import { api } from '../lib/api';
+import { useNovoLayout } from '../lib/layoutMode';
+import { BackToServersButton } from './NovoLayout';
 import { findChannel, findMember, openModal, selectChannel, toast, updateGuildChannels, useApp } from '../store/app';
 import { Perm, has, imageUrl, memberColor, myPermissions, usePerms } from '../lib/perms';
 import { refreshGuild } from '../lib/socket';
@@ -46,6 +48,7 @@ export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
   const guild = useApp((s) => (guildId ? s.guilds[guildId] : undefined));
   const me = useApp((s) => s.me)!;
   const perms = usePerms(guildId);
+  const novo = useNovoLayout();
   const [menuOpen, setMenuOpen] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -161,6 +164,7 @@ export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
     <div className="sidebar">
       {guild ? (
         <div className={`sidebar-header${banner ? ' with-banner' : ''}`} ref={menuRef} style={banner ? { backgroundImage: `url(${banner})` } : undefined}>
+          {novo && <BackToServersButton />}
           <button className="guild-name" onClick={() => setMenuOpen((v) => !v)} aria-expanded={menuOpen}>
             <span className="ellipsis">{guild.name}</span>
             <ChevronDown size={18} />
