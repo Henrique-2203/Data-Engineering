@@ -690,6 +690,12 @@ export class Realtime {
     return { state: this.together.get(v.channelId) ?? null, people: this.callPeople(v.channelId).size, channelId: v.channelId };
   }
 
+  /** quem está na mesma call que a pessoa (neste servidor), para /times e /procurando */
+  callMembers(userId: string, guildId: string): { channelId: string; userIds: string[] } | null {
+    const v = this.voiceOfUser(userId).find((s) => s.guildId === guildId);
+    return v ? { channelId: v.channelId, userIds: [...this.callPeople(v.channelId)] } : null;
+  }
+
   /** pessoas (contas) na call; quem entrou por dois aparelhos conta uma vez */
   private callPeople(channelId: string) {
     return new Set([...this.voice.values()].filter((s) => s.channelId === channelId).map((s) => s.userId));

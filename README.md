@@ -7,7 +7,8 @@ Funciona no navegador do PC e do celular, e é 100% gratuito para hospedar.
 
 - **Em teste (só contas liberadas no Painel da equipe → Saúde)**: *câmera do celular* como câmera do computador na
   call (QR Code, sem app de terceiro) e *bots da casa* (Resenha Bot com `/dado`, `/moeda`, `/sortear`, `/enquete`,
-  `/lembrar` e `/ajuda`, em Configurações do servidor → Integrações). O botão "Criar servidor de testes" cria o
+  `/lembrar` e `/ajuda`, DJ de música na call com votação para pular, tickets de ajuda, comandos de IA/tradução/resumo e
+  comandos para jogar em grupo, em Configurações do servidor → Integrações). O botão "Criar servidor de testes" cria o
   servidor privado *Laboratório Resenha* com essas contas
 - Contas com usuário e senha (com código de cadastro opcional para restringir aos amigos)
 - Servidores com link de convite, canais de texto e de voz

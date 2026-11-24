@@ -410,8 +410,19 @@ salvar um não apaga os outros). Os nomes ficam no banco, nunca no código.
 3. **Bots** (`bots`): Configurações do servidor → **Integrações** → *Adicionar ao servidor*. No chat digite `/` para ver
    os comandos. Dá para desligar comandos individualmente e remover o bot. O texto dos comandos passa pela moderação
    automática e pelo modo lento do servidor.
-4. Testes automáticos: `node e2e/beta-features.mjs`, `node e2e/phonecam.mjs`, `node e2e/bots.mjs`
-   (rode `npm run build` antes).
+4. **Mais comandos do Resenha Bot** (todos ligam/desligam em Integrações):
+   - **DJ**: `/tocar` (link do YouTube ou nome), `/proxima`, `/pular` (a call vota; quem pediu pula na hora), `/fila`, `/agora`,
+     `/parar`, `/remover`. Usa o "Assistir juntos" (o vídeo toca igual para todos). A busca pelo nome precisa de
+     `YOUTUBE_API_KEY` no Render (chave grátis da API do YouTube); sem ela, só com link.
+   - **Tickets**: `/ticket abrir assunto` cria um canal privado só de quem abriu + dono + administradores + cargos
+     marcados em Integrações; `/ticket fechar`, `/ticket adicionar @pessoa`, `/ticket lista`.
+   - **IA** (`/ia`, `/traduzir`, `/resumo`): desligados por padrão em cada servidor (liga em Integrações, com aviso de
+     privacidade). Precisam de `ANTHROPIC_API_KEY` no Render. Tetos: `AI_MONTHLY_BUDGET_USD` (padrão US$ 3/mês),
+     `AI_DAILY_PER_USER` (20), `AI_DAILY_PER_GUILD` (150), `AI_MODEL` (padrão claude-haiku-5-5). O gasto do mês aparece
+     em Painel da equipe → Saúde. Nunca coloque a chave em conversa: vai direto nas variáveis do Render.
+   - **Grupo**: `/times`, `/marcar`, `/call`, `/procurando`, `/8bola`.
+5. Testes automáticos: `node e2e/beta-features.mjs`, `phonecam.mjs`, `bots.mjs`, `bots-dj.mjs`, `bots-tickets.mjs`,
+   `bots-ai.mjs`, `bots-games.mjs` (rode `npm run build` antes).
 
 ## Se algo der errado
 

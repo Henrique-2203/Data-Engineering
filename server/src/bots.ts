@@ -19,6 +19,7 @@ import { aiConfigured } from './ai.ts';
 import { DJ_COMMANDS } from './botDj.ts';
 import { TICKET_COMMANDS } from './botTickets.ts';
 import { AI_COMMANDS } from './botAi.ts';
+import { GAME_COMMANDS } from './botGames.ts';
 
 /**
  * Bots da casa (em teste: recurso "bots"). O "Resenha Bot" roda DENTRO do servidor do Resenha:
@@ -139,6 +140,7 @@ export const COMMANDS: BotCommand[] = [
       embed: embed('🤖 Comandos do Resenha Bot', 'Digite **/** no campo de mensagem para ver a lista.', enabled.map((c) => ({ name: c.usage, value: c.description }))),
     }),
   },
+  ...GAME_COMMANDS,
   ...DJ_COMMANDS,
   ...TICKET_COMMANDS,
   ...AI_COMMANDS,
