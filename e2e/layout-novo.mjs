@@ -149,6 +149,73 @@ try {
   assert(await pa.locator('.sidebar').getByText('geral', { exact: true }).first().isVisible(), 'desafixar não fecha a conversa aberta');
   step('mensagens novas na aba; clicar troca; arrastar reordena; clique do meio ou X desafixa (sem fechar a conversa)');
 
+  // ---------- Início novo ----------
+  await tabs.locator('.novo-tab.home .novo-tab-btn').click();
+  await pa.getByRole('heading', { name: /Bora pra resenha\?/ }).waitFor();
+  const cont = pa.getByRole('region', { name: 'Continuar de onde parou' });
+  await cont.getByText('geral', { exact: true }).waitFor();
+  await cont.getByText('clipes', { exact: true }).waitFor();
+  await pa.getByRole('region', { name: 'Acontecendo agora' }).first().waitFor();
+  await sleep(300);
+  await pa.screenshot({ path: path.join(shots, 'layout-novo-inicio.png') });
+  await pa.locator('.novo-home-head').getByRole('button', { name: /Amigos/ }).click();
+  await pa.getByRole('button', { name: 'Voltar ao Início' }).click();
+  await cont.getByText('geral', { exact: true }).click();
+  await pa.locator('.composer textarea').waitFor();
+  step('Início novo: "Continuar de onde parou" (com as conversas abertas), "Acontecendo agora" e Amigos');
+
+  // ---------- duas conversas lado a lado ----------
+  // arrastar a aba da Bia para a direita da tela abre ao lado
+  const src = await tab('Bia').boundingBox();
+  const mainBox = await pa.locator('.main').boundingBox();
+  await pa.mouse.move(src.x + 20, src.y + src.height / 2);
+  await pa.mouse.down();
+  await pa.mouse.move(src.x + 40, src.y + 40, { steps: 4 });
+  await pa.locator('.novo-split-drop').waitFor();
+  await pa.mouse.move(mainBox.x + mainBox.width * 0.8, mainBox.y + mainBox.height / 2, { steps: 8 });
+  await pa.mouse.up();
+  const side = pa.getByRole('region', { name: 'Conversa ao lado' });
+  await side.waitFor();
+  await side.locator('.novo-pane-title', { hasText: 'Bia' }).waitFor();
+  await pa.locator('.novo-pane').first().getByPlaceholder(/#geral/).waitFor();
+  // escrever na conversa ao lado
+  await side.locator('.composer textarea').fill('oi do lado');
+  await side.locator('.composer textarea').press('Enter');
+  await side.locator('.message', { hasText: 'oi do lado' }).waitFor();
+  // o que chega ao lado conta como lido
+  const dmBia = (await api('/dms', null, ana.token)).dms.find((d) => d.recipient.username === 'bia');
+  await api(`/channels/${dmBia.id}/messages`, { content: 'respondendo do outro lado' }, bia.token);
+  await side.locator('.message', { hasText: 'respondendo do outro lado' }).waitFor();
+  await sleep(1200);
+  assert((await tab('Bia').locator('.novo-badge').count()) === 0, 'a conversa ao lado não fica com mensagens não lidas');
+  await pa.screenshot({ path: path.join(shots, 'layout-novo-lado-a-lado.png') });
+  step('arrastar uma aba para a direita abre a conversa ao lado; dá para escrever nela e o que chega conta como lido');
+
+  // divisória: arrastar muda o tamanho
+  const div = await pa.locator('.novo-divider').boundingBox();
+  const before = await pa.locator('.novo-pane').first().boundingBox();
+  await pa.mouse.move(div.x + 4, div.y + div.height / 2);
+  await pa.mouse.down();
+  await pa.mouse.move(div.x - 150, div.y + div.height / 2, { steps: 6 });
+  await pa.mouse.up();
+  const after = await pa.locator('.novo-pane').first().boundingBox();
+  assert(after.width < before.width - 100, `a divisória muda o tamanho (${Math.round(before.width)} → ${Math.round(after.width)})`);
+  // trocar de lado e fechar
+  await side.getByRole('button', { name: 'Trocar de lado' }).click();
+  await side.locator('.novo-pane-title', { hasText: 'geral' }).waitFor();
+  await pa.locator('.novo-pane').first().getByText('oi do lado').waitFor();
+  await side.getByRole('button', { name: 'Fechar a conversa ao lado' }).click();
+  await side.waitFor({ state: 'detached' });
+  // pelo botão da aba
+  // pelo botão da aba (estou na conversa da Bia: abre o #geral ao lado não; abre a Bia ao lado estando no servidor)
+  await pa.getByRole('button', { name: 'Galera' }).first().click();
+  await pa.locator('.sidebar').getByText('geral', { exact: true }).first().click();
+  await tab('Bia').hover();
+  await pa.getByRole('button', { name: 'Abrir Bia ao lado' }).click();
+  await side.locator('.novo-pane-title', { hasText: 'Bia' }).waitFor();
+  await side.getByRole('button', { name: 'Fechar a conversa ao lado' }).click();
+  step('a divisória muda o tamanho; "trocar de lado" e fechar; botão "abrir ao lado" na aba');
+
   // a call fica no topo, em qualquer tela
   await pa.getByRole('button', { name: 'Sala de voz' }).first().click();
   await pa.getByText('Voz conectada').waitFor({ timeout: 15000 });

@@ -18,8 +18,8 @@ import { SidePanel } from './Community';
 import { ChangelogWatcher } from './Changelog';
 import { useMobileSwipe } from '../lib/swipe';
 import { CallUserMenuHost } from './CallUserMenu';
-import { BottomNav, MobileSectionScreen, TabsBar } from './NovoLayout';
-import { useNovoLayout } from '../lib/layoutMode';
+import { BottomNav, MobileSectionScreen, NovoHome, SplitDropZone, SplitView, TabsBar, useNovo } from './NovoLayout';
+import { useIsDesktop, useNovoLayout } from '../lib/layoutMode';
 
 export function Layout({ onLogout }: { onLogout(): void }) {
   const mobilePanel = useApp((s) => s.mobilePanel);
@@ -33,6 +33,8 @@ export function Layout({ onLogout }: { onLogout(): void }) {
   const channel = useApp(() => findChannel(selectedChannelId));
   useMobileSwipe();
   const novo = useNovoLayout();
+  const desktop = useIsDesktop((s) => s.desktop);
+  const split = useNovo((s) => s.split);
 
   useEffect(() => {
     const onVisible = () => {
@@ -46,7 +48,7 @@ export function Layout({ onLogout }: { onLogout(): void }) {
   let main;
   if (!selectedGuildId) {
     // Início: conversa direta aberta ou a lista de amigos
-    main = channel?.type === 'dm' ? <ChatView channel={channel} /> : <FriendsView />;
+    main = channel?.type === 'dm' ? <ChatView channel={channel} /> : novo && desktop ? <NovoHome /> : <FriendsView />;
   } else if (channel?.type === 'voice') {
     main = <VoiceStage channelId={channel.id} />;
   } else if (channel) {
@@ -60,9 +62,11 @@ export function Layout({ onLogout }: { onLogout(): void }) {
     );
   }
 
+  // layout novo no computador: outra conversa aberta ao lado
+  const splitOn = novo && desktop && !!split && split !== selectedChannelId && !!findChannel(split);
   const sidePanel = useApp((s) => s.sidePanel);
-  const panelVisible = !!sidePanel && !!channel && channel.type !== 'voice';
-  const membersVisible = !panelVisible && showMembers && channel?.type === 'text';
+  const panelVisible = !splitOn && !!sidePanel && !!channel && channel.type !== 'voice';
+  const membersVisible = !splitOn && !panelVisible && showMembers && channel?.type === 'text';
 
   return (
     <div className={`layout panel-${mobilePanel}${membersVisible ? ' with-members' : ''}${panelVisible ? ' with-panel' : ''}${novo ? ' layout-novo' : ''}`}>
@@ -71,7 +75,10 @@ export function Layout({ onLogout }: { onLogout(): void }) {
         <ServerRail />
         <ChannelSidebar onLogout={onLogout} />
       </nav>
-      <main className="main">{main}</main>
+      <main className="main">
+        {splitOn ? <SplitView primary={main} channelId={split!} /> : main}
+        {novo && desktop && <SplitDropZone />}
+      </main>
       {membersVisible && selectedGuildId && <MemberList guildId={selectedGuildId} />}
       {panelVisible && <SidePanel />}
       {mobilePanel === 'members' && (

@@ -63,7 +63,7 @@ export function HomeSidebar() {
 }
 
 /** Amigos online agora, numa fileira (toque abre a conversa). Quem está em call ou jogando vem primeiro. */
-function OnlineFriends() {
+export function OnlineFriends() {
   const friends = useApp((s) => s.friends);
   const online = useApp((s) => s.online);
   const activities = useApp((s) => s.activities);

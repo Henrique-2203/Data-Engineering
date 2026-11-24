@@ -31,3 +31,10 @@ export function useNovoLayout() {
   const choice = useLayoutChoice((s) => s.choice);
   return allowed && choice === 'novo';
 }
+
+/** a tela é de computador (o layout novo muda bastante entre computador e celular) */
+const DESKTOP = '(min-width: 901px)';
+export const useIsDesktop = create<{ desktop: boolean }>(() => ({ desktop: typeof window === 'undefined' || window.matchMedia(DESKTOP).matches }));
+if (typeof window !== 'undefined') {
+  window.matchMedia(DESKTOP).addEventListener('change', (e) => useIsDesktop.setState({ desktop: e.matches }));
+}

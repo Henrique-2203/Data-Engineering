@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { create } from 'zustand';
-import { Bell, ChevronLeft, ChevronRight, Compass, Hash, Home, LayoutGrid, MessageSquare, Mic, MicOff, PhoneOff, Pin, Plus, Volume2, X } from 'lucide-react';
-import { findChannel, goHome, openModal, selectChannel, selectGuild, toast, useApp } from '../store/app';
+import { ArrowLeft, ArrowLeftRight, Bell, ChevronLeft, ChevronRight, Columns2, Compass, Hash, Home, LayoutGrid, MessageSquare, Mic, MicOff, PhoneOff, Pin, Plus, Users, Volume2, X } from 'lucide-react';
+import { findChannel, goHome, markRead, openModal, selectChannel, selectGuild, toast, useApp } from '../store/app';
 import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { Avatar } from './Avatar';
 import type { DmChannel } from '../../../shared/types';
-import { Happening } from './HomeSidebar';
+import { Happening, OnlineFriends } from './HomeSidebar';
+import { ChatView } from './ChatView';
+import { VoiceStage } from './VoiceStage';
+import { FriendsView } from './FriendsView';
 
 /**
  * Layout novo (em teste, ver lib/layoutMode.ts):
@@ -31,6 +34,14 @@ interface NovoState {
   tabs: string[];
   /** algo que pode virar aba está sendo arrastado */
   dragging: boolean;
+  /** conversa aberta ao lado (computador): canal, conversa direta ou call */
+  split: string | null;
+  /** quanto da largura fica com a conversa da esquerda (0,3 a 0,7) */
+  splitRatio: number;
+  /** conversas abertas há pouco (Início → "Continuar de onde parou") */
+  recent: string[];
+  /** no Início do computador: mostrando a lista de amigos (pedidos, adicionar) */
+  homeFriends: boolean;
   section: MobileSection;
   /** em Servidores: a grade ou os canais do servidor escolhido */
   serversView: 'grid' | 'guild';
@@ -43,15 +54,44 @@ const loadTabs = (): string[] => {
     return [];
   }
 };
-export const useNovo = create<NovoState>(() => ({ tabs: loadTabs(), dragging: false, section: 'inicio', serversView: 'grid' }));
-useNovo.subscribe((s, prev) => {
-  if (s.tabs === prev.tabs) return;
+const VIEW_KEY = 'resenha.novoView';
+const loadView = (): { split: string | null; splitRatio: number; recent: string[] } => {
   try {
-    localStorage.setItem(TABS_KEY, JSON.stringify(s.tabs));
+    const v = JSON.parse(localStorage.getItem(VIEW_KEY) || '{}');
+    return {
+      split: typeof v.split === 'string' ? v.split : null,
+      splitRatio: typeof v.splitRatio === 'number' ? Math.min(0.7, Math.max(0.3, v.splitRatio)) : 0.55,
+      recent: Array.isArray(v.recent) ? v.recent.filter((x: unknown) => typeof x === 'string').slice(0, 8) : [],
+    };
+  } catch {
+    return { split: null, splitRatio: 0.55, recent: [] };
+  }
+};
+export const useNovo = create<NovoState>(() => ({ tabs: loadTabs(), dragging: false, section: 'inicio', serversView: 'grid', homeFriends: false, ...loadView() }));
+useNovo.subscribe((s, prev) => {
+  try {
+    if (s.tabs !== prev.tabs) localStorage.setItem(TABS_KEY, JSON.stringify(s.tabs));
+    if (s.split !== prev.split || s.splitRatio !== prev.splitRatio || s.recent !== prev.recent)
+      localStorage.setItem(VIEW_KEY, JSON.stringify({ split: s.split, splitRatio: s.splitRatio, recent: s.recent }));
   } catch {
     /* sem armazenamento */
   }
 });
+
+/** abre ao lado (servidor: o último canal de texto dele) */
+export function openSplit(id: string) {
+  let channelId = id;
+  if (id.startsWith(GUILD_TAB)) {
+    const st = useApp.getState();
+    const g = st.guilds[id.slice(GUILD_TAB.length)];
+    const remembered = g && st.lastChannelByGuild[g.id];
+    channelId = (g?.channels.find((c) => c.id === remembered) ?? g?.channels.find((c) => c.type === 'text'))?.id ?? '';
+  }
+  if (!channelId || !findChannel(channelId)) return;
+  // já é a conversa da esquerda: não duplica
+  if (useApp.getState().selectedChannelId === channelId) return toast('Essa conversa já está aberta. Arraste outra para abrir ao lado.');
+  useNovo.setState({ split: channelId });
+}
 
 /** atributos para algo da lista poder ser arrastado para a barra de abas (só no layout novo) */
 export const tabDrag = (id: string, novo: boolean) => (novo ? { 'data-tab': id, draggable: true } : {});
@@ -157,6 +197,7 @@ function Tab({ id, active }: { id: string; active: boolean }) {
       onDragStart={(e) => {
         e.dataTransfer.setData(TAB_DRAG, id);
         e.dataTransfer.effectAllowed = 'move';
+        useNovo.setState({ dragging: true });
       }}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes(TAB_DRAG)) return;
@@ -181,6 +222,9 @@ function Tab({ id, active }: { id: string; active: boolean }) {
         {where && <span className="novo-tab-where ellipsis">{where}</span>}
         {!active && (mention > 0 || unread > 0) && <span className={`novo-badge${mention ? ' mention' : ''}`}>{mention || (unread > 99 ? '99+' : unread)}</span>}
       </button>
+      <button type="button" className="novo-tab-x" aria-label={`Abrir ${label} ao lado`} title="Abrir ao lado" onClick={() => openSplit(id)}>
+        <Columns2 size={14} />
+      </button>
       <button type="button" className="novo-tab-x" aria-label={`Desafixar aba ${label}`} title="Desafixar" onClick={() => closeTab(id)}>
         <X size={14} />
       </button>
@@ -201,6 +245,14 @@ export function TabsBar() {
   const homeActive = !selectedGuildId && selected?.type !== 'dm';
   // aba acesa: o canal aberto, se fixado; senão o servidor dele, se fixado
   const activeId = homeActive ? null : selectedChannelId && tabs.includes(selectedChannelId) ? selectedChannelId : selectedGuildId && tabs.includes(guildTabId(selectedGuildId)) ? guildTabId(selectedGuildId) : null;
+
+  // conversas abertas há pouco (para o Início); a conversa da esquerda não fica repetida ao lado
+  useEffect(() => {
+    if (!selectedChannelId || !selected) return;
+    const st = useNovo.getState();
+    if (st.recent[0] !== selectedChannelId) useNovo.setState({ recent: [selectedChannelId, ...st.recent.filter((r) => r !== selectedChannelId)].slice(0, 8) });
+    if (st.split === selectedChannelId) useNovo.setState({ split: null });
+  }, [selectedChannelId, selected]);
 
   // qualquer coisa da lista marcada com data-tab pode ser arrastada para cá (servidor, canal, call, conversa)
   useEffect(() => {
@@ -253,7 +305,15 @@ export function TabsBar() {
     >
       <nav className="novo-tabs" aria-label="Abas fixadas" ref={stripRef}>
         <div className={`novo-tab home${homeActive ? ' active' : ''}`}>
-          <button type="button" className="novo-tab-btn" aria-current={homeActive ? 'page' : undefined} onClick={() => goHome(null)}>
+          <button
+            type="button"
+            className="novo-tab-btn"
+            aria-current={homeActive ? 'page' : undefined}
+            onClick={() => {
+              useNovo.setState({ homeFriends: false });
+              goHome(null);
+            }}
+          >
             <Home size={16} />
             <span className="novo-tab-label">Início</span>
             {!homeActive && homeAlerts > 0 && <span className="novo-badge mention">{homeAlerts}</span>}
@@ -487,5 +547,208 @@ export function BackToServersButton() {
     <button type="button" className="novo-back mobile-only" aria-label="Voltar para os servidores" onClick={backToServers}>
       <ChevronLeft size={22} />
     </button>
+  );
+}
+
+// ---------------- computador: duas conversas lado a lado ----------------
+
+/** soltar na metade direita da tela abre ao lado */
+export function SplitDropZone() {
+  const dragging = useNovo((s) => s.dragging);
+  const [over, setOver] = useState(false);
+  if (!dragging) return null;
+  return (
+    <div
+      className={`novo-split-drop${over ? ' over' : ''}`}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes(TAB_DRAG)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = e.dataTransfer.effectAllowed === 'move' ? 'move' : 'copy';
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        const id = e.dataTransfer.getData(TAB_DRAG);
+        setOver(false);
+        useNovo.setState({ dragging: false });
+        if (!id) return;
+        e.preventDefault();
+        openSplit(id);
+      }}
+    >
+      <span>
+        <Columns2 size={22} /> Solte aqui para abrir ao lado
+      </span>
+    </div>
+  );
+}
+
+function PaneTitle({ channelId }: { channelId: string }) {
+  const c = useApp(() => findChannel(channelId));
+  const guildName = useApp((s) => (c && c.type !== 'dm' ? s.guilds[c.guildId]?.name : undefined));
+  if (!c) return null;
+  return (
+    <span className="novo-pane-title ellipsis">
+      <TabIcon id={channelId} />
+      <strong className="ellipsis">{c.type === 'dm' ? (c as DmChannel).recipient.displayName : c.name}</strong>
+      {guildName && <span className="muted small ellipsis">{guildName}</span>}
+    </span>
+  );
+}
+
+export function SplitView({ primary, channelId }: { primary: React.ReactNode; channelId: string }) {
+  const ratio = useNovo((s) => s.splitRatio);
+  const c = useApp(() => findChannel(channelId));
+  const count = useApp((s) => s.messages[channelId]?.items.length ?? 0);
+  const box = useRef<HTMLDivElement>(null);
+  // a conversa ao lado está à vista: o que chega nela conta como lido
+  useEffect(() => {
+    if (c && c.type !== 'voice' && document.visibilityState === 'visible') markRead(channelId);
+  }, [channelId, count, c]);
+  if (!c) return <>{primary}</>;
+  const drag = (e: React.PointerEvent) => {
+    const el = box.current;
+    if (!el) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      const r = el.getBoundingClientRect();
+      useNovo.setState({ splitRatio: Math.min(0.7, Math.max(0.3, (ev.clientX - r.left) / r.width)) });
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.body.classList.remove('novo-resizing');
+    };
+    document.body.classList.add('novo-resizing');
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <div className="novo-split" ref={box} style={{ gridTemplateColumns: `minmax(0, ${ratio}fr) 8px minmax(0, ${1 - ratio}fr)` }}>
+      <div className="novo-pane">{primary}</div>
+      <div
+        className="novo-divider"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Arraste para mudar o tamanho"
+        tabIndex={0}
+        onPointerDown={drag}
+        onDoubleClick={() => useNovo.setState({ splitRatio: 0.55 })}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowLeft') useNovo.setState({ splitRatio: Math.max(0.3, ratio - 0.05) });
+          if (e.key === 'ArrowRight') useNovo.setState({ splitRatio: Math.min(0.7, ratio + 0.05) });
+        }}
+      />
+      <section className="novo-pane secondary" aria-label="Conversa ao lado">
+        <div className="novo-pane-head">
+          <PaneTitle channelId={channelId} />
+          <button
+            type="button"
+            className="novo-call-btn"
+            aria-label="Trocar de lado"
+            title="Trocar de lado"
+            onClick={() => {
+              const left = useApp.getState().selectedChannelId;
+              useNovo.setState({ split: left && findChannel(left) ? left : null });
+              selectChannel(channelId);
+            }}
+          >
+            <ArrowLeftRight size={16} />
+          </button>
+          <button type="button" className="novo-call-btn" aria-label="Fechar a conversa ao lado" title="Fechar" onClick={() => useNovo.setState({ split: null })}>
+            <X size={16} />
+          </button>
+        </div>
+        <div className="novo-pane-body">{c.type === 'voice' ? <VoiceStage channelId={channelId} /> : <ChatView channel={c} />}</div>
+      </section>
+    </div>
+  );
+}
+
+// ---------------- computador: Início ----------------
+
+function RecentRow({ id }: { id: string }) {
+  const c = useApp(() => findChannel(id));
+  const guildName = useApp((s) => (c && c.type !== 'dm' ? s.guilds[c.guildId]?.name : undefined));
+  const unread = useApp((s) => s.unread[id] ?? 0);
+  const mention = useApp((s) => s.mentions[id] ?? 0);
+  if (!c) return null;
+  const label = c.type === 'dm' ? (c as DmChannel).recipient.displayName : c.name;
+  return (
+    <li>
+      <button type="button" className={`novo-recent${unread ? ' unread' : ''}`} onClick={() => selectChannel(id)} {...tabDrag(id, true)}>
+        <span className="novo-recent-icon">
+          <TabIcon id={id} />
+        </span>
+        <span className="novo-row-text">
+          <strong className="ellipsis">{label}</strong>
+          <span className="muted small ellipsis">{c.type === 'dm' ? 'Conversa' : c.type === 'voice' ? `Call · ${guildName ?? ''}` : guildName}</span>
+        </span>
+        {(mention > 0 || unread > 0) && <span className={`novo-badge${mention ? ' mention' : ''}`}>{mention || (unread > 99 ? '99+' : unread)}</span>}
+      </button>
+    </li>
+  );
+}
+
+const greeting = () => {
+  const h = new Date().getHours();
+  return h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+};
+
+export function NovoHome() {
+  const me = useApp((s) => s.me);
+  const recent = useNovo((s) => s.recent);
+  const showFriends = useNovo((s) => s.homeFriends);
+  const requests = useApp((s) => s.friends.filter((f) => f.status === 'incoming').length);
+  const hasOnline = useApp((s) => s.friends.some((f) => f.status === 'friend' && s.online[f.user.id]));
+  const valid = recent.filter((id) => !!findChannel(id)).slice(0, 6);
+  if (showFriends) {
+    return (
+      <div className="novo-home-friends">
+        <button type="button" className="novo-home-back" onClick={() => useNovo.setState({ homeFriends: false })}>
+          <ArrowLeft size={16} /> Voltar ao Início
+        </button>
+        <FriendsView />
+      </div>
+    );
+  }
+  return (
+    <div className="novo-home">
+      <div className="novo-home-head">
+        <h1>
+          {greeting()}
+          {me ? `, ${me.displayName.split(' ')[0]}` : ''}! Bora pra resenha?
+        </h1>
+        <button type="button" className="btn" onClick={() => useNovo.setState({ homeFriends: true })}>
+          <Users size={16} /> Amigos
+          {requests > 0 && <span className="novo-badge mention">{requests}</span>}
+        </button>
+      </div>
+      <div className="novo-home-grid">
+        <section className="novo-card" aria-label="Acontecendo agora">
+          <h2>Acontecendo agora</h2>
+          <Happening empty={<p className="muted small">Nada rolando agora. Quando alguém entrar numa call ou te mencionar, aparece aqui.</p>} />
+        </section>
+        <section className="novo-card" aria-label="Continuar de onde parou">
+          <h2>Continuar de onde parou</h2>
+          {valid.length ? (
+            <ul className="novo-list">
+              {valid.map((id) => (
+                <RecentRow key={id} id={id} />
+              ))}
+            </ul>
+          ) : (
+            <p className="muted small">As conversas que você abrir aparecem aqui.</p>
+          )}
+          <p className="muted small novo-home-tip">
+            <Pin size={13} /> Dica: arraste uma conversa para a barra de cima para fixar, ou para a direita da tela para abrir ao lado.
+          </p>
+        </section>
+      </div>
+      <section className="novo-card" aria-label="Amigos online">
+        <h2>Seus amigos agora</h2>
+        {hasOnline ? <OnlineFriends /> : <p className="muted small">Nenhum amigo online agora.</p>}
+      </section>
+    </div>
   );
 }

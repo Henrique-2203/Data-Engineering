@@ -8856,3 +8856,243 @@ body.call-expanded .icon-btn.active { color: var(--accent); }
     display: none;
   }
 }
+
+/* layout novo: duas conversas lado a lado (computador) */
+.layout-novo .main {
+  position: relative;
+}
+.novo-split {
+  display: grid;
+  min-height: 0;
+  height: 100%;
+}
+.novo-pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.novo-pane > * {
+  flex: 1;
+  min-height: 0;
+}
+.novo-pane.secondary {
+  border-left: 1px solid var(--line);
+}
+.novo-pane.secondary > .novo-pane-head {
+  flex: none;
+}
+.novo-pane-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.novo-pane-body > * {
+  flex: 1;
+  min-height: 0;
+}
+.novo-pane-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 6px 0 12px;
+  background: var(--bg-0);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.novo-pane-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.novo-divider {
+  cursor: col-resize;
+  background: var(--bg-0);
+  position: relative;
+}
+.novo-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 4px;
+  height: 44px;
+  margin-top: -22px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.novo-divider:hover::after,
+.novo-divider:focus-visible::after,
+body.novo-resizing .novo-divider::after {
+  background: var(--accent);
+}
+body.novo-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+body.novo-resizing iframe,
+body.novo-resizing video {
+  pointer-events: none;
+}
+.novo-split-drop {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: 42%;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  border: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--bg-1) 70%, transparent);
+  color: var(--text-2);
+  font-weight: 700;
+}
+.novo-split-drop span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.novo-split-drop.over {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* layout novo: Início (computador) */
+.novo-home {
+  overflow-y: auto;
+  padding: 28px clamp(16px, 4vw, 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.novo-home-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.novo-home-head h1 {
+  flex: 1;
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+}
+.novo-home-head .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.novo-home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+}
+.novo-card {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+  min-width: 0;
+}
+.novo-card h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 800;
+}
+.novo-card .home-happening .section-title {
+  display: none;
+}
+.novo-card .home-happening ul {
+  padding: 0;
+}
+.novo-card .home-online .section-title {
+  display: none;
+}
+.novo-card .novo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.novo-recent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.novo-recent:hover {
+  background: var(--hover);
+}
+.novo-recent.unread strong {
+  font-weight: 800;
+}
+.novo-recent-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--bg-3);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.novo-recent .novo-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.novo-home-tip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0;
+}
+.novo-home-friends {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.novo-home-friends > :last-child {
+  flex: 1;
+  min-height: 0;
+}
+.novo-home-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin: 10px 16px 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 0;
+  background: var(--bg-3);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* Início novo do computador: o resumo fica no meio; a coluna da esquerda fica só com Amigos e as conversas */
+@media (min-width: 901px) {
+  .layout-novo .sidebar .home-happening,
+  .layout-novo .sidebar .home-online {
+    display: none;
+  }
+}
