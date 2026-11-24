@@ -1,0 +1,17 @@
+Isso aqui é o Resenha: call, tela e chat, feito por um brasileiro, e de graça.
+
+Transmita a sua tela em Full agá dê, a quarenta quadros por segundo. Cada pessoa escolhe a qualidade que quer assistir, e você decide quem pode ver a sua tela.
+
+Assistam vídeos juntos, tudo sincronizado, com fila de músicas e um chat privado só da call.
+
+Soundboard, emojis e figurinhas, enquetes, eventos, mensagens fixadas e aviso no celular. Tudo pra galera.
+
+Agora, a parte que importa. Sua voz, sua câmera e sua tela vão criptografadas de ponta a ponta, direto entre vocês, e nada é gravado. E você pode conferir: cada pessoa tem um código de segurança. Se o código bate dos dois lados, ninguém está no meio.
+
+E sem enrolação: as mensagens de texto viajam protegidas, mas ficam guardadas no servidor. Elas não são de ponta a ponta, e a gente fala isso na cara. Sua senha é guardada com scrypt, tem verificação em duas etapas, e os backups são criptografados.
+
+Servidores públicos, cargos e permissões, moderação e registro de auditoria. Tudo que uma comunidade precisa.
+
+E vem mais aí: a câmera do seu celular no computador, por QR Code, e abas fixas no topo pra você trocar de conversa num clique.
+
+Resenha: cadastro aberto, sem convite. Chama a galera. Link na bio.
