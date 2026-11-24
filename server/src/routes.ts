@@ -310,16 +310,27 @@ export function createRoutes(db: Db, rt: Realtime) {
       }
       limit(`reg-mail:${body.email}`, 5, 60 * 60_000, 'Muitos códigos para este e-mail. Tente de novo em uma hora.');
       const checked = await requireSafePassword(body.password, body.username);
-      const id = randomUUID();
       const code = sixDigits();
-      await db.query('delete from pending_signups where email = $1', [body.email]);
+      // quem cancela e refaz o cadastro com o mesmo e-mail continua com o MESMO cadastro pendente: o e-mail
+      // anterior (que pode estar só atrasado) segue valendo junto com o novo
+      const [old] = await db.query<{ id: string; code_hash: string; prev: string[]; sends: number }>(
+        `select id, code_hash, prev_code_hashes as prev, sends from pending_signups where email = $1 and expires_at > now() order by created_at desc limit 1`,
+        [body.email],
+      );
+      const id = old?.id ?? randomUUID();
+      const prev = old ? [...old.prev, old.code_hash].slice(-4) : [];
+      await db.query('delete from pending_signups where email = $1 and id <> $2', [body.email, id]);
       await db.query(
-        `insert into pending_signups (id, email, username, display_name, password_hash, password_checked, terms, code_hash, expires_at, signup_code)
-         values ($1, $2, $3, $4, $5, $6, true, $7, now() + interval '15 minutes', $8)`,
-        [id, body.email, body.username, body.displayName || body.username, await hashPassword(body.password), checked, signupCodeHash(id, code), signupCode],
+        `insert into pending_signups (id, email, username, display_name, password_hash, password_checked, terms, code_hash, expires_at, signup_code, prev_code_hashes, sends)
+         values ($1, $2, $3, $4, $5, $6, true, $7, now() + interval '15 minutes', $8, $9, $10)
+         on conflict (id) do update set username = excluded.username, display_name = excluded.display_name, password_hash = excluded.password_hash,
+           password_checked = excluded.password_checked, code_hash = excluded.code_hash, expires_at = excluded.expires_at, signup_code = excluded.signup_code,
+           prev_code_hashes = excluded.prev_code_hashes, attempts = 0, sends = excluded.sends, last_sent_at = now()`,
+        [id, body.email, body.username, body.displayName || body.username, await hashPassword(body.password), checked, signupCodeHash(id, code), signupCode, prev, Math.min(4, (old?.sends ?? 0) + 1)],
       );
       if (!(await sendSignupCode(body.email, body.username, code))) {
-        await db.query('delete from pending_signups where id = $1', [id]);
+        // recusado de vez (endereço inexistente, por exemplo): desfaz só se não havia um cadastro anterior com e-mail a caminho
+        if (!old) await db.query('delete from pending_signups where id = $1', [id]);
         throw new HttpError(502, 'Não conseguimos enviar o e-mail agora. Confira o endereço e tente de novo em alguns minutos.');
       }
       return { pendingId: id, sentTo: maskEmail(body.email) };
@@ -340,8 +351,10 @@ export function createRoutes(db: Db, rt: Realtime) {
       if (p.wait > 0) throw new HttpError(429, `Espere ${p.wait} segundos para pedir outro código.`);
       if (p.sends >= 5) throw new HttpError(429, 'Muitos códigos pedidos. Confira o e-mail digitado e comece de novo.');
       const code = sixDigits();
+      // o código anterior continua valendo (o e-mail dele pode só estar atrasado)
       await db.query(
-        `update pending_signups set code_hash = $2, attempts = 0, sends = sends + 1, last_sent_at = now(), expires_at = now() + interval '15 minutes' where id = $1`,
+        `update pending_signups set prev_code_hashes = (prev_code_hashes || code_hash)[greatest(1, cardinality(prev_code_hashes || code_hash) - 3):],
+           code_hash = $2, attempts = 0, sends = sends + 1, last_sent_at = now(), expires_at = now() + interval '15 minutes' where id = $1`,
         [pendingId, signupCodeHash(pendingId, code)],
       );
       await sendSignupCode(p.email, p.username, code);
@@ -354,13 +367,14 @@ export function createRoutes(db: Db, rt: Realtime) {
     wrap(async (req, res) => {
       limit(`reg-confirm:${req.ip}`, 30, 15 * 60_000);
       const body = parse(z.object({ pendingId: z.string().max(64), code: z.string().trim().max(12) }), req.body);
-      const [p] = await db.query<{ email: string; username: string; display_name: string; password_hash: string; password_checked: boolean; attempts: number; code_hash: string; signup_code: string | null }>(
-        `select email, username, display_name, password_hash, password_checked, attempts, code_hash, signup_code from pending_signups where id = $1 and expires_at > now()`,
+      const [p] = await db.query<{ email: string; username: string; display_name: string; password_hash: string; password_checked: boolean; attempts: number; code_hash: string; prev_code_hashes: string[]; signup_code: string | null }>(
+        `select email, username, display_name, password_hash, password_checked, attempts, code_hash, prev_code_hashes, signup_code from pending_signups where id = $1 and expires_at > now()`,
         [body.pendingId],
       );
       if (!p) throw new HttpError(410, 'Esse código expirou. Peça um novo ou preencha de novo.');
       if (p.attempts >= 5) throw new HttpError(429, 'Muitos códigos errados. Peça um novo código.');
-      if (p.code_hash !== signupCodeHash(body.pendingId, body.code)) {
+      const given = signupCodeHash(body.pendingId, body.code);
+      if (p.code_hash !== given && !p.prev_code_hashes.includes(given)) {
         await db.query('update pending_signups set attempts = attempts + 1 where id = $1', [body.pendingId]);
         throw new HttpError(400, 'Código incorreto. Confira o e-mail (e a pasta de spam).');
       }

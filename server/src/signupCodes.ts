@@ -155,7 +155,7 @@ export function registerSignupCodeRoutes(r: Router, db: Db, auth: ReturnType<typ
          order by c.is_general, c.created_at desc`,
       );
       const [totals] = await db.query<{ withCode: number; total: number }>(
-        `select count(*) filter (where signup_code is not null)::int as "withCode", count(*)::int as total from users`,
+        `select count(*) filter (where signup_code is not null)::int as "withCode", count(*)::int as total from users where not is_bot`,
       );
       return { codes, totals, needsCode: await registrationNeedsCode(db), open: await signupOpen(db), hasEnvCode: !!config.registrationCode };
     }),

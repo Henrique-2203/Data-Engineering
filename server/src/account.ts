@@ -176,7 +176,11 @@ const codeHash = (userId: string, purpose: string, code: string) => sha256(`${us
 
 async function newCode(db: Db, userId: string, purpose: 'verify' | 'reset', email: string) {
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-  await db.query('delete from email_codes where user_id = $1 and purpose = $2', [userId, purpose]);
+  // os 2 códigos mais recentes continuam valendo (um e-mail atrasado ou um pedido repetido não deixa a pessoa travada)
+  await db.query(
+    `delete from email_codes where user_id = $1 and purpose = $2 and id not in (select id from email_codes where user_id = $1 and purpose = $2 order by created_at desc limit 1)`,
+    [userId, purpose],
+  );
   await db.query(
     `insert into email_codes (id, user_id, purpose, email, code_hash, expires_at) values ($1, $2, $3, $4, $5, now() + make_interval(mins => $6))`,
     [randomUUID(), userId, purpose, email, codeHash(userId, purpose, code), CODE_MINUTES],
@@ -186,17 +190,20 @@ async function newCode(db: Db, userId: string, purpose: 'verify' | 'reset', emai
 
 /** Confere o código (5 tentativas, 15 minutos). Devolve o e-mail ao qual ele foi enviado. */
 async function useCode(db: Db, userId: string, purpose: 'verify' | 'reset', code: string): Promise<string | null> {
-  const [row] = await db.query<{ id: string; email: string; code_hash: string; attempts: number; expired: boolean }>(
-    `select id, email, code_hash, attempts, expires_at < now() as expired from email_codes where user_id = $1 and purpose = $2`,
+  const rows = await db.query<{ id: string; email: string; code_hash: string; attempts: number; expired: boolean }>(
+    `select id, email, code_hash, attempts, expires_at < now() as expired from email_codes where user_id = $1 and purpose = $2 order by created_at desc`,
     [userId, purpose],
   );
-  if (!row || row.expired || row.attempts >= 5) return null;
-  if (row.code_hash !== codeHash(userId, purpose, code.replace(/\D/g, ''))) {
-    await db.query('update email_codes set attempts = attempts + 1 where id = $1', [row.id]);
+  const live = rows.filter((r) => !r.expired && r.attempts < 5);
+  if (!live.length) return null;
+  const given = codeHash(userId, purpose, code.replace(/\D/g, ''));
+  const hit = live.find((r) => r.code_hash === given);
+  if (!hit) {
+    await db.query('update email_codes set attempts = attempts + 1 where user_id = $1 and purpose = $2', [userId, purpose]);
     return null;
   }
-  await db.query('delete from email_codes where id = $1', [row.id]);
-  return row.email;
+  await db.query('delete from email_codes where user_id = $1 and purpose = $2', [userId, purpose]);
+  return hit.email;
 }
 
 export const emailSchema = z.string().trim().toLowerCase().max(254).email('E-mail inválido.');

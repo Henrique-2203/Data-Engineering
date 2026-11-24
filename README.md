@@ -193,8 +193,8 @@ Confirmação de e-mail, código para criar uma senha nova e alertas (aparelho n
 3. **SMTP & API → API keys → Generate a new API key**.
 4. No Render: `EMAIL_PROVIDER=brevo`, `EMAIL_API_KEY=` a chave e `EMAIL_FROM=` o remetente confirmado.
 
-> Com um remetente @gmail.com, alguns e-mails podem cair no spam. Com domínio próprio (ex.: `resenhabrasil.app.br`),
-> dá para autenticar o domínio na Brevo (ou usar `EMAIL_PROVIDER=resend`) e a entrega fica bem melhor.
+> Com um remetente @gmail.com, e-mails podem **demorar, cair no spam ou ser recusados**. Com o domínio próprio
+> (`resenhabr.com.br`), autentique o domínio na Brevo e use um remetente dele: passo a passo em [docs/EMAIL.md](docs/EMAIL.md).
 
 Sem e-mail configurado, tudo continua funcionando e a recuperação é feita com os códigos de recuperação.
 

@@ -30,6 +30,9 @@ interface EmailStatus {
   from: string | null;
   lastOkAt: string | null;
   lastError: { at: string; status: number; detail: string; hint: string } | null;
+  lastMs?: number | null;
+  avgMs?: number | null;
+  slowCount?: number;
 }
 
 /** E-mails: está configurado? O último envio funcionou? Se não, o que o provedor disse e o que fazer. */
@@ -44,6 +47,13 @@ function EmailCard({ initial }: { initial: EmailStatus }) {
       <strong>✉️ E-mails {st.enabled ? `(${st.provider}, remetente ${st.from})` : '— desligados'}</strong>
       {!st.enabled && <p className="muted small">Configure EMAIL_PROVIDER, EMAIL_API_KEY e EMAIL_FROM no Render (veja o README).</p>}
       {st.enabled && !err && <p className="muted small">{st.lastOkAt ? `Último envio funcionou em ${when(st.lastOkAt)}.` : 'Nenhum e-mail enviado desde que o servidor ligou.'}</p>}
+      {st.enabled && st.avgMs != null && (
+        <p className="muted small">
+          A Brevo leva em média {(st.avgMs / 1000).toFixed(1)} s para aceitar cada envio (último: {((st.lastMs ?? 0) / 1000).toFixed(1)} s
+          {st.slowCount ? `; ${st.slowCount} passaram de 5 s desde que o servidor ligou` : ''}). A entrega na caixa da pessoa vem depois e depende do provedor
+          dela: se muita gente reclama de atraso, autentique o domínio na Brevo (veja docs/EMAIL.md).
+        </p>
+      )}
       {err && (
         <div className="email-error">
           <p>

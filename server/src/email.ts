@@ -62,13 +62,24 @@ ${m.warning ? `<tr><td style="padding:10px 26px"><div style="padding:12px 14px;b
 // último resultado (aparece no Painel da equipe → Sistema, para descobrir rápido o que está errado)
 let lastError: { at: string; status: number; detail: string; hint: string } | null = null;
 let lastOkAt: string | null = null;
+/** quanto a Brevo demorou para ACEITAR os últimos envios (ms); a entrega na caixa da pessoa vem depois, fora do nosso controle */
+const recentMs: number[] = [];
+let slowCount = 0;
 export const emailStatus = () => ({
   enabled: emailEnabled(),
   provider: config.email.provider || null,
   from: config.email.from || null,
   lastOkAt,
   lastError,
+  lastMs: recentMs.at(-1) ?? null,
+  avgMs: recentMs.length ? Math.round(recentMs.reduce((a, b) => a + b, 0) / recentMs.length) : null,
+  slowCount,
 });
+const noteMs = (ms: number) => {
+  recentMs.push(ms);
+  if (recentMs.length > 20) recentMs.shift();
+  if (ms > 5000) slowCount++;
+};
 
 /** Traduz as recusas mais comuns do provedor em "o que fazer". */
 function explain(status: number, body: string): string {
@@ -87,52 +98,84 @@ function explain(status: number, body: string): string {
   return 'Veja a mensagem do provedor acima.';
 }
 
-/** Envia (sem travar quem chamou se o provedor falhar: o erro vai para o log). */
-export async function sendEmail(m: Mail): Promise<boolean> {
-  if (!emailEnabled()) return false;
-  // site de teste: deixa claro no assunto (ninguém confunde com o Resenha oficial)
-  if (config.appEnv === 'staging' && !m.subject.startsWith('[TESTE]')) m = { ...m, subject: `[TESTE] ${m.subject}` };
-  const { text, html } = render(m);
+/** Uma tentativa de envio. 'sent' = provedor aceitou; 'refused' = recusou de vez (endereço ruim, chave errada…); 'retry' = não deu para saber (lento, rede, 5xx, limite). */
+async function attempt(m: Mail, text: string, html: string): Promise<'sent' | 'refused' | 'retry'> {
   const { provider, apiKey, from, fromName } = config.email;
+  const t0 = Date.now();
   try {
     if (provider === 'file') {
       if (process.env.EMAIL_FAIL_TEST) {
         // só nos testes: simula uma recusa do provedor
         lastError = { at: new Date().toISOString(), status: 401, detail: process.env.EMAIL_FAIL_TEST, hint: explain(401, process.env.EMAIL_FAIL_TEST) };
-        return false;
+        return 'refused';
       }
       appendFileSync(config.email.outbox, JSON.stringify({ to: m.to, subject: m.subject, text, code: m.code ?? null, at: new Date().toISOString() }) + '\n');
       lastOkAt = new Date().toISOString();
-      return true;
+      return 'sent';
     }
     const res =
       provider === 'brevo'
-        ? await fetch('https://api.brevo.com/v3/smtp/email', {
+        ? await fetch(process.env.EMAIL_BREVO_URL || 'https://api.brevo.com/v3/smtp/email', {
             method: 'POST',
             headers: { 'api-key': apiKey, 'content-type': 'application/json', accept: 'application/json' },
             body: JSON.stringify({ sender: { name: fromName, email: from }, to: [{ email: m.to }], subject: m.subject, htmlContent: html, textContent: text, ...(config.email.replyTo ? { replyTo: { email: config.email.replyTo } } : {}) }),
-            signal: AbortSignal.timeout(10_000),
+            signal: AbortSignal.timeout(20_000),
           })
         : await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
             body: JSON.stringify({ from: `${fromName} <${from}>`, to: [m.to], subject: m.subject, html, text, ...(config.email.replyTo ? { reply_to: config.email.replyTo } : {}) }),
-            signal: AbortSignal.timeout(10_000),
+            signal: AbortSignal.timeout(20_000),
           });
+    noteMs(Date.now() - t0);
     if (!res.ok) {
       const body = (await res.text().catch(() => '')).slice(0, 400);
       lastError = { at: new Date().toISOString(), status: res.status, detail: body, hint: explain(res.status, body) };
       console.warn(`[email] ${provider} recusou: ${res.status} ${body}`);
-      return false;
+      // problema do lado do provedor ou limite momentâneo: vale tentar de novo; o resto (endereço, chave, remetente) não adianta
+      return res.status >= 500 || res.status === 429 ? 'retry' : 'refused';
     }
     lastOkAt = new Date().toISOString();
     lastError = null;
-    return true;
+    return 'sent';
   } catch (err) {
+    noteMs(Date.now() - t0);
     lastError = { at: new Date().toISOString(), status: 0, detail: (err as Error).message, hint: 'O servidor não conseguiu falar com o provedor de e-mail (rede). Tente de novo em alguns minutos.' };
     console.warn('[email] falha ao enviar', (err as Error).message);
-    return false;
+    return 'retry';
   }
+}
+
+const RETRY_MS = (process.env.EMAIL_RETRY_MS || '3000,15000,60000').split(',').map(Number);
+const FAST_MS = Number(process.env.EMAIL_FAST_MS) || 5000;
+
+/**
+ * Envia. Responde em até ~5 s: se o provedor ainda não respondeu, o e-mail segue sendo enviado em segundo plano
+ * (e tentado de novo se falhar) e quem chamou recebe "true". Só devolve false quando o provedor RECUSA de vez
+ * (endereço inválido, chave errada…). Antes, uma demora de 10 s virava "falha" e apagava o cadastro pendente
+ * mesmo com o e-mail a caminho: o código que chegava depois não valia mais.
+ */
+export async function sendEmail(m: Mail): Promise<boolean> {
+  if (!emailEnabled()) return false;
+  // site de teste: deixa claro no assunto (ninguém confunde com o Resenha oficial)
+  if (config.appEnv === 'staging' && !m.subject.startsWith('[TESTE]')) m = { ...m, subject: `[TESTE] ${m.subject}` };
+  const { text, html } = render(m);
+  const background = async (first: Promise<'sent' | 'refused' | 'retry'>) => {
+    let r = await first;
+    for (const wait of RETRY_MS) {
+      if (r !== 'retry') return r;
+      await new Promise((res) => setTimeout(res, wait));
+      r = await attempt(m, text, html);
+    }
+    return r;
+  };
+  const first = attempt(m, text, html);
+  const quick = await Promise.race([first, new Promise<'slow'>((res) => setTimeout(() => res('slow'), FAST_MS))]);
+  if (quick === 'sent') return true;
+  if (quick === 'refused') return false;
+  // lento ou sem resposta: continua em segundo plano
+  void background(first).catch(() => {});
+  return true;
 }
 
 /** "an***@gmail.com": mostra o e-mail sem revelar tudo. */

@@ -311,7 +311,9 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
                 maxLength={6}
               />
             </label>
-            <p className="muted small">Não chegou? Confira a pasta de spam ou promoções.</p>
+            <p className="muted small">
+              Pode levar até alguns minutos. Confira também a pasta de spam ou promoções. Se pedir outro código, o anterior continua valendo: use o que chegar primeiro.
+            </p>
           </>
         ) : (
           <>
