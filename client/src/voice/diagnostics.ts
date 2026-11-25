@@ -276,8 +276,13 @@ export interface Finding {
  */
 export function explain(d: CallDiagnostics): Finding[] {
   const out: Finding[] = [];
+  const brave = /brave/i.test(d.app.gpu ?? '');
   for (const p of d.peers) {
-    if (p.state !== 'connected') out.push({ level: 'bad', text: `Sem conexão com ${p.name} (${p.state}). Saia e entre na call de novo.` });
+    if (p.state !== 'connected') {
+      out.push({ level: 'bad', text: `Sem conexão com ${p.name} (${p.state}). Saia e entre na call de novo.` });
+      if (p.relayed) out.push({ level: 'warn', text: `A conexão com ${p.name} estava passando pelo servidor TURN (sem caminho direto) quando caiu: é o caso mais frágil, comum no 4G/5G e em navegadores que escondem dados de rede.` });
+      continue; // com a conexão caída, perda/atraso/voz remendada são só consequência: não mostrar como causa
+    }
     if (p.relayed) out.push({ level: 'warn', text: `Com ${p.name} a conexão passa pelo servidor TURN (sem caminho direto, comum no 4G/5G): voz e tela vão em qualidade reduzida.` });
     if (p.rttMs !== null && p.rttMs > 250) out.push({ level: 'warn', text: `Atraso alto com ${p.name}: ${p.rttMs} ms (o ideal é abaixo de 150 ms).` });
     if (p.voiceIn) {
@@ -285,6 +290,11 @@ export function explain(d: CallDiagnostics): Finding[] {
       else if (p.voiceIn.concealedPct >= 5) out.push({ level: 'warn', text: `A voz de ${p.name} está sendo "remendada" (${p.voiceIn.concealedPct}% do tempo): pode soar robótica ou picotada.` });
     }
   }
+  if (brave && d.peers.some((p) => p.relayed || p.state !== 'connected'))
+    out.push({
+      level: 'warn',
+      text: 'O navegador parece ser o Brave. Os "Shields" dele escondem dados de rede e podem forçar a call pelo servidor TURN e derrubar a conexão. Clique no leão na barra de endereço e desligue os Shields para o Resenha (ou use Chrome, Edge ou o app de Windows). Obs.: o Brave também mascara núcleos e memória, então esses números do aparelho podem não ser os reais.',
+    });
   const s = d.stream;
   if (s) {
     if (s.captureFps > 0 && s.captureFps < Math.min(40, s.targetFps) * 0.9)
@@ -323,6 +333,8 @@ export function explain(d: CallDiagnostics): Finding[] {
       text: 'O microfone é de um fone Bluetooth (AirPods ou parecido). Quando o microfone do fone liga, o Bluetooth troca para um modo de baixa qualidade e a voz fica robótica, para você e para os outros. Use o microfone do computador (Configurações → Voz e vídeo → Microfone) e deixe o fone só para ouvir.',
     });
   if (d.call.noise === 'off') out.push({ level: 'warn', text: 'A supressão de ruído está desligada: teclado e ventilador vão para a call.' });
+  if (!d.peers.length && d.call.people <= 1)
+    out.push({ level: 'warn', text: 'Você estava sozinho na call na hora da medição, então não deu para medir a voz de ninguém. Meça de novo com outra pessoa na call, no momento em que o problema acontecer.' });
   if (!out.length) out.push({ level: 'ok', text: 'Nada fora do normal nos números deste momento. Conte na mensagem o que aconteceu (e quando) para a equipe olhar.' });
   return out;
 }
