@@ -1,0 +1,209 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Resenha · câmera do celular</title>
+<!-- Vídeo vertical 1080x1920: estúdio 3D com o monitor e o celular reais do Resenha (telas capturadas), câmera sempre em movimento,
+     tucano apresentador. timeline.json (tempos da narração) e env.json (volume da voz) são gerados pelo render. -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1080px;height:1920px;overflow:hidden;background:#07080b;font-family:Inter,'Noto Color Emoji',sans-serif;color:#fff}
+#stage{position:absolute;inset:0;transform-origin:50% 45%}
+#gl{position:absolute;inset:0}
+#dim{position:absolute;inset:0;pointer-events:none}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:50}
+#speed{position:absolute;inset:0;opacity:0;pointer-events:none;z-index:40}
+.sc{position:absolute;inset:0;opacity:0;display:none}
+.h{position:absolute;left:30px;right:30px;top:110px;text-align:center;font-weight:900;font-size:108px;line-height:.98;letter-spacing:-4px;text-shadow:0 6px 0 rgba(0,0,0,.45),0 10px 34px rgba(0,0,0,.75)}
+.h.sm{font-size:90px}
+.w{display:inline-block;padding-bottom:6px;will-change:transform}
+.g{color:#5dffb4}.cy{color:#9ffcff}.amb{color:#ffd166}
+.pill{position:absolute;display:inline-flex;align-items:center;gap:14px;padding:18px 34px;border-radius:999px;font-weight:900;font-size:46px;white-space:nowrap;will-change:transform}
+.pill.gr{background:#3ddc97;color:#06281a;box-shadow:0 0 60px rgba(61,220,151,.5)}
+.pill.dk{background:rgba(14,16,22,.94);border:3px solid rgba(255,255,255,.22)}
+.num{position:absolute;width:96px;height:96px;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:60px;background:#3ddc97;color:#06281a;box-shadow:0 0 50px rgba(61,220,151,.6)}
+.card{position:absolute;background:rgba(14,16,22,.92);border:2px solid rgba(255,255,255,.12);border-radius:38px;box-shadow:0 30px 80px rgba(0,0,0,.65)}
+#tuc{position:absolute;z-index:30;filter:drop-shadow(0 30px 40px rgba(0,0,0,.65));transform-origin:50% 100%;will-change:transform}
+.conf{position:absolute;width:20px;height:34px;border-radius:5px;z-index:45}
+.cap{position:absolute;left:40px;right:40px;text-align:center;font-weight:900;font-size:58px;line-height:1.05;text-shadow:0 5px 0 rgba(0,0,0,.5),0 8px 30px #000}
+</style></head><body>
+<div id="stage">
+<canvas id="gl" width="1080" height="1920"></canvas>
+<div id="dim"></div>
+<svg id="speed" viewBox="0 0 1080 1920"></svg>
+
+<div class="sc" id="s1">
+ <div class="h" style="top:130px"><span class="w" id="s1a">Câmera do</span><br><span class="w g" id="s1b" style="font-size:150px;letter-spacing:-6px">CELULAR</span><br><span class="w" id="s1c" style="font-size:84px">na call do PC?</span></div>
+ <div class="cap" id="s1d" style="top:1480px"><span class="w g">Agora dá!</span> 🎉</div>
+</div>
+<div class="sc" id="s2">
+ <div class="h sm"><span class="w" id="s2a">Entre numa call e</span><br><span class="w g" id="s2b">clique em Câmera</span></div>
+ <div class="num" id="s2n" style="left:60px;top:1500px">1</div>
+</div>
+<div class="sc" id="s3">
+ <div class="h sm"><span class="w" id="s3a">Escolha</span> <span class="w cy" id="s3b">Câmera do celular</span></div>
+ <div class="cap" id="s3c" style="top:1500px"><span class="w">Aparece um <span class="g">QR Code</span></span></div>
+ <div class="num" id="s3n" style="left:60px;top:1500px;display:none">2</div>
+</div>
+<div class="sc" id="s4">
+ <div class="h sm"><span class="w" id="s4a">Aponte, abra o link</span><br><span class="w g" id="s4b">e permita a câmera</span></div>
+ <div class="pill gr" id="s4p1" style="left:70px;top:1430px;font-size:42px">📷 Aponte o celular</div>
+ <div class="pill dk" id="s4p2" style="left:70px;top:1550px;font-size:42px">🔗 Abra o link</div>
+ <div class="pill dk" id="s4p3" style="left:70px;top:1670px;font-size:42px">✅ Permita a câmera</div>
+</div>
+<div class="sc" id="s5">
+ <div class="h"><span class="w" id="s5a">Pronto!</span><br><span class="w g" id="s5b" style="font-size:84px">vira a sua câmera</span></div>
+ <div class="pill gr" id="s5p" style="left:50%;top:1480px;transform:translateX(-50%);font-size:52px">📲 Sem instalar nada</div>
+</div>
+<div class="sc" id="s6">
+ <div class="h sm"><span class="w" id="s6a">Vire a câmera,</span><br><span class="w g" id="s6b">tela sempre acesa</span></div>
+ <div class="pill dk" id="s6p1" style="left:60px;top:1440px;font-size:42px">🔄 Frontal ou traseira</div>
+ <div class="pill dk" id="s6p2" style="left:60px;top:1555px;font-size:42px">💡 A tela não apaga</div>
+ <div class="pill dk" id="s6p3" style="left:60px;top:1670px;font-size:42px">🚪 Saiu da call? Desliga junto</div>
+</div>
+<div class="sc" id="s7">
+ <div class="h sm"><span class="w" id="s7a">E é</span> <span class="w g" id="s7b">seguro</span> 🔒</div>
+ <div class="card" id="s7t" style="left:60px;top:1340px;width:460px;height:210px;padding:26px 34px"><div style="font-weight:800;font-size:30px;opacity:.75">⏱️ O código vale</div><div id="s7tt" style="font-weight:900;font-size:90px;color:#ffd166">2:00</div></div>
+ <div class="card" id="s7u" style="left:560px;top:1340px;width:460px;height:210px;padding:26px 34px"><div style="font-weight:800;font-size:30px;opacity:.75">☝️ Uso</div><div style="font-weight:900;font-size:70px;color:#5dffb4">1 vez só</div></div>
+ <div class="pill gr" id="s7a2" style="left:60px;top:1590px;font-size:40px">👤 Só na mesma conta</div>
+ <div class="pill dk" id="s7d" style="left:60px;top:1700px;font-size:40px">➡️ Direto do celular pro PC</div>
+</div>
+<div class="sc" id="s8">
+ <div class="h" style="top:150px"><span class="w g" id="s8a">Já liberado</span><br><span class="w" id="s8b" style="font-size:96px">pra todo mundo!</span></div>
+ <div class="cap" id="s8c" style="top:1480px;font-size:78px"><span class="w">Chama a galera!</span></div>
+ <div class="pill gr" id="s8d" style="left:50%;top:1640px;transform:translateX(-50%);font-size:54px">🔗 Link na bio</div>
+ <div class="w" id="s8e" style="position:absolute;left:0;right:0;top:1790px;text-align:center;font-weight:800;font-size:46px;text-shadow:0 4px 16px #000">resenhabr.com.br</div>
+</div>
+
+<div id="tsh" style="position:absolute;z-index:29;width:300px;height:44px;border-radius:50%;background:radial-gradient(rgba(0,0,0,.55),transparent 70%)"></div><img id="tuc" src="assets/resenha-joinha.png">
+<div id="confs"></div><div id="flash"></div>
+</div>
+<script type="module">
+import * as THREE from './three.module.js';
+const $=id=>document.getElementById(id),css=(el,o)=>Object.assign((typeof el==='string'?$(el):el).style,o);
+const cl=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)),p=(t,t0,d)=>cl((t-t0)/d),eo=x=>1-Math.pow(1-x,3),eio=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2,back=x=>{const c=1.70158;return x<=0?0:1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2)},lerp=(a,b,k)=>a+(b-a)*k;
+const rnd=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)};
+const mk=(tag,cls,parent,html='')=>{const e=document.createElement(tag);if(cls)e.className=cls;e.innerHTML=html;parent.appendChild(e);return e};
+const ENV=await (await fetch('env.json')).json();const env=t=>ENV[Math.min(ENV.length-1,Math.max(0,Math.round(t*30)))]||0;
+let SC={s1:[0,5.2],s2:[5.2,10.4],s3:[10.4,16.4],s4:[16.4,23.2],s5:[23.2,30.0],s6:[30.0,38.4],s7:[38.4,47.2],s8:[47.2,53.0]};
+try{const j=await (await fetch('timeline.json')).json();SC={...SC,...j}}catch{}
+let HITS=[.1,1.2,2.4,3.6,5.4,7.5,11.2,12.6,17.2,19.3,22.0,23.4,24.8,30.6,32.6,35.0,39.0,42.4,48.0,49.6,50.8];
+try{HITS=(await (await fetch('hits.json')).json())}catch{}
+const CUTS=Object.values(SC).map(x=>x[0]).slice(1);const DUR=SC.s8[1];window.DURATION=DUR;window.TL=SC;window.CUTS=CUTS;window.POPS=HITS;
+const word=(id,t,t0,d=.3)=>{const k=p(t,t0,d);css(id,{opacity:eo(k),transform:`translateY(${(1-back(k))*80}px) scale(${.85+.15*back(k)}) rotate(${(1-k)*-6}deg)`,filter:`blur(${(1-k)*10}px)`})};
+const slam=(id,t,t0,base='',d=.28)=>{const k=p(t,t0,d);css(id,{opacity:cl(k*4),transform:`${base} scale(${k<1?2.4-1.4*eo(k):1}) rotate(${(1-eo(k))*-10}deg)`})};
+const rise=(id,t,t0,d=.4,base='')=>{const k=eo(p(t,t0,d));css(id,{opacity:k,transform:`${base} translateY(${(1-k)*140}px) scale(${.9+.1*k})`})};
+const pop=(id,t,t0,d=.38,base='')=>{const k=p(t,t0,d);css(id,{opacity:cl(k*3),transform:`${base} scale(${back(k)})`})};
+// ---------- imagens ----------
+const load=src=>new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=src});
+const IM={};for(const n of ['1-call-antes','2-escolha','3-qrcode','5-call-com-celular','6-henrique-ve','4-celular'])IM[n]=await load(`assets/${n}.jpg`);
+// ---------- estúdio 3D ----------
+const R=new THREE.WebGLRenderer({canvas:$('gl'),antialias:true,preserveDrawingBuffer:true});R.setSize(1080,1920,false);R.setPixelRatio(1);R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.25;
+const S=new THREE.Scene();const bgc=document.createElement('canvas');bgc.width=8;bgc.height=256;{const g=bgc.getContext('2d');const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,'#16124a');gr.addColorStop(.5,'#0b0d1c');gr.addColorStop(1,'#071a16');g.fillStyle=gr;g.fillRect(0,0,8,256)}
+S.background=new THREE.CanvasTexture(bgc);S.fog=new THREE.Fog(0x080a14,12,30);
+const cam=new THREE.PerspectiveCamera(32,1080/1920,.1,80);
+const std=(c,r=.7,m=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});const glow=c=>new THREE.MeshBasicMaterial({color:c});
+S.add(new THREE.AmbientLight(0x8a96d8,1.2));const key=new THREE.DirectionalLight(0xffffff,2.2);key.position.set(3,6,8);S.add(key);
+const rimG=new THREE.PointLight(0x3ddc97,60,14);rimG.position.set(-4,2,-2);S.add(rimG);const rimV=new THREE.PointLight(0x7c3aed,70,16);rimV.position.set(4,3,-3);S.add(rimV);
+// chão com grade e brilho
+const grid=document.createElement('canvas');grid.width=512;grid.height=512;{const g=grid.getContext('2d');g.fillStyle='#070914';g.fillRect(0,0,512,512);g.strokeStyle='rgba(61,220,151,.55)';g.lineWidth=2;for(let i=0;i<=8;i++){g.beginPath();g.moveTo(i*64,0);g.lineTo(i*64,512);g.stroke();g.beginPath();g.moveTo(0,i*64);g.lineTo(512,i*64);g.stroke()}}
+const gt=new THREE.CanvasTexture(grid);gt.wrapS=gt.wrapT=THREE.RepeatWrapping;gt.repeat.set(5,5);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(30,30),new THREE.MeshStandardMaterial({map:gt,roughness:.35,metalness:.6,emissive:0x0a3a2a,emissiveMap:gt,emissiveIntensity:.5}));floor.rotation.x=-Math.PI/2;floor.position.y=-.05;S.add(floor);
+// anéis de luz no chão
+const rings=[1.6,2.4,3.2].map((r,i)=>{const m=new THREE.Mesh(new THREE.RingGeometry(r,r+.04,64),new THREE.MeshBasicMaterial({color:0x3ddc97,transparent:true,opacity:.5-i*.12,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(0,.01,.2);S.add(m);return m});
+function rrect(w,h,r){const s=new THREE.Shape();s.moveTo(-w/2+r,-h/2);s.lineTo(w/2-r,-h/2);s.quadraticCurveTo(w/2,-h/2,w/2,-h/2+r);s.lineTo(w/2,h/2-r);s.quadraticCurveTo(w/2,h/2,w/2-r,h/2);s.lineTo(-w/2+r,h/2);s.quadraticCurveTo(-w/2,h/2,-w/2,h/2-r);s.lineTo(-w/2,-h/2+r);s.quadraticCurveTo(-w/2,-h/2,-w/2+r,-h/2);return s}
+const ext=(sh,d,b)=>new THREE.ExtrudeGeometry(sh,{depth:d,bevelEnabled:true,bevelSize:b,bevelThickness:b,bevelSegments:6,curveSegments:16});
+// monitor
+const mon=new THREE.Group();S.add(mon);
+const mb=new THREE.Mesh(ext(rrect(3.5,2.2,.12),.1,.04),new THREE.MeshPhysicalMaterial({color:0x10131a,metalness:.7,roughness:.25,clearcoat:1}));mb.geometry.center();mon.add(mb);
+const sc=document.createElement('canvas');sc.width=1600;sc.height=1000;const sg=sc.getContext('2d');const stx=new THREE.CanvasTexture(sc);stx.colorSpace=THREE.SRGBColorSpace;
+const msc=new THREE.Mesh(new THREE.PlaneGeometry(3.3,2.0625),new THREE.MeshBasicMaterial({map:stx,toneMapped:false}));msc.position.z=.1;mon.add(msc);
+const neck=new THREE.Mesh(new THREE.BoxGeometry(.2,.9,.1),std(0x1a1d26,.4,.8));neck.position.set(0,-1.5,-.08);mon.add(neck);const base=new THREE.Mesh(new THREE.CylinderGeometry(.8,.9,.07,40),std(0x1a1d26,.4,.8));base.position.set(0,-1.95,.05);mon.add(base);
+mon.position.set(-.9,2.2,0);
+// celular
+const ph=new THREE.Group();S.add(ph);
+const pb=new THREE.Mesh(ext(rrect(1.0,2.05,.16),.08,.035),new THREE.MeshPhysicalMaterial({color:0x14171f,metalness:.8,roughness:.2,clearcoat:1}));pb.geometry.center();ph.add(pb);
+const pc=document.createElement('canvas');pc.width=540;pc.height=1098;const pg=pc.getContext('2d');const ptx=new THREE.CanvasTexture(pc);ptx.colorSpace=THREE.SRGBColorSpace;
+const psc=new THREE.Mesh(new THREE.PlaneGeometry(.92,1.87),new THREE.MeshBasicMaterial({map:ptx,toneMapped:false}));psc.position.z=.085;ph.add(psc);
+const lens=new THREE.Mesh(new THREE.CircleGeometry(.04,20),glow(0x000000));lens.position.set(0,.88,.087);ph.add(lens);
+const phg=new THREE.Mesh(new THREE.PlaneGeometry(1.5,2.6),new THREE.MeshBasicMaterial({color:0x3ddc97,transparent:true,opacity:0}));phg.position.z=-.1;ph.add(phg);
+// feixe do QR Code (do monitor ao celular) e do vídeo (do celular ao monitor)
+const dots=[];for(let i=0;i<46;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.09,.09,.09),glow(i%2?0xffffff:0x3ddc97));S.add(m);dots.push(m)}
+const dust=[];for(let i=0;i<90;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.014+rnd(i)*.02,6,6),glow([0x3ddc97,0x9ffcff,0xb388ff][i%3]));m.userData={x:(rnd(i+1)-.5)*14,y:rnd(i+2)*8,z:-4+rnd(i+3)*8,s:.1+rnd(i+4)*.3};S.add(m);dust.push(m)}
+// lock 3D
+const lockG=new THREE.Group();S.add(lockG);const lb=new THREE.Mesh(new THREE.BoxGeometry(.8,.6,.3),std(0x3ddc97,.3,.4));lockG.add(lb);const sh=new THREE.Mesh(new THREE.TorusGeometry(.26,.07,10,24,Math.PI),std(0xc9d1e0,.3,.8));sh.position.y=.3;lockG.add(sh);const kh=new THREE.Mesh(new THREE.CircleGeometry(.07,16),glow(0x06281a));kh.position.set(0,0,.16);lockG.add(kh);lockG.visible=false;
+// ---------- tela do monitor / celular ----------
+function drawMon(t){let a='1-call-antes',b=null,k=0;
+ const sw=[[0,'1-call-antes'],[SC.s2[0]+1.2,'2-escolha'],[SC.s3[0]+.8,'3-qrcode'],[SC.s5[0]+.3,'5-call-com-celular'],[SC.s8[0],'6-henrique-ve']];
+ for(let i=0;i<sw.length;i++)if(t>=sw[i][0]){a=sw[i][1];if(i>0){b=sw[i-1][1];k=p(t,sw[i][0],.3)}}
+ sg.fillStyle='#0b0d12';sg.fillRect(0,0,1600,1000);const zoom=1.0+((t*.01)%.05);
+ const dr=(n,al)=>{sg.globalAlpha=al;const w=1600*zoom,h=1000*zoom;sg.drawImage(IM[n],(1600-w)/2,(1000-h)/2,w,h)};
+ if(b&&k<1)dr(b,1);dr(a,b?k:1);sg.globalAlpha=1;
+ // realce do botão Câmera (1º passo) e da opção "Câmera do celular"
+ if(t>=SC.s2[0]&&t<SC.s2[0]+1.4){const pul=.5+.5*Math.sin(t*14);sg.strokeStyle=`rgba(93,255,180,${.6+.4*pul})`;sg.lineWidth=10;sg.strokeRect(1020,925-60,120,40)}
+ if(t>=SC.s3[0]+.2&&t<SC.s3[0]+2.5){const pul=.5+.5*Math.sin(t*12);sg.strokeStyle=`rgba(93,255,180,${.6+.4*pul})`;sg.lineWidth=10;sg.strokeRect(590,540,420,115)}
+ for(const [s] of sw){const d=t-s;if(d>=0&&d<.25){sg.fillStyle=`rgba(255,255,255,${(1-d/.25)*.55})`;sg.fillRect(0,0,1600,1000)}}
+ stx.needsUpdate=true}
+function drawPh(t){const on=t>=SC.s4[0]+3.2;pg.fillStyle='#0b0d12';pg.fillRect(0,0,540,1098);
+ if(on){pg.drawImage(IM['4-celular'],0,0,540,1098)}else{pg.fillStyle='#12151b';pg.fillRect(0,0,540,1098);pg.fillStyle='#3ddc97';pg.font='bold 64px sans-serif';pg.textAlign='center';pg.fillText('Resenha',270,520);pg.font='40px sans-serif';pg.fillStyle='rgba(255,255,255,.6)';pg.fillText(t>=SC.s4[0]+1.4?'Permita a câmera…':'mesma conta',270,590)}
+ if(t>=SC.s4[0]&&t<SC.s4[0]+3.2){const y=(t-SC.s4[0])*1.7%1*1098;pg.fillStyle='rgba(93,255,180,.85)';pg.fillRect(0,y,540,10)}
+ ptx.needsUpdate=true}
+// ---------- câmera ----------
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+const P=()=>[
+ [SC.s1[0],SC.s1[1],V(.4,2.0,15),V(-3.2,2.5,11.5),V(.2,1.5,0),V(.2,1.6,.2)],
+ [SC.s2[0],SC.s2[1],V(-3.6,2.5,8),V(-.2,2.2,5.4),V(-.6,2.1,0),V(-.9,2.15,0)],
+ [SC.s3[0],SC.s3[1],V(-.2,2.2,5.4),V(.9,2.3,7.2),V(-.9,2.15,0),V(.2,1.9,.3)],
+ [SC.s4[0],SC.s4[1],V(1.2,1.5,6.8),V(2.6,1.35,3.9),V(.8,1.3,.6),V(2.2,1.25,.8)],
+ [SC.s5[0],SC.s5[1],V(2.8,1.8,5.2),V(-.4,2.1,10.0),V(2.2,1.3,.8),V(.2,1.7,.3)],
+ [SC.s6[0],SC.s6[1],V(-3,1.6,5.6),V(2.2,1.5,4.4),V(.5,1.4,.6),V(2.2,1.35,.8)],
+ [SC.s7[0],SC.s7[1],V(1.4,2.6,8.6),V(-1.6,1.9,8.0),V(.8,1.6,.5),V(.5,1.6,.5)],
+ [SC.s8[0],SC.s8[1],V(-1.2,1.8,6.2),V(.4,2.4,14),V(.3,1.6,.4),V(.3,1.6,.3)]];
+function shot(t){for(const [a,b,p0,p1,l0,l1] of P())if(t>=a&&t<b+1e-6){const k=eio(p(t,a,b-a));return{pos:p0.clone().lerp(p1,k),look:l0.clone().lerp(l1,k)}}return{pos:V(.4,2.4,14),look:V(.3,1.6,.3)}}
+const confs=[];for(let i=0;i<70;i++){const c=mk('div','conf',$('confs'));c.style.background=['#3ddc97','#7df9ff','#b388ff','#ffd43b','#ff6b9a'][i%5];confs.push({el:c,a:-Math.PI/2+(rnd(i)-.5)*2.6,v:1100+rnd(i+9)*1100,r:rnd(i+3)*720})}
+const SP=[];for(let i=0;i<26;i++){const l=document.createElementNS('http://www.w3.org/2000/svg','line');const a=rnd(i)*Math.PI*2;l.setAttribute('x1',540+Math.cos(a)*300);l.setAttribute('y1',900+Math.sin(a)*300);l.setAttribute('x2',540+Math.cos(a)*1400);l.setAttribute('y2',900+Math.sin(a)*1400);l.setAttribute('stroke','rgba(255,255,255,.55)');l.setAttribute('stroke-width',4+rnd(i+2)*8);$('speed').appendChild(l)}
+const TUC=[[0,'joinha',540,1790,540],[SC.s2[0],'oculos',900,1915,240],[SC.s3[0],'curioso',900,1915,240],[SC.s4[0],'fone',930,1915,220],[SC.s5[0],'joinha',540,1915,230],[SC.s6[0],'oculos',930,1915,220],[SC.s7[0],'curioso',930,1915,220],[SC.s8[0],'bandeira',540,1330,430]];
+let lastPose='';
+window.seek=t=>{
+ const s=shot(t);cam.position.copy(s.pos);cam.position.x+=Math.sin(t*1.5)*.03;cam.position.y+=Math.cos(t*1.2)*.02;cam.lookAt(s.look);
+ // objetos: flutuam, giram, trocam de lugar a cada cena
+ const intro=eo(p(t,0,1.2));mon.position.set(-.9,2.2+Math.sin(t*1.2)*.05+(1-intro)*3,0);mon.rotation.y=.28+Math.sin(t*.5)*.06+(1-intro)*1.2;
+ const flip=t>=SC.s6[0]+1&&t<SC.s6[0]+2.6?eio(p(t,SC.s6[0]+1,1.6))*Math.PI*2:0;
+ const phIn=eo(p(t,.3,1.2));ph.position.set(2.2,1.3+Math.sin(t*1.5+1)*.06+(1-phIn)*3,.8);ph.rotation.y=-.45+Math.sin(t*.6)*.08+flip+(1-phIn)*-1.4;ph.rotation.z=Math.sin(t*.9)*.03;
+ const live=t>=SC.s5[0]-.2&&t<SC.s7[0]+3;phg.material.opacity=live?.18+.1*Math.sin(t*5):0;
+ rings.forEach((r,i)=>{r.scale.setScalar(1+Math.sin(t*1.5+i)*.04);r.material.opacity=(.5-i*.12)*(.6+.4*Math.sin(t*2+i))});
+ // feixes
+ const mp=V(-.9+.5,2.2,.4),pp=V(2.2,1.4,.9);
+ dots.forEach((m,i)=>{let vis=false,k=0,from=mp,to=pp;
+  const q=t>=SC.s3[0]+1.2&&t<SC.s4[0]+1.6;const v=t>=SC.s5[0]&&t<SC.s7[0]+4;
+  if(q){k=((t-SC.s3[0])*.7+i/dots.length)%1;vis=true;from=mp;to=pp;m.material.color.set(i%2?0xffffff:0x111111)}
+  else if(v){k=((t-SC.s5[0])*.9+i/dots.length)%1;vis=true;from=pp;to=mp;m.material.color.set(i%3?0x3ddc97:0x9ffcff)}
+  m.visible=vis;if(vis){const pt=from.clone().lerp(to,k);pt.y+=Math.sin(k*Math.PI)*1.0;m.position.copy(pt);m.rotation.set(k*9,k*7,0);m.scale.setScalar(Math.sin(k*Math.PI)*1.2+.1)}});
+ dust.forEach((m,i)=>m.position.set(m.userData.x+Math.sin(t*m.userData.s+i)*.4,(m.userData.y+t*m.userData.s)%8-.3,m.userData.z));
+ rimG.intensity=60+Math.sin(t*3)*10;rimV.color.setHSL((.72+Math.sin(t*.3)*.06),.8,.5);
+ // cadeado 3D na cena de segurança
+ const ls=t>=SC.s7[0]&&t<SC.s8[0];lockG.visible=ls;if(ls){const k=back(p(t,SC.s7[0]+.2,.6));lockG.position.set(.2+Math.sin(t*1.5)*.15,3.9,1.4);lockG.scale.setScalar(.9*k+.001);lockG.rotation.y=t*1.4}
+ drawMon(t);drawPh(t);R.render(S,cam);
+ // ---- impactos ----
+ let sx=0,sy=0,pz=0;for(const h of HITS){const d=t-h;if(d>=0&&d<.5){const e=Math.exp(-d*9);sx+=Math.sin(d*70)*16*e;sy+=Math.cos(d*63)*12*e;pz+=.04*Math.exp(-d*12)}}
+ css('stage',{transform:`translate(${sx}px,${sy}px) scale(${1+pz})`});
+ let fl=0;for(const c of CUTS){const d=t-c;if(d>=0&&d<.35)fl=Math.max(fl,(1-d/.35)*.7)}if(t<.12)fl=Math.max(fl,1-t/.12);css('flash',{opacity:fl});
+ const fast=(t<.6?1-t/.6:0)+CUTS.reduce((m,c)=>Math.max(m,Math.max(0,.5-Math.abs(t-c-.1)*2.5)),0);css('speed',{opacity:cl(fast)*.8});css('gl',{filter:fast>.25?`blur(${fast*5}px)`:'none'});
+ css('dim',{background:`linear-gradient(180deg,rgba(7,8,11,.45) 0%,rgba(7,8,11,0) 20%,rgba(7,8,11,0) 55%,rgba(7,8,11,.7) 80%,rgba(7,8,11,.85) 100%)`});
+ // ---- cenas ----
+ for(const [id,[a,b]] of Object.entries(SC)){const on=t>=a-.01&&t<b+.25,k=eo(p(t,a,.22)),ko=eio(p(t,b-.05,.25));css(id,{display:on?'block':'none',opacity:k*(1-ko),transform:`scale(${1.06-.06*k+ko*.08})`})}
+ const A=(id,o=0)=>SC[id][0]+o;
+ word('s1a',t,.2);slam('s1b',t,.7);word('s1c',t,1.8);slam('s1d',t,3.4);
+ word('s2a',t,A('s2',.1));word('s2b',t,A('s2',.5));slam('s2n',t,A('s2',.3),'');
+ word('s3a',t,A('s3',.1));word('s3b',t,A('s3',.5));word('s3c',t,A('s3',2.6));
+ word('s4a',t,A('s4',.1));word('s4b',t,A('s4',.55));pop('s4p1',t,A('s4',1.0));pop('s4p2',t,A('s4',2.2));pop('s4p3',t,A('s4',3.6));
+ word('s5a',t,A('s5',.1));word('s5b',t,A('s5',.6));pop('s5p',t,A('s5',2.4),.4,'translateX(-50%)');
+ word('s6a',t,A('s6',.1));word('s6b',t,A('s6',.6));pop('s6p1',t,A('s6',1.8));pop('s6p2',t,A('s6',3.4));pop('s6p3',t,A('s6',5.0));
+ word('s7a',t,A('s7',.1));word('s7b',t,A('s7',.5));rise('s7t',t,A('s7',1.4));rise('s7u',t,A('s7',2.4));pop('s7a2',t,A('s7',3.4));pop('s7d',t,A('s7',5.4));
+ const left=Math.max(0,120-(t-A('s7',1.4))*12);$('s7tt').textContent=`${Math.floor(left/60)}:${String(Math.floor(left%60)).padStart(2,'0')}`;
+ word('s8a',t,A('s8',.1));word('s8b',t,A('s8',.5));word('s8c',t,A('s8',2.4));pop('s8d',t,A('s8',3.3),.4,'translateX(-50%)');css('s8d',{boxShadow:`0 0 ${50+40*Math.sin(t*8)}px rgba(61,220,151,.6)`});word('s8e',t,A('s8',4.0));
+ confs.forEach(c=>{const d=t-A('s8',2.4);if(d<0||d>2.6)return css(c.el,{opacity:0});css(c.el,{opacity:cl(1.6-d*.7),left:`${540+Math.cos(c.a)*c.v*d}px`,top:`${1000+Math.sin(c.a)*c.v*d+1600*d*d}px`,transform:`rotate(${c.r+d*700}deg)`})});
+ // ---- tucano ----
+ let cur=TUC[0];for(const x of TUC)if(t>=x[0])cur=x;const [t0,pose,x,y,w]=cur;const im=$('tuc');if(pose!==lastPose){im.src=`assets/resenha-${pose}.png`;lastPose=pose}
+ const swap=p(t,t0,.35),e=env(t),hop=Math.max(0,...HITS.map(h=>{const d=t-h;return d>=0&&d<.35?Math.sin(d/.35*Math.PI)*40:0}));
+ css(im,{left:`${x-w/2}px`,top:`${y-w}px`,width:`${w}px`,transform:`translateY(${-hop-e*18}px) rotate(${Math.sin(t*2.4)*4+e*4}deg) scale(${(.6+.4*back(swap))*(1-e*.04)},${(.6+.4*back(swap))*(1+e*.07)})`,opacity:cl(swap*4)});
+ css('tsh',{left:`${x-150}px`,top:`${y-20}px`,transform:`scale(${1-hop/120})`});
+};
+window.ready=true;
+</script></body></html>

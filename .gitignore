@@ -6,3 +6,4 @@ data/
 .DS_Store
 e2e/screenshots/
 promo/out/
+promo/qrcam/assets/*.y4m
