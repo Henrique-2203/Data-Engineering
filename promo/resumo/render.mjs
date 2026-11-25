@@ -56,12 +56,20 @@ const run = (args) => { const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error
 const inputs = [], parts = []; let n = 0;
 const add = (file, chain, pre = []) => { inputs.push(...pre, '-i', file); parts.push(`[${n}:a]${chain}[a${n}]`); n++; };
 const narr = arg('--narr');
-if (narr) add(path.resolve(narr), 'volume=1.0');
+const music = arg('--music');
 const hasNarr = !!narr;
-add(find(/Launch_Mode/), `atrim=0:${DUR},asetpts=PTS-STARTPTS,volume=${hasNarr ? 0.14 : 0.35},afade=t=out:st=${DUR - 2}:d=2`, ['-stream_loop', '5']);
+if (narr && music) {
+  // a música abaixa sozinha quando a voz fala (sidechain) e volta nas pausas
+  inputs.push('-i', path.resolve(narr), '-i', path.resolve(music));
+  parts.push(`[${n}:a]asplit=2[nv][nk]`, `[${n + 1}:a]atrim=0:${DUR},asetpts=PTS-STARTPTS,volume=0.55,afade=t=out:st=${DUR - 2}:d=2[mu]`, `[mu][nk]sidechaincompress=threshold=0.02:ratio=6:attack=15:release=350:makeup=1[duck]`, `[nv]volume=1.0[a${n}]`, `[duck]anull[a${n + 1}]`);
+  n += 2;
+} else {
+  if (narr) add(path.resolve(narr), 'volume=1.0');
+  add(find(/Launch_Mode/), `atrim=0:${DUR},asetpts=PTS-STARTPTS,volume=${hasNarr ? 0.14 : 0.35},afade=t=out:st=${DUR - 2}:d=2`, ['-stream_loop', '5']);
+}
 const W = [1, 2, 3, 4].map((i) => find(new RegExp(`whoosh_transiti_${i}-`)));
 ['c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9'].forEach((id, i) => add(W[i % 4], `volume=0.4,adelay=${Math.round((TLs[id][0] - 0.1) * 1000)}:all=1`));
-const mixed = `${parts.join(';')};${parts.map((_, k) => `[a${k}]`).join('')}amix=inputs=${parts.length}:normalize=0,apad,atrim=0:${DUR}`;
+const mixed = `${parts.join(';')};${Array.from({ length: n }, (_, k) => `[a${k}]`).join('')}amix=inputs=${n}:normalize=0,apad,atrim=0:${DUR}`;
 const raw = path.join(OUT, 'audio-raw.wav');
 run([...inputs, '-filter_complex', `${mixed}[out]`, '-map', '[out]', '-ar', '48000', '-c:a', 'pcm_f32le', raw]);
 const m = spawnSync('ffmpeg', ['-hide_banner', '-i', raw, '-af', 'loudnorm=I=-14:TP=-1.5:LRA=20:print_format=json', '-f', 'null', '-'], { encoding: 'utf8' }).stderr;
