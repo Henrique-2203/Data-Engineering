@@ -177,7 +177,7 @@ CREATE TABLE perfis_jogador (
   bio                 VARCHAR(300),
   estilo              VARCHAR(20)  CHECK (estilo IN ('Competitivo','Cooperativo','Relaxante','Aventura')),
   nivel               VARCHAR(60),
-  horario_disponivel  VARCHAR(20)  CHECK (horario_disponivel IN ('Madrugadas','Manhas','Tardes','Noites','Fins de semana')),
+  horario_disponivel  VARCHAR(20)  CHECK (horario_disponivel IN ('Madrugadas','Manhãs','Tardes','Noites','Fins de semana')),
   cor_avatar          CHAR(7)      NOT NULL DEFAULT '#2330E6' CHECK (cor_avatar ~ '^#[0-9A-Fa-f]{6}$'),
   ultimo_acesso       TIMESTAMPTZ
 );

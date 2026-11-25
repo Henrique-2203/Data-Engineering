@@ -4,11 +4,11 @@ SET search_path = playlink, public;
 INSERT INTO paises (nome_pais, codigo_iso) VALUES
   ('Brasil','BR'),('Portugal','PT'),('Estados Unidos','US'),('Argentina','AR'),('Espanha','ES');
 INSERT INTO idiomas (nome_idioma, codigo_iso) VALUES
-  ('Portugues','pt'),('Ingles','en'),('Espanhol','es');
+  ('Português','pt'),('Inglês','en'),('Espanhol','es');
 INSERT INTO categorias (nome_categoria, descricao) VALUES
-  ('FPS','Tiro em primeira pessoa'),('Sandbox','Construcao e liberdade total'),('Esporte','Futebol e outros esportes'),
-  ('Acao','Acao e aventura'),('Co-op','Feito para jogar em equipe'),('RPG','Interpretacao de personagens'),
-  ('Casual','Jogos leves e relaxantes'),('Mundo aberto','Grandes mapas para explorar'),('Battle Royale','Ultimo jogador vivo vence');
+  ('FPS','Tiro em primeira pessoa'),('Sandbox','Construção e liberdade total'),('Esporte','Futebol e outros esportes'),
+  ('Ação','Ação e aventura'),('Co-op','Feito para jogar em equipe'),('RPG','Interpretação de personagens'),
+  ('Casual','Jogos leves e relaxantes'),('Mundo aberto','Grandes mapas para explorar'),('Battle Royale','Último jogador vivo vence');
 
 INSERT INTO jogos (titulo, genero, plataforma, categoria_id, imagem_capa)
 SELECT v.titulo, v.genero, v.plataforma, c.categoria_id, v.capa
@@ -17,21 +17,21 @@ FROM (VALUES
  ('Counter-Strike 2','FPS competitivo','PC','FPS','https://cdn.cloudflare.steamstatic.com/steam/apps/730/library_hero.jpg'),
  ('Minecraft','Aventura e sandbox','PC / Console / Celular','Sandbox','https://img.youtube.com/vi/qNMfF9TYETM/maxresdefault.jpg'),
  ('EA SPORTS FC','Esporte','PC / Console','Esporte','https://cdn.cloudflare.steamstatic.com/steam/apps/2669320/library_hero.jpg'),
- ('Monster Hunter Wilds','Acao e aventura','PC / Console','Acao','https://cdn.cloudflare.steamstatic.com/steam/apps/2246340/library_hero.jpg'),
+ ('Monster Hunter Wilds','Ação e aventura','PC / Console','Ação','https://cdn.cloudflare.steamstatic.com/steam/apps/2246340/library_hero.jpg'),
  ('Helldivers 2','Cooperativo','PC / Console','Co-op','https://cdn.cloudflare.steamstatic.com/steam/apps/553850/library_hero.jpg'),
- ('GTA VI','Acao e mundo aberto','Console','Mundo aberto','https://img.youtube.com/vi/VQRLujxTm3c/maxresdefault.jpg'),
- ('Elden Ring','RPG de acao','PC / Console','RPG','https://cdn.cloudflare.steamstatic.com/steam/apps/1245620/library_hero.jpg'),
+ ('GTA VI','Ação e mundo aberto','Console','Mundo aberto','https://img.youtube.com/vi/VQRLujxTm3c/maxresdefault.jpg'),
+ ('Elden Ring','RPG de ação','PC / Console','RPG','https://cdn.cloudflare.steamstatic.com/steam/apps/1245620/library_hero.jpg'),
  ('Cyberpunk 2077','RPG - Mundo aberto','PC / Console','RPG','https://cdn.cloudflare.steamstatic.com/steam/apps/1091500/library_hero.jpg'),
- ('Red Dead Redemption 2','Acao - Mundo aberto','PC / Console','Mundo aberto','https://cdn.cloudflare.steamstatic.com/steam/apps/1174180/library_hero.jpg'),
+ ('Red Dead Redemption 2','Ação - Mundo aberto','PC / Console','Mundo aberto','https://cdn.cloudflare.steamstatic.com/steam/apps/1174180/library_hero.jpg'),
  ('Apex Legends','Battle royale - FPS','PC / Console','Battle Royale','https://cdn.cloudflare.steamstatic.com/steam/apps/1172470/library_hero.jpg'),
  ('PUBG: Battlegrounds','Battle royale','PC / Console','Battle Royale','https://cdn.cloudflare.steamstatic.com/steam/apps/578080/library_hero.jpg'),
  ('The Witcher 3: Wild Hunt','RPG - Fantasia','PC / Console','RPG','https://cdn.cloudflare.steamstatic.com/steam/apps/292030/library_hero.jpg'),
  ('Terraria','Aventura - Sandbox','PC / Console / Celular','Sandbox','https://cdn.cloudflare.steamstatic.com/steam/apps/105600/library_hero.jpg'),
- ('Stardew Valley','Fazenda - Simulacao','PC / Console / Celular','Casual','https://cdn.cloudflare.steamstatic.com/steam/apps/413150/library_hero.jpg'),
+ ('Stardew Valley','Fazenda - Simulação','PC / Console / Celular','Casual','https://cdn.cloudflare.steamstatic.com/steam/apps/413150/library_hero.jpg'),
  ('Baldur''s Gate 3','RPG - Coop','PC / Console','RPG','https://cdn.cloudflare.steamstatic.com/steam/apps/1086940/library_hero.jpg'),
  ('Destiny 2','FPS - MMO','PC / Console','Co-op','https://cdn.cloudflare.steamstatic.com/steam/apps/1085660/library_hero.jpg'),
- ('Palworld','Sobrevivencia - Coop','PC / Console','Co-op','https://cdn.cloudflare.steamstatic.com/steam/apps/1623730/library_hero.jpg'),
- ('God of War','Acao - Aventura','PC / Console','Acao','https://cdn.cloudflare.steamstatic.com/steam/apps/1593500/library_hero.jpg')
+ ('Palworld','Sobrevivência - Coop','PC / Console','Co-op','https://cdn.cloudflare.steamstatic.com/steam/apps/1623730/library_hero.jpg'),
+ ('God of War','Ação - Aventura','PC / Console','Ação','https://cdn.cloudflare.steamstatic.com/steam/apps/1593500/library_hero.jpg')
 ) AS v(titulo, genero, plataforma, cat, capa)
 JOIN categorias c ON c.nome_categoria = v.cat;
 
@@ -50,13 +50,13 @@ INSERT INTO perfis_jogador (usuario_id, bio, estilo, nivel, horario_disponivel, 
 SELECT u.usuario_id, v.bio, v.estilo, v.nivel, v.horario, v.cor, CASE WHEN v.online THEN now() END
 FROM (VALUES
  ('toniz2','Controlador main. Procuro duo para ranked sem tilt.','Competitivo','Imortal 1','Noites','#2330E6',true),
- ('Luna.exe','Servidores tranquilos e construcoes enormes.','Relaxante','Construtora veterana','Tardes','#0C8F6A',true),
- ('kaiju_rj','Lider de esquadrao. Comunicacao antes de qualquer estrategia.','Cooperativo','Nivel 82','Fins de semana','#C21E5B',false),
- ('Mirela','Fazenda de dia, campanha de RPG a noite.','Relaxante','Campanha 2','Noites','#7A2FD0',true),
- ('drako','Invoco para chefes dificeis e cobro o mesmo de volta.','Aventura','Nivel 150','Madrugadas','#C24A0A',false),
+ ('Luna.exe','Servidores tranquilos e construções enormes.','Relaxante','Construtora veterana','Tardes','#0C8F6A',true),
+ ('kaiju_rj','Líder de esquadrão. Comunicação antes de qualquer estratégia.','Cooperativo','Nível 82','Fins de semana','#C21E5B',false),
+ ('Mirela','Fazenda de dia, campanha de RPG à noite.','Relaxante','Campanha 2','Noites','#7A2FD0',true),
+ ('drako','Invoco para chefes difíceis e cobro o mesmo de volta.','Aventura','Nível 150','Madrugadas','#C24A0A',false),
  ('Pixel.Sam','Montando um clube para amistosos e uma dupla para Apex.','Competitivo','Diamante','Tardes','#1B6FD6',true),
  ('vitorbr','IGL de squad. Procuro duas pessoas que aceitem call.','Competitivo','Mestre','Noites','#B3261E',false),
- ('nina_plays','Construo base, capturo Pals e divido recursos.','Cooperativo','Base nivel 40','Fins de semana','#D6286F',true)
+ ('nina_plays','Construo base, capturo Pals e divido recursos.','Cooperativo','Base nível 40','Fins de semana','#D6286F',true)
 ) AS v(nome, bio, estilo, nivel, horario, cor, online)
 JOIN usuarios u ON u.nome_usuario = v.nome;
 
@@ -73,10 +73,10 @@ INSERT INTO grupos (lider_id, jogo_id, titulo, descricao, max_membros, idioma_id
 SELECT u.usuario_id, j.jogo_id, v.titulo, v.descricao, v.maximo, i.idioma_id
 FROM (VALUES
  ('toniz2','Valorant','Squad da madrugada','Procurando duo e gente para fechar time.',5,'pt'),
- ('Luna.exe','Minecraft','Exploradores','Construcao, sobrevivencia e boas ideias.',6,'pt'),
- ('toniz2','Counter-Strike 2','Ranked sem tilt','Jogue serio, mantenha o respeito.',5,'pt'),
+ ('Luna.exe','Minecraft','Exploradores','Construção, sobrevivência e boas ideias.',6,'pt'),
+ ('toniz2','Counter-Strike 2','Ranked sem tilt','Jogue sério, mantenha o respeito.',5,'pt'),
  ('vitorbr','Apex Legends','Trio de elite','Procuro dois jogadores com call.',3,'pt'),
- ('nina_plays','Palworld','Base cooperativa','Construcao de base e captura em grupo.',4,'es')
+ ('nina_plays','Palworld','Base cooperativa','Construção de base e captura em grupo.',4,'es')
 ) AS v(lider, jogo, titulo, descricao, maximo, idioma)
 JOIN usuarios u ON u.nome_usuario = v.lider JOIN jogos j ON j.titulo = v.jogo JOIN idiomas i ON i.codigo_iso = v.idioma;
 
@@ -90,10 +90,10 @@ SELECT g.grupo_id, u.usuario_id FROM (VALUES
 
 INSERT INTO avaliacoes (avaliador_id, avaliado_id, grupo_id, nota, comentario)
 SELECT a.usuario_id, b.usuario_id, g.grupo_id, v.nota, v.comentario FROM (VALUES
- ('vitorbr','toniz2','Squad da madrugada',5,'Otima comunicacao e zero tilt.'),
- ('Pixel.Sam','toniz2','Squad da madrugada',4,'Bom lider, partidas organizadas.'),
+ ('vitorbr','toniz2','Squad da madrugada',5,'Ótima comunicação e zero tilt.'),
+ ('Pixel.Sam','toniz2','Squad da madrugada',4,'Bom líder, partidas organizadas.'),
  ('toniz2','vitorbr','Squad da madrugada',5,'Jogador muito consistente.'),
- ('nina_plays','Luna.exe','Exploradores',5,'Construcoes incriveis!'),
+ ('nina_plays','Luna.exe','Exploradores',5,'Construções incríveis!'),
  ('Mirela','Luna.exe','Exploradores',4,'Ajudou muito com redstone.'),
  ('Pixel.Sam','vitorbr','Trio de elite',3,'Bom, mas atrasou um pouco.')
 ) AS v(avaliador, avaliado, grupo, nota, comentario)
@@ -114,14 +114,14 @@ SELECT a.usuario_id, b.usuario_id, v.texto, now() - v.atras * interval '1 minute
 
 INSERT INTO topicos_forum (jogo_id, autor_id, titulo, corpo)
 SELECT j.jogo_id, u.usuario_id, v.titulo, v.corpo FROM (VALUES
- ('Valorant','toniz2','Dicas para iniciantes','Qual agente voces recomendam para quem esta comecando?'),
+ ('Valorant','toniz2','Dicas para iniciantes','Qual agente vocês recomendam para quem está começando?'),
  ('Minecraft','Luna.exe','Servidor de survival','Quem quer montar um servidor tranquilo no fim de semana?'),
  ('Elden Ring','drako','Build de dex','Compartilhem suas builds favoritas para o fim do jogo.')
 ) AS v(jogo, autor, titulo, corpo) JOIN jogos j ON j.titulo = v.jogo JOIN usuarios u ON u.nome_usuario = v.autor;
 
 INSERT INTO respostas_forum (topico_id, autor_id, corpo)
 SELECT t.topico_id, u.usuario_id, v.corpo FROM (VALUES
- ('Dicas para iniciantes','vitorbr','Comeca com a Sage ou o Brimstone, sao mais faceis.'),
+ ('Dicas para iniciantes','vitorbr','Começa com a Sage ou o Brimstone, são mais fáceis.'),
  ('Servidor de survival','nina_plays','Eu topo! Pode contar comigo.')
 ) AS v(topico, autor, corpo) JOIN topicos_forum t ON t.titulo = v.topico JOIN usuarios u ON u.nome_usuario = v.autor;
 

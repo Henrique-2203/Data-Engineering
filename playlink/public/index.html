@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0D0B1E">
+<title>PLAYLINK — Jogue. Conecte-se. Evolua.</title>
+<!-- Fontes: Archivo (variável, com eixo de largura: usamos a versão larga e pesada nos títulos) e Silkscreen (só nos números de placar) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=Silkscreen:wght@400;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Aqui deixo todos os ícones em um só lugar. Depois é só chamar pelo ID, sem repetir o desenho inteiro. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6.5"/><path d="M15 15l6 6"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M5 18h14l-2-2v-5a5 5 0 0 0-10 0v5z"/><path d="M10 21h4"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.8" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M3 11l18-8-8 18-2-8z"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H10l-6 4z"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></symbol>
+    <symbol id="i-link" viewBox="0 0 40 40"><rect x="3" y="12" width="22" height="16" rx="8" stroke="#FFD83A" stroke-width="4.5"/><rect x="15" y="12" width="22" height="16" rx="8" stroke="#FFFFFF" stroke-width="4.5"/></symbol>
+    <symbol id="f-find" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5.5"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></symbol>
+    <symbol id="f-team" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5"/><rect x="13.5" y="3" width="7.5" height="7.5"/><rect x="3" y="13.5" width="7.5" height="7.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5"/></symbol>
+    <symbol id="f-group" viewBox="0 0 24 24"><circle cx="12" cy="6" r="3"/><circle cx="5.5" cy="17.5" r="3"/><circle cx="18.5" cy="17.5" r="3"/><path d="M10.5 8.7L7 14.8M13.5 8.7L17 14.8M8.5 17.5h7"/></symbol>
+    <symbol id="f-news" viewBox="0 0 24 24"><path d="M5 21V3.5h14l-2.5 4.5L19 12.5H5"/></symbol>
+  </defs>
+</svg>
+
+<!-- Fundo animado: o JavaScript alterna as imagens entre essas duas camadas. A película e os pontinhos ficam por cima. -->
+<div class="bg-layer" id="bgA" aria-hidden="true"></div>
+<div class="bg-layer" id="bgB" aria-hidden="true"></div>
+<div class="bg-shade" aria-hidden="true"></div>
+<div class="ambient" aria-hidden="true"></div>
+
+<!-- Cabeçalho principal. O data-page informa ao JavaScript qual tela abrir sem atualizar o site inteiro. -->
+<header class="topbar">
+  <a class="brand" href="#inicio" aria-label="Playlink início">
+    <span class="brand-icon"><svg class="ico" aria-hidden="true"><use href="#i-link"/></svg></span><span>PLAY<span>LINK</span></span>
+  </a>
+  <nav class="main-nav" aria-label="Navegação principal">
+    <a href="#inicio"      data-page="inicio"      class="nav-link active">Início</a>
+    <a href="#jogos"       data-page="jogos"       class="nav-link">Jogos</a>
+    <a href="#match"       data-page="match"       class="nav-link">Match</a>
+    <a href="#explorar"    data-page="explorar"    class="nav-link">Explorar</a>
+    <a href="#mensagens"   data-page="mensagens"   class="nav-link">Mensagens</a>
+    <a href="#grupos"      data-page="grupos"      class="nav-link">Grupos</a>
+    <a href="#comunidade"  data-page="comunidade"  class="nav-link">Comunidade</a>
+  </nav>
+  <div class="top-actions">
+    <label class="global-search">
+      <svg class="ico" aria-hidden="true"><use href="#i-search"/></svg>
+      <input id="globalSearch" placeholder="Buscar jogos, pessoas ou grupos" aria-label="Buscar jogos, pessoas ou grupos">
+    </label>
+    <button class="icon-button" id="notifications" title="Notificações" aria-label="Notificações"><svg class="ico" aria-hidden="true"><use href="#i-bell"/></svg></button>
+    <button class="profile-button" id="profileButton">
+      <span class="avatar avatar-small cyan">D</span><span>Meu perfil</span><svg class="ico" aria-hidden="true"><use href="#i-chev"/></svg>
+    </button>
+    <button class="icon-button mobile-menu" id="mobileMenu" aria-label="Abrir menu"><svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
+  </div>
+</header>
+
+<main id="app" class="page-wrap">
+
+  <!-- TELA INICIAL: apresentação do PlayLink e atalhos para os jogos. -->
+  <section id="homePage" class="page home-page">
+
+    <!-- Destaque de entrada: deixei o texto de um lado e o slogan do outro para dar mais personalidade. -->
+    <div class="hero">
+      <div class="hero-copy">
+        <h1>Encontre pessoas para jogar, formar times e viver novas experiências.</h1>
+        <p>O PlayLink é o lugar certo para você encontrar jogadores com o mesmo estilo, objetivos e nível de jogo.</p>
+        <div class="hero-actions">
+          <button class="primary-button" data-go="explorar">Começar agora</button>
+          <button class="text-button" id="watchDemo"><span class="play">▶</span> Ver como funciona</button>
+        </div>
+      </div>
+      <div class="hero-slogan" role="img" aria-label="Jogue. Conecte-se. Evolua.">
+        <span class="s1" aria-hidden="true">JOGUE</span>
+        <span class="s2" aria-hidden="true">CONECTE-SE</span>
+        <span class="s3" aria-hidden="true">EVOLUA</span>
+      </div>
+    </div>
+
+    <!-- Resumo do que dá para fazer na plataforma. Cada bloco tem uma cor própria. -->
+    <div class="feature-row">
+      <article class="feature"><svg class="ico" aria-hidden="true"><use href="#f-find"/></svg><div><b>Encontre jogadores</b><p>Procure players com o mesmo estilo e nível que você.</p></div></article>
+      <article class="feature"><svg class="ico" aria-hidden="true"><use href="#f-team"/></svg><div><b>Forme times</b><p>Monte seu squad ideal e suba de nível junto.</p></div></article>
+      <article class="feature"><svg class="ico" aria-hidden="true"><use href="#f-group"/></svg><div><b>Participe de grupos</b><p>Entre em comunidades, compartilhe e evolua.</p></div></article>
+      <article class="feature"><svg class="ico" aria-hidden="true"><use href="#f-news"/></svg><div><b>Fique por dentro</b><p>Novidades, eventos e tudo do mundo gamer.</p></div></article>
+    </div>
+
+    <!-- Banner do GTA VI. Os números da contagem regressiva são atualizados pelo JavaScript. -->
+    <section class="news-banner">
+      <div class="news-text">
+        <span class="news-label">Lançamento mais aguardado</span>
+        <h2>GTA VI chega em 19 de novembro</h2>
+        <p>Prepare seu squad para a próxima grande aventura. A comunidade já está se preparando para explorar Vice City.</p>
+        <div class="countdown" role="timer" aria-label="Contagem regressiva para o lançamento do GTA VI">
+          <span><b id="cdDays">--</b><small>dias</small></span>
+          <span><b id="cdHours">--</b><small>horas</small></span>
+          <span><b id="cdMins">--</b><small>min</small></span>
+          <span><b id="cdSecs">--</b><small>seg</small></span>
+        </div>
+      </div>
+      <div class="news-art" data-img-game="gta-vi" aria-hidden="true">
+        <span class="sun"></span><span class="palm"></span><span class="silhouette"></span><span class="city">VICE CITY</span>
+      </div>
+    </section>
+
+    <section class="section-block">
+      <div class="section-heading">
+        <h2>Jogos em destaque</h2>
+        <button class="subtle-button" data-go="jogos">Ver todos</button>
+      </div>
+      <div class="game-grid">
+        <button class="game-card game-valorant" data-game="Valorant" data-img-game="valorant">
+          <span class="game-mark">V</span>
+          <span><b>VALORANT</b><small>FPS tático · 5v5</small></span>
+          <span class="online-dot">● Ao vivo</span>
+        </button>
+        <button class="game-card game-cs" data-game="Counter-Strike 2" data-img-game="counter-strike-2">
+          <span class="game-mark">CS</span>
+          <span><b>COUNTER-STRIKE 2</b><small>FPS competitivo</small></span>
+          <span class="online-dot">● Ao vivo</span>
+        </button>
+        <button class="game-card game-mine" data-game="Minecraft" data-img-game="minecraft">
+          <span class="game-mark">MC</span>
+          <span><b>MINECRAFT</b><small>Aventura · Sandbox</small></span>
+          <span class="online-dot">● Comunidade</span>
+        </button>
+      </div>
+    </section>
+  </section>
+
+  <!-- TELA DE MENSAGENS: lista de conversas à esquerda e conversa aberta à direita. -->
+  <section id="messagesPage" class="page messages-page hidden">
+    <div class="messages-layout">
+      <aside class="conversation-panel">
+        <div class="panel-heading">
+          <h1>Mensagens</h1>
+          <button class="icon-button small" id="newConversation" title="Nova conversa" aria-label="Nova conversa"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg></button>
+        </div>
+        <label class="conversation-search">
+          <svg class="ico" aria-hidden="true"><use href="#i-search"/></svg><input id="conversationSearch" placeholder="Buscar conversa" aria-label="Buscar conversa">
+        </label>
+        <div id="conversationList" class="conversation-list"><div class="loading">Carregando conversas…</div></div>
+      </aside>
+      <section class="chat-panel">
+        <div id="chatEmpty" class="chat-empty">
+          <div class="empty-bubble"><svg class="ico" aria-hidden="true"><use href="#i-chat"/></svg></div>
+          <b>Escolha uma conversa para começar.</b>
+          <p>Suas conversas com a comunidade Playlink aparecem aqui.</p>
+        </div>
+        <div id="chatActive" class="chat-active hidden">
+          <div class="chat-header">
+            <div id="chatAvatar" class="avatar">TO</div>
+            <div class="chat-person"><b id="chatName">—</b><small id="chatSubtitle">—</small></div>
+            <div class="chat-tools">
+              <button class="icon-button small" id="chatSearch" title="Buscar nesta conversa" aria-label="Buscar nesta conversa"><svg class="ico" aria-hidden="true"><use href="#i-search"/></svg></button>
+              <button class="icon-button small" id="chatDetails" title="Detalhes da conversa" aria-label="Detalhes da conversa"><svg class="ico" aria-hidden="true"><use href="#i-dots"/></svg></button>
+            </div>
+          </div>
+          <div id="messageHistory" class="message-history" aria-live="polite"></div>
+          <form id="messageForm" class="message-composer">
+            <input id="messageInput" maxlength="2000" placeholder="Escreva uma mensagem" autocomplete="off" aria-label="Escreva uma mensagem">
+            <button class="send-button" type="submit"><span>Enviar</span><svg class="ico" aria-hidden="true"><use href="#i-send"/></svg></button>
+          </form>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ÁREA DINÂMICA: uso a mesma estrutura para várias páginas e troco o conteúdo pelo JavaScript. -->
+  <section id="genericPage" class="page generic-page hidden">
+    <div class="section-heading">
+      <div>
+        <h1 id="genericTitle">Explorar</h1>
+        <p id="genericDescription">Descubra jogadores e encontre seu próximo squad.</p>
+      </div>
+      <button class="primary-button" id="genericAction">Encontrar jogadores</button>
+    </div>
+    <div id="genericContent" class="generic-content"></div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</main>
+
+<footer class="footer">
+  <span>PLAYLINK</span>
+  <span>Jogue. Conecte-se. Evolua.</span>
+  <span id="connectionState">Iniciando…</span>
+</footer>
+
+<!-- Janela para criar uma conversa nova sem sair da tela de mensagens. -->
+<dialog id="newConversationDialog" class="dialog">
+  <form id="newConversationForm">
+    <div class="dialog-head">
+      <h2>Nova conversa</h2>
+      <button type="button" class="icon-button small" id="closeDialog" aria-label="Fechar"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </div>
+    <p>Comece uma conversa com alguém da comunidade.</p>
+    <label>Nome do jogador
+      <input id="newContactName" minlength="2" maxlength="40" required placeholder="Ex.: gamer123">
+    </label>
+    <div class="dialog-actions">
+      <button type="button" class="subtle-button" id="cancelDialog">Cancelar</button>
+      <button class="primary-button" type="submit">Criar conversa</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="app.js"></script>
+</body>
+</html>
