@@ -50,11 +50,17 @@ try {
   const ana = await reg('ana');
   const bia = await reg('bia');
   const caio = await reg('caio');
+  const dudu0 = await reg('dudu0');
 
   // salvar uma lista não apaga as outras
+  // padrão: layout novo e câmera do celular já lançados para todos; aqui testamos o modo "só as listas"
+  const def = await api('/admin/beta', null, equipe.token);
+  assert(JSON.stringify(def.beta.open) === JSON.stringify(['layout2', 'phonecam']), `padrão: lançados para todos (${JSON.stringify(def.beta.open)})`);
+  assert(JSON.stringify(await api('/bootstrap', null, bia.token).then((r) => r.features)) === JSON.stringify(['layout2', 'phonecam']), 'sem lista, a conta comum já tem os dois lançados');
+  await api('/admin/beta', { open: [] }, equipe.token, 'PUT');
   await api('/admin/beta', { layout2: ['ana'] }, equipe.token, 'PUT');
   const p1 = await api('/admin/beta', { phonecam: ['@Bia', 'x'] }, equipe.token, 'PUT');
-  assert(JSON.stringify(p1.beta) === JSON.stringify({ layout2: ['ana'], phonecam: ['bia'], bots: [] }), `mescla: ${JSON.stringify(p1.beta)}`);
+  assert(JSON.stringify(p1.beta) === JSON.stringify({ layout2: ['ana'], phonecam: ['bia'], bots: [], open: [] }), `mescla: ${JSON.stringify(p1.beta)}`);
   const p2 = await api('/admin/beta', { bots: ['ana', 'caio'] }, equipe.token, 'PUT');
   assert(p2.beta.layout2[0] === 'ana' && p2.beta.phonecam[0] === 'bia' && p2.beta.bots.length === 2, 'as três listas ficam');
   assert((await api('/admin/beta', { bots: ['bia'] }, bia.token, 'PUT')).status === 404, 'só a equipe muda');
@@ -64,6 +70,17 @@ try {
   assert(JSON.stringify(await bf(bia.token)) === JSON.stringify(['phonecam']), 'bia: phonecam');
   assert((await bf(equipe.token)).length === 0, 'a equipe não ganha recurso sozinha: precisa estar na lista');
   step('salvar uma lista mantém as outras; só a equipe muda; cada conta recebe só os seus recursos');
+
+  // liberar para todos / voltar atrás pelo painel (a API)
+  assert((await api('/admin/beta', { open: ['phonecam'] }, bia.token, 'PUT')).status === 404, 'só a equipe libera para todos');
+  assert((await api('/admin/beta', { open: ['nao-existe'] }, equipe.token, 'PUT')).status === 400, 'recurso inválido');
+  await api('/admin/beta', { open: ['phonecam'] }, equipe.token, 'PUT');
+  assert((await bf(caio.token)).includes('phonecam'), 'liberado para todos: o Caio (fora da lista) recebe');
+  assert((await bf(caio.token)).includes('bots'), 'caio está na lista dos bots');
+  assert(!(await bf(dudu0.token)).includes('bots'), 'bots continuam só da lista');
+  await api('/admin/beta', { open: [] }, equipe.token, 'PUT');
+  assert(!(await bf(dudu0.token)).includes('phonecam'), 'desligou: volta a ser só da lista');
+  step('"Para todos": libera um recurso para todas as contas e dá para desfazer; os outros seguem só nas listas');
 
   // servidor de testes (os aplicativos abertos recebem o aviso para mostrar o servidor na hora)
   const watch = (token) =>

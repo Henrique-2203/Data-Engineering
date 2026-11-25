@@ -430,6 +430,7 @@ export function registerCommunityRoutes(r: Router, db: Db, rt: Realtime, auth: R
   }
 
   const emitEvent = async (guildId: string, id: string) => {
+    eventsChanged();
     const event = await loadEvent(db, id);
     if (event) rt.emitGuild(guildId, 'event:update', { guildId, event });
     return event;
@@ -494,6 +495,7 @@ export function registerCommunityRoutes(r: Router, db: Db, rt: Realtime, auth: R
     wrap(async (req) => {
       const { e } = await eventForManage(String(req.params.id), req.user!.id);
       await db.query('delete from guild_events where id = $1', [e.id]);
+      eventsChanged();
       await audit(db, e.guildId, req.user!.id, 'event_delete', { type: 'guild', id: e.id, label: e.title });
       rt.emitGuild(e.guildId, 'event:delete', { guildId: e.guildId, id: e.id });
     }),
@@ -514,8 +516,26 @@ export function registerCommunityRoutes(r: Router, db: Db, rt: Realtime, auth: R
 }
 
 /** A cada minuto: avisa quem tem interesse quando um evento começa (no site e no celular). */
+let eventsDirty = true;
+/** criou, mudou ou apagou um evento: o relógio precisa reler quando é o próximo */
+export const eventsChanged = () => {
+  eventsDirty = true;
+};
+
 export function startEventReminders(db: Db, rt: Realtime) {
+  // O banco (Neon grátis) só dorme se ninguém o consultar: antes isto consultava a cada minuto, a noite toda.
+  // Agora guarda na memória quando é o próximo evento e só consulta o banco quando ele chega (ou quando algo muda).
+  let nextAt = Number.POSITIVE_INFINITY;
+  let loaded = 0;
+  const refresh = async () => {
+    const [r] = await db.query<{ t: string | null }>(`select min(starts_at) as t from guild_events where not notified and starts_at > now() - interval '30 minutes'`);
+    nextAt = r?.t ? new Date(r.t).getTime() : Number.POSITIVE_INFINITY;
+    loaded = Date.now();
+    eventsDirty = false;
+  };
   const tick = async () => {
+    if (eventsDirty || Date.now() - loaded > 6 * 3600_000) await refresh();
+    if (nextAt > Date.now()) return;
     const due = await db.query<{ id: string; guildId: string; title: string; channelId: string | null; guildName: string }>(
       `update guild_events e set notified = true from guilds g
        where g.id = e.guild_id and not e.notified and e.starts_at <= now() and e.starts_at > now() - interval '30 minutes'
@@ -531,8 +551,9 @@ export function startEventReminders(db: Db, rt: Realtime) {
         { onlyAway: rt },
       );
     }
+    await refresh();
   };
-  const timer = setInterval(() => void tick().catch((err) => console.warn('[eventos]', err)), 60_000);
+  const timer = setInterval(() => void tick().catch((err) => console.warn('[eventos]', err)), 30_000);
   timer.unref();
   return () => clearInterval(timer);
 }

@@ -128,6 +128,7 @@ export const COMMANDS: BotCommand[] = [
         m[3].trim(),
         ms / 1000 / (Number(process.env.BOT_TIME_SCALE) || 1), // BOT_TIME_SCALE só existe nos testes (encurta o tempo)
       ]);
+      remindersDirty = true;
       return { embed: embed('⏰ Lembrete criado', `Combinado, **${user.displayName}**! Eu aviso aqui em ${n} ${n === 1 ? unit.one : unit.many}: ${m[3].trim()}`) };
     },
   },
@@ -375,16 +376,29 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
 }
 
 /** De tempos em tempos (1 min; BOT_REMINDER_TICK_MS nos testes): o bot avisa quem pediu um /lembrar. */
+let remindersDirty = true;
 function startBotReminders(db: Db, send: (channelId: string, content: string) => Promise<void>) {
+  // Só consulta o banco quando há lembrete chegando (o Neon grátis só dorme se ninguém o consulta).
+  let nextAt = Number.POSITIVE_INFINITY;
+  let loaded = 0;
+  const refresh = async () => {
+    const [r] = await db.query<{ t: string | null }>('select min(due_at) as t from bot_reminders where sent_at is null');
+    nextAt = r?.t ? new Date(r.t).getTime() : Number.POSITIVE_INFINITY;
+    loaded = Date.now();
+    remindersDirty = false;
+  };
   const tick = async () => {
+    if (remindersDirty || Date.now() - loaded > 6 * 3600_000) await refresh();
+    if (nextAt > Date.now()) return;
     const due = await db.query<{ id: string; channelId: string; text: string; username: string }>(
       `update bot_reminders b set sent_at = now() from users u
        where u.id = b.user_id and b.sent_at is null and b.due_at <= now()
        returning b.id, b.channel_id as "channelId", b.text, u.username`,
     );
     for (const d of due) await send(d.channelId, `⏰ @${d.username} lembrete: ${d.text}`).catch((err) => console.warn('[bots] lembrete', err));
+    await refresh();
   };
-  const timer = setInterval(() => void tick().catch((err) => console.warn('[bots] lembretes', err)), Number(process.env.BOT_REMINDER_TICK_MS) || 60_000);
+  const timer = setInterval(() => void tick().catch((err) => console.warn('[bots] lembretes', err)), Number(process.env.BOT_REMINDER_TICK_MS) || 30_000);
   timer.unref();
   return () => clearInterval(timer);
 }

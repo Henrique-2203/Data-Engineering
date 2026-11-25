@@ -76,7 +76,7 @@ try {
   const { guild } = await api('/guilds', { name: 'Galera' }, ana.token);
   await api(`/invites/${guild.inviteCode}/join`, {}, bia.token);
   await api(`/invites/${guild.inviteCode}/join`, {}, caio.token);
-  await api('/admin/beta', { phonecam: ['ana', 'caio'] }, equipe.token, 'PUT');
+  await api('/admin/beta', { phonecam: ['ana', 'caio'], open: [] }, equipe.token, 'PUT'); // aqui testa o modo "só a lista"
 
   // ---------- regras no servidor ----------
   const sBia = await connect(bia.token);

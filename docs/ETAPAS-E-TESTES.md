@@ -397,6 +397,9 @@ Cada item tem **onde fica** e **como testar**. Marque `[x]` conforme for testand
 
 ---
 
+> **Atualização (25/11):** a **câmera do celular** e o **layout novo** foram lançados para todas as contas
+> (Painel da equipe → Saúde → "Para todos"; dá para desmarcar e voltar a só a lista). Só os **bots** seguem restritos às listas.
+
 ## Recursos em teste: câmera do celular e bots
 
 Só aparecem para as contas liberadas em **Painel da equipe → Saúde → Recursos em teste** (um campo por recurso;

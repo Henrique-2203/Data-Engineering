@@ -61,7 +61,7 @@ export function startBandwidthMeter(http: Server, db: Db) {
       live.delete(sock);
     });
   });
-  const timer = setInterval(() => void flushBandwidth(db), 60_000);
+  const timer = setInterval(() => void flushBandwidth(db), 30 * 60_000); // o banco só dorme se ninguém o consulta: grava a cada 30 min (e ao desligar)
   timer.unref();
 }
 

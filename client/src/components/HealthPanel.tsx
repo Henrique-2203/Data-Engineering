@@ -208,8 +208,8 @@ export function HealthPanel() {
 
 /** Laboratório: liga mudanças em teste SÓ neste aparelho (nenhum usuário recebe). */
 /** Recursos em teste liberados só para algumas contas (vale para a conta, em qualquer aparelho). */
-type BetaLists = { layout2: string[]; phonecam: string[]; bots: string[] };
-const BETA_FIELDS: { id: keyof BetaLists; title: string; hint: string; label: string; done: string }[] = [
+type BetaLists = { layout2: string[]; phonecam: string[]; bots: string[]; open: string[] };
+const BETA_FIELDS: { id: 'layout2' | 'phonecam' | 'bots'; title: string; hint: string; label: string; done: string }[] = [
   { id: 'layout2', title: 'Layout novo', hint: 'Veem a opção "Layout: Novo" em Configurações → Aparência.', label: 'Contas com o layout novo', done: 'Layout novo' },
   { id: 'phonecam', title: 'Câmera do celular', hint: 'Podem usar o celular como câmera do computador na call (QR Code).', label: 'Contas com a câmera do celular', done: 'Câmera do celular' },
   { id: 'bots', title: 'Bots', hint: 'Veem a aba Integrações no servidor e os comandos com "/".', label: 'Contas com bots', done: 'Bots' },
@@ -217,11 +217,12 @@ const BETA_FIELDS: { id: keyof BetaLists; title: string; hint: string; label: st
 const toText = (l: string[]) => l.map((u) => `@${u}`).join(', ');
 
 function BetaAccounts() {
-  const [text, setText] = useState<Record<keyof BetaLists, string> | null>(null);
+  const [text, setText] = useState<Record<'layout2' | 'phonecam' | 'bots', string> | null>(null);
+  const [open, setOpen] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => {
     void api<{ beta: BetaLists }>('/admin/beta').then(
-      (r) => setText({ layout2: toText(r.beta.layout2), phonecam: toText(r.beta.phonecam), bots: toText(r.beta.bots) }),
+      (r) => (setOpen(r.beta.open ?? []), setText({ layout2: toText(r.beta.layout2), phonecam: toText(r.beta.phonecam), bots: toText(r.beta.bots) })),
       () => setText({ layout2: '', phonecam: '', bots: '' }),
     );
   }, []);
@@ -232,6 +233,20 @@ function BetaAccounts() {
       const r = await api<{ beta: BetaLists }>('/admin/beta', { method: 'PUT', body: { [f.id]: (text![f.id] ?? '').split(/[\s,;]+/).filter(Boolean) } });
       setText((t) => ({ ...t!, [f.id]: toText(r.beta[f.id]) }));
       toast(r.beta[f.id].length ? `${f.done} liberado para ${r.beta[f.id].length} conta(s).` : `${f.done} desligado para todos.`);
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function toggleOpen(f: (typeof BETA_FIELDS)[number], on: boolean) {
+    const next = on ? [...new Set([...open, f.id])] : open.filter((x) => x !== f.id);
+    if (on && !confirm(`Liberar "${f.title}" para TODAS as contas?`)) return;
+    setBusy(f.id);
+    try {
+      const r = await api<{ beta: BetaLists }>('/admin/beta', { method: 'PUT', body: { open: next } });
+      setOpen(r.beta.open);
+      toast(on ? `${f.title} liberado para todo mundo.` : `${f.title} voltou a ser só das contas da lista.`);
     } catch (err) {
       toast((err as Error).message);
     } finally {
@@ -269,6 +284,10 @@ function BetaAccounts() {
           <button className="btn primary small" type="button" disabled={busy !== null} onClick={() => void save(f)} aria-label={`Salvar ${f.title}`}>
             Salvar
           </button>
+          <label className="check" title="Vale para todas as contas, não só para a lista">
+            <input type="checkbox" checked={open.includes(f.id)} disabled={busy !== null} onChange={(e) => void toggleOpen(f, e.target.checked)} aria-label={`${f.title} liberado para todos`} />
+            <span>Para todos</span>
+          </label>
         </div>
       ))}
       <div className="beta-row">

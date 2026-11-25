@@ -49,6 +49,7 @@ try {
   await api('/dms', { userId: bia.user.id }, ana.token);
 
   // só a equipe muda a lista
+  await api('/admin/beta', { open: [] }, equipe.token, 'PUT'); // modo "só a lista" (o padrão agora é lançado para todos)
   assert((await api('/admin/beta', { layout2: ['ana'] }, bia.token, 'PUT')).status === 404, 'quem não é da equipe não muda a lista');
   const set = await api('/admin/beta', { layout2: ['@Ana', 'conta_teste ', 'x'] }, equipe.token, 'PUT');
   assert(JSON.stringify(set.beta.layout2) === JSON.stringify(['ana', 'conta_teste']), `lista limpa: sem @, minúsculas, sem inválidos (${JSON.stringify(set.beta.layout2)})`);

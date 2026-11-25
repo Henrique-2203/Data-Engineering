@@ -192,6 +192,6 @@ export function startStorageJobs(db: Db) {
     }
   };
   setTimeout(tick, 20_000).unref();
-  setInterval(tick, 5 * 60_000).unref();
+  setInterval(tick, 30 * 60_000).unref(); // 30 min (todos os relógios do banco andam juntos para ele poder dormir)
   console.log(`[storage] arquivos em: ${r2Configured() ? `Cloudflare R2 (${config.r2.bucket})` : 'banco de dados (configure o R2 para crescer)'}`);
 }

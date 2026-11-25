@@ -66,6 +66,7 @@ try {
 
   // o espectador liga a câmera primeiro: ele passa a ser quem oferece a linha de vídeo
   await viewer.getByRole('button', { name: 'Ligar câmera' }).click();
+  await viewer.getByRole('button', { name: /Câmera do computador/ }).click({ timeout: 4000 }).catch(() => {});
   await streamer.waitForFunction(() => [...document.querySelectorAll('.tile.user video')].some((v) => v.videoWidth > 0), null, {
     timeout: 15000,
   });

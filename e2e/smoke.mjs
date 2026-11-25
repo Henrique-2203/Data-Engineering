@@ -200,6 +200,8 @@ try {
 
   // --- Câmera do celular aparece no PC ---
   await phone.getByRole('button', { name: 'Ligar câmera' }).click();
+  // câmera do celular lançada: o botão abre a escolha; aqui vale a câmera do próprio aparelho
+  await phone.getByRole('button', { name: /Câmera do computador/ }).click({ timeout: 4000 }).catch(() => {});
   await pc.waitForFunction(
     () => [...document.querySelectorAll('.tile.user video')].some((v) => v.videoWidth > 0),
     null,

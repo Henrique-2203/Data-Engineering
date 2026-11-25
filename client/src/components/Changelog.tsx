@@ -11,6 +11,15 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-25',
+    title: 'Câmera do celular e layout novo',
+    items: [
+      ['📱', 'Câmera do celular: numa call, no computador, clique em Câmera → "Câmera do celular" e leia o QR Code com o celular. Ele vira a sua câmera, sem instalar nada. Dá para virar entre frontal e traseira.'],
+      ['🗂️', 'Layout novo (opcional): abas no topo para fixar servidores, canais e conversas, ver duas conversas lado a lado e, no celular, uma barra de baixo com Início, Servidores, Mensagens, Avisos e Você. Para testar: Configurações → Aparência → Layout. O layout de sempre continua sendo o padrão.'],
+      ['💬', 'Ficou com dúvida ou achou algum problema? Conta pra gente no #sugestões do servidor oficial.'],
+    ],
+  },
+  {
     id: '2026-11-19',
     title: 'Mais sugestões de vocês',
     items: [

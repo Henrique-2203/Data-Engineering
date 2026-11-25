@@ -124,6 +124,6 @@ export function startCapacityAlerts(db: Db, rt: Realtime) {
       );
     }
   };
-  const timer = setInterval(() => void tick().catch((err) => console.warn('[capacidade]', err)), 10 * 60_000);
+  const timer = setInterval(() => void tick().catch((err) => console.warn('[capacidade]', err)), 30 * 60_000);
   timer.unref();
 }

@@ -315,7 +315,7 @@ export function startBackups(db: Db) {
     if (!last && !recentFail) await runBackup(db).catch(() => {});
   };
   setTimeout(() => void tick().catch(() => {}), 2 * 60_000).unref();
-  setInterval(() => void tick().catch(() => {}), 30 * 60_000).unref();
+  setInterval(() => void tick().catch(() => {}), 60 * 60_000).unref();
 }
 
 // ---------- painel da equipe ----------

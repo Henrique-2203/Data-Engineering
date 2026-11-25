@@ -18,8 +18,9 @@ import type { requireAuth } from './auth.ts';
  */
 export const BETA_FEATURES = ['layout2', 'phonecam', 'bots'] as const;
 export type BetaFeature = (typeof BETA_FEATURES)[number];
-type BetaSettings = Record<BetaFeature, string[]>;
-const EMPTY: BetaSettings = { layout2: [], phonecam: [], bots: [] };
+/** `open`: recursos liberados para TODAS as contas (o resto só para as listas). Lançados: layout novo e câmera do celular. */
+type BetaSettings = Record<BetaFeature, string[]> & { open: BetaFeature[] };
+const EMPTY: BetaSettings = { layout2: [], phonecam: [], bots: [], open: ['layout2', 'phonecam'] };
 
 let cache: { at: number; value: BetaSettings } | null = null;
 export async function getBeta(db: Db): Promise<BetaSettings> {
@@ -34,7 +35,7 @@ export async function getBeta(db: Db): Promise<BetaSettings> {
 export async function betaFeaturesFor(db: Db, username: string): Promise<BetaFeature[]> {
   const b = await getBeta(db);
   const u = username.toLowerCase();
-  return BETA_FEATURES.filter((f) => b[f].includes(u));
+  return BETA_FEATURES.filter((f) => b.open.includes(f) || b[f].includes(u));
 }
 
 /**
@@ -66,9 +67,10 @@ export function registerBetaRoutes(r: Router, db: Db, rt: Realtime, auth: Return
       admin(req.user!.username);
       // aceita só as listas enviadas e mantém as outras como estão (salvar uma não apaga as demais)
       const list = z.array(z.string().max(40)).max(100).optional();
-      const b = parse(z.object({ layout2: list, phonecam: list, bots: list }), req.body);
+      const b = parse(z.object({ layout2: list, phonecam: list, bots: list, open: z.array(z.enum(BETA_FEATURES)).optional() }), req.body);
       const value: BetaSettings = { ...(await getBeta(db)) };
       for (const f of BETA_FEATURES) if (b[f]) value[f] = clean(b[f]);
+      if (b.open) value.open = [...new Set(b.open)];
       await db.query(
         `insert into app_settings (name, value, updated_at) values ('beta', $1, now())
          on conflict (name) do update set value = excluded.value, updated_at = now()`,

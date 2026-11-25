@@ -47,5 +47,5 @@ export function startSuspensionCleanup(db: Db) {
       .query('update users set suspended_at = null, suspended_reason = null, suspended_until = null, suspended_by = null where suspended_until is not null and suspended_until <= now()')
       .catch(() => {});
   setTimeout(run, 30_000);
-  setInterval(run, 10 * 60_000).unref();
+  setInterval(run, 60 * 60_000).unref();
 }
