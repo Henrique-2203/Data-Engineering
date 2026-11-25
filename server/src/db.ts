@@ -578,6 +578,28 @@ create table if not exists tickets (
   unique (guild_id, number)
 );
 create index if not exists tickets_channel_idx on tickets(channel_id);
+
+-- v62: bots de terceiros (recurso "botdev"). O bot é um usuário (is_bot) com token próprio; só o dono do bot gerencia.
+-- O token NÃO fica guardado (só o hash). Os comandos que o bot registra aparecem no "/" dos servidores onde ele foi instalado.
+create table if not exists bot_apps (
+  user_id text primary key references users(id) on delete cascade,
+  owner_id text not null references users(id) on delete cascade,
+  description text not null default '',
+  token_hash text not null,
+  signing_secret text not null,
+  interactions_url text,
+  created_at timestamptz not null default now(),
+  token_rotated_at timestamptz not null default now(),
+  disabled_at timestamptz
+);
+create index if not exists bot_apps_owner_idx on bot_apps(owner_id);
+create table if not exists bot_app_commands (
+  bot_id text not null references users(id) on delete cascade,
+  name text not null,
+  description text not null,
+  usage text not null default '',
+  primary key (bot_id, name)
+);
 `;
 
 export async function createDb(): Promise<Db> {

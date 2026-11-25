@@ -35,7 +35,7 @@ const fake = createServer((req, res) => {
 
 function start(port, extra) {
   const p = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], {
-    env: { ...process.env, PORT: String(port), DATA_DIR: tempDir('resenha-ai-'), PLATFORM_ADMINS: 'equipe', AI_BASE_URL: 'http://localhost:3274', ...extra },
+    env: { ...process.env, PORT: String(port), DATA_DIR: tempDir('resenha-ai-'), PLATFORM_ADMINS: 'equipe', AI_BASE_URL: 'http://localhost:3274', BOTS_AI: '1', ...extra },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   p.stderr.on('data', (d) => /\[ice\]|BACKUP_KEY|\[ia\]/.test(d) || process.stderr.write(`[server] ${d}`));

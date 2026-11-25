@@ -14,13 +14,14 @@ import type { requireAuth } from './auth.ts';
  * - layout2: o layout novo (abas no computador, barra de baixo no celular), como opção em Aparência.
  * - phonecam: usar a câmera do celular como câmera do computador na call (QR Code).
  * - bots: bots da casa (comandos com /) e a aba Integrações nas configurações do servidor.
+ * - botdev: criar o próprio bot (token, comandos, endereço de retorno) em Configurações → Desenvolvedor.
  * Os nomes das contas ficam só no banco, nunca no código.
  */
-export const BETA_FEATURES = ['layout2', 'phonecam', 'bots'] as const;
+export const BETA_FEATURES = ['layout2', 'phonecam', 'bots', 'botdev'] as const;
 export type BetaFeature = (typeof BETA_FEATURES)[number];
 /** `open`: recursos liberados para TODAS as contas (o resto só para as listas). Lançados: layout novo e câmera do celular. */
 type BetaSettings = Record<BetaFeature, string[]> & { open: BetaFeature[] };
-const EMPTY: BetaSettings = { layout2: [], phonecam: [], bots: [], open: ['layout2', 'phonecam'] };
+const EMPTY: BetaSettings = { layout2: [], phonecam: [], bots: [], botdev: [], open: ['layout2', 'phonecam'] };
 
 let cache: { at: number; value: BetaSettings } | null = null;
 export async function getBeta(db: Db): Promise<BetaSettings> {
@@ -67,7 +68,7 @@ export function registerBetaRoutes(r: Router, db: Db, rt: Realtime, auth: Return
       admin(req.user!.username);
       // aceita só as listas enviadas e mantém as outras como estão (salvar uma não apaga as demais)
       const list = z.array(z.string().max(40)).max(100).optional();
-      const b = parse(z.object({ layout2: list, phonecam: list, bots: list, open: z.array(z.enum(BETA_FEATURES)).optional() }), req.body);
+      const b = parse(z.object({ layout2: list, phonecam: list, bots: list, botdev: list, open: z.array(z.enum(BETA_FEATURES)).optional() }), req.body);
       const value: BetaSettings = { ...(await getBeta(db)) };
       for (const f of BETA_FEATURES) if (b[f]) value[f] = clean(b[f]);
       if (b.open) value.open = [...new Set(b.open)];
@@ -129,7 +130,7 @@ export function registerBetaRoutes(r: Router, db: Db, rt: Realtime, auth: Return
       rt.emitUser(me, 'guild:refresh', { guildId });
       // todas as contas liberadas para algum recurso que ainda não estão no servidor
       const beta = await getBeta(db);
-      const names = [...new Set([...beta.phonecam, ...beta.bots])];
+      const names = [...new Set([...beta.phonecam, ...beta.bots, ...beta.botdev])];
       const added: string[] = [];
       if (names.length) {
         const users = await db.query<{ id: string; username: string }>(

@@ -20,6 +20,7 @@ import { DJ_COMMANDS } from './botDj.ts';
 import { TICKET_COMMANDS } from './botTickets.ts';
 import { AI_COMMANDS } from './botAi.ts';
 import { GAME_COMMANDS } from './botGames.ts';
+import { registerBotApps } from './botApps.ts';
 
 /**
  * Bots da casa (em teste: recurso "bots"). O "Resenha Bot" roda DENTRO do servidor do Resenha:
@@ -144,7 +145,8 @@ export const COMMANDS: BotCommand[] = [
   ...GAME_COMMANDS,
   ...DJ_COMMANDS,
   ...TICKET_COMMANDS,
-  ...AI_COMMANDS,
+  // IA nos bots: DESLIGADA por enquanto. Para voltar, defina BOTS_AI=1 no servidor (os comandos /ia, /traduzir e /resumo reaparecem).
+  ...(process.env.BOTS_AI === '1' ? AI_COMMANDS : []),
 ];
 
 const commandInfo = (disabled: string[], aiEnabled = false): BotCommandInfo[] =>
@@ -170,12 +172,12 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
     (await db.query<{ disabled: string[]; config: { ticketRoleIds?: string[]; aiEnabled?: boolean } }>('select disabled_commands as disabled, config from guild_bots where guild_id = $1 and bot_id = $2', [guildId, BOT_ID]))[0];
 
   /** posta uma mensagem como o bot e avisa o canal */
-  async function post(c: { id: string; guildId: string | null }, reply: Reply, interaction: Message['interaction'] | null) {
+  async function post(c: { id: string; guildId: string | null }, reply: Reply, interaction: Message['interaction'] | null, authorId: string = BOT_ID) {
     const id = randomUUID();
     await db.query('insert into messages (id, channel_id, author_id, content, mention_everyone, embeds, interaction) values ($1, $2, $3, $4, false, $5, $6)', [
       id,
       c.id,
-      BOT_ID,
+      authorId,
       reply.content ?? '',
       reply.embed ? JSON.stringify([reply.embed]) : null,
       interaction ? JSON.stringify(interaction) : null,
@@ -194,6 +196,13 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
     await deps.emitToChannel(c, 'message:new', { message });
     return message;
   }
+
+  // bots de terceiros (token, comandos próprios): veja botApps.ts
+  const apps = registerBotApps(r, db, rt, auth, {
+    channelForMember: deps.channelForMember,
+    post: (c, reply, interaction, authorId) => post(c, reply, interaction as Message['interaction'] | null, authorId),
+    reserved: COMMANDS.map((c) => c.name),
+  });
 
   const manage = async (userId: string, username: string, guildId: string) => {
     await requireFeature(db, username, 'bots');
@@ -314,7 +323,7 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
       const guildId = String(req.params.id);
       await requireMember(db, guildId, req.user!.id);
       const row = await install(guildId);
-      return { commands: row ? usable(commandInfo(row.disabled, !!row.config?.aiEnabled)) : [] };
+      return { commands: [...(row ? usable(commandInfo(row.disabled, !!row.config?.aiEnabled)) : []), ...(await apps.commandsFor(guildId))] };
     }),
   );
 
@@ -329,11 +338,12 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
       requireNotTimedOut(c.access);
       const body = parse(z.object({ command: z.string().trim().toLowerCase().max(20), args: z.string().max(500).default('') }), req.body);
       const row = await install(c.guildId);
-      if (!row) throw new HttpError(404, 'Este servidor não tem o Resenha Bot.');
       const cmd = COMMANDS.find((x) => x.name === body.command);
-      if (!cmd) throw new HttpError(404, 'Comando não encontrado. Digite / para ver a lista.');
-      if (row.disabled.includes(cmd.name)) throw bad('Este comando está desligado neste servidor.');
-      if (cmd.ai && !row.config?.aiEnabled) throw bad('Os comandos de IA estão desligados neste servidor. Quem administra liga em Configurações do servidor → Integrações.');
+      if (cmd) {
+        if (!row) throw new HttpError(404, 'Este servidor não tem o Resenha Bot.');
+        if (row.disabled.includes(cmd.name)) throw bad('Este comando está desligado neste servidor.');
+        if (cmd.ai && !row.config?.aiEnabled) throw bad('Os comandos de IA estão desligados neste servidor. Quem administra liga em Configurações do servidor → Integrações.');
+      }
       if (c.announce && !has(c.access.perms, Perm.MANAGE_GUILD) && !has(c.access.perms, Perm.MANAGE_MESSAGES)) {
         throw new HttpError(403, 'Este é um canal de avisos: só a equipe do servidor publica aqui.');
       }
@@ -349,6 +359,15 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
       await checkSlowmode(db, c as any, c.access, me.id);
       const [g] = await db.query<{ code: string }>('select invite_code as code from guilds where id = $1', [c.guildId]);
       await checkAutomod(db, { guildId: c.guildId, channelName: c.name, access: c.access, userId: me.id, inviteCode: g?.code ?? '', texts: [body.args] });
+      const interaction = { userId: me.id, username: me.username, displayName: me.displayName, command: body.command };
+      if (!cmd) {
+        // não é um comando da casa: pode ser de um bot de terceiro instalado no servidor
+        const [gi] = await db.query<{ name: string }>('select name from guilds where id = $1', [c.guildId]);
+        const ext = await apps.run({ guildId: c.guildId, guildName: gi?.name ?? '', channel: { id: c.id, name: c.name }, user: { id: me.id, username: me.username, displayName: me.displayName }, command: body.command, args: body.args.trim() });
+        if (!ext) throw new HttpError(404, 'Comando não encontrado. Digite / para ver a lista.');
+        if (!ext.reply) return { message: null }; // o bot vai responder sozinho pela API
+        return { message: await apps.sendAsBot(ext.botId, c.id, ext.reply, interaction) };
+      }
       const reply = await cmd.run({
         db,
         rt,
@@ -361,8 +380,8 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
         },
         perms: c.access.perms,
         isOwner: c.access.isOwner,
-        enabled: usable(commandInfo(row.disabled, !!row.config?.aiEnabled)),
-        aiEnabled: !!row.config?.aiEnabled,
+        enabled: usable(commandInfo(row!.disabled, !!row!.config?.aiEnabled)),
+        aiEnabled: !!row!.config?.aiEnabled,
       });
       const message = await post(c, reply, { userId: me.id, username: me.username, displayName: me.displayName, command: cmd.name });
       return { message };

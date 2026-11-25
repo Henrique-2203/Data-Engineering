@@ -344,6 +344,8 @@ export interface BotCommandInfo {
   ai?: boolean;
   /** comando de IA ainda desligado pelo servidor */
   locked?: boolean;
+  /** comando de um bot de terceiro (id do bot); o `group` é o nome do bot */
+  botId?: string;
 }
 
 export interface VoiceState {
