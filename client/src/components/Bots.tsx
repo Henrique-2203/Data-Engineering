@@ -6,6 +6,7 @@ import { toast } from '../store/app';
 import { clearCommands } from '../lib/botCommands';
 import type { Guild } from '../../../shared/types';
 import { Avatar } from './Avatar';
+import { ExternalBots } from './BotDev';
 
 /** Selo BOT ao lado do nome (chat, lista de membros, perfil). */
 export function BotTag() {
@@ -123,7 +124,7 @@ export function BotsSettings({ guild }: { guild: Guild }) {
           <div>
             <strong>Resenha Bot</strong> <BotTag />
           </div>
-          <span className="muted small">Dados, moeda, sorteio, enquete, lembretes e ajuda. Oficial do Resenha.</span>
+          <span className="muted small">Dados, moeda, sorteio, enquete, lembretes, música (DJ), tickets de ajuda e jogos para a galera. Oficial do Resenha.</span>
         </div>
         <button type="button" className={`btn small${st.installed ? '' : ' primary'}`} disabled={busy} onClick={() => void toggle(!st.installed)}>
           {st.installed ? 'Remover' : 'Adicionar ao servidor'}
@@ -188,6 +189,7 @@ export function BotsSettings({ guild }: { guild: Guild }) {
           ))}
         </>
       )}
+      <ExternalBots guild={guild} />
     </div>
   );
 }

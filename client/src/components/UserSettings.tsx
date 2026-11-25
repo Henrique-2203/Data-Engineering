@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Bell, ChevronRight, Database, Keyboard, LogOut, Mic, Palette, Shield, User, UserCircle, X } from 'lucide-react';
+import { Bell, Bot, ChevronRight, Database, Keyboard, LogOut, Mic, Palette, Shield, User, UserCircle, X } from 'lucide-react';
 import { AppearanceSettings } from './AppearanceSettings';
 import { api } from '../lib/api';
 import { closeModal, openModal, useApp } from '../store/app';
@@ -15,8 +15,10 @@ import { MyFiles } from './MyFiles';
 import { MyInviteCodes } from './InviteCodes';
 import { healthEnabled, setHealthEnabled } from '../lib/health';
 import { DesktopSettingsSection, InputModeSettings, SoundSettings } from './Modals';
+import { DevSettings } from './BotDev';
+import { useHasFeature } from '../lib/layoutMode';
 
-export type SettingsSection = 'account' | 'profile' | 'appearance' | 'security' | 'privacy' | 'voice' | 'notifications' | 'shortcuts';
+export type SettingsSection = 'account' | 'profile' | 'appearance' | 'security' | 'privacy' | 'voice' | 'notifications' | 'shortcuts' | 'developer';
 
 const SECTIONS: { id: SettingsSection; label: string; icon: ReactNode; title: string; description: string }[] = [
   {
@@ -75,6 +77,13 @@ const SECTIONS: { id: SettingsSection; label: string; icon: ReactNode; title: st
     title: 'Atalhos e app para Windows',
     description: 'Teclas de atalho e o app de desktop.',
   },
+  {
+    id: 'developer',
+    label: 'Desenvolvedor',
+    icon: <Bot size={18} />,
+    title: 'Desenvolvedor',
+    description: 'Crie seu próprio bot para os servidores (em teste).',
+  },
 ];
 
 interface SecuritySummary {
@@ -95,6 +104,8 @@ export function UserSettings({
   securityPanel?: 'email';
 }) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  const botdev = useHasFeature('botdev');
+  const sections = SECTIONS.filter((s) => s.id !== 'developer' || botdev);
   const current = SECTIONS.find((s) => s.id === section)!;
 
   useEffect(() => {
@@ -113,7 +124,7 @@ export function UserSettings({
     <div className="settings-page user-settings" role="dialog" aria-modal="true" aria-label="Configurações">
       <nav className="settings-nav" aria-label="Categorias">
         <div className="settings-nav-title">Configurações</div>
-        {SECTIONS.map((s) => (
+        {sections.map((s) => (
           <button
             key={s.id}
             className={section === s.id ? 'active' : ''}
@@ -170,6 +181,7 @@ export function UserSettings({
             </div>
           )}
           {section === 'shortcuts' && <ShortcutsSection />}
+          {section === 'developer' && botdev && <DevSettings />}
         </div>
       </section>
     </div>

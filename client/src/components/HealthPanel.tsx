@@ -208,22 +208,23 @@ export function HealthPanel() {
 
 /** Laboratório: liga mudanças em teste SÓ neste aparelho (nenhum usuário recebe). */
 /** Recursos em teste liberados só para algumas contas (vale para a conta, em qualquer aparelho). */
-type BetaLists = { layout2: string[]; phonecam: string[]; bots: string[]; open: string[] };
-const BETA_FIELDS: { id: 'layout2' | 'phonecam' | 'bots'; title: string; hint: string; label: string; done: string }[] = [
+type BetaLists = { layout2: string[]; phonecam: string[]; bots: string[]; botdev: string[]; open: string[] };
+const BETA_FIELDS: { id: 'layout2' | 'phonecam' | 'bots' | 'botdev'; title: string; hint: string; label: string; done: string }[] = [
   { id: 'layout2', title: 'Layout novo', hint: 'Veem a opção "Layout: Novo" em Configurações → Aparência.', label: 'Contas com o layout novo', done: 'Layout novo' },
   { id: 'phonecam', title: 'Câmera do celular', hint: 'Podem usar o celular como câmera do computador na call (QR Code).', label: 'Contas com a câmera do celular', done: 'Câmera do celular' },
   { id: 'bots', title: 'Bots', hint: 'Veem a aba Integrações no servidor e os comandos com "/".', label: 'Contas com bots', done: 'Bots' },
+  { id: 'botdev', title: 'Criar o próprio bot', hint: 'Veem Configurações → Desenvolvedor: criam bots com token e comandos.', label: 'Contas que criam bots', done: 'Criar bots' },
 ];
 const toText = (l: string[]) => l.map((u) => `@${u}`).join(', ');
 
 function BetaAccounts() {
-  const [text, setText] = useState<Record<'layout2' | 'phonecam' | 'bots', string> | null>(null);
+  const [text, setText] = useState<Record<'layout2' | 'phonecam' | 'bots' | 'botdev', string> | null>(null);
   const [open, setOpen] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => {
     void api<{ beta: BetaLists }>('/admin/beta').then(
-      (r) => (setOpen(r.beta.open ?? []), setText({ layout2: toText(r.beta.layout2), phonecam: toText(r.beta.phonecam), bots: toText(r.beta.bots) })),
-      () => setText({ layout2: '', phonecam: '', bots: '' }),
+      (r) => (setOpen(r.beta.open ?? []), setText({ layout2: toText(r.beta.layout2), phonecam: toText(r.beta.phonecam), bots: toText(r.beta.bots), botdev: toText(r.beta.botdev ?? []) })),
+      () => setText({ layout2: '', phonecam: '', bots: '', botdev: '' }),
     );
   }, []);
   if (text === null) return null;
