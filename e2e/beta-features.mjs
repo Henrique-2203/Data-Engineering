@@ -60,7 +60,7 @@ try {
   await api('/admin/beta', { open: [] }, equipe.token, 'PUT');
   await api('/admin/beta', { layout2: ['ana'] }, equipe.token, 'PUT');
   const p1 = await api('/admin/beta', { phonecam: ['@Bia', 'x'] }, equipe.token, 'PUT');
-  assert(JSON.stringify(p1.beta) === JSON.stringify({ layout2: ['ana'], phonecam: ['bia'], bots: [], open: [] }), `mescla: ${JSON.stringify(p1.beta)}`);
+  assert(JSON.stringify(p1.beta) === JSON.stringify({ layout2: ['ana'], phonecam: ['bia'], bots: [], botdev: [], open: [] }), `mescla: ${JSON.stringify(p1.beta)}`);
   const p2 = await api('/admin/beta', { bots: ['ana', 'caio'] }, equipe.token, 'PUT');
   assert(p2.beta.layout2[0] === 'ana' && p2.beta.phonecam[0] === 'bia' && p2.beta.bots.length === 2, 'as três listas ficam');
   assert((await api('/admin/beta', { bots: ['bia'] }, bia.token, 'PUT')).status === 404, 'só a equipe muda');

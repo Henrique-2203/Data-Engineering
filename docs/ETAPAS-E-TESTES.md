@@ -429,6 +429,22 @@ salvar um não apaga os outros). Os nomes ficam no banco, nunca no código.
 5. Testes automáticos: `node e2e/beta-features.mjs`, `phonecam.mjs`, `bots.mjs`, `bots-dj.mjs`, `bots-tickets.mjs`,
    `bots-ai.mjs`, `bots-games.mjs` (rode `npm run build` antes).
 
+## Atualização: IA fora dos bots e bots de terceiros
+
+1. **IA dos bots desligada por enquanto.** `/ia`, `/traduzir` e `/resumo` não aparecem mais (nem a opção em Integrações).
+   Para voltar, defina `BOTS_AI=1` no Render (e a `ANTHROPIC_API_KEY`); o código continua lá.
+2. **Liberar o Resenha Bot (com DJ) para todos**: Painel da equipe → Saúde → 🧪 Laboratório → "Bots" → marque
+   **Para todos**. O DJ só toca por **nome** se houver `YOUTUBE_API_KEY` no Render; sem ela, só com link do YouTube.
+3. **Criar o próprio bot (recurso "botdev")**: contas liberadas em Laboratório → "Criar o próprio bot" veem
+   Configurações → **Desenvolvedor**. Criam até 3 bots, recebem **token** e **segredo de assinatura** (aparecem uma vez),
+   colocam o **endereço (https)** do bot e registram comandos pela API. Quem administra o servidor instala pelo **ID do bot**
+   em Configurações do servidor → Integrações (precisa do recurso "bots"). Guia para quem programa: `docs/BOTS-API.md`.
+4. **Proteções**: token só como hash; chamadas ao bot assinadas (HMAC) e só para https/443 público (bloqueia rede interna,
+   IP escrito, redirecionamentos, DNS que vira rede privada); o bot só escreve onde está instalado, nunca em conversa privada,
+   passa pela moderação automática e tem limite de velocidade; a equipe pode desligar um bot
+   (`POST /api/admin/bot-apps/:id/disable`).
+5. Testes: `node e2e/bots-apps.mjs`, `node e2e/bots-apps-ui.mjs` (build antes), `node --import tsx e2e/safe-fetch.mjs`.
+
 ## Se algo der errado
 
 Anote **o que fez**, **o que esperava** e **o que aconteceu** (um print ajuda muito) e me mande.
