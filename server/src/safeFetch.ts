@@ -23,7 +23,7 @@ for (const [net4, bits] of [
   ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['198.51.100.0', 24], ['203.0.113.0', 24], ['224.0.0.0', 4], ['240.0.0.0', 4],
 ] as const) blocked.addSubnet(net4, bits, 'ipv4');
 for (const [net6, bits] of [
-  ['::', 128], ['::1', 128], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8], ['64:ff9b::', 96], ['2001:db8::', 32], ['2002::', 16], ['100::', 64],
+  ['::', 128], ['::1', 128], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8], ['64:ff9b::', 96], ['2001:db8::', 32], ['2001::', 32], ['2002::', 16], ['100::', 64],
 ] as const) blocked.addSubnet(net6, bits, 'ipv6');
 
 export function isBlockedIp(ip: string): boolean {
@@ -61,17 +61,42 @@ export interface SafeResponse {
 export async function safePost(raw: string, body: string, headers: Record<string, string>, opts: { timeoutMs?: number; maxBytes?: number } = {}): Promise<SafeResponse> {
   const u = validateBotUrl(raw);
   const host = u.hostname.replace(/^\[|\]$/g, '');
+  // PRAZO TOTAL: DNS + conexão + envio + leitura da resposta inteira. O "timeout" do http.request é só de INATIVIDADE:
+  // um bot que mande 1 byte por segundo nunca dispararia, e prenderia conexão e memória do Resenha por horas.
+  const totalMs = opts.timeoutMs ?? 3000;
+  const started = Date.now();
+  const tooSlow = () => new SafeFetchError('O bot demorou demais para responder.');
   let addrs: { address: string; family: number }[];
   try {
-    addrs = await dns.lookup(host, { all: true });
-  } catch {
-    throw new SafeFetchError('Não foi possível encontrar o servidor do bot.');
+    let dnsTimer: ReturnType<typeof setTimeout> | undefined;
+    addrs = await Promise.race([
+      dns.lookup(host, { all: true }),
+      new Promise<never>((_, rej) => (dnsTimer = setTimeout(() => rej(tooSlow()), totalMs))),
+    ]).finally(() => clearTimeout(dnsTimer));
+  } catch (e) {
+    throw e instanceof SafeFetchError ? e : new SafeFetchError('Não foi possível encontrar o servidor do bot.');
   }
   if (!addrs.length || (!allowLocal() && addrs.some((a) => isBlockedIp(a.address)))) throw new SafeFetchError('Esse endereço não é público.');
   const pick = addrs[0];
   const lib = u.protocol === 'https:' ? https : http;
   const maxBytes = opts.maxBytes ?? 32_768;
-  return new Promise<SafeResponse>((resolve, reject) => {
+  return new Promise<SafeResponse>((resolveRaw, rejectRaw) => {
+    // a promessa só termina UMA vez (resposta grande + 'end', timeout + 'error'...); o relógio é sempre desligado
+    let done = false;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    const resolve = (v: SafeResponse) => {
+      if (done) return;
+      done = true;
+      clearTimeout(deadline);
+      resolveRaw(v);
+    };
+    const reject = (e: Error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(deadline);
+      req.destroy();
+      rejectRaw(e);
+    };
     const req = lib.request(
       {
         host,
@@ -83,7 +108,7 @@ export async function safePost(raw: string, body: string, headers: Record<string
         lookup: (_h: string, o: { all?: boolean }, cb: (e: Error | null, a: any, f?: number) => void) =>
           o?.all ? cb(null, [{ address: pick.address, family: pick.family }]) : cb(null, pick.address, pick.family),
         headers: { ...headers, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'User-Agent': 'ResenhaBot/1' },
-        timeout: opts.timeoutMs ?? 3000,
+        timeout: totalMs, // 2ª proteção: socket parado (sem nenhum byte) por esse tempo
       } as https.RequestOptions,
       (res) => {
         const chunks: Buffer[] = [];
@@ -91,19 +116,18 @@ export async function safePost(raw: string, body: string, headers: Record<string
         res.on('data', (c: Buffer) => {
           size += c.length;
           if (size > maxBytes) {
-            req.destroy();
             reject(new SafeFetchError('A resposta do bot é grande demais.'));
             return;
           }
           chunks.push(c);
         });
+        res.on('error', () => reject(new SafeFetchError('A conexão com o bot caiu no meio da resposta.')));
+        res.on('close', () => !res.complete && reject(new SafeFetchError('A conexão com o bot caiu no meio da resposta.')));
         res.on('end', () => resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8') }));
       },
     );
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new SafeFetchError('O bot demorou demais para responder.'));
-    });
+    req.on('timeout', () => reject(tooSlow()));
+    deadline = setTimeout(() => reject(tooSlow()), Math.max(1, totalMs - (Date.now() - started)));
     req.on('error', (e) => reject(e instanceof SafeFetchError ? e : new SafeFetchError('Não foi possível falar com o servidor do bot.')));
     req.end(body);
   });

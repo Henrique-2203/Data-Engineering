@@ -49,6 +49,7 @@ Para um aviso: no `/painel`, em *Mandar um aviso*, digite a senha, o nome do can
 - Sem o recurso "bots" na sua conta você não consegue instalar o bot no servidor.
 
 ## Segurança
+- **A senha do painel (`ADMIN_KEY`) não tem limite de tentativas** (o bot na Vercel não guarda estado). Use uma senha **longa, de 20 ou mais caracteres**. Se um dia o painel for público demais, coloque atrás de um limite de tentativas com estado externo (Redis).
 - Nunca coloque o token nem o segredo dentro do código: use sempre variáveis de ambiente.
 - O bot confere a assinatura de cada chamada (`/resenha`): sem o segredo, ninguém consegue fazer o seu bot responder.
 - Guia completo da API: `docs/BOTS-API.md` no repositório do Resenha.

@@ -23,7 +23,7 @@ async function meteredServers(): Promise<IceServer[]> {
   const host = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   const fullHost = host.includes('.') ? host : `${host}.metered.live`;
   try {
-    const res = await fetch(`https://${fullHost}/api/v1/turn/credentials?apiKey=${encodeURIComponent(apiKey)}`);
+    const res = await fetch(`https://${fullHost}/api/v1/turn/credentials?apiKey=${encodeURIComponent(apiKey)}`, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const body = (await res.json()) as IceServer[] | { iceServers: IceServer[] };
     const servers = Array.isArray(body) ? body : body.iceServers;
@@ -48,6 +48,7 @@ async function cloudflareServers(): Promise<IceServer[]> {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ttl: 86400 }),
+        signal: AbortSignal.timeout(5000),
       },
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
