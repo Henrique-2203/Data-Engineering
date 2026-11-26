@@ -4,12 +4,12 @@ import { z } from 'zod';
 import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import { HttpError, parse, wrap } from './http.ts';
-import { limit } from './security.ts';
+import { limit, limited } from './security.ts';
 import { requireFeature } from './beta.ts';
 import { audit } from './audit.ts';
 import { requirePerm, type ChannelRow, type MemberAccess } from './access.ts';
 import { checkAutomod } from './community.ts';
-import { USER_COLUMNS, type requireAuth } from './auth.ts';
+import { USER_COLUMNS, verifyPassword, type requireAuth } from './auth.ts';
 import { Perm, has } from '../../shared/permissions.ts';
 import type { BotCommandInfo, BotEmbed, Member } from '../../shared/types.ts';
 import { SafeFetchError, safePost, validateBotUrl } from './safeFetch.ts';
@@ -81,6 +81,16 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
     return req.user!;
   };
 
+  /** Ações que dão ou tiram o controle de um bot (criar, trocar token, apagar) pedem a senha de novo (SES-06). */
+  const reauth = async (userId: string, password: unknown) => {
+    if (limited(`botpw:${userId}`, 8)) throw new HttpError(429, 'Muitas senhas erradas. Aguarde 15 minutos.');
+    const [u] = await db.query<{ password_hash: string }>('select password_hash from users where id = $1', [userId]);
+    if (typeof password !== 'string' || !u || !(await verifyPassword(password, u.password_hash))) {
+      limit(`botpw:${userId}`, 1000, 15 * 60_000); // só os ERROS contam para o bloqueio
+      throw new HttpError(403, 'Senha incorreta.');
+    }
+  };
+
   const appRow = async (botId: string) =>
     (
       await db.query<{ id: string; ownerId: string; name: string; description: string; url: string | null; secret: string; createdAt: string; disabled: boolean }>(
@@ -120,7 +130,8 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
     wrap(async (req) => {
       const user = await owner(req);
       limit(`botapp:${user.id}`, 10, 3600_000, 'Muitos bots criados seguidos. Tente mais tarde.');
-      const body = parse(z.object({ name: z.string().trim().min(2, 'Dê um nome ao bot (2 a 32 letras).').max(32), description: z.string().trim().max(200).default('') }), req.body);
+      const body = parse(z.object({ name: z.string().trim().min(2, 'Dê um nome ao bot (2 a 32 letras).').max(32), description: z.string().trim().max(200).default(''), password: z.string().max(200) }), req.body);
+      await reauth(user.id, body.password);
       const [count] = await db.query<{ n: number }>('select count(*)::int as n from bot_apps where owner_id = $1', [user.id]);
       if ((count?.n ?? 0) >= MAX_BOTS_PER_OWNER) throw new HttpError(400, `Você pode ter até ${MAX_BOTS_PER_OWNER} bots.`);
       const id = `bot_${randomBytes(8).toString('hex')}`;
@@ -174,6 +185,7 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
     wrap(async (req) => {
       const { user, a } = await myApp(req);
       limit(`bottoken:${user.id}`, 10, 3600_000);
+      await reauth(user.id, req.body?.password);
       const token = newToken(a.id);
       const secret = newSecret();
       await db.query('update bot_apps set token_hash = $2, signing_secret = $3, token_rotated_at = now() where user_id = $1', [a.id, tokenHash(token), secret]);
@@ -186,7 +198,8 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
     '/bot-apps/:id',
     auth,
     wrap(async (req) => {
-      const { a } = await myApp(req);
+      const { user, a } = await myApp(req);
+      await reauth(user.id, req.body?.password);
       const guilds = await db.query<{ guildId: string }>('select guild_id as "guildId" from guild_bots where bot_id = $1', [a.id]);
       await db.query('delete from members where user_id = $1', [a.id]);
       await db.query('delete from guild_bots where bot_id = $1', [a.id]);

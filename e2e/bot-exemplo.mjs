@@ -45,7 +45,7 @@ try {
   await api(`/invites/${guild.inviteCode}/join`, {}, bia.token);
   const geral = guild.channels.find((c) => c.type === 'text');
   await api('/admin/beta', { botdev: ['ana'], bots: ['ana'] }, equipe.token, 'PUT');
-  const made = await api('/bot-apps', { name: 'Bot Exemplo' }, ana.token);
+  const made = await api('/bot-apps', { name: 'Bot Exemplo', password: PASS }, ana.token);
 
   // sobe o bot de exemplo (o mesmo código que vai para a Vercel) com as chaves que o Resenha deu
   botServer = criarBot({ token: made.token, signingSecret: made.signingSecret, adminKey: 'senha-do-painel', resenhaUrl: BASE }).listen(BOT_PORT);

@@ -33,16 +33,18 @@ export function DevSettings() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
+  const [password, setPassword] = useState('');
   const load = () => api<{ bots: DevBot[] }>('/bot-apps').then((r) => setBots(r.bots), (e) => toast((e as Error).message));
   useEffect(() => void load(), []);
 
   async function create() {
     setBusy(true);
     try {
-      const r = await api<{ bot: { id: string }; token: string; signingSecret: string }>('/bot-apps', { body: { name, description } });
+      const r = await api<{ bot: { id: string }; token: string; signingSecret: string }>('/bot-apps', { body: { name, description, password } });
       setSecrets({ botId: r.bot.id, token: r.token, signingSecret: r.signingSecret });
       setName('');
       setDescription('');
+      setPassword('');
       await load();
     } catch (e) {
       toast((e as Error).message);
@@ -86,11 +88,15 @@ export function DevSettings() {
         </div>
       )}
 
+      <label className="dev-pass">
+        Sua senha (pedida para criar, trocar token ou apagar um bot)
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" maxLength={200} />
+      </label>
       <h3>Meus bots</h3>
       {bots === null && <p className="muted">Carregando…</p>}
       {bots?.length === 0 && <p className="muted small">Você ainda não criou nenhum bot.</p>}
       {bots?.map((b) => (
-        <DevBotCard key={b.id} bot={b} onChange={load} onSecrets={setSecrets} />
+        <DevBotCard key={b.id} bot={b} password={password} onChange={load} onSecrets={setSecrets} />
       ))}
 
       {bots && bots.length < 3 && (
@@ -110,7 +116,7 @@ export function DevSettings() {
             Descrição (opcional)
             <input value={description} onChange={(e) => setDescription(e.target.value)} maxLength={200} placeholder="O que o bot faz" />
           </label>
-          <button className="btn primary" disabled={busy || name.trim().length < 2}>
+          <button className="btn primary" disabled={busy || name.trim().length < 2 || !password}>
             Criar bot
           </button>
           <p className="muted small">Cada pessoa pode ter até 3 bots.</p>
@@ -150,7 +156,7 @@ export function DevSettings() {
   );
 }
 
-function DevBotCard({ bot, onChange, onSecrets }: { bot: DevBot; onChange(): void; onSecrets(s: Secrets): void }) {
+function DevBotCard({ bot, password, onChange, onSecrets }: { bot: DevBot; password: string; onChange(): void; onSecrets(s: Secrets): void }) {
   const [url, setUrl] = useState(bot.url ?? '');
   const [name, setName] = useState(bot.name);
   const [description, setDescription] = useState(bot.description);
@@ -168,18 +174,20 @@ function DevBotCard({ bot, onChange, onSecrets }: { bot: DevBot; onChange(): voi
     }
   }
   async function rotate() {
+    if (!password) return toast('Digite a sua senha no campo acima para confirmar.');
     if (!confirm('Gerar um token novo? O token antigo para de funcionar agora e o seu bot precisa usar o novo.')) return;
     try {
-      const r = await api<{ token: string; signingSecret: string }>(`/bot-apps/${bot.id}/token`, { body: {} });
+      const r = await api<{ token: string; signingSecret: string }>(`/bot-apps/${bot.id}/token`, { body: { password } });
       onSecrets({ botId: bot.id, token: r.token, signingSecret: r.signingSecret });
     } catch (e) {
       toast((e as Error).message);
     }
   }
   async function remove() {
+    if (!password) return toast('Digite a sua senha no campo acima para confirmar.');
     if (!confirm(`Apagar o bot "${bot.name}"? Ele sai de todos os servidores e o token deixa de existir. As mensagens antigas ficam.`)) return;
     try {
-      await api(`/bot-apps/${bot.id}`, { method: 'DELETE' });
+      await api(`/bot-apps/${bot.id}`, { method: 'DELETE', body: { password } });
       toast('Bot apagado.');
       onChange();
     } catch (e) {

@@ -102,23 +102,29 @@ try {
   const outro = g2.channels.find((c) => c.type === 'text');
 
   // ---------- quem cria ----------
-  assert((await api('/bot-apps', { name: 'Eco' }, ana.token)).status === 404, 'sem o recurso botdev: 404');
+  assert((await api('/bot-apps', { name: 'Eco', password: PASS }, ana.token)).status === 404, 'sem o recurso botdev: 404');
   assert((await api('/bot-apps', null, ana.token)).status === 404, 'listar sem o recurso: 404');
   await api('/admin/beta', { botdev: ['ana'], bots: ['ana'] }, equipe.token, 'PUT');
   assert((await api('/bot-apps', { name: 'Eco' }, caio.token)).status === 404, 'outra conta continua sem acesso');
-  assert((await api('/bot-apps', { name: 'x' }, ana.token)).status === 400, 'nome muito curto');
-  const made = await api('/bot-apps', { name: 'Eco Bot', description: 'Repete o que você diz' }, ana.token);
+  assert((await api('/bot-apps', { name: 'x', password: PASS }, ana.token)).status === 400, 'nome muito curto');
+  const made = await api('/bot-apps', { name: 'Eco Bot', description: 'Repete o que você diz', password: PASS }, ana.token);
   assert(made.status === 200 && /^bot_[a-f0-9]{16}\.[A-Za-z0-9_-]{40,}$/.test(made.token) && made.signingSecret.length === 64, `criou: ${JSON.stringify(made).slice(0, 150)}`);
   const botId = made.bot.id;
+  // reautenticação (SES-06): criar, trocar token e apagar bot pedem a senha de novo
+  assert((await api('/bot-apps', { name: 'Sem Senha' }, ana.token)).status === 400, 'criar bot sem senha: 400');
+  assert((await api('/bot-apps', { name: 'Senha Errada', password: 'errada-1234567' }, ana.token)).status === 403, 'criar bot com senha errada: 403');
+  assert((await api(`/bot-apps/${botId}/token`, {}, ana.token)).status === 403, 'trocar token sem senha: 403');
+  assert((await api(`/bot-apps/${botId}/token`, { password: 'errada-1234567' }, ana.token)).status === 403, 'trocar token com senha errada: 403');
+  assert((await api(`/bot-apps/${botId}`, { password: 'errada-1234567' }, ana.token, 'DELETE')).status === 403, 'apagar bot com senha errada: 403');
   const token = made.token;
   secret = made.signingSecret;
   const list = await api('/bot-apps', null, ana.token);
   assert(list.bots.length === 1 && !JSON.stringify(list).includes(token.split('.')[1]) && !JSON.stringify(list).includes(secret), 'a lista nunca devolve token nem segredo');
   assert(made.bot.username.endsWith('_bot') || /_bot/.test(made.bot.username), `nome de usuário do bot: ${made.bot.username}`);
   assert((await api('/auth/login', { username: made.bot.username, password: 'bot$sem-login' })).status !== 200, 'ninguém loga como o bot');
-  for (const n of ['B2', 'B3']) assert((await api('/bot-apps', { name: n }, ana.token)).status === 200, `bot ${n}`);
-  assert((await api('/bot-apps', { name: 'Quarto' }, ana.token)).status === 400, 'limite de 3 bots por pessoa');
-  for (const x of (await api('/bot-apps', null, ana.token)).bots.filter((b) => b.name !== 'Eco Bot')) await api(`/bot-apps/${x.id}`, null, ana.token, 'DELETE');
+  for (const n of ['B2', 'B3']) assert((await api('/bot-apps', { name: n, password: PASS }, ana.token)).status === 200, `bot ${n}`);
+  assert((await api('/bot-apps', { name: 'Quarto', password: PASS }, ana.token)).status === 400, 'limite de 3 bots por pessoa');
+  for (const x of (await api('/bot-apps', null, ana.token)).bots.filter((b) => b.name !== 'Eco Bot')) await api(`/bot-apps/${x.id}`, { password: PASS }, ana.token, 'DELETE');
   assert((await api('/bot-apps', null, ana.token)).bots.length === 1, 'apagar bot libera a vaga');
   step('criar bot: só contas liberadas, token e segredo aparecem uma vez, limite de 3, ninguém loga como bot');
 
@@ -212,11 +218,11 @@ try {
   step('API do bot: posta só onde está instalado, sem @everyone, sem conversas privadas, com moderação e limite de velocidade');
 
   // ---------- token, desligar, apagar ----------
-  const rot = await api(`/bot-apps/${botId}/token`, {}, ana.token);
+  const rot = await api(`/bot-apps/${botId}/token`, { password: PASS }, ana.token);
   assert(rot.status === 200 && rot.token !== token && rot.signingSecret !== secret, 'gerou token e segredo novos');
   assert((await botApi('/bot/me', null, token)).status === 401, 'o token antigo parou na hora');
   assert((await botApi('/bot/me', null, rot.token)).status === 200, 'o token novo funciona');
-  assert((await api(`/bot-apps/${botId}/token`, {}, caio.token)).status === 404, 'só o dono gera token');
+  assert((await api(`/bot-apps/${botId}/token`, { password: PASS }, caio.token)).status === 404, 'só o dono gera token');
   const oldSecret = secret;
   secret = rot.signingSecret;
   await sleep(5200); // o limite de mensagens por canal da rajada anterior
@@ -235,7 +241,7 @@ try {
   assert(!(await api(`/guilds/${guild.id}`, null, bia.token)).guild.members.some((m) => m.id === botId), 'tirado do servidor');
   assert((await send(geral.id, { content: 'sem permissão' }, rot.token)).status === 403, 'bot removido do servidor não escreve mais');
   await api(`/guilds/${guild.id}/bot-apps`, { botId }, ana.token);
-  assert((await api(`/bot-apps/${botId}`, null, ana.token, 'DELETE')).status === 200, 'apagou o bot');
+  assert((await api(`/bot-apps/${botId}`, { password: PASS }, ana.token, 'DELETE')).status === 200, 'apagou o bot');
   assert((await botApi('/bot/me', null, rot.token)).status === 401, 'bot apagado: o token deixou de existir');
   assert(!(await api(`/guilds/${guild.id}`, null, bia.token)).guild.members.some((m) => m.bot), 'bot apagado sai de todos os servidores');
   assert((await api(`/channels/${geral.id}/messages`, null, bia.token)).messages.some((m) => m.content === 'pong olá'), 'as mensagens antigas continuam');

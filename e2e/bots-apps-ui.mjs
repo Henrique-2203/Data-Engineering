@@ -93,6 +93,7 @@ try {
   const A = await open('ana');
   await A.getByRole('button', { name: 'Configurações', exact: true }).click();
   await A.getByRole('button', { name: 'Desenvolvedor' }).click();
+  await A.getByLabel(/Sua senha/).fill(PASS);
   await A.getByLabel('Nome do bot').fill('Eco Bot');
   await A.getByRole('button', { name: 'Criar bot' }).click();
   const secretBox = A.locator('.dev-secret');

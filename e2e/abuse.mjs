@@ -84,6 +84,30 @@ try {
   step('ADM: a conta da equipe não pode ser excluída (o nome não fica livre para um invasor virar admin)');
 
 
+
+  // ---- AUTH-04/05: sem enumeração de contas e sem "credential stuffing" por IP ----
+  const IPX = '10.77.0.1';
+  const wrongKnown = await call('POST', '/auth/login', null, { username: 'ana', password: 'errada-123456' }, { ip: IPX });
+  const wrongUnknown = await call('POST', '/auth/login', null, { username: 'ninguem-existe', password: 'errada-123456' }, { ip: IPX });
+  check(wrongKnown.status === wrongUnknown.status && wrongKnown.error === wrongUnknown.error, `AUTH-04: login revela se a conta existe (${wrongKnown.status} "${wrongKnown.error}" vs ${wrongUnknown.status} "${wrongUnknown.error}")`);
+  let stuffed = false;
+  for (let i = 0; i < 60 && !stuffed; i++) {
+    const r = await call('POST', '/auth/login', null, { username: `vitima${i}`, password: 'tentativa-123456' }, { ip: IPX });
+    if (r.status === 429) stuffed = true;
+  }
+  check(stuffed, 'AUTH-05: 60 logins errados de contas diferentes vindos do mesmo IP não foram travados');
+  check((await call('POST', '/auth/login', null, { username: 'ana', password: PASS }, { ip: '10.77.0.2' })).status === 200, 'AUTH-05: o travamento de um IP atrapalhou outro IP');
+  step('AUTH-04/05: login não revela quem tem conta; tentar muitas contas do mesmo IP é travado');
+
+  // ---- AUTH-05: cadastro em massa do mesmo IP ----
+  let flooded = false;
+  for (let i = 0; i < 40 && !flooded; i++) {
+    const r = await call('POST', '/auth/register', null, { username: `massa${i}`, password: PASS, displayName: 'm', acceptTerms: true }, { ip: '10.77.0.3' });
+    if (r.status === 429) flooded = true;
+  }
+  check(flooded, 'AUTH-05: 40 cadastros do mesmo IP não foram travados');
+  step('AUTH-05: criar contas em massa do mesmo IP é travado');
+
   // ---- PERM-08: tetos por servidor e por pessoa ----
   const { guild: big } = await call('POST', '/guilds', bia.token, { name: 'Grande' });
   let chStatus = 0;

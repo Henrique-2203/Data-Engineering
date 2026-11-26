@@ -11,7 +11,9 @@ import {
   clearSessionCookie,
   setSessionCookie,
   deleteSession,
+  fakeVerify,
   hashPassword,
+  needsRehash,
   issueSession,
   requireAuth,
   tokenFromHeaders,
@@ -435,7 +437,7 @@ export function createRoutes(db: Db, rt: Realtime) {
       }
       const failed = async (userId: string | null, message: string, extra: object = {}) => {
         limit(failKey, 1000, 15 * 60_000);
-        limit(ipFailKey, 1000, 15 * 60_000);
+        limit(ipFailKey, 30, 15 * 60_000, 'Muitas tentativas erradas deste endereço. Aguarde 15 minutos.');
         if (userId && hits(failKey) === 8) {
           await logEvent(db, userId, 'login_blocked');
           await alertUser(db, userId, 'Tentativas de entrar na sua conta', [
@@ -451,13 +453,19 @@ export function createRoutes(db: Db, rt: Realtime) {
          order by (u.username = $1) desc limit 1`,
         [body.username.replace(/^@/, '')],
       );
-      if (!row || !(await verifyPassword(body.password, row.password_hash))) return failed(row?.id ?? null, 'Usuário ou senha incorretos.');
+      if (!row) {
+        await fakeVerify(body.password); // mesmo tempo de resposta de uma conta que existe
+        return failed(null, 'Usuário ou senha incorretos.');
+      }
+      if (!(await verifyPassword(body.password, row.password_hash))) return failed(row.id, 'Usuário ou senha incorretos.');
       if (row.suspended_now) throw new HttpError(403, suspensionMessage(row.suspended_reason, row.suspended_until, config.privacyContact));
       // verificação em duas etapas (se a pessoa ativou)
       const second = await checkSecondFactor(db, row.id, body.code);
       if (second === 'missing') return res.status(401).json({ error: 'Digite o código do seu app autenticador.', need2fa: true });
       if (second === 'wrong') return failed(row.id, 'Código de verificação incorreto.', { need2fa: true });
       clearLimit(failKey);
+      // senha guardada num formato mais fraco (conta antiga): regrava no formato atual (a senha certa acabou de ser conferida)
+      if (needsRehash(row.password_hash)) void hashPassword(body.password).then((h) => db.query('update users set password_hash = $2 where id = $1', [row.id, h])).catch(() => {});
       const { password_hash, suspended_now, suspended_reason, suspended_until, ...user } = row;
       return finishLogin(db, req, res, user, body.password);
     }),

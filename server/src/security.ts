@@ -7,7 +7,7 @@ import { config } from './config.ts';
 import { r2Configured } from './storage.ts';
 import type { Realtime } from './realtime.ts';
 import { HttpError, parse, wrap } from './http.ts';
-import { SESSION_IDLE_DAYS, deviceLabel, issueSession, sha256, verifyPassword, type requireAuth } from './auth.ts';
+import { SESSION_IDLE_DAYS, SESSION_MAX_DAYS, deviceLabel, issueSession, sha256, verifyPassword, type requireAuth } from './auth.ts';
 import { EVENT_NAMES, alertUser, logEvent, recordLogin, requireSafePassword, setPassword } from './account.ts';
 import { emailEnabled } from './email.ts';
 
@@ -276,7 +276,7 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
     wrap(async (req) => {
       const rows = await db.query<{ token_hash: string; device: string; created_at: string; last_seen_at: string }>(
         `select token_hash, device, created_at, last_seen_at from sessions
-         where user_id = $1 and last_seen_at > now() - interval '${SESSION_IDLE_DAYS} days' order by last_seen_at desc`,
+         where user_id = $1 and last_seen_at > now() - interval '${SESSION_IDLE_DAYS} days' and created_at > now() - interval '${SESSION_MAX_DAYS} days' order by last_seen_at desc`,
         [req.user!.id],
       );
       return {
@@ -552,7 +552,7 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
 
   // limpeza de sessões vencidas
   const cleanup = () =>
-    db.query(`delete from sessions where last_seen_at < now() - interval '${SESSION_IDLE_DAYS} days'`).catch(() => {});
+    db.query(`delete from sessions where last_seen_at < now() - interval '${SESSION_IDLE_DAYS} days' or created_at < now() - interval '${SESSION_MAX_DAYS} days'`).catch(() => {});
   setTimeout(cleanup, 60_000);
   setInterval(cleanup, 6 * 3600_000).unref();
 }
