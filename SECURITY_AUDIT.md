@@ -50,6 +50,7 @@ Todas têm teste que falha sem a correção.
 | 20 | Respostas da API podiam ser guardadas em cache | `Cache-Control: no-store` em `/api` | `abuse.mjs` |
 | 21 | Sem "chaves de emergência" nem revogação em massa | `killswitch.ts` + painel | `killswitch.mjs` |
 | 22 | Atividade de bots sem SSRF/limites (API de bots de terceiros nova) | `safeFetch.ts`, https/443, DNS fixado, IP privado bloqueado, sem redirect | `safe-fetch.mjs`, `bots-abuse.mjs`, `bots-apps.mjs` |
+| 23 | Imagem com cabeçalho válido e corpo corrompido gerava erro 500 (achado da regressão) | recusa limpa 415 (413 para bomba de pixels) | `explore.mjs`, `upload-abuse.mjs` |
 
 ## 3. Tabela de status
 

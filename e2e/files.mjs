@@ -127,8 +127,10 @@ try {
   const png = readFileSync('e2e/fixtures/limpa.png');
   const limpa = await upload(ana.token, geral.id, 'limpa.png', png);
   const pngBack = Buffer.from(await (await get(limpa.attachment.url)).arrayBuffer());
-  assert(pngBack.equals(png), 'imagem sem metadados vai como está (sem perder qualidade)');
-  step('imagem sem metadados não é recomprimida');
+  // segurança (UPL-03): TODA imagem é re-encodada (mata arquivo "poliglota"), mas PNG é sem perdas: os pixels têm de ser idênticos
+  const [px, py] = await Promise.all([sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true }), sharp(pngBack).ensureAlpha().raw().toBuffer({ resolveWithObject: true })]);
+  assert(px.info.width === py.info.width && px.info.height === py.info.height && px.data.equals(py.data), 'imagem sem metadados mantém os mesmos pixels (sem perder qualidade)');
+  step('imagem sem metadados é re-encodada sem perder nenhum pixel');
 
   // ---------- outros arquivos ----------
   const pdf = await upload(ana.token, geral.id, 'trabalho final.pdf', Buffer.from('%PDF-1.7\n%âãÏÓ\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF'));

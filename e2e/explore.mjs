@@ -10,6 +10,7 @@ import path from 'node:path';
 import { tempDir } from './_tmp.mjs';
 
 const require = createRequire(import.meta.url);
+const sharp = require('sharp');
 const { chromium } = require('playwright');
 const PORT = 3203;
 const BASE = `http://localhost:${PORT}`;
@@ -82,7 +83,10 @@ try {
 
   // completa os requisitos
   await api(`/guilds/${gid}`, { description: 'Clã de CS: treino toda noite, mix de fim de semana e calls abertas.', rules: '1. Respeito.\n2. Sem trapaça.', rulesRequired: true }, dono.token, 'PATCH');
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAQ0lEQVR4nO3OMQEAIAzAsPk3DQo4yQxRcNKZu8Z9Hzt7AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH7AQwyAQEf6S0vVgAAAABJRU5ErkJggg==', 'base64');
+  const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: { r: 90, g: 120, b: 220 } } }).png().toBuffer();
+  // imagem corrompida (cabeçalho de PNG com lixo): recusa limpa 415, nunca 500
+  const broken = await fetch(`${BASE}/api/guilds/${gid}/icon`, { method: 'POST', headers: { 'content-type': 'image/png', authorization: `Bearer ${dono.token}` }, body: Buffer.concat([png.subarray(0, 60), Buffer.alloc(200, 7)]) });
+  assert(broken.status === 415, `imagem corrompida deveria dar 415 (deu ${broken.status})`);
   const up = await fetch(`${BASE}/api/guilds/${gid}/icon`, { method: 'POST', headers: { 'content-type': 'image/png', authorization: `Bearer ${dono.token}` }, body: png });
   assert(up.ok, `ícone enviado (${up.status} ${await up.text().catch(() => '')})`);
   ex = await api('/explore', null, ana.token);

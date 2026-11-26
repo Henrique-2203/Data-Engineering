@@ -63,7 +63,15 @@ export async function cleanImage(input: Buffer, mime: string): Promise<CleanImag
       img = img.gif();
       break;
   }
-  const { data, info } = await img.toBuffer({ resolveWithObject: true });
+  let out: { data: Buffer; info: { width?: number; height?: number } };
+  try {
+    out = await img.toBuffer({ resolveWithObject: true });
+  } catch (err) {
+    // imagem com cabeçalho válido e corpo corrompido (ou "bomba"): recusa limpa, nunca erro 500
+    if (/pixel limit/i.test(String((err as Error)?.message))) throw new HttpError(413, 'Imagem com resolução grande demais.');
+    throw new HttpError(415, 'Não foi possível ler essa imagem. Ela pode estar corrompida.');
+  }
+  const { data, info } = out;
   const swap = rotate && (meta.orientation ?? 1) >= 5; // 5 a 8 = girada 90°
   return {
     data,

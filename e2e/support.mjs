@@ -23,6 +23,9 @@ const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'
   stdio: ['ignore', 'ignore', 'pipe'],
 });
 server.stderr.on('data', (d) => /\[ice\]|BACKUP_KEY/.test(d) || process.stderr.write(`[server] ${d}`));
+import { readFileSync } from 'node:fs';
+// id da novidade mais nova (a primeira da lista): o teste não precisa ser editado a cada novidade
+const newestChange = readFileSync('client/src/components/Changelog.tsx', 'utf8').match(/id: '(\d{4}-\d{2}-\d{2}[a-z0-9-]*)'/)[1];
 async function api(p, body, token, method) {
   const res = await fetch(`${BASE}/api${p}`, {
     method: method ?? (body ? 'POST' : 'GET'),
@@ -76,7 +79,7 @@ try {
   const popup = pa.getByRole('dialog', { name: 'Novidades do Resenha' });
   await popup.waitFor();
   await popup.getByText('Modo desempenho').waitFor();
-  assert(!(await popup.getByText('Chat da call').isVisible()), 'só mostra o que a pessoa ainda não viu');
+  assert(!(await popup.getByText('volume separado para cada transmissão').isVisible()), 'só mostra o que a pessoa ainda não viu');
   assert(!/vulnerab|CVE|falha de segurança|XSS|injeç/i.test(await popup.textContent()), 'novidades sem detalhes técnicos de segurança');
   await pa.screenshot({ path: path.join(shots, 'novidades.png') });
   await pa.keyboard.press('Escape');
@@ -85,7 +88,7 @@ try {
   await popup.getByRole('button', { name: 'Entendi' }).click();
   await popup.waitFor({ state: 'detached' });
   await sleep(300);
-  assert((await api('/bootstrap', null, ana.token)).changelog.seen === '2026-11-11c', 'confirmação gravada na conta (a mais nova)');
+  assert((await api('/bootstrap', null, ana.token)).changelog.seen === newestChange, 'confirmação gravada na conta (a mais nova)');
   await pa.reload();
   await pa.getByRole('button', { name: /^Suporte/ }).waitFor();
   await sleep(800);
@@ -134,7 +137,7 @@ try {
   await pa.waitForURL(`${BASE}/app`);
   await pa.getByRole('dialog', { name: 'Suporte' }).waitFor();
   await pa.goto(BASE);
-  await pa.getByRole('link', { name: 'Abrir o Resenha' }).waitFor();
+  await pa.getByRole('link', { name: 'Abrir o Resenha' }).first().waitFor();
   await pa.getByRole('link', { name: 'Suporte' }).first().waitFor();
   step('site: página /suporte com dúvidas comuns e "Abrir um chamado" (leva ao app); "/" é o site mesmo logado');
 
