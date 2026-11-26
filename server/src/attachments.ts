@@ -7,7 +7,6 @@ import { fmtMb, requireQuota, userUsage } from './access.ts';
 import { limit } from './security.ts';
 import { blockedReason, cleanImage, scrubVideoLocation, sniffFile, type FileKind } from './sanitize.ts';
 import { checkFileLink, fileStore, r2Configured, readStored, signFileLink } from './storage.ts';
-import { isPlatformAdmin } from './reports.ts';
 import type { Attachment } from '../../shared/types.ts';
 import type { requireAuth } from './auth.ts';
 
@@ -81,7 +80,7 @@ function cleanName(raw: unknown, mime: string, kind: FileKind) {
   } catch {
     /* nome inválido: usa o padrão */
   }
-  name = name.normalize('NFC').replace(/[^\p{L}\p{N}._ ()+-]+/gu, '_').replace(/^[.\s]+/, '').slice(0, 100).trim();
+  name = name.normalize('NFC').replace(/[^\p{L}\p{N}._ ()+-]+/gu, '_').replace(/\.{2,}/g, '.').replace(/^[.\s]+/, '').slice(0, 100).trim();
   const ext = name.match(/\.([\p{L}\p{N}]{1,10})$/u)?.[1]?.toLowerCase();
   const base = (ext ? name.slice(0, -(ext.length + 1)) : name) || (kind === 'image' ? 'imagem' : 'arquivo');
   // imagens, vídeos e áudios ganham a extensão do tipo REAL (nada de "foto.jpg" que é outra coisa)
@@ -206,9 +205,9 @@ export function registerAttachmentRoutes(
         [String(req.params.id)],
       );
       if (!a) throw new HttpError(404, 'Arquivo não encontrado.');
-      const allowed = a.channel_id
-        ? isPlatformAdmin(me.username) || (await hooks.channelGuild(a.channel_id, me.id).then(() => true, () => false))
-        : a.uploader_id === me.id;
+      // só quem enxerga a conversa (nem a equipe da plataforma abre anexo alheio por aqui: o que ela precisa
+      // ver para julgar uma denúncia já vem com link no próprio contexto da denúncia)
+      const allowed = a.channel_id ? await hooks.channelGuild(a.channel_id, me.id).then(() => true, () => false) : a.uploader_id === me.id;
       if (!allowed) throw new HttpError(404, 'Arquivo não encontrado.');
       return { url: await signFileLink(db, String(req.params.id), a.filename) };
     }),

@@ -40,9 +40,9 @@ export async function cleanImage(input: Buffer, mime: string): Promise<CleanImag
   const height = meta.pageHeight ?? meta.height ?? 0;
   const pages = meta.pages ?? 1;
   const hasMeta = !!(meta.exif || meta.xmp || meta.iptc || (meta.comments && meta.comments.length));
-  if (!hasMeta) return { data: input, mime, width, height, stripped: false };
 
-  // reescreve a imagem sem metadados (o perfil de cor é mantido para as cores não mudarem)
+  // SEMPRE reescreve a imagem: tira metadados (GPS...) E qualquer coisa escondida depois do fim da imagem
+  // (arquivo "polyglot": uma figura válida com HTML/script/programa colado no final). O perfil de cor é mantido.
   const rotate = pages === 1 && (meta.orientation ?? 1) > 1;
   let img = sharp(input, { animated, limitInputPixels: MAX_PIXELS }).keepIccProfile();
   if (rotate) img = img.rotate();
@@ -70,7 +70,7 @@ export async function cleanImage(input: Buffer, mime: string): Promise<CleanImag
     mime,
     width: info.width ?? (swap ? height : width),
     height: (pages > 1 ? meta.pageHeight : info.height) ?? (swap ? width : height),
-    stripped: true,
+    stripped: hasMeta,
   };
 }
 
