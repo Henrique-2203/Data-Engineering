@@ -70,12 +70,14 @@ export const COMANDOS = [
 // ------------------------------------------------------------------ o servidor do bot
 // escapa texto antes de pôr em HTML (evita XSS no painel: nomes de servidor/canal e mensagens vêm de fora)
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-// ids de chamadas já vistas (proteção contra repetição/replay: a mesma chamada assinada não vale duas vezes)
+// ids de chamadas já vistas (proteção contra repetição/replay: a mesma chamada assinada não vale duas vezes).
+// LIMITAÇÃO: a lista fica na memória de CADA instância. Na Vercel, se o Resenha cair em duas instâncias diferentes, a
+// proteção não cobre as duas. Para cobrir de verdade, guarde os ids num lugar compartilhado (Redis/banco) com validade de 5 min.
 const VISTOS = new Map();
 const jaVisto = (id) => {
   const agora = Date.now();
   for (const [k, t] of VISTOS) if (agora - t > 6 * 60_000) VISTOS.delete(k);
-  if (!id || VISTOS.has(id)) return true;
+  if (VISTOS.has(id)) return true;
   VISTOS.set(id, agora);
   return false;
 };
@@ -118,6 +120,9 @@ export function criarBot({ token, signingSecret, adminKey, resenhaUrl = 'https:/
     } catch {
       return res.status(400).json({ erro: 'JSON inválido' });
     }
+    // o corpo tem de ser um objeto (assinado ou não, "null" ou "5" não são chamadas do Resenha)
+    if (!evento || typeof evento !== 'object' || Array.isArray(evento)) return res.status(400).json({ erro: 'corpo inválido' });
+    if (typeof evento.id !== 'string' || !evento.id) return res.status(400).json({ erro: 'falta o id da chamada' });
     if (jaVisto(evento.id)) return res.status(409).json({ erro: 'chamada repetida' });
     const cmd = COMANDOS.find((c) => c.name === evento.command);
     if (!cmd) return res.json({ content: `Não conheço o comando /${String(evento.command).slice(0, 20)}.` });
