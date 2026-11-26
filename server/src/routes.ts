@@ -608,6 +608,7 @@ export function createRoutes(db: Db, rt: Realtime) {
     wrap(async (req) => {
       const c = await channelForMember(String(req.params.id), req.user!.id);
       limit(`msg:${req.user!.id}`, 12, 10_000, 'Calma! Muitas mensagens seguidas. Espere alguns segundos.');
+      limit(`msgmin:${req.user!.id}`, 90, 60_000, 'Calma! Muitas mensagens em um minuto. Espere um pouco.');
       if (c.access) requireNotTimedOut(c.access);
       const body = parse(
         z.object({

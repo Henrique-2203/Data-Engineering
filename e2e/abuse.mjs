@@ -128,6 +128,21 @@ try {
   check((await call('PATCH', '/me', equipe.token, { displayName: 'Equipe Resenha' })).status === 200, 'a equipe de verdade (PLATFORM_ADMINS) não pode usar o próprio nome');
   step('IMP-01/02: nomes que imitam a equipe (inclusive com 0/@/letras russas) são recusados, inversão de leitura e largura zero são removidas, nomes normais passam');
 
+
+  // ---- DM-03/RL-04: abrir conversas novas em massa (spam/assédio) ----
+  const novata = await reg('novata');
+  await call('POST', `/invites/${guild.inviteCode}/join`, novata.token);
+  const alvos = [];
+  for (let i = 0; i < 8; i++) {
+    const u = await reg(`alvo${i}`);
+    await call('POST', `/invites/${guild.inviteCode}/join`, u.token);
+    alvos.push(u);
+  }
+  let dmBlocked = 0;
+  for (const u of alvos) if ((await call('POST', '/dms', novata.token, { userId: u.user.id })).status === 429) dmBlocked++;
+  check(dmBlocked >= 3, `DM-03: conta nova abriu 8 conversas novas seguidas sem travar (${dmBlocked} travadas)`);
+  step('DM-03/RL-04: conta nova só abre poucas conversas novas por hora (anti-spam de DM em massa)');
+
   // ---- PERM-08: tetos por servidor e por pessoa ----
   const { guild: big } = await call('POST', '/guilds', bia.token, { name: 'Grande' });
   let chStatus = 0;

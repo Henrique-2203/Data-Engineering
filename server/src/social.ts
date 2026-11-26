@@ -152,6 +152,9 @@ export function registerSocialRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
       );
       let id = existing?.id;
       if (!id) {
+        // anti-spam/assédio (DM-03/RL-04): conversas NOVAS são limitadas, e conta de menos de 1 dia tem teto menor
+        const [acc] = await db.query<{ young: boolean }>(`select created_at > now() - interval '1 day' as young from users where id = $1`, [me]);
+        limit(`dmnew:${me}`, acc?.young ? 5 : 30, 3600_000, 'Você abriu muitas conversas novas. Espere um pouco antes de chamar mais gente.');
         id = randomUUID();
         await db.query(`insert into channels (id, guild_id, name, type, position) values ($1, null, '', 'dm', 0)`, [id]);
         await db.query('insert into dm_members (channel_id, user_id) values ($1, $2), ($1, $3)', [id, me, userId]);

@@ -74,6 +74,14 @@ const botServer = http.createServer((req, res) => {
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end(JSON.stringify({ oi: 1 }));
     }
+    if (mode === 'big') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify({ content: 'x'.repeat(200_000) }));
+    }
+    if (mode === 'redirect') {
+      res.writeHead(302, { location: `http://127.0.0.1:${BOT_PORT}/segundo-salto` });
+      return res.end();
+    }
     if (mode === 'error') {
       res.writeHead(500);
       return res.end('x');
@@ -188,6 +196,14 @@ try {
     r = await use('ping', 'x');
     assert(r.status === 502 && /Eco Bot/.test(r.error), `bot com resposta ruim (${m}): ${r.status} ${r.error}`);
   }
+  mode = 'big';
+  r = await use('ping', 'x');
+  assert(r.status === 502 && /grande/.test(r.error), `bot com resposta de 200 KB: ${r.status} ${r.error}`);
+  mode = 'redirect';
+  const hitsBefore = received.length;
+  r = await use('ping', 'x');
+  assert(r.status === 502, `bot que redireciona: ${r.status} ${r.error}`);
+  assert(received.length === hitsBefore + 1 && !received.some((x) => x.url === '/segundo-salto'), 'o Resenha SEGUIU o redirecionamento do bot (caminho para atingir endereços internos)');
   mode = 'slow';
   r = await use('ping', 'x');
   assert(r.status === 502 && /demorou/.test(r.error), `bot lento: ${r.status} ${r.error}`);
@@ -200,6 +216,9 @@ try {
   const send = (ch, body, t = token) => botApi(`/bot/channels/${ch}/messages`, body, t);
   r = await send(geral.id, { content: 'Oi, eu sou o bot!' });
   assert(r.status === 200 && r.message.author.id === botId && r.message.author.bot && r.message.content === 'Oi, eu sou o bot!', `bot postou: ${JSON.stringify(r).slice(0, 200)}`);
+  const forjada = await send(geral.id, { content: 'campos extras', authorId: ana.user.id, author: { id: ana.user.id, username: 'ana' }, mentionEveryone: true, embeds: [{ title: 'cru' }], interaction: { userId: ana.user.id, command: 'dado' }, pinned: true, system: 'join', id: 'meu-id', createdAt: '2001-01-01T00:00:00Z' });
+  assert(forjada.status === 200 && forjada.message.author.id === botId && !forjada.message.mentionEveryone && !forjada.message.pinned && !forjada.message.system && forjada.message.id !== 'meu-id' && !forjada.message.interaction, `bot conseguiu forjar campos da mensagem: ${JSON.stringify(forjada).slice(0, 300)}`);
+  await sleep(5200);
   r = await send(geral.id, { content: '@everyone olá', embed: { title: 'T', description: 'D', fields: [{ name: 'a', value: 'b' }] } });
   assert(r.status === 200 && r.message.mentionEveryone !== true, 'bot não consegue @everyone');
   assert((await send(geral.id, {})).status === 400, 'mensagem vazia recusada');

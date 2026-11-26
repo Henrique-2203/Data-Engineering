@@ -325,7 +325,15 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
   const botAuth = async (req: BotReq, res: Response, next: NextFunction) => {
     try {
       const m = /^Bot\s+(bot_[a-f0-9]{16})\.([A-Za-z0-9_-]{20,64})$/.exec(String(req.headers.authorization ?? ''));
-      const fail = () => res.status(401).json({ error: 'Token inválido. Use o cabeçalho "Authorization: Bot <token>".' });
+      const fail = () => {
+        // chutar tokens é travado por IP (sem isso cada tentativa custaria uma consulta ao banco)
+        try {
+          limit(`botauthfail:${req.ip}`, 60, 60_000, 'Muitas tentativas com token inválido. Espere um minuto.');
+        } catch (e) {
+          return next(e);
+        }
+        return res.status(401).json({ error: 'Token inválido. Use o cabeçalho "Authorization: Bot <token>".' });
+      };
       if (!m) return fail();
       const [row] = await db.query<{ hash: string; ownerId: string; name: string; disabled: boolean }>(
         `select a.token_hash as hash, a.owner_id as "ownerId", u.display_name as name, (a.disabled_at is not null) as disabled from bot_apps a join users u on u.id = a.user_id where a.user_id = $1`,
