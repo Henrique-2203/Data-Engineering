@@ -53,6 +53,8 @@ export interface VoiceStore {
   screenBlocked: Record<string, true>;
   /** fechei o "Assistir juntos" só para mim (continua para os outros) */
   togetherHidden: boolean;
+  /** estou ouvindo o Resenha Bot (DJ)? Cada um escolhe: o som não começa sozinho para quem não pediu a música */
+  djListen: boolean;
   /** chat privado da call (só quem está nela; não fica salvo) */
   callChat: CallChatMessage[];
   /** filtro de ruído que está de fato ligado no microfone agora (null = fora da chamada) */
@@ -99,6 +101,7 @@ export const useVoice = create<VoiceStore>(() => ({
   streamHint: {},
   screenBlocked: {},
   togetherHidden: false,
+  djListen: false,
   callChat: [],
   noMic: false,
   localCamera: null,

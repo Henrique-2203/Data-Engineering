@@ -27,6 +27,8 @@ export interface AppState {
   /** "Jogando agora" de cada pessoa online */
   activities: Record<string, Activity>;
   voiceStates: Record<string, VoiceState>; // por socketId
+  /** canais de voz em que o Resenha Bot (DJ) está tocando: aparece na lista do canal, como um participante */
+  djChannels: Record<string, true>;
   typing: Record<string, Record<string, number>>; // channelId -> userId -> expira em
   /** mensagens não lidas por canal (o servidor guarda até onde li; até 100) */
   unread: Record<string, number>;
@@ -121,6 +123,7 @@ export const useApp = create<AppState>(() => ({
   online: {},
   activities: {},
   voiceStates: {},
+  djChannels: {},
   typing: {},
   unread: {},
   mentions: {},

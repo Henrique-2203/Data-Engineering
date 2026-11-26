@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Bot, Captions, CaptionsOff, ListPlus, Maximize2, Minimize2, Pause, Play, Settings, SkipForward, Square, Trash2, Tv, Volume2, VolumeX, X } from 'lucide-react';
+import { Bot, Captions, CaptionsOff, HeadphoneOff, Headphones, ListPlus, Maximize2, Minimize2, Pause, Play, Settings, SkipForward, Square, Trash2, Tv, Volume2, VolumeX, X } from 'lucide-react';
 import type { TogetherState } from '../../../shared/types';
 import { parseEmbedUrl } from '../../../shared/embedUrl';
 import { findMember, toast, useApp } from '../store/app';
@@ -75,8 +75,72 @@ const savePref = (key: string, value: string) => {
   }
 };
 
-/** Quadro do "Assistir juntos" na call (fica em destaque quando um vídeo começa). */
+/**
+ * Quadro do "Assistir juntos" na call (fica em destaque quando um vídeo começa).
+ * Se a música veio do Resenha Bot (DJ), é só áudio e CADA UM escolhe se quer ouvir: quem pediu a música ouve
+ * sozinho; os outros veem o cartão do bot com o botão "Ouvir" (nada toca no aparelho deles até clicarem).
+ */
 export function TogetherTile({ big }: { big?: boolean }) {
+  const state = useVoice((s) => s.together);
+  const listen = useVoice((s) => s.djListen);
+  const meId = useApp((s) => s.me?.id);
+  const decided = useRef(false);
+  useEffect(() => {
+    if (!state?.dj || decided.current) return;
+    decided.current = true;
+    if (state.by === meId || pref('resenha.djAuto') === '1') useVoice.setState({ djListen: true });
+  }, [state?.dj, state?.by, meId]);
+  if (!state) return null;
+  if (state.dj && !listen) return <DjIdle state={state} />;
+  return <TogetherPlayer big={big} />;
+}
+
+/** o bot está tocando, mas eu ainda não escolhi ouvir: nenhum player carrega e nenhum som sai */
+function DjIdle({ state }: { state: TogetherState }) {
+  const by = useApp(() => findMember(useVoice.getState().guildId, state.by)?.displayName ?? 'alguém');
+  const [auto, setAuto] = useState(() => pref('resenha.djAuto') === '1');
+  return (
+    <div className="tile together dj idle" aria-label="Resenha Bot tocando música">
+      <div className="dj-top">
+        <span className="dj-badge">
+          <Bot size={13} /> Resenha Bot · DJ
+        </span>
+        <button className="icon-btn overlay" aria-label="Fechar só para mim" title="Fechar só para mim (volta pelo botão da TV)" onClick={() => together.hide()}>
+          <X size={15} />
+        </button>
+      </div>
+      <div className="dj-center">
+        <span className="dj-avatar">
+          <Bot size={34} />
+        </span>
+      </div>
+      <div className="dj-bar">
+        <div className="dj-title">
+          <strong className="ellipsis">🎵 {state.title ?? 'Música do YouTube'}</strong>
+          <span className="muted small ellipsis">pedido por {by}</span>
+        </div>
+        <div className="dj-actions">
+          <button className="btn primary small" onClick={() => useVoice.setState({ djListen: true })}>
+            <Headphones size={15} /> Ouvir
+          </button>
+        </div>
+        <label className="dj-auto small muted">
+          <input
+            type="checkbox"
+            checked={auto}
+            onChange={(e) => {
+              setAuto(e.target.checked);
+              savePref('resenha.djAuto', e.target.checked ? '1' : '0');
+            }}
+          />
+          Ouvir sempre que o DJ tocar
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function TogetherPlayer({ big }: { big?: boolean }) {
   const state = useVoice((s) => s.together)!;
   const focus = useVoice((s) => s.focus);
   const frame = useRef<HTMLIFrameElement>(null);
@@ -183,6 +247,7 @@ export function TogetherTile({ big }: { big?: boolean }) {
       sample.current = { time: c.time, at: now, state: c.state };
       // só com leituras seguidas, o vídeo certo e a tela visível (um PC que dormiu não puxa os outros)
       if (!prev || loaded.current !== s.videoId || document.visibilityState !== 'visible') return;
+      if (s.dj) return; // DJ: o player fica escondido, ninguém mexe nele; quem manda é o bot (nada de "pausou/pulou" falso)
       if (now - loadAt.current < 4000) return;
       const t = target(s);
       if (now - mine.current.play > 1200) {
@@ -338,9 +403,13 @@ export function TogetherTile({ big }: { big?: boolean }) {
   if (dj) {
     return (
       <div className="tile together dj" aria-label="Resenha Bot tocando música">
+        {/* só o som: o player do YouTube fica escondido (opacity 0) dentro do cartão; nenhuma imagem do vídeo aparece */}
         <iframe
           key="dj"
           ref={frame}
+          className="dj-player"
+          aria-hidden="true"
+          tabIndex={-1}
           title={state.title ?? 'Música'}
           src={src}
           allow="autoplay; encrypted-media"
@@ -350,9 +419,25 @@ export function TogetherTile({ big }: { big?: boolean }) {
           <span className="dj-badge">
             <Bot size={13} /> Resenha Bot · DJ
           </span>
-          <button className="icon-btn overlay" aria-label="Fechar a música só para mim" title="Fechar só para mim (a música continua para os outros; volta pelo botão da TV)" onClick={() => together.hide()}>
-            <X size={15} />
+          <button
+            className="icon-btn overlay"
+            aria-label="Parar de ouvir"
+            title="Parar de ouvir (a música continua para quem está ouvindo; você volta pelo botão Ouvir)"
+            onClick={() => useVoice.setState({ djListen: false })}
+          >
+            <HeadphoneOff size={15} />
           </button>
+        </div>
+        <div className="dj-center">
+          <span className="dj-avatar">
+            <Bot size={34} />
+          </span>
+          <span className={`dj-eq${state.playing && !muted ? ' on' : ''}`} aria-hidden="true">
+            <i />
+            <i />
+            <i />
+            <i />
+          </span>
         </div>
         <div className="dj-bar">
           <div className="dj-title">

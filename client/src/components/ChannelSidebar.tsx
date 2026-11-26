@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useCameraButton } from './PhoneCam';
 import { EventsButton } from './Community';
 import {
+  Bot,
   UserPen,
   Flag,
   ShieldAlert,
@@ -38,6 +39,7 @@ import { useVoice } from '../store/voice';
 import { voice } from '../voice/engine';
 import { MOVE_DRAG_TYPE, voiceMod, voiceModRights } from '../voice/moderation';
 import { SoundboardButton } from './Soundboard';
+import { BotTag } from './Bots';
 import { canShareScreen } from '../voice/settings';
 import { Avatar } from './Avatar';
 import { HomeSidebar } from './HomeSidebar';
@@ -364,6 +366,7 @@ function VoiceChannelItem({ channel, canEdit, drag }: { channel: Channel; canEdi
   const active = useApp((s) => s.selectedChannelId === channel.id);
   const allStates = useApp((s) => s.voiceStates);
   const participants = Object.values(allStates).filter((v) => v.channelId === channel.id);
+  const djPlaying = useApp((s) => !!s.djChannels[channel.id]) && participants.length > 0;
   const myChannel = useVoice((s) => s.channelId);
   const limit = channel.userLimit ?? 0;
   const [dropMove, setDropMove] = useState(false);
@@ -419,6 +422,16 @@ function VoiceChannelItem({ channel, canEdit, drag }: { channel: Channel; canEdi
           {participants.map((p) => (
             <VoiceParticipant key={p.socketId} state={p} />
           ))}
+          {djPlaying && (
+            <li className="voice-participant dj-participant" title="O Resenha Bot está tocando música nesta call. Quem está na call escolhe se quer ouvir.">
+              <span className="dj-mini-avatar">
+                <Bot size={13} />
+              </span>
+              <span className="ellipsis">Resenha Bot</span>
+              <BotTag />
+              <span className="vp-icons">🎵</span>
+            </li>
+          )}
         </ul>
       )}
     </>

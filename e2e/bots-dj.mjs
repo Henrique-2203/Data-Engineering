@@ -34,6 +34,12 @@ const fake = createServer((req, res) => {
     if (q.includes('inexistente')) return res.end(JSON.stringify({ items: [] }));
     return res.end(JSON.stringify({ items: [{ id: { videoId: 'LoFiBeats01' }, snippet: { title: `Resultado para ${q}` } }] }));
   }
+  if (u.pathname === '/videos') {
+    if (u.searchParams.get('key') !== 'chave-teste') return (res.statusCode = 403), res.end('{}');
+    // faixa curta de propósito: o fim automático (quando ninguém ouve) tem que andar a fila sozinho
+    const id = u.searchParams.get('id');
+    return res.end(JSON.stringify({ items: [{ contentDetails: { duration: id === 'ShortTrack1' ? 'PT3S' : 'PT3M20S' } }] }));
+  }
   res.statusCode = 404;
   res.end('{}');
 }).listen(FAKE);
@@ -66,8 +72,10 @@ const connect = (token) =>
     const s = io(BASE, { auth: { token }, transports: ['websocket'] });
     sockets.push(s);
     const states = [];
+    const djEvents = [];
     s.on('together:state', (d) => states.push(d));
-    s.on('ready', () => resolve({ s, states }));
+    s.on('voice:dj', (d) => djEvents.push(d));
+    s.on('ready', (p) => resolve({ s, states, djEvents, ready: p }));
   });
 const ack = (s, ev, p) => new Promise((r) => s.emit(ev, p, r));
 
@@ -162,6 +170,43 @@ try {
   assert(/Fila vazia/.test(r.message.embeds[0].title), 'fila vazia');
   assert((await cmd(bia.token, 'pular')).status === 400, 'pular sem nada tocando');
   step('/agora, /remover (só a sua), /parar (quem pediu ou administra), fila vazia');
+
+  // ---------- o Resenha Bot "entra" e "sai" da call para o servidor inteiro ----------
+  const D = await connect(dudu.token); // dudu NÃO está na call
+  await cmd(bia.token, 'tocar', 'https://youtu.be/EEEEEEEEEEE');
+  await sleep(300);
+  assert(D.djEvents.some((e) => e.channelId === voz.id && e.active === true), 'quem está fora da call é avisado: o DJ entrou no canal de voz');
+  const D2 = await connect(dudu.token);
+  assert(D2.ready.djChannels?.includes(voz.id), 'quem conecta depois já recebe o canal com DJ no ready');
+  await cmd(ana.token, 'parar');
+  await sleep(300);
+  assert(D.djEvents.at(-1).active === false, 'o DJ saiu do canal quando parou');
+  step('o Resenha Bot aparece/some na lista do canal para todo o servidor (voice:dj e ready)');
+
+  // ---------- fim automático da faixa: ninguém ouve, o servidor avança pela duração (YouTube API) ----------
+  await cmd(bia.token, 'tocar', 'https://youtu.be/ShortTrack1');
+  await cmd(bia.token, 'tocar', 'https://youtu.be/FFFFFFFFFFF');
+  await sleep(300);
+  assert(B.states.at(-1).state.videoId === 'ShortTrack1', 'a faixa curta começou');
+  await sleep(7500); // 3 s da faixa + 2,5 s de folga + margem; nenhum cliente avisou "acabou"
+  assert(B.states.at(-1).state?.videoId === 'FFFFFFFFFFF', `sem ninguém ouvindo, o servidor avançou a fila (tocando: ${B.states.at(-1).state?.videoId})`);
+  await cmd(ana.token, 'parar');
+  step('o servidor avança a fila sozinho pela duração (nada trava quando ninguém está ouvindo)');
+
+  // ---------- canal de voz PRIVADO: o DJ dele não vaza para quem não tem acesso ----------
+  const roleId = (await api(`/guilds/${guild.id}/roles`, { name: 'Diretoria' }, ana.token)).roleId;
+  const privVoz = (await api(`/guilds/${guild.id}/channels`, { name: 'sala-secreta', type: 'voice', allowedRoleIds: [roleId] }, ana.token)).channel;
+  assert(privVoz?.id, `criou o canal de voz privado `);
+  const D3 = await connect(dudu.token); // dudu não tem o cargo
+  D3.djEvents.length = 0;
+  await ack(A.s, 'voice:join', { channelId: privVoz.id });
+  await cmd(ana.token, 'tocar', 'https://youtu.be/GGGGGGGGGGG');
+  await sleep(400);
+  assert(!D3.djEvents.some((e) => e.channelId === privVoz.id), 'o DJ do canal privado não vaza para quem não tem acesso (evento)');
+  const D4 = await connect(dudu.token);
+  assert(!(D4.ready.djChannels ?? []).includes(privVoz.id), 'o DJ do canal privado não vaza no ready');
+  await cmd(ana.token, 'parar');
+  step('o DJ de um canal de voz privado não aparece para quem não tem acesso');
 
   console.log('\nTudo certo com o DJ.');
 } catch (err) {

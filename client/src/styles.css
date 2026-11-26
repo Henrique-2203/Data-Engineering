@@ -9368,7 +9368,20 @@ body.dm-call-full .chat .voice-stage.embedded .stage > .tiles {
 
 /* ---------- DJ do Resenha Bot: só a música, como um participante da call ---------- */
 .tile.together.dj { min-width: 200px; min-height: 200px; background: radial-gradient(circle at 50% 35%, #12302a, #0b0d12); }
-.tile.together.dj iframe { opacity: 0.95; }
+/* DJ: só o som. O player do YouTube fica dentro do cartão, invisível (a imagem do vídeo nunca aparece) */
+.tile.together.dj .dj-player { position: absolute; left: 0; top: 0; width: 200px; height: 200px; opacity: 0; pointer-events: none; border: 0; }
+.dj-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; pointer-events: none; padding-bottom: 70px; }
+.dj-avatar { width: 76px; height: 76px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.08); }
+.dj-eq { display: inline-flex; align-items: flex-end; gap: 4px; height: 22px; }
+.dj-eq i { width: 5px; height: 6px; border-radius: 2px; background: var(--accent); opacity: 0.6; }
+.dj-eq.on i { animation: dj-eq 900ms ease-in-out infinite; opacity: 1; }
+.dj-eq.on i:nth-child(2) { animation-delay: 150ms; }
+.dj-eq.on i:nth-child(3) { animation-delay: 300ms; }
+.dj-eq.on i:nth-child(4) { animation-delay: 450ms; }
+@keyframes dj-eq { 0%, 100% { height: 5px; } 50% { height: 22px; } }
+@media (prefers-reduced-motion: reduce) { .dj-eq.on i { animation: none; height: 14px; } }
+.dj-auto { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.tile.together.dj.idle .dj-actions { justify-content: flex-start; }
 .dj-top { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; align-items: center; justify-content: space-between; z-index: 1; }
 .dj-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 800; }
 .dj-bar { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(0, 0, 0, 0.68); color: #fff; z-index: 1; }
@@ -9427,3 +9440,7 @@ body.dm-call-full .chat .voice-stage.embedded .stage > .tiles {
 .composer-gate .btn {
   margin-left: auto;
 }
+
+/* Resenha Bot (DJ) na lista do canal de voz */
+.dj-participant { opacity: 0.9; }
+.dj-mini-avatar { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: var(--accent-ink); flex: none; }

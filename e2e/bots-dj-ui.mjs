@@ -45,8 +45,10 @@ try {
   const equipe = await reg('equipe');
   const ana = await reg('ana');
   const bia = await reg('bia');
+  const caio = await reg('caio');
   const { guild } = await api('/guilds', { name: 'Galera' }, ana.token);
   await api(`/invites/${guild.inviteCode}/join`, {}, bia.token);
+  await api(`/invites/${guild.inviteCode}/join`, {}, caio.token);
   const geral = guild.channels.find((c) => c.type === 'text');
   await api('/admin/beta', { bots: ['ana'] }, equipe.token, 'PUT');
   await api(`/guilds/${guild.id}/bots`, {}, ana.token);
@@ -79,10 +81,48 @@ try {
     assert((await page.locator('.together-controls').count()) === 0, `${name}: sem barra de vídeo (pausar/posição)`);
     assert((await page.locator('.tile.together:not(.dj)').count()) === 0, `${name}: sem o "Assistir juntos" grande`);
     assert((await page.locator('.stage.focused').count()) === 0, `${name}: o DJ não vai para o destaque`);
-    assert((await page.locator('.tile.together.dj iframe').count()) === 1, `${name}: o player do YouTube está dentro do cartão`);
   }
+  // quem pediu a música (bia) ouve sozinha: o player existe, mas é INVISÍVEL (só o som, nunca a imagem do vídeo)
+  assert((await B.locator('.tile.together.dj iframe').count()) === 1, 'bia (pediu a música): o player do YouTube está dentro do cartão');
+  assert((await B.locator('.tile.together.dj iframe').evaluate((el) => getComputedStyle(el).opacity)) === '0', 'o player do YouTube fica invisível (só áudio)');
+  assert((await B.locator('.tile.together.dj iframe').evaluate((el) => getComputedStyle(el).pointerEvents)) === 'none', 'o player invisível não recebe cliques');
+  // quem NÃO pediu (ana) não ouve nada até escolher: nenhum player carrega
+  assert((await A.locator('.tile.together.dj iframe').count()) === 0, 'ana (não pediu): nenhum player do YouTube foi carregado, nada toca');
+  await A.getByRole('button', { name: 'Ouvir', exact: true }).waitFor();
   await B.screenshot({ path: `${shots}/dj-cartao.png` });
-  step('a música aparece como um cartão do "Resenha Bot · DJ" na call (sem Assistir juntos grande, sem destaque)');
+  await A.screenshot({ path: `${shots}/dj-cartao-ouvir.png` });
+  step('o DJ é um cartão só de áudio (player invisível); quem não pediu vê "Ouvir" e nada toca até escolher');
+
+  // o Resenha Bot aparece como participante na lista do canal de voz, para todo mundo (inclusive quem não está na call)
+  for (const [name, page] of [['ana', A], ['bia', B]]) {
+    assert((await page.locator('.dj-participant').count()) === 1, `${name}: o Resenha Bot aparece na lista do canal de voz`);
+  }
+  const ctxC = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const C = await ctxC.newPage();
+  await C.goto(`${BASE}/app`);
+  await C.getByLabel(/Usuário ou e-mail|Nome de usuário/).first().fill('caio');
+  await C.getByLabel('Senha', { exact: true }).fill(PASS);
+  await C.getByRole('button', { name: /^Entrar$/ }).click();
+  await C.getByRole('dialog', { name: 'Novidades do Resenha' }).getByRole('button', { name: 'Entendi' }).click({ timeout: 4000 }).catch(() => {});
+  await C.getByRole('button', { name: 'Galera' }).first().click();
+  await C.locator('.dj-participant').waitFor({ timeout: 8000 });
+  assert((await C.locator('.tile.together').count()) === 0, 'quem não está na call não vê cartão nem ouve nada');
+  step('o Resenha Bot aparece na lista do canal de voz (inclusive para quem está fora da call)');
+
+  // a ana escolhe ouvir -> o player passa a existir (invisível); parar de ouvir volta ao cartão
+  await A.getByRole('button', { name: 'Ouvir', exact: true }).click();
+  await A.locator('.tile.together.dj iframe').waitFor({ timeout: 8000 });
+  assert((await A.locator('.tile.together.dj iframe').evaluate((el) => getComputedStyle(el).opacity)) === '0', 'ana ouvindo: o player também é invisível');
+  await A.getByRole('button', { name: 'Parar de ouvir' }).click();
+  await A.getByRole('button', { name: 'Ouvir', exact: true }).waitFor();
+  assert((await A.locator('.tile.together.dj iframe').count()) === 0, 'parar de ouvir descarrega o player');
+  // "ouvir sempre" fica guardado
+  await A.getByLabel('Ouvir sempre que o DJ tocar').check();
+  assert((await A.evaluate(() => localStorage.getItem('resenha.djAuto'))) === '1', '"ouvir sempre" fica guardado');
+  await A.getByLabel('Ouvir sempre que o DJ tocar').uncheck();
+  await A.getByRole('button', { name: 'Ouvir', exact: true }).click();
+  await A.locator('.tile.together.dj iframe').waitFor({ timeout: 8000 });
+  step('cada um escolhe ouvir ou parar de ouvir; a escolha de "ouvir sempre" fica guardada');
 
   // silenciar só para si
   const muteB = B.getByRole('button', { name: 'Silenciar a música (só para você)' });
@@ -103,7 +143,8 @@ try {
   assert((await api(`/channels/${geral.id}/interactions`, { command: 'parar', args: '' }, ana.token)).status === 200, 'a dona não pediu essa música, mas administra: pode parar');
   await A.locator('.tile.together.dj').waitFor({ state: 'detached', timeout: 8000 });
   await B.locator('.tile.together.dj').waitFor({ state: 'detached', timeout: 8000 });
-  step('/parar tira o cartão do DJ da call');
+  await C.locator('.dj-participant').waitFor({ state: 'detached', timeout: 8000 });
+  step('/parar tira o cartão do DJ da call e o Resenha Bot sai da lista do canal');
   console.log('\nTudo certo com o DJ na tela.');
 } catch (err) {
   console.error(err);

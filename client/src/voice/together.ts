@@ -30,6 +30,8 @@ function apply(state: TogetherState | null) {
     together: state,
     // acabou: quem tinha fechado só para si volta a ver o próximo "Assistir juntos"
     togetherHidden: state ? s.togetherHidden : false,
+    // acabou a música do DJ: na próxima sessão, cada um escolhe de novo se quer ouvir
+    djListen: state?.dj ? s.djListen : false,
     // começou um vídeo: ele vai para o destaque (menos para quem fechou só para si)
     // (o DJ do bot não vai para o destaque: é só a música da call)
     focus: state && !prev && !s.togetherHidden && !state.dj ? 'together' : !state && s.focus === 'together' ? null : s.focus,
@@ -69,7 +71,7 @@ export const together = {
   },
   clear: () => {
     apply(null);
-    useVoice.setState({ togetherHidden: false });
+    useVoice.setState({ togetherHidden: false, djListen: false });
   },
 };
 

@@ -47,6 +47,7 @@ jobs:
           node e2e/ws-abuse.mjs
           node e2e/upload-abuse.mjs
           node e2e/bots-abuse.mjs
+          node e2e/bots-dj.mjs
           node e2e/killswitch.mjs
           node e2e/blocks.mjs
       - name: Bibliotecas com falhas conhecidas (site e servidor)

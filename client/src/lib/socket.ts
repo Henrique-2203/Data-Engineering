@@ -53,8 +53,9 @@ export function connectSocket() {
   s.on('server:restarting', () => set({ updating: true }));
   s.on('disconnect', () => set({ connected: false, socketId: null }));
 
-  s.on('ready', (p: { socketId: string; online: string[]; voiceStates: VoiceState[]; maxVoicePeers: number; activities?: Record<string, Activity> }) => {
+  s.on('ready', (p: { socketId: string; online: string[]; voiceStates: VoiceState[]; djChannels?: string[]; maxVoicePeers: number; activities?: Record<string, Activity> }) => {
     set({
+      djChannels: Object.fromEntries((p.djChannels ?? []).map((id) => [id, true as const])),
       socketId: p.socketId,
       activities: p.activities ?? {},
       online: Object.fromEntries(p.online.map((id) => [id, true as const])),
@@ -62,6 +63,16 @@ export function connectSocket() {
       maxVoicePeers: p.maxVoicePeers,
     });
     for (const fn of listeners) fn(s);
+  });
+
+  // o Resenha Bot (DJ) entrou/saiu da call
+  s.on('voice:dj', ({ channelId, active }: { channelId: string; active: boolean }) => {
+    set((st) => {
+      const next = { ...st.djChannels };
+      if (active) next[channelId] = true;
+      else delete next[channelId];
+      return { djChannels: next };
+    });
   });
 
   // presença

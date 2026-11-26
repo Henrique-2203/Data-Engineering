@@ -223,6 +223,7 @@ Todas têm teste que falha sem a correção.
 | BOT-01 | OK | token `bot_<id>.<segredo>` mostrado **uma vez**, guardado como SHA-256, revogável (girar apaga o antigo), criar/girar/apagar exigem **senha** | `bots-apps.mjs`, `bots-abuse.mjs` | escopos finos (OAuth) não existem: o escopo é "canais onde foi instalado" |
 | BOT-02 | OK | bot passa pelas mesmas checagens (membro do servidor, canal acessível, cargo); não envia em canal privado sem acesso; não recebe DM/amizade; nome não imita a equipe | `bots-abuse.mjs`, `authz-matrix.mjs`, `bots-apps.mjs` | — |
 | BOT-03 | OK | 120 chamadas/min por bot, falhas de token por IP, selo **BOT** vindo do servidor, chave de emergência "Os bots" | `bots-abuse.mjs`, `killswitch.mjs` | detecção automática de bots maliciosos não existe |
+| BOT-06 | OK | DJ do bot: o evento `voice:dj` e o campo `djChannels` do `ready` só vão a quem pode ver aquele canal de voz (canal privado não vaza); o tempo da faixa vem do servidor (YouTube API, chave só no servidor, falha = ignora); o cliente não consegue ligar o modo DJ nem encerrar a faixa antes da hora | `bots-dj.mjs`, `bots-dj-ui.mjs` | — |
 | BOT-04 | PARCIAL | mensagens de bot sanitizadas como as de usuário; `@todos` nunca | `bots-apps.mjs` | **sem** webhook de entrada com URL secreta (feature não existe) |
 | BOT-05 | OK/DONO | bots de terceiros **só para contas liberadas** (`botdev`) até a equipe marcar "Para todos" | `bots-apps.mjs` | revisão de bots públicos não existe; antes de liberar: termos, denúncia de bot, cota por conta |
 

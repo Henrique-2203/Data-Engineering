@@ -415,10 +415,17 @@ salvar um não apaga os outros). Os nomes ficam no banco, nunca no código.
    automática e pelo modo lento do servidor.
 4. **Mais comandos do Resenha Bot** (todos ligam/desligam em Integrações):
    - **DJ**: `/tocar` (link do YouTube ou nome), `/proxima`, `/pular` (a call vota; quem pediu pula na hora), `/fila`, `/agora`,
-     `/parar`, `/remover`. Aparece na call como um cartão **"Resenha Bot · DJ"** (só a música, sem o Assistir juntos grande);
-     cada pessoa silencia ou ajusta o volume só para si (a escolha fica guardada) e vota para pular pelo próprio cartão.
-     A busca pelo nome precisa de
-     `YOUTUBE_API_KEY` no Render (chave grátis da API do YouTube); sem ela, só com link.
+     `/parar`, `/remover`. **Só áudio**: o player do YouTube fica escondido (opacity 0) dentro de um cartão
+     **"Resenha Bot · DJ"**; a imagem do vídeo nunca aparece. O Resenha Bot também aparece na lista do canal de voz (com o selo BOT)
+     para todo o servidor, mesmo para quem está fora da call (canal privado não vaza). **Cada um escolhe ouvir**: quem pediu a música
+     ouve sozinho; os demais veem o botão **Ouvir** e nada toca (nenhum player carrega) até clicarem, com **"Ouvir sempre que o DJ
+     tocar"** e **Parar de ouvir**. Silenciar/volume valem só para quem clicou (a escolha fica guardada; ensurdecer na call também
+     cala a música) e a votação para pular é pelo próprio cartão. Se ninguém está ouvindo, o servidor passa a fila sozinho pela
+     duração da faixa (YouTube API `videos.list`, 1 ponto de cota). A busca pelo nome e a duração precisam de
+     `YOUTUBE_API_KEY` no Render (chave grátis da API do YouTube); sem ela, só com link e a fila só avança por quem ouve.
+     Testes: `e2e/bots-dj.mjs` (servidor, fim automático, canal privado) e `e2e/bots-dj-ui.mjs` (tela).
+     Aviso: esconder o player contraria a recomendação do YouTube para o player embutido; o risco é só de o YouTube mudar/limitar
+     o embed. Se acontecer, a alternativa é voltar a mostrar o vídeo.
    - **Tickets**: `/ticket abrir assunto` cria um canal privado só de quem abriu + dono + administradores + cargos
      marcados em Integrações; `/ticket fechar`, `/ticket adicionar @pessoa`, `/ticket lista`.
    - **IA** (`/ia`, `/traduzir`, `/resumo`): desligados por padrão em cada servidor (liga em Integrações, com aviso de

@@ -14,6 +14,7 @@ import type { PublicUser, RtcSignal, VoiceState, Activity, TogetherState, CallCh
 import { checkAutomod } from './community.ts';
 import { PhoneCamHub } from './phoneCam.ts';
 import { killState } from './killswitch.ts';
+import { youtubeDuration } from './ytDuration.ts';
 import { assertNotBlocked, blockedByMe, blockedEitherWay } from './blocks.ts';
 import { HttpError } from './http.ts';
 import { limit } from './security.ts';
@@ -332,12 +333,14 @@ export class Realtime {
     const related = await this.relatedTo(user.id);
     const hiddenIds = new Set(await blockedEitherWay(this.db, user.id).catch((): string[] => []));
     const visible = (id: string) => id === user.id || (related.ids.has(id) && !hiddenIds.has(id));
+    const visibleVoice = [...this.voice.values()].filter((s) =>
+      s.guildId ? guildIds.includes(s.guildId) && this.canSeeVoice(s, user.id) : dmIds.has(s.channelId),
+    );
     socket.emit('ready', {
       socketId: socket.id,
       online: [...this.online.keys()].filter(visible),
-      voiceStates: [...this.voice.values()].filter((s) =>
-        s.guildId ? guildIds.includes(s.guildId) && this.canSeeVoice(s, user.id) : dmIds.has(s.channelId),
-      ),
+      voiceStates: visibleVoice,
+      djChannels: this.djChannelsFor(visibleVoice),
       maxVoicePeers: config.maxVoicePeers,
       activities: Object.fromEntries([...this.activities].filter(([id]) => visible(id))),
     });
@@ -795,7 +798,9 @@ export class Realtime {
     this.screenAudience.delete(socketId);
     // call vazia: o "Assistir juntos" e o chat privado acabam
     if (![...this.voice.values()].some((v) => v.channelId === state.channelId)) {
+      if (this.together.get(state.channelId)?.dj) this.emitVoice(state, 'voice:dj', { channelId: state.channelId, active: false });
       this.together.delete(state.channelId);
+      this.clearDjTimer(state.channelId);
       this.callChat.delete(state.channelId);
     }
     this.io.in(socketId).socketsLeave(`voice:${state.channelId}`);
@@ -952,9 +957,46 @@ export class Realtime {
   }
 
   private togetherEmit(channelId: string, next: TogetherState | null, now: number, by: string, action: string) {
+    const wasDj = !!this.together.get(channelId)?.dj;
     if (next) this.together.set(channelId, next);
     else this.together.delete(channelId);
     this.io.to(`voice:${channelId}`).emit('together:state', { channelId, state: next, now, by, action });
+    // o Resenha Bot (DJ) "entra" e "sai" da call para o servidor inteiro (aparece na lista do canal de voz)
+    if (wasDj !== !!next?.dj) {
+      const st = [...this.voice.values()].find((v) => v.channelId === channelId);
+      if (st) this.emitVoice(st, 'voice:dj', { channelId, active: !!next?.dj });
+    }
+    this.scheduleDjEnd(channelId, next);
+  }
+
+  /** fim da faixa do DJ quando ninguém está ouvindo: quem ouve avisa que acabou; se ninguém ouve, o servidor avança pela duração */
+  private djTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private clearDjTimer(channelId: string) {
+    const t = this.djTimers.get(channelId);
+    if (t) clearTimeout(t);
+    this.djTimers.delete(channelId);
+  }
+  private scheduleDjEnd(channelId: string, state: TogetherState | null) {
+    this.clearDjTimer(channelId);
+    if (!state?.dj || !state.playing) return;
+    const { videoId, at, position } = state;
+    void youtubeDuration(videoId).then((duration) => {
+      const cur = this.together.get(channelId);
+      if (!duration || !cur || !cur.dj || cur.videoId !== videoId || cur.at !== at) return; // mudou enquanto buscava
+      const ms = Math.max(0, (duration - position) * 1000 - (Date.now() - at)) + 2500;
+      const t = setTimeout(() => {
+        this.djTimers.delete(channelId);
+        const now = this.together.get(channelId);
+        if (now && now.videoId === videoId && now.dj) this.applyTogether(channelId, now.by, { action: 'ended', videoId, duration }, 'dj');
+      }, ms);
+      t.unref?.();
+      this.djTimers.set(channelId, t);
+    });
+  }
+
+  /** canais de voz (visíveis para esta pessoa) com o DJ tocando, para a lista do canal */
+  private djChannelsFor(voiceStates: VoiceState[]): string[] {
+    return [...new Set(voiceStates.map((v) => v.channelId))].filter((id) => this.together.get(id)?.dj);
   }
 
   /** A pessoa (userId) pode assistir a transmissão de quem está no socket `streamerSid`? */
