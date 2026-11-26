@@ -12,6 +12,7 @@ import {
   setSessionCookie,
   deleteSession,
   fakeVerify,
+  sha256,
   hashPassword,
   needsRehash,
   issueSession,
@@ -505,7 +506,10 @@ export function createRoutes(db: Db, rt: Realtime) {
     auth,
     wrap(async (req, res) => {
       const token = tokenFromHeaders(req.headers);
-      if (token) await deleteSession(db, token);
+      if (token) {
+        await deleteSession(db, token);
+        rt.endSessions([sha256(token)]); // a conexão em tempo real desta sessão também cai (WS-07)
+      }
       clearSessionCookie(req, res);
     }),
   );

@@ -79,7 +79,8 @@ export class Realtime {
           cb(null, false);
         }
       },
-      maxHttpBufferSize: 1e6,
+      // o maior pacote legítimo é uma descrição de conexão de vídeo (alguns KB): nada de aceitar 1 MB por evento (WS-06)
+      maxHttpBufferSize: 256_000,
       pingInterval: 20000,
       pingTimeout: 20000,
     });
@@ -90,6 +91,10 @@ export class Realtime {
         // o site entra pelo cookie protegido; clientes sem navegador mandam o token
         const session = await sessionFromToken(db, socket.handshake.auth?.token ?? tokenFromHeaders(socket.handshake.headers));
         if (!session) return next(new Error('unauthorized'));
+        // no máximo 15 conexões abertas por conta, e reconexão em laço é travada (WS-06)
+        const open = this.io.of('/').adapter.rooms.get(`user:${session.user.id}`)?.size ?? 0;
+        if (open >= 15) return next(new Error('too_many_connections'));
+        limit(`wsconn:${session.user.id}`, 120, 60_000);
         socket.data.user = session.user;
         socket.data.sessionHash = session.sessionHash;
         next();
@@ -128,6 +133,42 @@ export class Realtime {
     this.io.to(`user:${userId}`).emit(event, payload);
   }
 
+  /**
+   * Com quem esta pessoa se relaciona (servidor em comum, amizade ou conversa direta): é para eles, e só eles, que vão
+   * a presença ("online"), o "Jogando agora" e as mudanças de perfil. Antes isso ia para TODOS os conectados (WS-08).
+   */
+  private async relatedTo(userId: string): Promise<{ rooms: string[]; ids: Set<string> }> {
+    const rows = await this.db.query<{ kind: string; id: string }>(
+      `select 'g' as kind, guild_id as id from members where user_id = $1
+       union select 'u', case when requester_id = $1 then addressee_id else requester_id end from friendships where status = 'accepted' and (requester_id = $1 or addressee_id = $1)
+       union select 'u', d2.user_id from dm_members d1 join dm_members d2 on d1.channel_id = d2.channel_id and d2.user_id <> d1.user_id where d1.user_id = $1`,
+      [userId],
+    );
+    const guilds = rows.filter((r) => r.kind === 'g').map((r) => r.id);
+    const ids = new Set(rows.filter((r) => r.kind === 'u').map((r) => r.id));
+    if (guilds.length) {
+      const mates = await this.db.query<{ user_id: string }>('select distinct user_id from members where guild_id = any($1)', [guilds]);
+      for (const m of mates) ids.add(m.user_id);
+    }
+    ids.delete(userId);
+    return { rooms: [...guilds.map((g) => `guild:${g}`), ...[...ids].map((id) => `user:${id}`)], ids };
+  }
+
+  /** manda o evento só para quem se relaciona com a pessoa (e para os outros aparelhos dela) */
+  async emitRelated(userId: string, event: string, payload: unknown) {
+    const { rooms } = await this.relatedTo(userId).catch(() => ({ rooms: [] as string[] }));
+    this.io.to([`user:${userId}`, ...rooms]).emit(event, payload);
+  }
+
+  /** duas pessoas acabaram de se relacionar (amizade aceita, conversa nova): cada uma passa a ver a presença da outra */
+  linkUsers(a: string, b: string) {
+    for (const [x, y] of [[a, b], [b, a]] as const) {
+      if (this.online.has(y)) this.emitUser(x, 'presence:update', { userId: y, online: true });
+      const act = this.activities.get(y);
+      if (act) this.emitUser(x, 'activity:update', { userId: y, activity: act });
+    }
+  }
+
   /** Sessões encerradas (sair do aparelho, troca de senha): derruba as conexões delas na hora. */
   endSessions(hashes: string[]) {
     if (!hashes.length) return;
@@ -154,7 +195,13 @@ export class Realtime {
     this.io.in(`user:${userId}`).socketsJoin(`guild:${guildId}`);
     // envia ao novo membro quem está online e em voz nesse servidor
     this.emitUser(userId, 'voice:states', { guildId, states: this.voiceStatesFor(guildId, userId) });
-    this.emitUser(userId, 'presence:bulk', { online: [...this.online.keys()] });
+    void (async () => {
+      const mates = await this.db.query<{ user_id: string }>('select user_id from members where guild_id = $1', [guildId]).catch(() => []);
+      const ids = new Set(mates.map((m) => m.user_id));
+      this.emitUser(userId, 'presence:bulk', { online: [...this.online.keys()].filter((id) => ids.has(id)) });
+      // quem já estava no servidor passa a ver esta pessoa online
+      if (this.online.has(userId)) this.io.to(`guild:${guildId}`).emit('presence:update', { userId, online: true });
+    })();
   }
 
   userLeftGuild(userId: string, guildId: string) {
@@ -220,6 +267,33 @@ export class Realtime {
     socket.join(`user:${user.id}`);
     this.phoneCam.attach(socket, user);
 
+    // Flood de eventos (WS-06): passou de 1500 eventos em 10 s a conexão é derrubada. Os eventos mais "caros" têm limite próprio abaixo.
+    let floodAt = Date.now();
+    let floodN = 0;
+    socket.use((_packet, next) => {
+      const now = Date.now();
+      if (now - floodAt > 10_000) {
+        floodAt = now;
+        floodN = 0;
+      }
+      if (++floodN > 1500) {
+        socket.disconnect(true);
+        return;
+      }
+      next();
+    });
+    const soft = new Map<string, { at: number; n: number }>();
+    /** limite suave por evento: acima dele o evento é ignorado (sem derrubar a conexão) */
+    const allowed = (event: string, max: number, ms: number) => {
+      const now = Date.now();
+      const b = soft.get(event);
+      if (!b || now - b.at > ms) {
+        soft.set(event, { at: now, n: 1 });
+        return true;
+      }
+      return ++b.n <= max;
+    };
+
     const rows = await this.db.query<{ guild_id: string }>(
       'select guild_id from members where user_id = $1',
       [user.id],
@@ -230,18 +304,20 @@ export class Realtime {
     const count = (this.online.get(user.id) ?? 0) + 1;
     this.online.set(user.id, count);
     // presença vai para todos: amigos podem não ter nenhum servidor em comum
-    if (count === 1) this.io.emit('presence:update', { userId: user.id, online: true });
+    if (count === 1) void this.emitRelated(user.id, 'presence:update', { userId: user.id, online: true });
 
     const dmRows = await this.db.query<{ channel_id: string }>('select channel_id from dm_members where user_id = $1', [user.id]);
     const dmIds = new Set(dmRows.map((r) => r.channel_id));
+    const related = await this.relatedTo(user.id);
+    const visible = (id: string) => id === user.id || related.ids.has(id);
     socket.emit('ready', {
       socketId: socket.id,
-      online: [...this.online.keys()],
+      online: [...this.online.keys()].filter(visible),
       voiceStates: [...this.voice.values()].filter((s) =>
         s.guildId ? guildIds.includes(s.guildId) && this.canSeeVoice(s, user.id) : dmIds.has(s.channelId),
       ),
       maxVoicePeers: config.maxVoicePeers,
-      activities: Object.fromEntries(this.activities),
+      activities: Object.fromEntries([...this.activities].filter(([id]) => visible(id))),
     });
     for (const hook of this.connectHooks) void hook(user.id).catch((err) => console.warn('[realtime] hook de conexão', err));
     // ligação tocando para mim enquanto eu estava desconectado/recarregando
@@ -263,6 +339,7 @@ export class Realtime {
     });
 
     socket.on('typing', async (payload: unknown) => {
+      if (!allowed('typing', 6, 3000)) return; // "digitando…" não precisa de mais que isso (cada um consulta o banco)
       const p = z.object({ guildId: z.string().optional(), channelId: z.string() }).safeParse(payload);
       if (!p.success) return;
       const { guildId, channelId } = p.data;
@@ -286,6 +363,7 @@ export class Realtime {
     });
 
     socket.on('voice:join', (payload: unknown, ack?: Ack) => {
+      if (!allowed('voice:join', 8, 10_000)) return ack?.({ ok: false, error: 'Calma! Muitas entradas seguidas em chamadas.' });
       this.onVoiceJoin(socket, payload)
         .then((res) => ack?.(res))
         .catch((err) => {
@@ -298,6 +376,7 @@ export class Realtime {
 
     // moderação de voz: mover, desconectar, silenciar e ensurdecer (com permissão e hierarquia)
     socket.on('voice:mod', (payload: unknown, ack?: Ack) => {
+      if (!allowed('voice:mod', 20, 10_000)) return ack?.({ ok: false, error: 'Calma! Muitas ações de moderação seguidas.' });
       this.onVoiceMod(socket, payload)
         .then((res) => ack?.(res))
         .catch((err) => {
@@ -308,6 +387,7 @@ export class Realtime {
 
     // "Jogando agora" / "Ouvindo agora": o app de desktop informa o jogo aberto ou a música do Spotify (ou null)
     socket.on('activity:set', (payload: unknown) => {
+      if (!allowed('activity:set', 10, 10_000)) return;
       const p = z
         .object({
           name: z.string().trim().min(1).max(100).nullable(),
@@ -320,7 +400,7 @@ export class Realtime {
       if (!p.data.name) {
         if (!current) return;
         this.activities.delete(user.id);
-        this.io.emit('activity:update', { userId: user.id, activity: null });
+        void this.emitRelated(user.id, 'activity:update', { userId: user.id, activity: null });
         return;
       }
       const kind = p.data.kind ?? 'game';
@@ -328,7 +408,7 @@ export class Realtime {
       if (current?.name === p.data.name && (current.kind ?? 'game') === kind && (current.details ?? null) === details) return;
       const activity: Activity = { name: p.data.name, startedAt: new Date().toISOString(), ...(kind === 'music' ? { kind, details } : {}) };
       this.activities.set(user.id, activity);
-      this.io.emit('activity:update', { userId: user.id, activity });
+      void this.emitRelated(user.id, 'activity:update', { userId: user.id, activity });
     });
 
     socket.on('voice:update', (payload: unknown) => {
@@ -364,6 +444,7 @@ export class Realtime {
       ack?.({ channelId: v?.channelId ?? null, messages: v ? (this.callChat.get(v.channelId) ?? []) : [] });
     });
     socket.on('callchat:send', (payload: unknown, ack?: Ack) => {
+      if (!allowed('callchat:send', 10, 10_000)) return ack?.({ ok: false, error: 'Calma! Muitas mensagens seguidas na chamada.' });
       this.onCallChat(socket, payload).then(
         (r) => ack?.(r),
         (err) => ack?.({ ok: false, error: err instanceof HttpError ? err.message : 'Não deu para mandar a mensagem.' }),
@@ -435,8 +516,8 @@ export class Realtime {
       const left = (this.online.get(user.id) ?? 1) - 1;
       if (left <= 0) {
         this.online.delete(user.id);
-        this.io.emit('presence:update', { userId: user.id, online: false });
-        if (this.activities.delete(user.id)) this.io.emit('activity:update', { userId: user.id, activity: null });
+        void this.emitRelated(user.id, 'presence:update', { userId: user.id, online: false });
+        if (this.activities.delete(user.id)) void this.emitRelated(user.id, 'activity:update', { userId: user.id, activity: null });
       } else {
         this.online.set(user.id, left);
       }

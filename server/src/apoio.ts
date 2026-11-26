@@ -248,7 +248,7 @@ export function registerApoioRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
   /** todo mundo vê o anel aparecer (ou sumir) na hora: chat, membros, perfil e call */
   const broadcastUser = async (userId: string) => {
     const [user] = await db.query<PublicUser>(`select ${USER_COLUMNS} from users u where u.id = $1`, [userId]);
-    if (user) rt.io.emit('user:update', user);
+    if (user) void rt.emitRelated(user.id, 'user:update', user);
     return user ?? null;
   };
 

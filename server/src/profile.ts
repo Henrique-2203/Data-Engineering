@@ -68,7 +68,7 @@ export function registerProfileRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
   /** Avisa todo mundo (foto, nome e status aparecem em toda parte). */
   const broadcast = async (userId: string) => {
     const user = await loadPublicUser(db, userId);
-    rt.io.emit('user:update', user);
+    void rt.emitRelated(user.id, 'user:update', user);
     return user;
   };
 

@@ -101,6 +101,7 @@ export function registerSocialRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
       );
       if (!updated.length) throw new HttpError(404, 'Pedido de amizade não encontrado.');
       notifyFriends(me, other);
+      rt.linkUsers(me, other); // agora um vê a presença do outro
       return { friends: await listFriends(me) };
     }),
   );
