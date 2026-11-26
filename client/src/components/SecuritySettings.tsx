@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download, KeyRound, LogOut, MonitorSmartphone, ShieldCheck, Trash2 } from 'lucide-react';
 import { api, authHeaders } from '../lib/api';
 import { toast } from '../store/app';
+import { askNotice } from '../lib/ask';
 import { StrengthMeter } from './AuthScreen';
 
 interface SecurityInfo {
@@ -557,7 +558,7 @@ function DeleteAccount({ needs2fa, onDeleted }: { needs2fa: boolean; onDeleted()
         setBusy(true);
         try {
           await api('/me/delete', { body: { password, confirm, ...(needs2fa ? { code } : {}) } });
-          alert('Sua conta foi excluída. Obrigado por ter usado o Resenha.');
+          await askNotice({ title: 'Conta excluída', message: 'Sua conta foi excluída. Obrigado por ter usado o Resenha.' });
           onDeleted();
         } catch (err) {
           toast((err as Error).message);

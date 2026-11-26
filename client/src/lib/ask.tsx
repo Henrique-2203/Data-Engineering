@@ -212,3 +212,59 @@ export function askConfirm(input: string | ConfirmOptions): Promise<boolean> {
     root.render(<ConfirmDialog o={opts} done={done} />);
   });
 }
+
+/**
+ * Aviso do próprio app, no lugar do alert() do navegador (que some em Android/Electron/janelas embutidas e, sem o aviso,
+ * a pessoa não lê nada). NÃO some sozinho: fica até a pessoa clicar em "Entendi" (ou Enter/Esc). Use quando a pessoa
+ * PRECISA ler (ex.: quantos códigos de recuperação restam). Resolve quando ela fecha.
+ */
+export interface NoticeOptions {
+  title?: string;
+  message: string;
+  buttonLabel?: string;
+}
+
+function NoticeDialog({ o, done }: { o: NoticeOptions; done(): void }) {
+  return (
+    <div className="modal-backdrop ask-backdrop">
+      <div
+        className="modal ask-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={o.title ?? 'Aviso'}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' || e.key === 'Enter') (e.stopPropagation(), done());
+        }}
+      >
+        <h2>{o.title ?? 'Aviso'}</h2>
+        <p className="muted ask-message" style={{ whiteSpace: 'pre-line' }}>
+          {o.message}
+        </p>
+        <div className="modal-actions">
+          <button type="button" className="btn primary" autoFocus onClick={done}>
+            {o.buttonLabel ?? 'Entendi'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function askNotice(input: string | NoticeOptions): Promise<void> {
+  const o: NoticeOptions = typeof input === 'string' ? { message: input } : input;
+  return new Promise((resolve) => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    root.render(
+      <NoticeDialog
+        o={o}
+        done={() => {
+          root.unmount();
+          host.remove();
+          resolve();
+        }}
+      />,
+    );
+  });
+}

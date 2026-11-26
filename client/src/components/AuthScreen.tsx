@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowLeft, Check, Eye, EyeOff, Loader2, Lock, MailCheck, ShieldCheck, X } from 'lucide-react';
 import { ApiError, api } from '../lib/api';
 import { SOURCE_URL } from './LegalPage';
+import { askNotice } from '../lib/ask';
 import { Turnstile } from './Turnstile';
 
 interface Props {
@@ -139,12 +140,13 @@ export function AuthScreen({ hasInvite, onAuthenticated }: Props) {
 
   async function finish(res: { codesLeft?: number; passwordLeaked?: boolean }) {
     if (res.codesLeft !== undefined && res.codesLeft <= 2) {
-      alert(`Senha trocada! Restam ${res.codesLeft} códigos de recuperação. Gere novos em Configurações → Segurança.`);
+      await askNotice({ title: 'Senha trocada!', message: `Restam ${res.codesLeft} ${res.codesLeft === 1 ? 'código' : 'códigos'} de recuperação. Gere novos em Configurações → Segurança.` });
     }
     if (res.passwordLeaked) {
-      alert(
-        '⚠️ Atenção: a senha que você usou apareceu em vazamentos de dados de OUTROS sites.\n\nCriminosos testam essas senhas em todo lugar. Troque agora em Configurações → Segurança (e não repita senhas entre sites).',
-      );
+      await askNotice({
+        title: '⚠️ Atenção com a sua senha',
+        message: 'A senha que você usou apareceu em vazamentos de dados de OUTROS sites.\n\nCriminosos testam essas senhas em todo lugar. Troque agora em Configurações → Segurança (e não repita senhas entre sites).',
+      });
     }
     await onAuthenticated();
   }
