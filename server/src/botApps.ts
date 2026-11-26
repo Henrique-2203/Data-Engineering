@@ -14,7 +14,7 @@ import { USER_COLUMNS, verifyPassword, type requireAuth } from './auth.ts';
 import { Perm, has } from '../../shared/permissions.ts';
 import { openSecret, sealSecret } from './vault.ts';
 import type { BotCommandInfo, BotEmbed, Member } from '../../shared/types.ts';
-import { cleanDeep, impersonatesStaff, skeleton } from './names.ts';
+import { cleanDeep, impersonatesStaff, mentionsResenha } from './names.ts';
 import { lookup } from 'node:dns/promises';
 import { isBlockedIp } from './safeFetch.ts';
 import { SafeFetchError, safePost, validateBotUrl } from './safeFetch.ts';
@@ -136,7 +136,7 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
       const user = await owner(req);
       limit(`botapp:${user.id}`, 10, 3600_000, 'Muitos bots criados seguidos. Tente mais tarde.');
       // bot de terceiro não pode se passar pelo Resenha nem pela equipe (o selo BOT já mostra que é bot, mas o NOME não pode enganar)
-      if (typeof req.body?.name === 'string' && (impersonatesStaff(req.body.name, user.username) || skeleton(req.body.name).includes('resenha'))) {
+      if (typeof req.body?.name === 'string' && (impersonatesStaff(req.body.name, user.username) || mentionsResenha(req.body.name))) {
         throw new HttpError(400, 'O nome de um bot não pode usar "Resenha" nem se passar pela equipe. Escolha outro.');
       }
       const body = parse(z.object({ name: z.string().trim().min(2, 'Dê um nome ao bot (2 a 32 letras).').max(32), description: z.string().trim().max(200).default(''), password: z.string().max(200) }), req.body);
@@ -170,7 +170,7 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
     wrap(async (req) => {
       const { a } = await myApp(req);
       const body = parse(z.object({ name: z.string().trim().min(2).max(32).optional(), description: z.string().trim().max(200).optional(), interactionsUrl: z.string().max(300).nullable().optional() }), req.body);
-      if (body.name && (impersonatesStaff(body.name, req.user!.username) || skeleton(body.name).includes('resenha'))) throw new HttpError(400, 'O nome de um bot não pode usar "Resenha" nem se passar pela equipe.');
+      if (body.name && (impersonatesStaff(body.name, req.user!.username) || mentionsResenha(body.name))) throw new HttpError(400, 'O nome de um bot não pode usar "Resenha" nem se passar pela equipe.');
       if (body.name) await db.query('update users set display_name = $2 where id = $1', [a.id, body.name]);
       if (body.description !== undefined) await db.query('update bot_apps set description = $2 where user_id = $1', [a.id, body.description]);
       if (body.interactionsUrl !== undefined) {

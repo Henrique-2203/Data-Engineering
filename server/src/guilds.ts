@@ -9,7 +9,7 @@ import type { Realtime } from './realtime.ts';
 import { USER_COLUMNS, userJson, type requireAuth } from './auth.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { limit } from './security.ts';
-import { impersonatesStaff } from './names.ts';
+import { impersonatesResenhaStaff, impersonatesStaff } from './names.ts';
 import { requireOn } from './killswitch.ts';
 import { sniffImage } from './sanitize.ts';
 import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
@@ -749,6 +749,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       const [cc] = await db.query<{ n: number }>('select count(*)::int as n from channels where guild_id = $1', [guildId]);
       if ((cc?.n ?? 0) >= MAX_CHANNELS) throw new HttpError(400, `Este servidor já tem ${MAX_CHANNELS} canais (o máximo).`);
       const body = parse(channelSettings.extend({ name: channelNameSchema, type: z.enum(['text', 'voice']) }), req.body);
+      if (impersonatesResenhaStaff(body.name, req.user!.username)) throw new HttpError(400, 'Esse nome é reservado para a equipe do Resenha. Escolha outro.');
       await validateChannelRefs(guildId, body);
       const [{ max }] = await db.query<{ max: number | null }>('select max(position) as max from channels where guild_id = $1', [
         guildId,
@@ -794,6 +795,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     wrap(async (req) => {
       const c = await channelForManage(String(req.params.id), req.user!.id);
       const body = parse(channelSettings, req.body);
+      if (body.name && impersonatesResenhaStaff(body.name, req.user!.username)) throw new HttpError(400, 'Esse nome é reservado para a equipe do Resenha. Escolha outro.');
       await validateChannelRefs(c.guildId, body);
       await db.query(
         `update channels set

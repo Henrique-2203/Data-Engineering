@@ -5,6 +5,7 @@ import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import type { requireAuth } from './auth.ts';
 import { HttpError, parse, wrap } from './http.ts';
+import { impersonatesResenhaStaff } from './names.ts';
 import { sniffImage } from './sanitize.ts';
 import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
 import { requireMember, requireOutranks, requirePerm } from './access.ts';
@@ -207,6 +208,7 @@ export function registerExpressionRoutes(r: Router, db: Db, rt: Realtime, auth: 
         await requireOutranks(db, guildId, a, target);
       }
       const { nick } = parse(z.object({ nick: z.string().trim().max(32, 'Apelido muito longo (máx. 32).').nullable() }), req.body);
+      if (nick && impersonatesResenhaStaff(nick, req.user!.username)) throw new HttpError(400, 'Esse nome é reservado para a equipe do Resenha. Escolha outro.');
       const updated = await db.query('update members set nick = $3 where guild_id = $1 and user_id = $2 returning 1', [guildId, target, nick || null]);
       if (!updated.length) throw new HttpError(404, 'Membro não encontrado.');
       // só entra no registro quando alguém muda o apelido de OUTRA pessoa

@@ -169,7 +169,7 @@ Todas têm teste que falha sem a correção.
 | XSS-04 | PARCIAL | CSP: `script-src 'self' 'wasm-unsafe-eval'`, `object-src 'none'`, `frame-ancestors 'none'`, `base-uri 'self'` | `xss.mjs`, `abuse.mjs` | `style-src 'unsafe-inline'` e `img-src https:` (imagens externas só após clique); sem Trusted Types |
 | XSS-05 | OK | embeds só YouTube (nocookie) e Spotify, por clique | `xss.mjs` | — |
 | XSS-06 | OK | nome, apelido, servidor, canal, status, bio, arquivo, cargo, emoji testados | `xss.mjs` | — |
-| IMP-01/02 | OK | bidi/zero-width removidos; homóglifos de "staff/resenha/moderador…" bloqueados; selos BOT/Fundador vêm do servidor | `abuse.mjs`, `bots-abuse.mjs` | — |
+| IMP-01/02 | OK | bidi/zero-width removidos; homóglifos de "staff/resenha/moderador…" bloqueados (tabela ampliada: ħ ʀ α ɑ € e IPA/grego/cirílico; letra de alfabeto desconhecido vira curinga "?" em vez de sumir; vale para usuário, nome de exibição, servidor, bot, apelido e canal); selos BOT/Fundador vêm do servidor | `abuse.mjs`, `bots-abuse.mjs` | — |
 | IMP-03 | FALTA | — | — | Safe Browsing / reputação de links |
 | CSRF-01 | OK | cookie `SameSite=Lax` + checagem de `Origin` em pedidos que mudam estado (`auth.ts`) | `security.mjs`, `abuse.mjs` | — |
 | CLK-01 | OK | `frame-ancestors 'none'` | `abuse.mjs` | — |

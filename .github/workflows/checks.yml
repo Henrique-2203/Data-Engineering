@@ -42,6 +42,8 @@ jobs:
       - name: Testes de segurança (autorização, abuso, WebSocket, uploads, bots, chaves de emergência)
         run: |
           node --import tsx e2e/auth-unit.ts
+          node --import tsx e2e/names-unit.ts
+          node --import tsx e2e/safe-fetch.mjs
           node e2e/authz-matrix.mjs
           node e2e/abuse.mjs
           node e2e/ws-abuse.mjs

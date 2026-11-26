@@ -122,6 +122,12 @@ try {
   const made = await api('/bot-apps', { name: 'Eco Bot', description: 'Repete o que você diz', password: PASS }, ana.token);
   assert(made.status === 200 && /^bot_[a-f0-9]{16}\.[A-Za-z0-9_-]{40,}$/.test(made.token) && made.signingSecret.length === 64, `criou: ${JSON.stringify(made).slice(0, 150)}`);
   const botId = made.bot.id;
+  // nomes que imitam "Resenha" com letras parecidas ou de outros alfabetos são recusados (criar e renomear)
+  for (const nome of ['Resenħa', 'ʀesenha', 'Resenhα', 'R€senha', 'Resenha Bot']) {
+    if (nome === 'Resenħa') assert((await api('/bot-apps', { name: nome, password: PASS }, ana.token)).status === 400, `criar bot "${nome}" deveria ser recusado`); // (criar tem limite por hora: só 1 tentativa aqui)
+    const r1 = await api(`/bot-apps/${botId}`, { name: nome }, ana.token, 'PATCH');
+    assert(r1.status === 400, `renomear o bot para "${nome}" deveria ser recusado (deu ${r1.status})`);
+  }
   // reautenticação (SES-06): criar, trocar token e apagar bot pedem a senha de novo
   assert((await api('/bot-apps', { name: 'Sem Senha' }, ana.token)).status === 400, 'criar bot sem senha: 400');
   assert((await api('/bot-apps', { name: 'Senha Errada', password: 'errada-1234567' }, ana.token)).status === 403, 'criar bot com senha errada: 403');
