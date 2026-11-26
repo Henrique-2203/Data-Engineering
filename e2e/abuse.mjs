@@ -108,6 +108,26 @@ try {
   check(flooded, 'AUTH-05: 40 cadastros do mesmo IP não foram travados');
   step('AUTH-05: criar contas em massa do mesmo IP é travado');
 
+
+  // ---- IMP-01/02: nomes que enganam (letras parecidas, inversão de leitura, se passar pela equipe) ----
+  const RLO = String.fromCharCode(0x202e), ZW = String.fromCharCode(0x200b), CYR_E = String.fromCharCode(0x0435);
+  for (const nome of ['Resenha Oficial', 'Resenh@ 0ficial', `R${CYR_E}senha`, 'SUPORTE', 'Suport3 Resenha', 'Admin', 'resenha_bot', 'Equipe']) {
+    const r = await call('POST', '/auth/register', null, { username: `u${n}${Math.random().toString(36).slice(2, 5)}`, password: PASS, displayName: nome, acceptTerms: true });
+    check(r.status === 400, `IMP-01: nome de exibição "${nome}" foi aceito no cadastro (status ${r.status})`);
+  }
+  check((await call('POST', '/auth/register', null, { username: 'suporte', password: PASS, displayName: 'x', acceptTerms: true })).status === 400, 'IMP-01: usuário "suporte" foi aceito');
+  check((await call('POST', '/auth/register', null, { username: 'resenhaoficial', password: PASS, displayName: 'x', acceptTerms: true })).status === 400, 'IMP-01: usuário "resenhaoficial" foi aceito');
+  check((await call('PATCH', '/me', bia.token, { displayName: 'Suporte Resenha' })).status === 400, 'IMP-01: trocar o nome para "Suporte Resenha" foi aceito');
+  check((await call('PATCH', '/me', bia.token, { displayName: `Bia ${RLO}exe.txt` })).status === 200, 'setup: nome com inversão');
+  const meB = (await call('GET', '/bootstrap', bia.token)).user ?? (await call('GET', '/bootstrap', bia.token)).me;
+  check(!JSON.stringify(meB).includes(RLO), 'IMP-01: o caractere de inversão de leitura (U+202E) ficou no nome');
+  const m1 = await call('POST', `/channels/${guild.channels.find((c) => c.type === 'text').id}/messages`, ana.token, { content: `fotoferias${RLO}gpj.exe${ZW}` });
+  check(m1.status === 200 && !m1.message.content.includes(RLO) && !m1.message.content.includes(ZW), 'IMP-01: mensagem guardou caractere de inversão/largura zero');
+  check((await call('POST', '/guilds', bia.token, { name: 'Resenha Oficial' })).status === 400, 'IMP-02: servidor "Resenha Oficial" criado por pessoa comum');
+  check((await call('POST', '/guilds', bia.token, { name: 'Resenha dos Crias' })).status === 200, 'IMP: nome legítimo "Resenha dos Crias" foi barrado');
+  check((await call('PATCH', '/me', equipe.token, { displayName: 'Equipe Resenha' })).status === 200, 'a equipe de verdade (PLATFORM_ADMINS) não pode usar o próprio nome');
+  step('IMP-01/02: nomes que imitam a equipe (inclusive com 0/@/letras russas) são recusados, inversão de leitura e largura zero são removidas, nomes normais passam');
+
   // ---- PERM-08: tetos por servidor e por pessoa ----
   const { guild: big } = await call('POST', '/guilds', bia.token, { name: 'Grande' });
   let chStatus = 0;

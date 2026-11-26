@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import { USER_COLUMNS, type requireAuth } from './auth.ts';
+import { impersonatesStaff } from './names.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { sniffImage } from './sanitize.ts';
 import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
@@ -84,6 +85,7 @@ export function registerProfileRoutes(r: Router, db: Db, rt: Realtime, auth: Ret
         params.push(value);
         sets.push(`${col} = $${params.length}`);
       };
+      if (body.displayName !== undefined && impersonatesStaff(body.displayName, req.user!.username)) throw new HttpError(400, 'Esse nome é reservado para a equipe do Resenha. Escolha outro.');
       if (body.displayName !== undefined) set('display_name', body.displayName);
       if (body.avatarColor !== undefined) set('avatar_color', body.avatarColor);
       if (body.bio !== undefined) set('bio', body.bio);

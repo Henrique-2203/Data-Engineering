@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { config } from './config.ts';
+import { impersonatesStaff } from './names.ts';
 import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import { getIceServers, hasTurn } from './ice.ts';
@@ -255,6 +256,9 @@ export function createRoutes(db: Db, rt: Realtime) {
         }),
         req.body,
       );
+      if (impersonatesStaff(body.username, body.username) || impersonatesStaff(body.displayName ?? '', body.username)) {
+        throw new HttpError(400, 'Esse nome é reservado para a equipe do Resenha. Escolha outro.');
+      }
       // com e-mail configurado, o cadastro é em 2 passos (e-mail confirmado): /auth/register/start
       if (emailEnabled()) throw new HttpError(400, 'Atualize a página: o cadastro agora confirma o seu e-mail.');
       await requireHuman(req, body.captcha);
@@ -318,6 +322,9 @@ export function createRoutes(db: Db, rt: Realtime) {
         }),
         req.body,
       );
+      if (impersonatesStaff(body.username, body.username) || impersonatesStaff(body.displayName ?? '', body.username)) {
+        throw new HttpError(400, 'Esse nome é reservado para a equipe do Resenha. Escolha outro.');
+      }
       await requireHuman(req, body.captcha);
       const signupCode = await checkSignupCode(db, body.registrationCode, req.ip ?? '');
       if ((await db.query('select 1 from users where username = $1', [body.username])).length) throw new HttpError(409, 'Esse nome de usuário já está em uso.');

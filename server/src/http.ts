@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { z } from 'zod';
+import { cleanDeep } from './names.ts';
 
 export class HttpError extends Error {
   constructor(
@@ -20,7 +21,7 @@ export const wrap = (fn: Handler) => (req: Request, res: Response, next: NextFun
 };
 
 export function parse<T extends z.ZodType>(schema: T, data: unknown): z.infer<T> {
-  const r = schema.safeParse(data);
+  const r = schema.safeParse(cleanDeep(data));
   if (!r.success) throw new HttpError(400, r.error.issues[0]?.message ?? 'Dados inválidos.');
   return r.data;
 }

@@ -9,6 +9,7 @@ import type { Realtime } from './realtime.ts';
 import { USER_COLUMNS, userJson, type requireAuth } from './auth.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { limit } from './security.ts';
+import { impersonatesStaff } from './names.ts';
 import { sniffImage } from './sanitize.ts';
 import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
 import { deleteFiles, guildFileIds, loadExpressions } from './expressions.ts';
@@ -159,6 +160,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
         }),
         req.body,
       );
+      if (impersonatesStaff(body.name, req.user!.username)) throw new HttpError(400, 'Esse nome é reservado para a equipe do Resenha. Escolha outro.');
       const id = randomUUID();
       const me = req.user!.id;
       limit(`guildnew:${me}`, 10, 3600_000, 'Você criou muitos servidores seguidos. Tente mais tarde.');
