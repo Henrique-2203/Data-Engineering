@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageCircle, User, Volume2, VolumeX } from 'lucide-react';
+import { Ban, MessageCircle, User, Volume2, VolumeX } from 'lucide-react';
 import type { VoiceState } from '../../../shared/types';
-import { openDm } from '../lib/social';
+import { blockUser, openDm, unblockUser } from '../lib/social';
 import { findMember, openModal, useApp } from '../store/app';
 import { setUserVolume, useVoice } from '../store/voice';
 import { voiceMod, voiceModRights } from '../voice/moderation';
@@ -51,6 +51,7 @@ function CallUserMenu({ target, onClose }: { target: CallMenuTarget; onClose(): 
   const [lastVolume, setLastVolume] = useState(volume > 0 ? volume : 1);
   const [moving, setMoving] = useState(false);
   const name = user?.displayName ?? 'essa pessoa';
+  const iBlocked = useApp((s) => s.blocks.some((b) => b.id === state.userId));
 
   // cabe na tela (abre para cima/esquerda se precisar)
   useLayoutEffect(() => {
@@ -125,6 +126,17 @@ function CallUserMenu({ target, onClose }: { target: CallMenuTarget; onClose(): 
               }}
             >
               <MessageCircle size={15} /> Enviar mensagem
+            </button>
+          )}
+          {!isMe && user && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                onClose();
+                void (iBlocked ? unblockUser(user) : blockUser(user));
+              }}
+            >
+              <Ban size={15} /> {iBlocked ? 'Desbloquear' : 'Bloquear'}
             </button>
           )}
           {!isMe && (

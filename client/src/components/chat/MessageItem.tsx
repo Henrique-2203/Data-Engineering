@@ -77,6 +77,8 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
   const [draft, setDraft] = useState(plainChannels(plainEmojis(message.content)));
   const [picker, setPicker] = useState(false);
   const [sheet, setSheet] = useState(false);
+  const [reveal, setReveal] = useState(false);
+  const blockedAuthor = useApp((s) => message.author.id !== s.me?.id && s.blocks.some((b) => b.id === message.author.id));
   const press = useLongPress(() => setSheet(true));
   const editRef = useRef<HTMLTextAreaElement>(null);
   const mine = message.author.id === me.id;
@@ -134,6 +136,20 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
   }
 
   if (message.system === 'join') return <JoinLine message={message} channel={channel} name={author.displayName} />;
+
+  // pessoa que EU bloqueei: a mensagem fica recolhida (dá para mostrar caso a caso)
+  if (blockedAuthor && !reveal) {
+    return (
+      <div id={`msg-${message.id}`} className="message blocked-msg" tabIndex={-1}>
+        <span className="muted small">
+          Mensagem de @{message.author.username}, que você bloqueou.{' '}
+          <button type="button" className="link-btn" onClick={() => setReveal(true)}>
+            Mostrar
+          </button>
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div

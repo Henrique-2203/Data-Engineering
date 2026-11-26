@@ -20,6 +20,8 @@ export interface AppState {
   /** ids das DMs, da conversa mais recente para a mais antiga */
   dmOrder: string[];
   friends: Friend[];
+  /** pessoas que EU bloqueei */
+  blocks: PublicUser[];
   messages: Record<string, ChannelMessages>;
   online: Record<string, true>;
   /** "Jogando agora" de cada pessoa online */
@@ -114,6 +116,7 @@ export const useApp = create<AppState>(() => ({
   dms: {},
   dmOrder: [],
   friends: [],
+  blocks: [],
   messages: {},
   online: {},
   activities: {},
@@ -149,10 +152,10 @@ const set = useApp.setState;
 const get = useApp.getState;
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
-export function toast(message: string) {
+export function toast(message: string, ms = 3500) {
   clearTimeout(toastTimer);
   set({ toast: message });
-  toastTimer = setTimeout(() => set({ toast: null }), 3500);
+  toastTimer = setTimeout(() => set({ toast: null }), ms);
 }
 
 export const openModal = (modal: ModalState) => set({ modal });
@@ -204,6 +207,7 @@ export function upsertDm(dm: DmChannel) {
 }
 
 export const setFriends = (friends: Friend[]) => set({ friends });
+export const setBlocks = (blocks: PublicUser[]) => set({ blocks });
 
 // ---------- seleção ----------
 

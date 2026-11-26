@@ -69,6 +69,7 @@ import { configureWelcome } from './welcome.ts';
 import { startSuspensionCleanup, suspendedNow, suspensionMessage } from './suspension.ts';
 import { registerUnreadRoutes, unreadCounts } from './unread.ts';
 import { registerKillRoutes } from './killswitch.ts';
+import { registerBlockRoutes, assertNotBlocked, dmOther } from './blocks.ts';
 import { registerHealthRoutes } from './health.ts';
 import { registerEmbedRoutes } from './embeds.ts';
 import { mentionedUsernames } from './mentions.ts';
@@ -611,6 +612,10 @@ export function createRoutes(db: Db, rt: Realtime) {
       limit(`msg:${req.user!.id}`, 12, 10_000, 'Calma! Muitas mensagens seguidas. Espere alguns segundos.');
       limit(`msgmin:${req.user!.id}`, 90, 60_000, 'Calma! Muitas mensagens em um minuto. Espere um pouco.');
       if (c.access) requireNotTimedOut(c.access);
+      if (!c.guildId) {
+        const other = await dmOther(db, c.id, req.user!.id);
+        if (other) await assertNotBlocked(db, req.user!.id, other, 'message'); // bloqueio vale nos dois sentidos
+      }
       const body = parse(
         z.object({
           content: z.string().trim().max(4000, 'Mensagem muito longa.').default(''),
@@ -797,6 +802,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   configureWelcome({ emitToChannel, messageSelect: MESSAGE_SELECT });
   registerUnreadRoutes(r, db, auth, channelForMember);
   registerKillRoutes(r, db, rt, auth);
+  registerBlockRoutes(r, db, rt, auth);
   startSuspensionCleanup(db);
   // quem estava com o app aberto (sem recarregar) quando o servidor oficial foi criado também entra:
   // a cada conexão (inclusive a reconexão depois de uma atualização do site) confere de novo

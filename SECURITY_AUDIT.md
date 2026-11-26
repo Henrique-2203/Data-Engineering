@@ -18,7 +18,7 @@ Auditoria do `RESENHA_SECURITY_CHECKLIST.md` contra o código real. Legenda: **O
 **Os 5 pontos que mais merecem atenção (em ordem):**
 1. **DONO** — ligar **MFA** em GitHub, Render, Neon, Cloudflare, registrador do domínio e e-mail principal; ligar **branch protection** e **secret scanning/push protection** no GitHub (SEC-07/09/02).
 2. **DONO** — definir `SECRETS_KEY` no Render (cifra 2FA e segredos de bots em repouso) e, se possível, `ADMIN_REQUIRE_2FA=1`.
-3. **FALTA (decisão)** — **bloqueio de usuários** (DM-01) e configuração de "quem pode me chamar" (DM-02). Hoje há suspensão pela equipe, denúncia e limite de DMs, mas a pessoa não bloqueia outra por conta própria.
+3. **PARCIAL** — o bloqueio de usuários (DM-01) já existe; falta a configuração "quem pode me chamar" (DM-02: todos / amigos / ninguém).
 4. **DONO/jurídico** — idade mínima/verificação (ECA Digital), retenção, encarregado (DPO), registros de acesso (Marco Civil). Seção 15.
 5. **PARCIAL** — o app usa a role dona do banco no Neon (DB-03): criar uma role só com SELECT/INSERT/UPDATE/DELETE.
 
@@ -100,7 +100,7 @@ Todas têm teste que falha sem a correção.
 | INV-01 | PARCIAL | código aleatório de alta entropia, revogável (regenerar); **limite de tentativas** por IP/usuário | `abuse.mjs`, `invite-codes.mjs` | convite de servidor **sem expiração e sem limite de usos** (um código permanente por servidor). Decisão de produto |
 | INV-02 | FALTA | — | — | restrições a convites de novos/banidos e log de quem convidou |
 | INV-03 | PARCIAL | **chave de emergência "Entrar por convite"** (manual) | `killswitch.mjs` | lockdown **automático** por pico de entradas não existe |
-| DM-01 | **FALTA** | — | — | **bloquear usuário não existe.** Precisa de decisão: bloqueio mútuo (sem DM, sem presença, sem ligação) |
+| DM-01 | OK | `blocks.ts` (tabela `user_blocks`): bloquear desfaz a amizade; DM, pedido de amizade, conversa nova e ligação barrados **nos dois sentidos** (quem foi bloqueado recebe mensagem neutra, sem saber do bloqueio); presença e "jogando agora" escondidos; aviso com o @ ao entrar numa call com a pessoa bloqueada e quando ela entra | `blocks.mjs`, `blocks-ui.mjs` | mensagens da pessoa nos servidores em comum ficam recolhidas só no app (o servidor continua entregando: servidor é espaço compartilhado) |
 | DM-02 | FALTA | — | — | configurações "quem pode me chamar" |
 | DM-03 | OK | DMs novas: 5/h para contas <1 dia, 30/h depois; chave de emergência para DMs; bot não recebe DM | `abuse.mjs`, `killswitch.mjs` | — |
 | ADM-01 | PARCIAL | rotas `/admin/*` próprias (404 para não-equipe), 2FA exigido com `ADMIN_REQUIRE_2FA=1`, auditoria dos servidores (`audit.ts`) | `abuse.mjs`, `audit.mjs`, `authz-matrix.mjs` | mesmo host do app; sem allowlist de IP; auditoria é tabela só de inserção por convenção, não imutável por permissão do banco |

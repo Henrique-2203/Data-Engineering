@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Bell, Bot, ChevronRight, Database, Keyboard, LogOut, Mic, Palette, Shield, User, UserCircle, X } from 'lucide-react';
+import { Ban, Bell, Bot, ChevronRight, Database, Keyboard, LogOut, Mic, Palette, Shield, User, UserCircle, X } from 'lucide-react';
 import { AppearanceSettings } from './AppearanceSettings';
 import { api } from '../lib/api';
 import { closeModal, openModal, useApp } from '../store/app';
@@ -16,9 +16,10 @@ import { MyInviteCodes } from './InviteCodes';
 import { healthEnabled, setHealthEnabled } from '../lib/health';
 import { DesktopSettingsSection, InputModeSettings, SoundSettings } from './Modals';
 import { DevSettings } from './BotDev';
+import { BlockedList } from './Blocked';
 import { useHasFeature } from '../lib/layoutMode';
 
-export type SettingsSection = 'account' | 'profile' | 'appearance' | 'security' | 'privacy' | 'voice' | 'notifications' | 'shortcuts' | 'developer';
+export type SettingsSection = 'account' | 'profile' | 'appearance' | 'security' | 'privacy' | 'voice' | 'notifications' | 'blocked' | 'shortcuts' | 'developer';
 
 const SECTIONS: { id: SettingsSection; label: string; icon: ReactNode; title: string; description: string }[] = [
   {
@@ -55,6 +56,13 @@ const SECTIONS: { id: SettingsSection; label: string; icon: ReactNode; title: st
     icon: <Database size={18} />,
     title: 'Privacidade e dados',
     description: 'Seus arquivos, uma cópia dos seus dados e a exclusão da conta.',
+  },
+  {
+    id: 'blocked',
+    label: 'Bloqueados',
+    icon: <Ban size={18} />,
+    title: 'Pessoas bloqueadas',
+    description: 'Quem você bloqueou e como o bloqueio funciona.',
   },
   {
     id: 'voice',
@@ -174,6 +182,7 @@ export function UserSettings({
               <SecuritySettings part="data" onLogout={() => void logout()} />
             </>
           )}
+          {section === 'blocked' && <BlockedList />}
           {section === 'voice' && <VoiceSection />}
           {section === 'notifications' && (
             <div className="settings-card">

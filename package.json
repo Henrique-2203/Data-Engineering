@@ -52,7 +52,7 @@
     "test:e2e:appearance": "node e2e/appearance.mjs",
     "test:e2e:files": "node --import tsx e2e/files-unit.ts && node e2e/files.mjs",
     "test:security:unit": "node --import tsx e2e/auth-unit.ts && node --import tsx e2e/safe-fetch.mjs",
-    "test:security": "npm run test:security:unit && node e2e/authz-matrix.mjs && node e2e/abuse.mjs && node e2e/ws-abuse.mjs && node e2e/upload-abuse.mjs && node e2e/bots-abuse.mjs && node e2e/killswitch.mjs && node e2e/xss.mjs",
+    "test:security": "npm run test:security:unit && node e2e/authz-matrix.mjs && node e2e/abuse.mjs && node e2e/ws-abuse.mjs && node e2e/upload-abuse.mjs && node e2e/bots-abuse.mjs && node e2e/killswitch.mjs && node e2e/blocks.mjs && node e2e/xss.mjs",
     "test:e2e:files:r2": "node e2e/files.mjs --r2 && node e2e/files-migrate.mjs"
   },
   "devDependencies": {

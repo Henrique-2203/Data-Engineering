@@ -84,6 +84,14 @@ create table if not exists friendships (
 );
 create index if not exists friendships_addressee_idx on friendships(addressee_id);
 
+create table if not exists user_blocks (
+  blocker_id text not null references users(id) on delete cascade,
+  blocked_id text not null references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (blocker_id, blocked_id)
+);
+create index if not exists user_blocks_blocked_idx on user_blocks(blocked_id);
+
 -- v3: respostas, reações e imagens
 alter table messages add column if not exists reply_to_id text;
 

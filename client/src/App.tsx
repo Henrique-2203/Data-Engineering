@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { PhoneCamera } from './components/PhoneCam';
 import type { DmChannel, Friend, Guild, PublicUser } from '../../shared/types';
 import { api, hasSession, markSession, migrateLegacySession, setUnauthorizedHandler } from './lib/api';
-import { connectSocket, disconnectSocket } from './lib/socket';
+import { connectSocket, disconnectSocket, refreshBlocks } from './lib/socket';
 import { findChannel, goHome, openModal, selectChannel, selectGuild, setDms, setFriends, setGuilds, useApp } from './store/app';
 import { disablePush, initPush, pushActive } from './lib/push';
 import { pendingChangelog } from './components/Changelog';
@@ -118,6 +118,7 @@ function MainApp() {
     setGuilds(data.guilds);
     setDms(dms.dms);
     setFriends(friends.friends);
+    void refreshBlocks();
     useApp.setState({
       me: data.user,
       mobilePanel: 'nav',

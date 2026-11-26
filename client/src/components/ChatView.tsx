@@ -14,6 +14,7 @@ import { MessageItem } from './chat/MessageItem';
 import { Composer, type ComposerHandle } from './chat/Composer';
 import { formatDay } from './chat/format';
 import { AnnounceGate, RulesGate } from './Official';
+import { BlockedGate } from './Blocked';
 import { Perm, has, myPermissions } from '../lib/perms';
 
 const GROUP_WINDOW_MS = 5 * 60_000;
@@ -55,6 +56,7 @@ export async function loadMessages(channelId: string, older = false) {
 export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?: boolean }) {
   const cm = useApp((s) => s.messages[channel.id]);
   const dm = channel.type === 'dm' ? (channel as DmChannel) : null;
+  const blockedDm = useApp((s) => !!dm && s.blocks.some((b) => b.id === dm.recipient.id));
   const recipientOnline = useApp((s) => (dm ? !!s.online[dm.recipient.id] : false));
   const connected = useApp((s) => s.connected);
   // ligação ativa nesta DM (alguém na chamada) e se eu estou nela
@@ -283,6 +285,8 @@ export function ChatView({ channel, callPanel }: { channel: Channel; callPanel?:
       <TypingIndicator channel={channel} />
       {guild?.rulesPending ? (
         <RulesGate guild={guild} />
+      ) : dm && blockedDm ? (
+        <BlockedGate user={dm.recipient} />
       ) : channel.announce && !canAnnounce ? (
         <AnnounceGate />
       ) : (

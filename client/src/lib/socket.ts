@@ -8,6 +8,7 @@ import {
   findChannel,
   setDms,
   setFriends,
+  setBlocks,
   updateReactions,
   upsertGuild,
   openModal,
@@ -90,6 +91,7 @@ export function connectSocket() {
       updateReactions(channelId, messageId, reactions),
   );
   s.on('friends:changed', () => void refreshFriends());
+  s.on('blocks:changed', () => void refreshBlocks());
   s.on('message:update', ({ message }: { message: Message }) => updateMessage(message));
   s.on('message:delete', ({ channelId, id }: { channelId: string; id: string }) => deleteMessage(channelId, id));
 
@@ -260,6 +262,14 @@ export async function refreshDms() {
     setDms((await api<{ dms: DmChannel[] }>('/dms')).dms);
   } catch {
     /* tenta de novo no próximo evento */
+  }
+}
+
+export async function refreshBlocks() {
+  try {
+    setBlocks((await api<{ blocks: PublicUser[] }>('/blocks')).blocks);
+  } catch {
+    /* idem */
   }
 }
 

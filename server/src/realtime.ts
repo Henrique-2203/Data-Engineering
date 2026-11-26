@@ -14,6 +14,7 @@ import type { PublicUser, RtcSignal, VoiceState, Activity, TogetherState, CallCh
 import { checkAutomod } from './community.ts';
 import { PhoneCamHub } from './phoneCam.ts';
 import { killState } from './killswitch.ts';
+import { assertNotBlocked, blockedByMe, blockedEitherWay } from './blocks.ts';
 import { HttpError } from './http.ts';
 import { limit } from './security.ts';
 
@@ -158,7 +159,10 @@ export class Realtime {
   /** manda o evento só para quem se relaciona com a pessoa (e para os outros aparelhos dela) */
   async emitRelated(userId: string, event: string, payload: unknown) {
     const { rooms } = await this.relatedTo(userId).catch(() => ({ rooms: [] as string[] }));
-    this.io.to([`user:${userId}`, ...rooms]).emit(event, payload);
+    // quem tem bloqueio com a pessoa não recebe presença/atividade/perfil dela (e ela não recebe os dele)
+    const hidden = (await blockedEitherWay(this.db, userId).catch((): string[] => [])).map((id) => `user:${id}`);
+    const to = this.io.to([`user:${userId}`, ...rooms]);
+    (hidden.length ? to.except(hidden) : to).emit(event, payload);
   }
 
   /** duas pessoas acabaram de se relacionar (amizade aceita, conversa nova): cada uma passa a ver a presença da outra */
@@ -168,6 +172,22 @@ export class Realtime {
       const act = this.activities.get(y);
       if (act) this.emitUser(x, 'activity:update', { userId: y, activity: act });
     }
+  }
+
+  /** bloqueio novo: cada um deixa de ver a presença do outro (também nos servidores em comum) */
+  async hidePresence(a: string, b: string) {
+    for (const [x, y] of [[a, b], [b, a]] as const) {
+      this.emitUser(x, 'presence:update', { userId: y, online: false });
+      this.emitUser(x, 'activity:update', { userId: y, activity: null });
+    }
+  }
+
+  /** bloqueio desfeito: volta a presença de quem ainda se relaciona (servidor em comum) e não tem bloqueio do outro lado */
+  async showPresence(a: string, b: string) {
+    const rel = await this.relatedTo(a).catch(() => null);
+    if (!rel?.ids.has(b)) return;
+    if ((await blockedEitherWay(this.db, a).catch((): string[] => [])).includes(b)) return;
+    this.linkUsers(a, b);
   }
 
   /** Sessões encerradas (sair do aparelho, troca de senha): derruba as conexões delas na hora. */
@@ -310,7 +330,8 @@ export class Realtime {
     const dmRows = await this.db.query<{ channel_id: string }>('select channel_id from dm_members where user_id = $1', [user.id]);
     const dmIds = new Set(dmRows.map((r) => r.channel_id));
     const related = await this.relatedTo(user.id);
-    const visible = (id: string) => id === user.id || related.ids.has(id);
+    const hiddenIds = new Set(await blockedEitherWay(this.db, user.id).catch((): string[] => []));
+    const visible = (id: string) => id === user.id || (related.ids.has(id) && !hiddenIds.has(id));
     socket.emit('ready', {
       socketId: socket.id,
       online: [...this.online.keys()].filter(visible),
@@ -360,7 +381,8 @@ export class Realtime {
         .query<{ user_id: string }>('select user_id from dm_members where channel_id = $1', [channelId])
         .catch(() => []);
       if (!rows.some((r) => r.user_id === user.id)) return;
-      for (const r of rows) if (r.user_id !== user.id) this.emitUser(r.user_id, 'typing', { channelId, userId: user.id });
+      const hiddenTyping = new Set(await blockedEitherWay(this.db, user.id).catch((): string[] => []));
+      for (const r of rows) if (r.user_id !== user.id && !hiddenTyping.has(r.user_id)) this.emitUser(r.user_id, 'typing', { channelId, userId: user.id });
     });
 
     socket.on('voice:join', (payload: unknown, ack?: Ack) => {
@@ -604,7 +626,7 @@ export class Realtime {
     const user = socket.data.user as PublicUser;
     if ((await killState(this.db)).calls) return { ok: false, error: 'As chamadas de voz estão temporariamente desligadas pela equipe do Resenha.' };
     const p = z
-      .object({ channelId: z.string(), muted: z.boolean().optional(), deafened: z.boolean().optional() })
+      .object({ channelId: z.string(), muted: z.boolean().optional(), deafened: z.boolean().optional(), confirmBlocked: z.boolean().optional() })
       .safeParse(payload);
     if (!p.success) return { ok: false, error: 'Requisição inválida.' };
 
@@ -624,6 +646,15 @@ export class Realtime {
       const members = await this.db.query<{ user_id: string }>('select user_id from dm_members where channel_id = $1', [
         p.data.channelId,
       ]);
+      // bloqueio (nos dois sentidos): não liga nem entra na ligação
+      for (const m of members) {
+        if (m.user_id === user.id) continue;
+        try {
+          await assertNotBlocked(this.db, user.id, m.user_id, 'call');
+        } catch (err) {
+          return { ok: false, error: (err as Error).message };
+        }
+      }
       this.dmMembers.set(p.data.channelId, members.map((m) => m.user_id));
     } else {
       const full = await loadChannel(this.db, p.data.channelId);
@@ -639,6 +670,20 @@ export class Realtime {
         return { ok: false, error: `Canal cheio (limite de ${full.userLimit} pessoa${full.userLimit > 1 ? "s" : ""}).` };
       }
       this.voiceAudience.set(full.id, await channelAudience(this.db, full));
+    }
+
+    // Aviso de bloqueio: tem alguém que EU bloqueei nesta call? Mostro o @usuário (a pessoa pode ter trocado nome e foto)
+    // e só entro se eu confirmar ("entrar mesmo assim").
+    if (!p.data.confirmBlocked) {
+      const mine = new Set(await blockedByMe(this.db, user.id).catch((): string[] => []));
+      const present = [...new Set([...this.voice.values()].filter((s) => s.channelId === p.data.channelId && mine.has(s.userId)).map((s) => s.userId))];
+      if (present.length) {
+        const blocked = await this.db.query<{ id: string; username: string; displayName: string }>(
+          'select id, username, display_name as "displayName" from users where id = any($1)',
+          [present],
+        );
+        return { ok: false, needsConfirm: true, blocked, error: 'Uma pessoa que você bloqueou está nesta call.' };
+      }
     }
 
     // Um usuário só pode estar em uma chamada por vez (desconecta outro dispositivo/aba).
@@ -678,6 +723,12 @@ export class Realtime {
       if (this.voice.get(sid)?.channelId === state.channelId) void this.sendScreenAccess(sid, [socket.id]);
     }
     this.emitVoice(state, 'voice:state', state);
+
+    // quem já estava na call e bloqueou quem chegou recebe o aviso (com o @, porque o nome e a foto podem ser outros)
+    if (peers.length) {
+      const blockers = await this.db.query<{ blocker_id: string }>('select blocker_id from user_blocks where blocked_id = $1 and blocker_id = any($2)', [user.id, [...new Set(peers.map((x) => x.userId))]]);
+      for (const b of blockers) this.emitUser(b.blocker_id, 'voice:blocked-joined', { channelId: state.channelId, user: { id: user.id, username: user.username, displayName: user.displayName } });
+    }
 
     if (channel.type === 'dm') {
       if (peers.length > 0) {

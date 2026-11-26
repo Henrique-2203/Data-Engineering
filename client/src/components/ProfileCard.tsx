@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { BotTag } from './Bots';
 import { FounderBadge } from './Apoio';
-import { MessageCircle, Pencil, UserCheck, UserPlus, Flag } from 'lucide-react';
+import { MessageCircle, Pencil, UserCheck, UserPlus, Flag, Ban } from 'lucide-react';
 import type { Profile } from '../../../shared/types';
 import { api } from '../lib/api';
 import { imageUrl, memberColor } from '../lib/perms';
 import { LINK_INFO, activeStatus, playingFor } from '../lib/presence';
-import { openDm, sendFriendRequest } from '../lib/social';
+import { blockUser, openDm, sendFriendRequest, unblockUser } from '../lib/social';
 import { closeModal, findMember, openModal, toast, useApp } from '../store/app';
 import { Avatar } from './Avatar';
 import { MemberModeration } from './GuildSettings';
@@ -26,6 +26,7 @@ export function ProfileCard({ userId, guildId, onAction }: { userId: string; gui
   const online = useApp((s) => !!s.online[userId]);
   const activity = useApp((s) => s.activities[userId]);
   const friendStatus = useApp((s) => s.friends.find((f) => f.user.id === userId)?.status);
+  const iBlocked = useApp((s) => s.blocks.some((b) => b.id === userId));
   const guild = useApp((s) => (guildId ? s.guilds[guildId] : undefined));
   const member = guild?.members.find((m) => m.id === userId);
   const [, tick] = useState(0);
@@ -153,6 +154,11 @@ export function ProfileCard({ userId, guildId, onAction }: { userId: string; gui
             </button>
           ) : (
             <>
+              {iBlocked ? (
+                <button className="btn small primary" onClick={() => void unblockUser(user)}>
+                  <Ban size={15} /> Desbloquear
+                </button>
+              ) : (
               <button
                 className="btn small primary"
                 onClick={() => {
@@ -163,7 +169,10 @@ export function ProfileCard({ userId, guildId, onAction }: { userId: string; gui
               >
                 <MessageCircle size={15} /> Enviar mensagem
               </button>
-              {friendStatus === 'friend' ? (
+              )}
+              {iBlocked ? (
+                <span className="muted small">Você bloqueou essa pessoa</span>
+              ) : friendStatus === 'friend' ? (
                 <span className="muted small row friend-ok">
                   <UserCheck size={15} /> Amigos
                 </span>
@@ -182,6 +191,11 @@ export function ProfileCard({ userId, guildId, onAction }: { userId: string; gui
                   }}
                 >
                   <UserPlus size={15} /> {friendStatus === 'incoming' ? 'Aceitar amizade' : 'Adicionar amigo'}
+                </button>
+              )}
+              {!iBlocked && (
+                <button className="icon-btn small profile-report" aria-label={`Bloquear ${user.displayName}`} title="Bloquear" onClick={() => void blockUser(user)}>
+                  <Ban size={15} />
                 </button>
               )}
               <button

@@ -11,6 +11,14 @@ import { useVoice } from '../store/voice';
  */
 export const CHANGELOG: { id: string; title: string; items: [string, string][] }[] = [
   {
+    id: '2026-11-26',
+    title: 'Bloquear pessoas',
+    items: [
+      ['🚫', 'Agora você pode bloquear alguém: no perfil da pessoa ou no menu dela na call. Ela não consegue te mandar mensagem privada, pedido de amizade nem te ligar, e não é avisada de que foi bloqueada. Quem você bloqueou fica em Configurações → Bloqueados.'],
+      ['⚠️', 'Se uma pessoa bloqueada estiver numa call, você recebe um aviso com o @ dela antes de entrar (mesmo que ela troque de nome e de foto) e escolhe se quer entrar mesmo assim.'],
+    ],
+  },
+  {
     id: '2026-11-25',
     title: 'Câmera do celular e layout novo',
     items: [

@@ -48,6 +48,7 @@ jobs:
           node e2e/upload-abuse.mjs
           node e2e/bots-abuse.mjs
           node e2e/killswitch.mjs
+          node e2e/blocks.mjs
       - name: Bibliotecas com falhas conhecidas (site e servidor)
         run: npm audit --omit=dev --audit-level=high
       - name: Bibliotecas com falhas conhecidas (app de desktop)

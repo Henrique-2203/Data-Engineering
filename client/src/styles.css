@@ -9394,3 +9394,36 @@ body.dm-call-full .chat .voice-stage.embedded .stage > .tiles {
 /* imagem de outro site: só carrega com clique (privacidade) */
 .message-image-gate { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
 .link-btn { background: none; border: 0; color: var(--accent, #7c6cff); cursor: pointer; text-decoration: underline; padding: 0; }
+
+/* Bloqueio de pessoas */
+.blocked-msg {
+  padding: 4px 16px 4px 72px;
+  opacity: 0.75;
+}
+.blocked-msg .link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  font: inherit;
+}
+.blocked-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.blocked-row {
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+.composer-gate .btn {
+  margin-left: auto;
+}

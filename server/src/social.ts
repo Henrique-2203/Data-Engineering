@@ -7,6 +7,7 @@ import { USER_COLUMNS } from './auth.ts';
 import { requireOn } from './killswitch.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { limit } from './security.ts';
+import { assertNotBlocked } from './blocks.ts';
 import type { DmChannel, Friend, PublicUser } from '../../shared/types.ts';
 
 /**
@@ -72,6 +73,7 @@ export function registerSocialRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
       if (!target) throw new HttpError(404, 'Não encontramos ninguém com esse usuário. Confira a grafia.');
       if (target.is_bot) throw new HttpError(400, 'Bots não aceitam pedido de amizade.');
       if (target.id === me.id) throw new HttpError(400, 'Você não pode adicionar a si mesmo.');
+      await assertNotBlocked(db, me.id, target.id, 'friend');
       const [existing] = await db.query<{ requester_id: string; status: string }>(
         `select requester_id, status from friendships
          where (requester_id = $1 and addressee_id = $2) or (requester_id = $2 and addressee_id = $1)`,
@@ -134,6 +136,7 @@ export function registerSocialRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
       if (userId === me) throw new HttpError(400, 'Você não pode mandar mensagem para si mesmo.');
       const [isBot] = await db.query('select 1 from users where id = $1 and is_bot', [userId]);
       if (isBot) throw new HttpError(400, 'Bots ainda não recebem mensagem privada. Use os comandos com / no servidor.');
+      await assertNotBlocked(db, me, userId, 'dm');
       const [allowed] = await db.query(
         `select 1 where exists (
            select 1 from friendships

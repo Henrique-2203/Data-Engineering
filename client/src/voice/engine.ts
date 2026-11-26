@@ -157,6 +157,11 @@ class VoiceEngine {
       });
       if (!allowed && getV().watching[socketId]) this.watch(socketId, false);
     });
+    // alguém que EU bloqueei entrou na call em que estou (o @ vale mais que o nome: ela pode ter trocado de nome e foto)
+    socket.on('voice:blocked-joined', ({ user }: { user: { username: string; displayName: string } }) => {
+      if (getV().status === 'idle') return;
+      toast(`⚠️ Uma pessoa que você bloqueou entrou na call: @${user.username} (aparece como "${user.displayName}").`, 9000);
+    });
     socket.on('voice:peer-left', ({ socketId }: { socketId: string }) => {
       this.dbg(`peer-left ${socketId}`);
       if (this.peers.has(socketId)) playSound('peerLeave');
@@ -265,11 +270,25 @@ class VoiceEngine {
       if (!this.micTrack && !getV().noMic) await this.acquireMic();
 
       const { muted, deafened } = getV();
-      const res = await new Promise<{ ok: boolean; error?: string; peers?: { socketId: string; userId: string }[] }>(
-        (resolve) => socket.timeout(10000).emit('voice:join', { channelId, muted, deafened }, (err: unknown, r: any) =>
-          resolve(err ? { ok: false, error: 'O servidor não respondeu.' } : r),
-        ),
-      );
+      type JoinRes = { ok: boolean; error?: string; peers?: { socketId: string; userId: string }[]; needsConfirm?: boolean; blocked?: { id: string; username: string; displayName: string }[] };
+      const tryJoin = (confirmBlocked: boolean) =>
+        new Promise<JoinRes>((resolve) =>
+          socket.timeout(10000).emit('voice:join', { channelId, muted, deafened, confirmBlocked }, (err: unknown, r: any) =>
+            resolve(err ? { ok: false, error: 'O servidor não respondeu.' } : r),
+          ),
+        );
+      // reconectando (ex.: o servidor reiniciou) não pergunta de novo: a pessoa já tinha confirmado
+      let res = await tryJoin(rejoin);
+      if (!res.ok && res.needsConfirm) {
+        // alguém que EU bloqueei está nesta call: mostra o @ (nome e foto podem ter mudado) e pergunta
+        const who = (res.blocked ?? []).map((b) => `@${b.username} (agora aparece como "${b.displayName}")`).join('\n');
+        const go = confirm(`⚠️ ${res.blocked && res.blocked.length > 1 ? 'Pessoas que você bloqueou estão' : 'Uma pessoa que você bloqueou está'} nesta call:\n\n${who}\n\nElas podem ter mudado de nome e de foto. Deseja entrar mesmo assim?`);
+        if (!go) {
+          this.leave(false);
+          return;
+        }
+        res = await tryJoin(true);
+      }
       if (!res.ok) {
         toast(res.error ?? 'Não foi possível entrar no canal de voz.');
         this.leave(false);
