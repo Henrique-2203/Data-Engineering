@@ -21,7 +21,7 @@ const assert = (c, m) => {
   if (!c) throw new Error(`FALHOU: ${m}`);
 };
 const server = spawn(process.execPath, ['--import', 'tsx', 'server/src/index.ts'], {
-  env: { ...process.env, PORT: String(PORT), DATA_DIR: tempDir('resenha-ofc-'), PLATFORM_ADMINS: 'mercurio_1411' },
+  env: { ...process.env, PORT: String(PORT), DATA_DIR: tempDir('resenha-ofc-'), PLATFORM_ADMINS: 'equipe_ofc' },
   stdio: ['ignore', 'ignore', 'pipe'],
 });
 server.stderr.on('data', (d) => /\[ice\]|BACKUP_KEY/.test(d) || process.stderr.write(`[server] ${d}`));
@@ -39,7 +39,7 @@ try {
     await sleep(500);
   }
   const reg = (u, d) => api('/auth/register', { username: u, password: 'Cor-Forte-Xis-42', displayName: d, acceptTerms: true });
-  const hen = await reg('mercurio_1411', 'Henrique');
+  const hen = await reg('equipe_ofc', 'Henrique');
   const kevin = await reg('kevin', 'Kevin');
   const rb = await reg('resenha_brasil', 'Resenha Brasil');
   const ana = await reg('ana', 'Ana');
