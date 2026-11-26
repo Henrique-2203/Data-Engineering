@@ -143,6 +143,34 @@ try {
   check(dmBlocked >= 3, `DM-03: conta nova abriu 8 conversas novas seguidas sem travar (${dmBlocked} travadas)`);
   step('DM-03/RL-04: conta nova só abre poucas conversas novas por hora (anti-spam de DM em massa)');
 
+
+  // ---- INF-01/02/07, API-03/04: cabeçalhos, CORS, cache e arquivos que não podem vazar ----
+  const hostHeaders = { 'x-forwarded-proto': 'https', 'x-forwarded-for': '10.88.0.1' };
+  const hsts = await fetch(`${BASE}/api/health`, { headers: hostHeaders });
+  check(/max-age=\d{7,}/.test(hsts.headers.get('strict-transport-security') ?? ''), 'INF-01: sem HSTS (Strict-Transport-Security) em conexão HTTPS');
+  check(!hsts.headers.get('x-powered-by') && !hsts.headers.get('server'), `INF-02: o servidor revela tecnologia (${hsts.headers.get('x-powered-by')} / ${hsts.headers.get('server')})`);
+  const boot = await fetch(`${BASE}/api/bootstrap`, { headers: { authorization: `Bearer ${ana.token}`, 'x-forwarded-for': '10.88.0.2' } });
+  check(/no-store/.test(boot.headers.get('cache-control') ?? ''), `INF-07: resposta autenticada sem Cache-Control: no-store (${boot.headers.get('cache-control')})`);
+  const evilCors = await fetch(`${BASE}/api/bootstrap`, { headers: { origin: 'https://site-malicioso.example', authorization: `Bearer ${ana.token}`, 'x-forwarded-for': '10.88.0.3' } });
+  check(!evilCors.headers.get('access-control-allow-origin'), `API-03: resposta permitiu CORS para outro site (${evilCors.headers.get('access-control-allow-origin')})`);
+  const pre = await fetch(`${BASE}/api/bootstrap`, { method: 'OPTIONS', headers: { origin: 'https://site-malicioso.example', 'access-control-request-method': 'GET', 'x-forwarded-for': '10.88.0.4' } });
+  check(!pre.headers.get('access-control-allow-origin'), 'API-03: preflight CORS liberou outro site');
+  const post = await fetch(`${BASE}/api/guilds`, { method: 'POST', headers: { origin: 'https://site-malicioso.example', 'content-type': 'text/plain', authorization: `Bearer ${ana.token}`, 'x-forwarded-for': '10.88.0.5' }, body: JSON.stringify({ name: 'CSRF' }) });
+  check(post.status >= 400, `CSRF-01: criar servidor com Origin de outro site e text/plain funcionou (${post.status})`);
+  for (const p of ['/.env', '/.git/config', '/server/src/index.ts', '/package.json', '/..%2f..%2fetc%2fpasswd', '/assets/..%2f..%2fpackage.json', '/assets/%2e%2e/%2e%2e/package.json', '/api/../package.json', '/.well-known/../../package.json', '//etc/passwd']) {
+    const r = await fetch(`${BASE}${p}`, { headers: { 'x-forwarded-for': '10.88.0.6' } });
+    const t = await r.text();
+    check(!/DATABASE_URL|"workspaces"|root:x:0|BACKUP_KEY|import express|createServer/.test(t), `INF: ${p} vazou conteúdo de arquivo do servidor`);
+  }
+  const bad = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.88.0.7' }, body: '{"username": ' });
+  const badText = await bad.text();
+  check(bad.status === 400 && !/at |node_modules|\.ts:/.test(badText), `API-04: JSON quebrado respondeu ${bad.status} ${badText.slice(0, 120)}`);
+  const bigBody = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.88.0.8' }, body: JSON.stringify({ username: 'a', password: 'x'.repeat(300_000) }) });
+  check(bigBody.status === 413 || bigBody.status === 400, `RL-02: corpo de 300 KB aceito (${bigBody.status})`);
+  const notFound = await fetch(`${BASE}/api/rota-que-nao-existe`, { headers: { 'x-forwarded-for': '10.88.0.9' } });
+  check(notFound.status === 404 && !/at |node_modules/.test(await notFound.text()), 'API-04: rota inexistente vazou detalhes');
+  step('INF/API: HSTS em HTTPS, sem X-Powered-By, API com no-store, sem CORS para outros sites (nem preflight, nem POST text/plain), arquivos do servidor não vazam por caminhos estranhos, erros sem detalhes, corpo gigante recusado');
+
   // ---- PERM-08: tetos por servidor e por pessoa ----
   const { guild: big } = await call('POST', '/guilds', bia.token, { name: 'Grande' });
   let chStatus = 0;

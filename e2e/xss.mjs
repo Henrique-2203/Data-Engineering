@@ -67,6 +67,7 @@ try {
     await call('POST', `/channels/${geral.id}/messages`, ana.token, { content: P[i] + ' ' + pick(i + 5) });
     await call('POST', `/guilds/${guild.id}/roles`, ana.token, { name: pick(i).slice(0, 32) });
   }
+  await call('POST', `/channels/${geral.id}/messages`, bia.token, { content: 'olha https://rastreador.example/pixel.png' });
   await call('POST', `/guilds/${guild.id}/channels`, ana.token, { name: pick(4).slice(0, 40), type: 'text' });
   await call('POST', `/guilds/${guild.id}/channels`, ana.token, { name: pick(6).slice(0, 40), type: 'voice' });
   await call('POST', `/guilds/${guild.id}/categories`, ana.token, { name: pick(3).slice(0, 40) });
@@ -82,6 +83,8 @@ try {
 
   browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 } });
+  let pixelHits = 0;
+  await ctx.route('**://rastreador.example/**', (route) => { pixelHits++; route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') }); });
   const page = await ctx.newPage();
   const dialogs = [];
   page.on('dialog', (d) => (dialogs.push(d.message()), d.dismiss()));
@@ -112,6 +115,14 @@ try {
   }
   await sleep(1200);
   await probe('servidor, canais, categorias e mensagens');
+  // SSRF-03/privacidade: imagem de OUTRO site só carrega com clique (senão vira pixel de rastreio do seu IP)
+  await sleep(400);
+  check(pixelHits === 0, `SSRF-03: o navegador carregou sozinho uma imagem de outro site (${pixelHits} chamada(s) ao rastreador)`);
+  const gate = page.getByRole('button', { name: /Carregar imagem de rastreador\.example/ });
+  check(await gate.count() === 1, 'SSRF-03: o botão "Carregar imagem de ..." não apareceu: última mensagem = ' + JSON.stringify((await page.locator('.message').last().innerText().catch(() => '')).slice(0, 160)) + ' | gate no DOM: ' + (await page.content()).includes('message-image-gate') + ' | links: ' + (await page.locator('a[href*="rastreador"]').count()));
+  await gate.click({ timeout: 3000 }).catch(() => {});
+  await sleep(500);
+  check(pixelHits >= 1, 'SSRF-03: depois do clique a imagem não carregou');
   // abre o cartão de perfil de quem escreveu (bio/status maliciosos) e a lista de membros
   await page.locator('.message .avatar, .message-author, .author-name').first().click({ timeout: 3000 }).catch(() => {});
   await sleep(600);

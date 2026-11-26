@@ -213,14 +213,59 @@ export function renderContent(text: string, opts: { meUsername: string; everyone
     return out;
   };
   const out = blocks(masked, leaf, restore);
-  for (const src of urls.filter((u) => IMG_RE.test(u)).slice(0, 4)) {
-    out.push(
-      <a key={`img-${src}`} className="message-image" href={src} target="_blank" rel="noopener noreferrer">
+  for (const src of urls.filter((u) => IMG_RE.test(u)).slice(0, 4)) out.push(<ExternalImage key={`img-${src}`} src={src} />);
+  return out;
+}
+
+const OK_HOSTS_KEY = 'resenha.imageHosts';
+const okHosts = (): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(OK_HOSTS_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Imagem de OUTRO site (link no chat): só carrega depois de um clique. Carregar sozinho entregaria o seu endereço de
+ * internet (e o horário em que você abriu o chat) para quem hospeda a imagem: é como um "pixel de rastreio".
+ */
+function ExternalImage({ src }: { src: string }) {
+  let host = '';
+  try {
+    host = new URL(src).hostname;
+  } catch {
+    return null;
+  }
+  const [shown, setShown] = useState(() => okHosts().includes(host));
+  if (shown) {
+    return (
+      <a className="message-image" href={src} target="_blank" rel="noopener noreferrer">
         <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" />
-      </a>,
+      </a>
     );
   }
-  return out;
+  return (
+    <div className="message-image-gate">
+      <button type="button" className="btn small" onClick={() => setShown(true)} title="O site que hospeda a imagem vai ver o seu endereço de internet">
+        🖼️ Carregar imagem de {host}
+      </button>
+      <button
+        type="button"
+        className="link-btn small"
+        onClick={() => {
+          try {
+            localStorage.setItem(OK_HOSTS_KEY, JSON.stringify([...new Set([...okHosts(), host])].slice(-50)));
+          } catch {
+            /* sem armazenamento: só desta vez */
+          }
+          setShown(true);
+        }}
+      >
+        sempre deste site
+      </button>
+    </div>
+  );
 }
 
 const timeFmt = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });

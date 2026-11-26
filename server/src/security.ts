@@ -10,6 +10,7 @@ import { HttpError, parse, wrap } from './http.ts';
 import { SESSION_IDLE_DAYS, SESSION_MAX_DAYS, deviceLabel, issueSession, sha256, verifyPassword, type requireAuth } from './auth.ts';
 import { EVENT_NAMES, alertUser, logEvent, recordLogin, requireSafePassword, setPassword } from './account.ts';
 import { emailEnabled } from './email.ts';
+import { openSecret, sealSecret } from './vault.ts';
 
 const when = () => new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'long', timeStyle: 'short' });
 import { deleteFiles, guildFileIds } from './expressions.ts';
@@ -200,7 +201,9 @@ export async function checkSecondFactor(db: Db, userId: string, code: unknown): 
   if (typeof code !== 'string' || !code.trim()) return 'missing';
   const c = code.replace(/\s/g, '');
   if (/^\d{6}$/.test(c)) {
-    const step = checkTotp(u.totp_secret, c, Number(u.totp_last_step));
+    const secret = openSecret(u.totp_secret);
+    if (!secret) return 'wrong'; // segredo ilegível (chave errada): nunca deixa passar
+    const step = checkTotp(secret, c, Number(u.totp_last_step));
     if (step === null) return 'wrong';
     await db.query('update users set totp_last_step = $2 where id = $1', [userId, step]);
     return 'ok';
@@ -359,7 +362,7 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
     wrap(async (req) => {
       const u = await confirmIdentity(req.user!.id, req.body?.password);
       const secret = base32(randomBytes(20));
-      await db.query('update users set totp_secret = $2, totp_enabled = false where id = $1 and not totp_enabled', [req.user!.id, secret]);
+      await db.query('update users set totp_secret = $2, totp_enabled = false where id = $1 and not totp_enabled', [req.user!.id, sealSecret(secret)]);
       const [check] = await db.query<{ totp_enabled: boolean }>('select totp_enabled from users where id = $1', [req.user!.id]);
       if (check.totp_enabled) throw new HttpError(409, 'A verificação em duas etapas já está ativada.');
       const otpauth = `otpauth://totp/Resenha:${encodeURIComponent(u.username)}?secret=${secret}&issuer=Resenha&algorithm=SHA1&digits=6&period=30`;
@@ -376,7 +379,9 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
       const [u] = await db.query<{ totp_secret: string | null; totp_enabled: boolean }>('select totp_secret, totp_enabled from users where id = $1', [req.user!.id]);
       if (!u?.totp_secret) throw new HttpError(400, 'Comece pelo QR code.');
       if (u.totp_enabled) throw new HttpError(409, 'A verificação em duas etapas já está ativada.');
-      const step = checkTotp(u.totp_secret, code.replace(/\s/g, ''), 0);
+      const plainSecret = openSecret(u.totp_secret);
+      if (!plainSecret) throw new HttpError(400, 'Comece pelo QR code.');
+      const step = checkTotp(plainSecret, code.replace(/\s/g, ''), 0);
       if (step === null) throw new HttpError(400, 'Código incorreto. Confira se o relógio do celular está certo e tente o código novo.');
       await db.query('update users set totp_enabled = true, totp_last_step = $2 where id = $1', [req.user!.id, step]);
       await logEvent(db, req.user!.id, '2fa_enabled', req);

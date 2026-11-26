@@ -162,6 +162,7 @@ export function HealthPanel() {
       </div>
       <LabToggles />
       <BetaAccounts />
+      <EmergencySwitches />
       <AiUsage />
       <DailyBars data={data} label="Minutos de transmissão com 40+ FPS, por dia" metric={(a) => (a.stream_samples?.count ? (a.stream_ok40?.count ?? 0) / a.stream_samples.count : null)} />
 
@@ -363,6 +364,62 @@ function LabToggles() {
           Cloudflare chegou). Enquanto isso, a transmissão segue pelo direto.
         </p>
       )}
+    </div>
+  );
+}
+
+/** Chaves de emergência: a equipe desliga uma parte do Resenha na hora (abuso, raid, invasão). */
+function EmergencySwitches() {
+  const [data, setData] = useState<{ state: Record<string, boolean>; labels: Record<string, string> } | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void api<{ state: Record<string, boolean>; labels: Record<string, string> }>('/admin/killswitch').then(setData, () => setData(null));
+  }, []);
+  if (!data) return null;
+  async function flip(key: string, on: boolean) {
+    if (on && !confirm(`Desligar para TODO MUNDO: ${data!.labels[key].toLowerCase()}?`)) return;
+    setBusy(true);
+    try {
+      const r = await api<{ state: Record<string, boolean> }>('/admin/killswitch', { method: 'PUT', body: { [key]: on } });
+      setData({ ...data!, state: r.state });
+      toast(on ? `${data!.labels[key]}: DESLIGADO.` : `${data!.labels[key]}: ligado de novo.`);
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function revokeAll() {
+    const typed = prompt('Isso desconecta TODAS as contas (menos você). Digite REVOGAR TODAS para confirmar:');
+    if (typed !== 'REVOGAR TODAS') return;
+    setBusy(true);
+    try {
+      const r = await api<{ revoked: number }>('/admin/security/revoke-all-sessions', { method: 'POST', body: { confirm: 'REVOGAR TODAS' } });
+      toast(`${r.revoked} sessão(ões) encerrada(s).`);
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="health-lab">
+      <strong>🚨 Chaves de emergência</strong>
+      <span className="muted small">Use só se algo estiver sendo abusado. Desligar vale na hora para todo mundo; ligar de novo desfaz.</span>
+      {Object.keys(data.labels).map((k) => (
+        <label key={k} className="check">
+          <input type="checkbox" checked={!!data.state[k]} disabled={busy} onChange={(e) => void flip(k, e.target.checked)} aria-label={`Desligar: ${data.labels[k]}`} />
+          <span>
+            Desligar: <strong>{data.labels[k].toLowerCase()}</strong>
+          </span>
+        </label>
+      ))}
+      <div className="beta-row">
+        <span className="muted small">Suspeita de invasão ou chave vazada? Desconecta todos os aparelhos de todas as contas.</span>
+        <button className="btn small danger" type="button" disabled={busy} onClick={() => void revokeAll()}>
+          Sair de TODOS os aparelhos
+        </button>
+      </div>
     </div>
   );
 }

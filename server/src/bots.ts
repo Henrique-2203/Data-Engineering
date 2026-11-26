@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import { HttpError, parse, wrap } from './http.ts';
+import { requireOn } from './killswitch.ts';
 import { limit } from './security.ts';
 import { requireFeature } from './beta.ts';
 import { audit } from './audit.ts';
@@ -331,6 +332,7 @@ export function registerBotRoutes(r: Router, db: Db, rt: Realtime, auth: ReturnT
     '/channels/:id/interactions',
     auth,
     wrap(async (req) => {
+      await requireOn(db, 'bots');
       const me = req.user!;
       const c = await deps.channelForMember(String(req.params.id), me.id);
       if (!c.guildId || !c.access || c.type !== 'text') throw bad('Os comandos do bot só funcionam em canais de texto de servidores.');

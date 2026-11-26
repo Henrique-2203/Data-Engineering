@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import express, { type Request, type Response, type Router } from 'express';
 import { config } from './config.ts';
 import type { Db } from './db.ts';
+import { requireOn } from './killswitch.ts';
 import { HttpError, wrap } from './http.ts';
 import { fmtMb, requireQuota, userUsage } from './access.ts';
 import { limit } from './security.ts';
@@ -133,6 +134,7 @@ export function registerAttachmentRoutes(
     auth,
     express.raw({ type: () => true, limit: bodyLimit }),
     wrap(async (req) => {
+      await requireOn(db, 'uploads');
       const me = req.user!.id;
       limit(`upload:${me}`, 40, 10 * 60_000, 'Muitos arquivos em pouco tempo. Espere alguns minutos.');
       let data = req.body as Buffer;

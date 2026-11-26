@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import type { PublicUser, RtcSignal, VoiceState, Activity, TogetherState, CallChatMessage, ScreenAudience } from '../../shared/types.ts';
 import { checkAutomod } from './community.ts';
 import { PhoneCamHub } from './phoneCam.ts';
+import { killState } from './killswitch.ts';
 import { HttpError } from './http.ts';
 import { limit } from './security.ts';
 
@@ -470,6 +471,15 @@ export class Realtime {
       const from = this.voice.get(socket.id);
       const target = to ? this.voice.get(to) : undefined;
       if (!to || !from || !target || from.channelId !== target.channelId) return;
+      // o conteúdo do sinal é só repassado, mas nunca lixo: precisa ser um objeto com "type" e caber em 64 KB (CALL-01/WS-04)
+      const d = payload.data as unknown;
+      if (!d || typeof d !== 'object' || typeof (d as { type?: unknown }).type !== 'string' || (d as { type: string }).type.length > 32) return;
+      try {
+        if (JSON.stringify(d).length > 64_000) return;
+      } catch {
+        return;
+      }
+      if (!allowed('rtc:signal', 900, 10_000)) return;
       // pedido para assistir uma transmissão restrita: só chega a quem transmite se a pessoa pode
       // (o app de quem transmite confere de novo antes de mandar qualquer imagem)
       if (payload.data?.type === 'watch' && payload.data.on && this.screenAudience.has(to)) {
@@ -592,6 +602,7 @@ export class Realtime {
 
   private async onVoiceJoin(socket: Socket, payload: unknown) {
     const user = socket.data.user as PublicUser;
+    if ((await killState(this.db)).calls) return { ok: false, error: 'As chamadas de voz estão temporariamente desligadas pela equipe do Resenha.' };
     const p = z
       .object({ channelId: z.string(), muted: z.boolean().optional(), deafened: z.boolean().optional() })
       .safeParse(payload);

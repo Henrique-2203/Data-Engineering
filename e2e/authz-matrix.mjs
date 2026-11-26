@@ -35,9 +35,9 @@ const call = async (method, p, token, body, extra = {}) => {
 // rotas que PODEM responder sem login (cada uma é uma decisão consciente)
 const PUBLIC = new Set([
   'GET /health', 'GET /version', 'GET /config', 'POST /auth/register', 'GET /auth/username-available', 'POST /auth/register/start', 'POST /auth/register/resend',
-  'POST /auth/register/confirm', 'POST /auth/login', 'GET /invites/:code', 'POST /auth/cookie', 'POST /auth/logout', 'POST /auth/recover', 'POST /auth/forgot', 'POST /auth/reset',
-  'POST /waitlist', 'POST /waitlist/remove', 'GET /download/windows', 'GET /download/info', 'GET /download/android', 'GET /app/android', 'GET /push/key', 'POST /stats/view',
-  'GET /images/:id', 'GET /emojis/:id', 'GET /attachments/:id/:name', 'GET /embed', 'GET /embed/thumb', 'GET /sfu/status', 'GET /apoio', 'POST /telemetry/call-health', 'GET /ice',
+  'POST /auth/register/confirm', 'POST /auth/login', 'GET /invites/:code', 'POST /auth/recover', 'POST /auth/forgot', 'POST /auth/reset',
+  'POST /waitlist', 'POST /waitlist/remove', 'GET /download/windows', 'GET /download/info', 'GET /download/android', 'GET /app/android', 'POST /stats/view',
+  'GET /images/:id', 'GET /emojis/:id', 'GET /attachments/:id/:name', 
 ]);
 
 try {
@@ -67,6 +67,14 @@ try {
     const res = await call(method, url, null, method === 'GET' || method === 'DELETE' ? undefined : {});
     if (res.status !== 401) open.push(`${r} → ${res.status}`);
   }
+  // a lista pública não pode ficar velha: rota "pública" que na verdade exige login é um engano na lista
+  const stale = [];
+  for (const r of PUBLIC) {
+    const [method, p] = r.split(' ');
+    const res = await call(method, p.replace(/:[A-Za-z]+/g, 'x'), null, method === 'GET' || method === 'DELETE' ? undefined : {});
+    if (res.status === 401) stale.push(r);
+  }
+  check(stale.length === 0, `rotas na lista pública que exigem login (tirar da lista): ${stale.join(' | ')}`);
   check(open.length === 0, `rotas SEM login que não estão na lista pública: ${open.join(' | ')}`);
   // com um token de pessoa comum, as rotas da equipe respondem 404 (como se não existissem)
   step(`A) ${routes.length} rotas varridas sem sessão (${PUBLIC.size} públicas de propósito, o resto exige login)`);

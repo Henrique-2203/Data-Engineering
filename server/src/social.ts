@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import { USER_COLUMNS } from './auth.ts';
+import { requireOn } from './killswitch.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { limit } from './security.ts';
 import type { DmChannel, Friend, PublicUser } from '../../shared/types.ts';
@@ -153,6 +154,7 @@ export function registerSocialRoutes(r: Router, db: Db, rt: Realtime, auth: Retu
       let id = existing?.id;
       if (!id) {
         // anti-spam/assédio (DM-03/RL-04): conversas NOVAS são limitadas, e conta de menos de 1 dia tem teto menor
+        await requireOn(db, 'dms');
         const [acc] = await db.query<{ young: boolean }>(`select created_at > now() - interval '1 day' as young from users where id = $1`, [me]);
         limit(`dmnew:${me}`, acc?.young ? 5 : 30, 3600_000, 'Você abriu muitas conversas novas. Espere um pouco antes de chamar mais gente.');
         id = randomUUID();

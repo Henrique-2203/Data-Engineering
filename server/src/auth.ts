@@ -178,7 +178,7 @@ export function tokenFromHeaders(headers: { authorization?: string; cookie?: str
 export function setSessionCookie(req: Request, res: Response, token: string) {
   const secure = req.secure;
   // 400 dias é o máximo que os navegadores aceitam; quem expira de verdade é o servidor (60 dias sem uso)
-  res.append('Set-Cookie', `${secure ? COOKIE_SECURE : COOKIE_DEV}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${400 * 86400}${secure ? '; Secure' : ''}`);
+  res.append('Set-Cookie', `${secure ? COOKIE_SECURE : COOKIE_DEV}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_DAYS * 86400}${secure ? '; Secure' : ''}`);
 }
 
 export function clearSessionCookie(req: Request, res: Response) {

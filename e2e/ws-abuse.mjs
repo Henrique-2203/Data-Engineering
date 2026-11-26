@@ -180,6 +180,46 @@ try {
   check(!!afterLogout.error, 'WS-07: token de sessão encerrada ainda conecta');
   step('WS-07: sair da conta derruba a conexão aberta e o token antigo não conecta mais');
 
+
+  // ---------- CALL-01/04: sinalização e moderação de voz ----------
+  const voz = guild.channels.find((c) => c.type === 'voice').id;
+  const vAna = await connect(ana.token);
+  const vBia = await connect(bia.token);
+  // (bia foi banida acima: usa outra conta para a parte de voz)
+  const eve = await reg('eve');
+  await call('POST', `/invites/${guild.inviteCode}/join`, eve.token);
+  const vEve = await connect(eve.token);
+  const ackOf = (c, ev, p) => new Promise((ok) => c.s.timeout(3000).emit(ev, p, (err, r) => ok(err ? { ok: false, error: String(err) } : r)));
+  const jAna = await ackOf(vAna, 'voice:join', { channelId: voz });
+  const jEve = await ackOf(vEve, 'voice:join', { channelId: voz });
+  check(jAna?.ok && jEve?.ok, `setup: entrar na call (${JSON.stringify(jAna)} ${JSON.stringify(jEve)})`);
+  const caioV = await connect(caio.token);
+  // sinais que não são objeto, sem type, ou enormes não chegam ao outro participante; um sinal normal chega
+  const sigBefore = events(vEve, 'rtc:signal').length;
+  for (const lixo of ['texto', 42, null, [], {}, { type: 'x'.repeat(100) }, { type: 'offer', sdp: 'a'.repeat(120_000) }, { type: 5 }]) vAna.s.emit('rtc:signal', { to: vEve.s.id, data: lixo });
+  await sleep(300);
+  check(events(vEve, 'rtc:signal').length === sigBefore, 'CALL-01: sinal de call inválido ou gigante foi repassado a outro participante');
+  vAna.s.emit('rtc:signal', { to: vEve.s.id, data: { type: 'offer', sdp: 'v=0' } });
+  await sleep(300);
+  check(events(vEve, 'rtc:signal').length === sigBefore + 1, 'CALL-01: sinal de call normal deixou de ser repassado');
+  // quem está fora da call (ou em outra) não manda sinal para quem está dentro
+  caioV.s.emit('rtc:signal', { to: vEve.s.id, data: { type: 'offer', sdp: 'x' } });
+  await sleep(200);
+  check(events(vEve, 'rtc:signal').length === sigBefore + 1, 'CALL-01: quem não está na call mandou sinal para quem está');
+  // moderação: o dono silencia a eve; ela tenta se "dessilenciar" pelo cliente e o servidor continua mostrando silenciada pelo servidor
+  const mod = await ackOf(vAna, 'voice:mod', { action: 'mute', socketId: vEve.s.id });
+  check(mod?.ok, `setup: silenciar pelo servidor (${JSON.stringify(mod)})`);
+  vEve.s.emit('voice:update', { muted: false, deafened: false, serverMuted: false, serverDeafened: false });
+  await sleep(300);
+  const last = events(vAna, 'voice:state').filter((e) => e.data.socketId === vEve.s.id || e.data.userId === eve.user.id).at(-1);
+  check(last?.data.serverMuted === true, `CALL-04: a pessoa conseguiu limpar o silêncio imposto pelo servidor (${JSON.stringify(last?.data).slice(0, 160)})`);
+  // quem não tem permissão não modera
+  const modFalso = await ackOf(vEve, 'voice:mod', { action: 'disconnect', socketId: vAna.s.id });
+  check(modFalso?.ok === false, 'CALL-04: membro sem cargo derrubou o dono da call');
+  // sair e entrar de novo não limpa o silêncio do servidor
+  await ackOf(vEve, 'voice:join', { channelId: voz }).catch(() => {});
+  step('CALL-01/04: sinais de call só entre quem está na mesma call (inválidos/gigantes caem), silêncio imposto pelo servidor não se desfaz pelo cliente e quem não tem cargo não modera');
+
   if (fails.length) {
     console.error(`\n✗ ${fails.length} falha(s):\n- ${fails.join('\n- ')}`);
     process.exitCode = 1;

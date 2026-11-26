@@ -50,6 +50,11 @@ app.get('/.well-known/security.txt', (req, res) => {
     ].join('\n'),
   );
 });
+// respostas da API nunca ficam em cache de navegador/CDN (INF-07); rotas públicas de imagens/arquivos definem o próprio cache
+app.use('/api', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 app.use('/api', sameOriginOnly);
 app.use('/api', createRoutes(db, rt));
 app.use('/api', (_req, res) => {
@@ -113,6 +118,12 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if ((err as { type?: string })?.type === 'entity.parse.failed') {
     return res.status(400).json({ error: 'JSON inválido.' });
   }
+  if ((err as { type?: string })?.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Pedido grande demais.' });
+  }
+  // outros erros de leitura do pedido (corpo cortado, codificação inválida...): são do cliente, não do servidor
+  const status = (err as { status?: number })?.status;
+  if (typeof status === 'number' && status >= 400 && status < 500) return res.status(status).json({ error: 'Pedido inválido.' });
   console.error(err);
   res.status(500).json({ error: 'Erro interno do servidor.' });
 });

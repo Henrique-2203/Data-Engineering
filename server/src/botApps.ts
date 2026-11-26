@@ -5,12 +5,14 @@ import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { limit, limited } from './security.ts';
+import { requireOn } from './killswitch.ts';
 import { requireFeature } from './beta.ts';
 import { audit } from './audit.ts';
 import { requirePerm, type ChannelRow, type MemberAccess } from './access.ts';
 import { checkAutomod } from './community.ts';
 import { USER_COLUMNS, verifyPassword, type requireAuth } from './auth.ts';
 import { Perm, has } from '../../shared/permissions.ts';
+import { openSecret, sealSecret } from './vault.ts';
 import type { BotCommandInfo, BotEmbed, Member } from '../../shared/types.ts';
 import { impersonatesStaff, skeleton } from './names.ts';
 import { SafeFetchError, safePost, validateBotUrl } from './safeFetch.ts';
@@ -154,7 +156,7 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
          values ($1, $2, $3, 'bot$sem-login', $4, true, now(), now())`,
         [id, username, body.name, '#' + randomBytes(3).toString('hex')],
       );
-      await db.query('insert into bot_apps (user_id, owner_id, description, token_hash, signing_secret) values ($1, $2, $3, $4, $5)', [id, user.id, body.description, tokenHash(token), secret]);
+      await db.query('insert into bot_apps (user_id, owner_id, description, token_hash, signing_secret) values ($1, $2, $3, $4, $5)', [id, user.id, body.description, tokenHash(token), sealSecret(secret)]);
       // o token e o segredo só aparecem agora: guarde
       return { bot: { id, name: body.name, username, description: body.description }, token, signingSecret: secret };
     }),
@@ -194,7 +196,7 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
       await reauth(user.id, req.body?.password);
       const token = newToken(a.id);
       const secret = newSecret();
-      await db.query('update bot_apps set token_hash = $2, signing_secret = $3, token_rotated_at = now() where user_id = $1', [a.id, tokenHash(token), secret]);
+      await db.query('update bot_apps set token_hash = $2, signing_secret = $3, token_rotated_at = now() where user_id = $1', [a.id, tokenHash(token), sealSecret(secret)]);
       return { token, signingSecret: secret };
     }),
   );
@@ -343,6 +345,7 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
       const stored = Buffer.from(row?.hash ?? '00'.repeat(32), 'hex');
       if (!row || given.length !== stored.length || !timingSafeEqual(given, stored)) return fail();
       if (row.disabled) return res.status(403).json({ error: 'Este bot foi desligado pela equipe do Resenha.' });
+      await requireOn(db, 'bots');
       limit(`botapi:${m[1]}`, 120, 60_000, 'Limite de chamadas do bot: no máximo 120 por minuto.');
       req.bot = { id: m[1], ownerId: row.ownerId, name: row.name };
       next();
@@ -477,7 +480,9 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
       const ts = String(Math.floor(Date.now() / 1000));
       let res;
       try {
-        res = await safePost(b.url, body, { 'X-Resenha-Timestamp': ts, 'X-Resenha-Signature': `v1=${sign(b.secret, ts, body)}` });
+        const secret = openSecret(b.secret);
+        if (!secret) throw new SafeFetchError('o segredo do bot não pôde ser aberto (peça ao dono para gerar um token novo).');
+        res = await safePost(b.url, body, { 'X-Resenha-Timestamp': ts, 'X-Resenha-Signature': `v1=${sign(secret, ts, body)}` });
       } catch (e) {
         throw new HttpError(502, `${b.name}: ${e instanceof SafeFetchError ? e.message : 'o bot não respondeu.'}`);
       }

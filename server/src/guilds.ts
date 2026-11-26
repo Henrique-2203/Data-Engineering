@@ -10,6 +10,7 @@ import { USER_COLUMNS, userJson, type requireAuth } from './auth.ts';
 import { HttpError, parse, wrap } from './http.ts';
 import { limit } from './security.ts';
 import { impersonatesStaff } from './names.ts';
+import { requireOn } from './killswitch.ts';
 import { sniffImage } from './sanitize.ts';
 import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
 import { deleteFiles, guildFileIds, loadExpressions } from './expressions.ts';
@@ -319,6 +320,7 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     wrap(async (req) => {
       const me = req.user!;
       // anti-chute de códigos de convite (INV-01), por pessoa e por IP
+      await requireOn(db, 'invites');
       limit(`injoin:${me.id}`, 20, 60_000, 'Muitas tentativas de convite. Espere um minuto.');
       limit(`injoin-ip:${req.ip}`, 60, 60_000, 'Muitas tentativas de convite. Espere um minuto.');
       const [g] = await db.query<{ id: string }>('select id from guilds where invite_code = $1', [req.params.code]);

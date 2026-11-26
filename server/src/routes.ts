@@ -68,6 +68,7 @@ import { registerExploreRoutes } from './explore.ts';
 import { configureWelcome } from './welcome.ts';
 import { startSuspensionCleanup, suspendedNow, suspensionMessage } from './suspension.ts';
 import { registerUnreadRoutes, unreadCounts } from './unread.ts';
+import { registerKillRoutes } from './killswitch.ts';
 import { registerHealthRoutes } from './health.ts';
 import { registerEmbedRoutes } from './embeds.ts';
 import { mentionedUsernames } from './mentions.ts';
@@ -795,6 +796,7 @@ export function createRoutes(db: Db, rt: Realtime) {
   registerCommunityRoutes(r, db, rt, auth, { channelForMember, emitToChannel, messageSelect: MESSAGE_SELECT });
   configureWelcome({ emitToChannel, messageSelect: MESSAGE_SELECT });
   registerUnreadRoutes(r, db, auth, channelForMember);
+  registerKillRoutes(r, db, rt, auth);
   startSuspensionCleanup(db);
   // quem estava com o app aberto (sem recarregar) quando o servidor oficial foi criado também entra:
   // a cada conexão (inclusive a reconexão depois de uma atualização do site) confere de novo
