@@ -8,6 +8,7 @@ import type { Db } from './db.ts';
 import type { Realtime } from './realtime.ts';
 import { USER_COLUMNS, userJson, type requireAuth } from './auth.ts';
 import { HttpError, parse, wrap } from './http.ts';
+import { limit } from './security.ts';
 import { sniffImage } from './sanitize.ts';
 import { IMAGE_ROW, saveImage, sendStoredImage } from './files.ts';
 import { deleteFiles, guildFileIds, loadExpressions } from './expressions.ts';
@@ -30,6 +31,12 @@ import { ALL_PERMISSIONS, Perm, has, topRolePosition, type Role } from '../../sh
 import type { Ban, Category, Channel, Guild, Member } from '../../shared/types.ts';
 
 const inviteCode = () => randomBytes(6).toString('base64url');
+
+/** Tetos contra abuso de recursos (PERM-08): um servidor hostil não pode criar canais/cargos sem fim, nem uma conta mil servidores. */
+export const MAX_CHANNELS = 150;
+export const MAX_ROLES = 100;
+export const MAX_CATEGORIES = 40;
+export const MAX_OWNED_GUILDS = 20;
 const colorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Cor inválida.');
 const channelNameSchema = z.string().trim().min(1, 'Informe o nome do canal.').max(40, 'Nome muito longo.');
 const slug = (name: string) => name.toLowerCase().replace(/\s+/g, '-');
@@ -154,6 +161,9 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
       );
       const id = randomUUID();
       const me = req.user!.id;
+      limit(`guildnew:${me}`, 10, 3600_000, 'Você criou muitos servidores seguidos. Tente mais tarde.');
+      const [owned] = await db.query<{ n: number }>('select count(*)::int as n from guilds where owner_id = $1', [me]);
+      if ((owned?.n ?? 0) >= MAX_OWNED_GUILDS) throw new HttpError(400, `Você já tem ${MAX_OWNED_GUILDS} servidores. Apague algum antes de criar outro.`);
       await db.query('insert into guilds (id, name, owner_id, invite_code, public, category) values ($1, $2, $3, $4, $5, $6)', [
         id,
         body.name,
@@ -306,6 +316,9 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     auth,
     wrap(async (req) => {
       const me = req.user!;
+      // anti-chute de códigos de convite (INV-01), por pessoa e por IP
+      limit(`injoin:${me.id}`, 20, 60_000, 'Muitas tentativas de convite. Espere um minuto.');
+      limit(`injoin-ip:${req.ip}`, 60, 60_000, 'Muitas tentativas de convite. Espere um minuto.');
       const [g] = await db.query<{ id: string }>('select id from guilds where invite_code = $1', [req.params.code]);
       if (!g) throw new HttpError(404, 'Convite inválido ou expirado.');
       const [banned] = await db.query('select 1 from bans where guild_id = $1 and user_id = $2', [g.id, me.id]);
@@ -409,6 +422,8 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     wrap(async (req) => {
       const id = String(req.params.id);
       const a = await requirePerm(db, id, req.user!.id, Perm.MANAGE_ROLES);
+      const [rc] = await db.query<{ n: number }>('select count(*)::int as n from roles where guild_id = $1', [id]);
+      if ((rc?.n ?? 0) >= MAX_ROLES) throw new HttpError(400, `Este servidor já tem ${MAX_ROLES} cargos (o máximo).`);
       const body = parse(
         z.object({
           name: z.string().trim().min(1, 'Dê um nome ao cargo.').max(32, 'Nome muito longo.'),
@@ -645,6 +660,8 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     wrap(async (req) => {
       const id = String(req.params.id);
       await requirePerm(db, id, req.user!.id, Perm.MANAGE_CHANNELS);
+      const [kc] = await db.query<{ n: number }>('select count(*)::int as n from categories where guild_id = $1', [id]);
+      if ((kc?.n ?? 0) >= MAX_CATEGORIES) throw new HttpError(400, `Este servidor já tem ${MAX_CATEGORIES} categorias (o máximo).`);
       const { name } = parse(z.object({ name: z.string().trim().min(1, 'Dê um nome à categoria.').max(40) }), req.body);
       const [{ max }] = await db.query<{ max: number | null }>('select max(position) as max from categories where guild_id = $1', [id]);
       const categoryId = randomUUID();
@@ -725,6 +742,8 @@ export function registerGuildRoutes(r: Router, db: Db, rt: Realtime, auth: Retur
     wrap(async (req) => {
       const guildId = String(req.params.id);
       await requirePerm(db, guildId, req.user!.id, Perm.MANAGE_CHANNELS);
+      const [cc] = await db.query<{ n: number }>('select count(*)::int as n from channels where guild_id = $1', [guildId]);
+      if ((cc?.n ?? 0) >= MAX_CHANNELS) throw new HttpError(400, `Este servidor já tem ${MAX_CHANNELS} canais (o máximo).`);
       const body = parse(channelSettings.extend({ name: channelNameSchema, type: z.enum(['text', 'voice']) }), req.body);
       await validateChannelRefs(guildId, body);
       const [{ max }] = await db.query<{ max: number | null }>('select max(position) as max from channels where guild_id = $1', [

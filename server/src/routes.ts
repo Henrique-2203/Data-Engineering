@@ -91,6 +91,19 @@ const rateLimit = (key: string, max = 10, windowMs = 60_000) => limit(key, max, 
 export function createRoutes(db: Db, rt: Realtime) {
   const r = Router();
   const auth = requireAuth(db);
+  // Painel da equipe (ADM-01): com ADMIN_REQUIRE_2FA=1, só abre para quem tem a verificação em duas etapas ligada.
+  // (quem não é da equipe continua recebendo 404 das próprias rotas, como se não existissem)
+  r.use('/admin', auth, async (req, _res, next) => {
+    try {
+      if (config.adminRequire2fa && isPlatformAdmin(req.user!.username)) {
+        const [u] = await db.query<{ totp_enabled: boolean }>('select totp_enabled from users where id = $1', [req.user!.id]);
+        if (!u?.totp_enabled) throw new HttpError(403, 'O painel da equipe exige a verificação em duas etapas: ative em Configurações → Segurança.');
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  });
 
   // ---------- helpers de consulta ----------
 
@@ -453,6 +466,8 @@ export function createRoutes(db: Db, rt: Realtime) {
   r.get(
     '/invites/:code',
     wrap(async (req) => {
+      // anti-chute de códigos de convite (INV-01): a página de um convite só precisa de 1 consulta por pessoa
+      limit(`invprev:${req.ip}`, 40, 60_000, 'Muitas consultas de convite. Espere um minuto.');
       const [g] = await db.query<{ id: string; name: string; count: string }>(
         `select g.id, g.name, (select count(*) from members m where m.guild_id = g.id) as count
          from guilds g where g.invite_code = $1`,
@@ -759,7 +774,7 @@ export function createRoutes(db: Db, rt: Realtime) {
 
   registerCommunityRoutes(r, db, rt, auth, { channelForMember, emitToChannel, messageSelect: MESSAGE_SELECT });
   configureWelcome({ emitToChannel, messageSelect: MESSAGE_SELECT });
-  registerUnreadRoutes(r, db, auth);
+  registerUnreadRoutes(r, db, auth, channelForMember);
   startSuspensionCleanup(db);
   // quem estava com o app aberto (sem recarregar) quando o servidor oficial foi criado também entra:
   // a cada conexão (inclusive a reconexão depois de uma atualização do site) confere de novo

@@ -524,6 +524,10 @@ export function registerSecurityRoutes(r: Router, db: Db, rt: Realtime, auth: Re
     wrap(async (req) => {
       const body = parse(z.object({ password: z.string(), code: z.string().optional(), confirm: z.literal('EXCLUIR', { message: 'Digite EXCLUIR para confirmar.' }) }), req.body);
       const id = req.user!.id;
+      // conta da equipe (PLATFORM_ADMINS é por nome de usuário): apagar liberaria o nome para um invasor virar administrador
+      if (config.platformAdmins.includes(req.user!.username.toLowerCase())) {
+        throw new HttpError(400, 'Contas da equipe do Resenha não podem ser excluídas por aqui. Tire o nome de PLATFORM_ADMINS antes.');
+      }
       await confirmIdentity(id, body.password, body.code ?? '');
       // avisa antes de apagar (depois o e-mail não existe mais aqui)
       await alertUser(db, id, 'Sua conta foi excluída', [`A conta @${req.user!.username} e todos os dados dela foram excluídos do Resenha em ${when()}, a seu pedido.`], `Não foi você? Escreva para ${config.privacyContact} imediatamente.`);

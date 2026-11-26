@@ -29,12 +29,14 @@ export async function unreadCounts(db: Db, userId: string, channelIds: string[])
   return Object.fromEntries(rows.filter((r) => r.n > 0).map((r) => [r.id, r.n]));
 }
 
-export function registerUnreadRoutes(r: Router, db: Db, auth: ReturnType<typeof requireAuth>) {
+export function registerUnreadRoutes(r: Router, db: Db, auth: ReturnType<typeof requireAuth>, channelForMember: (channelId: string, userId: string) => Promise<unknown>) {
   /** "Li até aqui" (ao abrir o canal ou quando chega mensagem com ele aberto). */
   r.post(
     '/channels/:id/read',
     auth,
     wrap(async (req) => {
+      // só em canal que a pessoa enxerga (senão qualquer conta gravaria marcas em canais alheios)
+      await channelForMember(String(req.params.id), req.user!.id);
       await db.query(
         `insert into channel_reads (user_id, channel_id, last_read_at)
          select $1, c.id, now() from channels c where c.id = $2

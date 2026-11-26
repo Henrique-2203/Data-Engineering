@@ -18,6 +18,8 @@ export const config = {
   privacyContact: process.env.PRIVACY_CONTACT || 'resenha.brasilgames@gmail.com',
   /** equipe do Resenha (nomes de usuário, separados por vírgula): recebe e trata as denúncias */
   platformAdmins: list(process.env.PLATFORM_ADMINS).map((u) => u.toLowerCase().replace(/^@/, '')),
+  /** ADMIN_REQUIRE_2FA=1: o painel da equipe só abre para quem ativou a verificação em duas etapas */
+  adminRequire2fa: process.env.ADMIN_REQUIRE_2FA === '1',
   maxVoicePeers: Number(process.env.MAX_VOICE_PEERS ?? 10),
   /** quanto tempo uma ligação de DM toca antes de virar "não atendeu" */
   ringTimeoutMs: Number(process.env.RING_TIMEOUT_MS ?? 30_000),
