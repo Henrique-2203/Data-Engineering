@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { tempDir } from './_tmp.mjs';
+import { autoConfirm } from './_ui.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -56,6 +57,7 @@ try {
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.error('[pageerror]', e));
     page.on('dialog', (d) => void d.accept(d.type() === 'prompt' ? 'Ameaças a outro membro' : undefined));
+    autoConfirm(page);
     await page.goto(`${BASE}/app`);
     return page;
   };
@@ -128,7 +130,13 @@ try {
   await queue.getByRole('tab', { name: 'Encerradas' }).click();
   await queue.getByText(/Conta suspensa: Ameaças a outro membro/).first().waitFor();
   await queue.getByRole('button', { name: 'Reativar conta' }).first().click();
-  const back = await api('/auth/login', { username: 'bia', password: 'segredo123' });
+  // (a janela de confirmação é clicada em segundo plano pelo autoConfirm: dá um instante até a conta voltar)
+  let back;
+  for (let i = 0; i < 25; i++) {
+    back = await api('/auth/login', { username: 'bia', password: 'segredo123' });
+    if (back.status === 200) break;
+    await new Promise((r) => setTimeout(r, 200));
+  }
   if (back.status !== 200) throw new Error('não reativou a conta');
   step('histórico das encerradas com a decisão; "Reativar conta" devolve o acesso');
 

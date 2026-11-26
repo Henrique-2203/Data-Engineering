@@ -10,6 +10,7 @@ import { Avatar } from './Avatar';
 import { formatDateTime, renderContent } from './chat/format';
 import { disablePush, enablePush, needsHomeScreen, pushActive, pushSupported } from '../lib/push';
 import { voice } from '../voice/engine';
+import { askConfirm } from '../lib/ask';
 
 // ======================================================================
 // Enquetes
@@ -543,7 +544,7 @@ export function EventsModal({ guildId, create }: { guildId: string; create?: boo
     }
   }
   async function remove(e: GuildEvent) {
-    if (!confirm(`Cancelar o evento "${e.title}"?`)) return;
+    if (!(await askConfirm(`Cancelar o evento "${e.title}"?`))) return;
     try {
       await api(`/events/${e.id}`, { method: 'DELETE' });
     } catch (err) {

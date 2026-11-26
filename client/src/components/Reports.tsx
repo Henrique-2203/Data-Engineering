@@ -7,7 +7,7 @@ import { OfficialAdmin } from './Official';
 import { PublicGuildsAdmin, ReportContext } from './Explore';
 import { AdminOverview, type AdminTab } from './AdminOverview';
 import { api, authHeaders } from '../lib/api';
-import { askText , askSuspension } from '../lib/ask';
+import { askText , askSuspension, askConfirm } from '../lib/ask';
 import { StatsPanel } from './StatsPanel';
 import { SystemPanel } from './SystemPanel';
 import { InviteCodesAdmin } from './InviteCodes';
@@ -212,7 +212,7 @@ export function AdminReports() {
   useEffect(load, [tab, openCount]);
 
   async function act(r: AdminReport, action: string, confirmText?: string) {
-    if (confirmText && action !== 'suspend_user' && !confirm(confirmText)) return;
+    if (confirmText && action !== 'suspend_user' && !(await askConfirm(confirmText))) return;
     let note = '';
     let days: number | null = null;
     if (action === 'suspend_user') {
@@ -337,7 +337,7 @@ export function AdminReports() {
                   <button
                     className="link-btn small"
                     onClick={async () => {
-                      if (!confirm(`Reativar a conta @${r.targetUsername}?`)) return;
+                      if (!(await askConfirm(`Reativar a conta @${r.targetUsername}?`))) return;
                       await api(`/admin/users/${r.targetUsername}/unsuspend`, { method: 'POST', body: {} }).then(() => (toast('Conta reativada.'), load()), (e) => toast(e.message));
                     }}
                   >
@@ -558,7 +558,7 @@ function WaitlistAdmin() {
   /** convida todo mundo que ainda espera (um e-mail por pessoa, cada uma com o seu código) */
   async function inviteAll() {
     const waiting = entries?.filter((e) => !e.invitedAt) ?? [];
-    if (!waiting.length || !confirm(`Mandar o convite por e-mail para ${waiting.length} ${waiting.length === 1 ? 'pessoa' : 'pessoas'}, cada uma com o seu código (limite de ${bulkMax} ${bulkMax === 1 ? 'conta' : 'contas'})?`)) return;
+    if (!waiting.length || !(await askConfirm(`Mandar o convite por e-mail para ${waiting.length} ${waiting.length === 1 ? 'pessoa' : 'pessoas'}, cada uma com o seu código (limite de ${bulkMax} ${bulkMax === 1 ? 'conta' : 'contas'})?`))) return;
     setBulkBusy(true);
     let ok = 0;
     for (const e of waiting) {
@@ -642,7 +642,7 @@ function WaitlistAdmin() {
               <button
                 className="btn small ghost"
                 onClick={async () => {
-                  if (!confirm(`Remover ${e.name} da lista?`)) return;
+                  if (!(await askConfirm(`Remover ${e.name} da lista?`))) return;
                   await api(`/admin/waitlist/${e.id}`, { method: 'DELETE' }).catch((err) => toast(err.message));
                   load();
                 }}

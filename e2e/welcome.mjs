@@ -7,6 +7,7 @@ import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { tempDir } from './_tmp.mjs';
+import { autoConfirm } from './_ui.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -50,6 +51,7 @@ try {
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.error('[pageerror]', e.message));
     page.on('dialog', (d) => d.accept());
+    autoConfirm(page);
     await page.goto(`${BASE}/app`);
     await page.getByRole('dialog', { name: 'Novidades do Resenha' }).getByRole('button', { name: 'Entendi' }).click({ timeout: 2500 }).catch(() => {});
     return page;

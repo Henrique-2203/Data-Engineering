@@ -20,6 +20,7 @@ import { callChat } from './callChat';
 import { healthPeerClosed, healthPeerCreated, healthPeerState, healthResume, startHealthSampler, stopHealthSampler } from '../lib/health';
 import { TURBO_LABEL, TurboReceiver, TurboSender, type TurboSendStats, decodableCodecs, turboCanReceive, turboCanSend } from './turbo';
 import type { ScreenAudience, StreamQuality } from '../../../shared/types';
+import { askConfirm } from '../lib/ask';
 
 const CAMERA_BITRATE = 1_200_000;
 
@@ -282,7 +283,12 @@ class VoiceEngine {
       if (!res.ok && res.needsConfirm) {
         // alguém que EU bloqueei está nesta call: mostra o @ (nome e foto podem ter mudado) e pergunta
         const who = (res.blocked ?? []).map((b) => `@${b.username} (agora aparece como "${b.displayName}")`).join('\n');
-        const go = confirm(`⚠️ ${res.blocked && res.blocked.length > 1 ? 'Pessoas que você bloqueou estão' : 'Uma pessoa que você bloqueou está'} nesta call:\n\n${who}\n\nElas podem ter mudado de nome e de foto. Deseja entrar mesmo assim?`);
+        const go = await askConfirm({
+          title: '⚠️ Pessoa bloqueada na call',
+          message: `${res.blocked && res.blocked.length > 1 ? 'Pessoas que você bloqueou estão' : 'Uma pessoa que você bloqueou está'} nesta call:\n\n${who}\n\nElas podem ter mudado de nome e de foto. Deseja entrar mesmo assim?`,
+          confirmLabel: 'Entrar mesmo assim',
+          cancelLabel: 'Não entrar',
+        });
         if (!go) {
           this.leave(false);
           return;

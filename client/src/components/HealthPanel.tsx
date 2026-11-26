@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { toast } from '../store/app';
 import { labOn, setLab } from '../lib/lab';
+import { askConfirm, askText } from '../lib/ask';
 
 type Agg = Record<string, { sum: number; count: number }>;
 interface HealthData {
@@ -243,7 +244,7 @@ function BetaAccounts() {
   }
   async function toggleOpen(f: (typeof BETA_FIELDS)[number], on: boolean) {
     const next = on ? [...new Set([...open, f.id])] : open.filter((x) => x !== f.id);
-    if (on && !confirm(`Liberar "${f.title}" para TODAS as contas?`)) return;
+    if (on && !(await askConfirm(`Liberar "${f.title}" para TODAS as contas?`))) return;
     setBusy(f.id);
     try {
       const r = await api<{ beta: BetaLists }>('/admin/beta', { method: 'PUT', body: { open: next } });
@@ -377,7 +378,7 @@ function EmergencySwitches() {
   }, []);
   if (!data) return null;
   async function flip(key: string, on: boolean) {
-    if (on && !confirm(`Desligar para TODO MUNDO: ${data!.labels[key].toLowerCase()}?`)) return;
+    if (on && !(await askConfirm(`Desligar para TODO MUNDO: ${data!.labels[key].toLowerCase()}?`))) return;
     setBusy(true);
     try {
       const r = await api<{ state: Record<string, boolean> }>('/admin/killswitch', { method: 'PUT', body: { [key]: on } });
@@ -390,8 +391,8 @@ function EmergencySwitches() {
     }
   }
   async function revokeAll() {
-    const typed = prompt('Isso desconecta TODAS as contas (menos você). Digite REVOGAR TODAS para confirmar:');
-    if (typed !== 'REVOGAR TODAS') return;
+    const typed = await askText({ title: 'Sair de TODOS os aparelhos?', message: 'Isso desconecta TODAS as contas do Resenha (menos a sua). Digite REVOGAR TODAS para confirmar.', mustMatch: 'REVOGAR TODAS', confirmLabel: 'Desconectar todo mundo', danger: true });
+    if (typed?.trim() !== 'REVOGAR TODAS') return;
     setBusy(true);
     try {
       const r = await api<{ revoked: number }>('/admin/security/revoke-all-sessions', { method: 'POST', body: { confirm: 'REVOGAR TODAS' } });

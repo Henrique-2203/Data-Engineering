@@ -45,6 +45,7 @@ import { Avatar } from './Avatar';
 import { HomeSidebar } from './HomeSidebar';
 import { AndroidAppBanner } from './AndroidDownload';
 import { openCallUserMenu } from './CallUserMenu';
+import { askConfirm } from '../lib/ask';
 
 export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
   const guildId = useApp((s) => s.selectedGuildId);
@@ -77,7 +78,7 @@ export function ChannelSidebar({ onLogout }: { onLogout(): void }) {
   const categories = [...(guild?.categories ?? [])].sort((a, b) => a.position - b.position);
 
   async function leaveGuild() {
-    if (!guild || !confirm(`Sair do servidor "${guild.name}"?`)) return;
+    if (!guild || !(await askConfirm(`Sair do servidor "${guild.name}"?`))) return;
     try {
       await api(`/guilds/${guild.id}/members/@me`, { method: 'DELETE' });
     } catch (err) {

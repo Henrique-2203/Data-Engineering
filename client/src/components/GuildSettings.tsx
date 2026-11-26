@@ -7,7 +7,7 @@ import { ArrowDown, ArrowUp, ImagePlus, Trash2, X } from 'lucide-react';
 import type { Ban, Guild, Member } from '../../../shared/types';
 import { PERMISSION_INFO, outranks, type Role } from '../../../shared/permissions';
 import { api } from '../lib/api';
-import { askText } from '../lib/ask';
+import { askText, askConfirm } from '../lib/ask';
 import { Perm, has, imageUrl, memberColor, myTopPosition, timeoutUntil, usePerms } from '../lib/perms';
 import { refreshGuild } from '../lib/socket';
 import { formatBytes, uploadGuildImage } from '../lib/upload';
@@ -375,7 +375,7 @@ function Roles({ guild }: { guild: Guild }) {
             <button
               className="btn ghost danger"
               onClick={async () => {
-                if (!confirm(`Excluir o cargo "${role.name}"?`)) return;
+                if (!(await askConfirm(`Excluir o cargo "${role.name}"?`))) return;
                 if ((await run(() => api(`/roles/${role.id}`, { method: 'DELETE' }), 'Cargo excluído.')) !== undefined) setSelected('everyone');
               }}
             >
@@ -472,7 +472,7 @@ export function MemberModeration({ guild, member, compact }: { guild: Guild; mem
       <button
         key="kick"
         className="btn small ghost danger"
-        onClick={() => confirm(`Expulsar ${member.displayName}? Ela pode voltar com um convite.`) && void run(() => api(`/guilds/${guild.id}/members/${member.id}`, { method: 'DELETE' }), 'Membro expulso.')}
+        onClick={async () => (await askConfirm(`Expulsar ${member.displayName}? Ela pode voltar com um convite.`)) && void run(() => api(`/guilds/${guild.id}/members/${member.id}`, { method: 'DELETE' }), 'Membro expulso.')}
       >
         Expulsar
       </button>,

@@ -7,6 +7,7 @@ import { clearCommands } from '../lib/botCommands';
 import type { Guild } from '../../../shared/types';
 import { Avatar } from './Avatar';
 import { ExternalBots } from './BotDev';
+import { askConfirm } from '../lib/ask';
 
 /** Selo BOT ao lado do nome (chat, lista de membros, perfil). */
 export function BotTag() {
@@ -60,7 +61,7 @@ export function BotsSettings({ guild }: { guild: Guild }) {
   }, [guild.id]);
 
   async function toggle(install: boolean) {
-    if (!install && !confirm('Remover o Resenha Bot deste servidor? Os comandos "/" param de funcionar (as mensagens antigas dele ficam).')) return;
+    if (!install && !(await askConfirm('Remover o Resenha Bot deste servidor? Os comandos "/" param de funcionar (as mensagens antigas dele ficam).'))) return;
     setBusy(true);
     try {
       if (install) {
@@ -93,7 +94,7 @@ export function BotsSettings({ guild }: { guild: Guild }) {
   }
 
   async function setAi(on: boolean) {
-    if (on && !confirm('Ligar a IA neste servidor? Quando alguém usar /ia, /traduzir ou /resumo, o texto do comando (e, no /resumo, as últimas mensagens do canal) é enviado a um serviço de IA externo para gerar a resposta. Mensagens privadas nunca são enviadas.')) return;
+    if (on && !(await askConfirm('Ligar a IA neste servidor? Quando alguém usar /ia, /traduzir ou /resumo, o texto do comando (e, no /resumo, as últimas mensagens do canal) é enviado a um serviço de IA externo para gerar a resposta. Mensagens privadas nunca são enviadas.'))) return;
     try {
       const r = await api<{ config: NonNullable<BotState['config']>; commands: BotCommandInfo[] }>(`/guilds/${guild.id}/bots/config`, { method: 'PATCH', body: { aiEnabled: on } });
       clearCommands(guild.id);

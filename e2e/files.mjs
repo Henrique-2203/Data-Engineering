@@ -8,6 +8,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { tempDir } from './_tmp.mjs';
+import { autoConfirm } from './_ui.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -279,6 +280,7 @@ try {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => console.error('[pageerror]', e));
   page.on('dialog', (d) => void d.accept());
+  autoConfirm(page);
   await page.goto(`${BASE}/app`);
   await page.getByRole('button', { name: 'Galera' }).first().click().catch(() => {});
   await page.locator('.message-content', { hasText: 'olha as fotos' }).waitFor({ timeout: 15000 });

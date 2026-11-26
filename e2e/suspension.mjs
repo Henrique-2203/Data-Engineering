@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { tempDir } from './_tmp.mjs';
+import { autoConfirm } from './_ui.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -51,6 +52,7 @@ try {
   await ctx.addInitScript((t) => localStorage.setItem('resenha.token', t), equipe.token);
   const page = await ctx.newPage();
   page.on('dialog', (d) => d.accept());
+  autoConfirm(page);
   await page.goto(`${BASE}/app`);
   await page.getByRole('dialog', { name: 'Novidades do Resenha' }).getByRole('button', { name: 'Entendi' }).click({ timeout: 3000 }).catch(() => {});
   await page.locator('.member-list, aside').last().getByText('Troll').first().click();

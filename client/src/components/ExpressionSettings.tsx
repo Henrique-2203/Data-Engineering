@@ -7,6 +7,7 @@ import { refreshGuild } from '../lib/socket';
 import { SOUND_MAX_SECONDS, audioDuration, prepareExpressionImage, prepareSound, uploadExpression } from '../lib/upload';
 import { toast } from '../store/app';
 import { playSoundFile } from '../lib/soundboard';
+import { askConfirm } from '../lib/ask';
 
 const MAX: Record<ExpressionKind, number> = { emoji: 200, sticker: 100, sound: 100 };
 
@@ -53,7 +54,7 @@ async function rename(e: Expression, name: string) {
 }
 
 async function remove(e: Expression) {
-  if (!confirm(`Apagar ${e.kind === 'emoji' ? `:${e.name}:` : `"${e.name}"`}? Ele some das mensagens antigas também.`)) return;
+  if (!(await askConfirm(`Apagar ${e.kind === 'emoji' ? `:${e.name}:` : `"${e.name}"`}? Ele some das mensagens antigas também.`))) return;
   try {
     await api(`/expressions/${e.id}`, { method: 'DELETE' });
     await refreshGuild(e.guildId);

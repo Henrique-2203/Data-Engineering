@@ -7,6 +7,7 @@ import { openModal, toast, useApp } from '../store/app';
 import { Modal } from './Modals';
 import { Avatar } from './Avatar';
 import type { FounderRing } from '../../../shared/types';
+import { askConfirm } from '../lib/ask';
 
 /**
  * "Apoie o Resenha": apoio voluntário por Pix até a data limite, em troca do selo "Apoiador Fundador"
@@ -452,7 +453,7 @@ export function ApoioAdmin() {
                   </div>
                 ) : s.status === 'confirmed' ? (
                   <div className="apoio-actions">
-                    <button className="btn ghost small" onClick={() => confirm(`Tirar o selo de @${s.username}?`) && void act(s, 'reject')}>
+                    <button className="btn ghost small" onClick={async () => (await askConfirm(`Tirar o selo de @${s.username}?`)) && void act(s, 'reject')}>
                       Desfazer
                     </button>
                   </div>

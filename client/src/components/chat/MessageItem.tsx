@@ -15,6 +15,7 @@ import { memberColor } from '../../lib/perms';
 import { Avatar } from '../Avatar';
 import { EmojiPicker } from '../EmojiPicker';
 import { formatDateTime, formatTime, renderContent } from './format';
+import { askConfirm } from '../../lib/ask';
 
 interface Props {
   message: Message;
@@ -127,7 +128,7 @@ export const MessageItem = memo(function MessageItem({ message, grouped, channel
   }
 
   async function remove() {
-    if (!confirm('Excluir esta mensagem?')) return;
+    if (!(await askConfirm('Excluir esta mensagem?'))) return;
     try {
       await api(`/messages/${message.id}`, { method: 'DELETE' });
     } catch (err) {

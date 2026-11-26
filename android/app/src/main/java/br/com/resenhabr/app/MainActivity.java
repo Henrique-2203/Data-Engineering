@@ -23,6 +23,7 @@ import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
+import android.webkit.JsResult;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -220,6 +221,29 @@ public class MainActivity extends Activity {
     // ---------------- microfone, câmera, arquivos e tela cheia ----------------
 
     private class Chrome extends WebChromeClient {
+        // confirm() e alert() do JavaScript: sem estas duas funções o WebView não mostra a janela e o confirm() devolve "não"
+        // em silêncio (a ação nunca acontecia). O app já usa janelas próprias na tela (askConfirm); isto é a rede de segurança.
+        @Override
+        public boolean onJsConfirm(WebView view, String url, String message, final JsResult result) {
+            runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this, R.style.Dialogo)
+                .setMessage(message)
+                .setPositiveButton("Confirmar", (d, w) -> result.confirm())
+                .setNegativeButton("Cancelar", (d, w) -> result.cancel())
+                .setOnCancelListener(d -> result.cancel())
+                .show());
+            return true;
+        }
+
+        @Override
+        public boolean onJsAlert(WebView view, String url, String message, final JsResult result) {
+            runOnUiThread(() -> new AlertDialog.Builder(MainActivity.this, R.style.Dialogo)
+                .setMessage(message)
+                .setPositiveButton("OK", (d, w) -> result.confirm())
+                .setOnCancelListener(d -> result.cancel())
+                .show());
+            return true;
+        }
+
         @Override
         public void onPermissionRequest(final PermissionRequest req) {
             runOnUiThread(() -> {

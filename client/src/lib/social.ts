@@ -1,6 +1,7 @@
 import type { DmChannel, Friend, PublicUser } from '../../../shared/types';
 import { api } from './api';
 import { selectChannel, setBlocks, setFriends, toast, upsertDm } from '../store/app';
+import { askConfirm } from './ask';
 
 /** Abre (criando se preciso) a conversa direta com alguém e vai para ela. */
 export async function openDm(userId: string) {
@@ -37,9 +38,9 @@ export async function removeFriend(userId: string) {
 
 /** Bloqueia alguém (pede confirmação). A pessoa não é avisada. */
 export async function blockUser(user: { id: string; username: string; displayName: string }) {
-  const ok = confirm(
+  const ok = (await askConfirm(
     `Bloquear @${user.username} (${user.displayName})?\n\n• Vocês deixam de ser amigos.\n• Nenhum dos dois manda mensagem privada, pedido de amizade nem liga para o outro.\n• As mensagens dela nos servidores em comum ficam recolhidas para você.\n• Você é avisado se ela estiver numa call antes de entrar.\n\nA pessoa não recebe aviso de que foi bloqueada.`,
-  );
+  ));
   if (!ok) return false;
   try {
     setBlocks((await api<{ blocks: PublicUser[] }>('/blocks', { body: { userId: user.id } })).blocks);

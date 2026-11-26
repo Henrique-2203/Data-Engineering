@@ -6,6 +6,7 @@ import { openModal, toast, useApp } from '../store/app';
 import { presenceLine } from '../lib/presence';
 import { Avatar } from './Avatar';
 import { MobileHeader } from './MobileHeader';
+import { askConfirm } from '../lib/ask';
 
 type Tab = 'online' | 'all' | 'pending' | 'add';
 
@@ -120,7 +121,7 @@ function FriendRow({ friend, online }: { friend: Friend; online: boolean }) {
               className="icon-btn round"
               title="Desfazer amizade"
               aria-label={`Desfazer amizade com ${user.displayName}`}
-              onClick={() => confirm(`Desfazer amizade com ${user.displayName}?`) && void removeFriend(user.id)}
+              onClick={async () => (await askConfirm(`Desfazer amizade com ${user.displayName}?`)) && void removeFriend(user.id)}
             >
               <UserMinus size={18} />
             </button>

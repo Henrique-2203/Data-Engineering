@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { formatBytes } from '../lib/upload';
 import { toast } from '../store/app';
 import { FileIcon } from './chat/Attachments';
+import { askConfirm } from '../lib/ask';
 
 interface MyFile {
   id: string;
@@ -87,7 +88,7 @@ export function MyFiles() {
                   aria-label={`Apagar ${f.name}`}
                   title="Apagar (some da conversa para todos)"
                   onClick={async () => {
-                    if (!confirm(`Apagar "${f.name}"? Ele some da conversa para todo mundo.`)) return;
+                    if (!(await askConfirm(`Apagar "${f.name}"? Ele some da conversa para todo mundo.`))) return;
                     try {
                       const r = await api<{ usage: Usage }>(`/me/files/${f.id}`, { method: 'DELETE' });
                       setUsage(r.usage);

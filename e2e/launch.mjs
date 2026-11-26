@@ -8,6 +8,7 @@ import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { tempDir } from './_tmp.mjs';
+import { autoConfirm } from './_ui.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -123,6 +124,7 @@ try {
   await ep.screenshot({ path: `${shots}/launch-painel.png` });
   // fechar o cadastro pela chave
   ep.once('dialog', (d) => void d.accept());
+  autoConfirm(ep);
   await ep.getByRole('checkbox', { name: /Cadastro aberto/ }).click();
   await ep.getByText('Cadastro fechado: só com código de convite.').waitFor();
   await ectx.close();

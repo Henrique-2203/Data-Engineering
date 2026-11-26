@@ -6,6 +6,7 @@ import { closeModal, openModal, selectChannel, selectGuild, toast, upsertGuild, 
 import { imageUrl } from '../lib/perms';
 import { WELCOME_SUGGESTED, fillWelcome } from '../../../shared/welcome';
 import { Modal } from './Modals';
+import { askConfirm } from '../lib/ask';
 
 /**
  * Servidor oficial e comunidade: aviso de "você entrou no servidor oficial", regras com "Aceito"
@@ -300,7 +301,7 @@ export function OfficialAdmin() {
   if (!data) return <p className="muted">Carregando…</p>;
 
   async function create() {
-    if (!confirm(`Criar o servidor oficial "${name}"? Todo mundo que tem conta vai entrar nele (uma vez) na próxima vez que abrir o Resenha.`)) return;
+    if (!(await askConfirm(`Criar o servidor oficial "${name}"? Todo mundo que tem conta vai entrar nele (uma vez) na próxima vez que abrir o Resenha.`))) return;
     setBusy(true);
     try {
       const r = await api<{ guildId: string; missing: string[] }>('/admin/official', {

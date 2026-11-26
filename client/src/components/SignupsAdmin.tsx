@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { toast } from '../store/app';
 import { Avatar } from './Avatar';
+import { askConfirm } from '../lib/ask';
 
 /**
  * Painel da equipe → Novas contas: quantas pessoas entraram (hoje, 7 e 30 dias, total), um gráfico por dia
@@ -49,7 +50,7 @@ export function SignupsAdmin() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function toggleOpen(open: boolean) {
-    if (!open && !confirm('Fechar o cadastro? Quem não tiver código de convite não vai conseguir criar conta.')) return;
+    if (!open && !(await askConfirm('Fechar o cadastro? Quem não tiver código de convite não vai conseguir criar conta.'))) return;
     setBusy(true);
     try {
       await api('/admin/signup-open', { method: 'PUT', body: { open } });

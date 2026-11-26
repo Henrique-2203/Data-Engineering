@@ -5,6 +5,7 @@ import { toast } from '../store/app';
 import { clearCommands } from '../lib/botCommands';
 import type { Guild } from '../../../shared/types';
 import { BotTag } from './Bots';
+import { askConfirm } from '../lib/ask';
 
 const copy = (text: string, what: string) => {
   void navigator.clipboard?.writeText(text).then(() => toast(`${what} copiado.`), () => toast('Não foi possível copiar. Selecione e copie à mão.'));
@@ -175,7 +176,7 @@ function DevBotCard({ bot, password, onChange, onSecrets }: { bot: DevBot; passw
   }
   async function rotate() {
     if (!password) return toast('Digite a sua senha no campo acima para confirmar.');
-    if (!confirm('Gerar um token novo? O token antigo para de funcionar agora e o seu bot precisa usar o novo.')) return;
+    if (!(await askConfirm('Gerar um token novo? O token antigo para de funcionar agora e o seu bot precisa usar o novo.'))) return toast('Cancelado: o token continua o mesmo.');
     try {
       const r = await api<{ token: string; signingSecret: string }>(`/bot-apps/${bot.id}/token`, { body: { password } });
       onSecrets({ botId: bot.id, token: r.token, signingSecret: r.signingSecret });
@@ -185,7 +186,7 @@ function DevBotCard({ bot, password, onChange, onSecrets }: { bot: DevBot; passw
   }
   async function remove() {
     if (!password) return toast('Digite a sua senha no campo acima para confirmar.');
-    if (!confirm(`Apagar o bot "${bot.name}"? Ele sai de todos os servidores e o token deixa de existir. As mensagens antigas ficam.`)) return;
+    if (!(await askConfirm(`Apagar o bot "${bot.name}"? Ele sai de todos os servidores e o token deixa de existir. As mensagens antigas ficam.`))) return toast('Cancelado: o bot não foi apagado.');
     try {
       await api(`/bot-apps/${bot.id}`, { method: 'DELETE', body: { password } });
       toast('Bot apagado.');
@@ -313,7 +314,7 @@ export function ExternalBots({ guild }: { guild: Guild }) {
     }
   }
   async function remove(b: Installed) {
-    if (!confirm(`Remover o bot "${b.name}" deste servidor? Os comandos dele param de funcionar.`)) return;
+    if (!(await askConfirm(`Remover o bot "${b.name}" deste servidor? Os comandos dele param de funcionar.`))) return;
     try {
       await api(`/guilds/${guild.id}/bot-apps/${b.id}`, { method: 'DELETE' });
       clearCommands(guild.id);

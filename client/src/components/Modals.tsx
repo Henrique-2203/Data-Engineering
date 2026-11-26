@@ -43,6 +43,7 @@ import { ScreenShareModal } from './ScreenShareModal';
 import { CameraModal } from './PhoneCam';
 import { ChatWallpaperModal } from './AppearanceSettings';
 import { slowLabel } from './AuditLog';
+import { askConfirm } from '../lib/ask';
 
 const SLOWMODE_OPTIONS = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600];
 
@@ -328,7 +329,7 @@ function Invite({ guildId }: { guildId: string }) {
   }
 
   async function regenerate() {
-    if (!confirm('Gerar um novo link? O link atual deixará de funcionar.')) return;
+    if (!(await askConfirm('Gerar um novo link? O link atual deixará de funcionar.'))) return;
     try {
       const { inviteCode } = await api<{ inviteCode: string }>(`/guilds/${guildId}/invite`, { method: 'POST' });
       patchGuild(guildId, { inviteCode });
@@ -540,7 +541,7 @@ function ChannelSettings({ channelId }: { channelId: string }) {
   if (!channel || channel.type === 'dm') return null;
 
   async function remove() {
-    if (!confirm(`Excluir o canal "${channel!.name}"? ${channel!.type === 'text' ? 'Todas as mensagens serão apagadas.' : ''}`)) return;
+    if (!(await askConfirm(`Excluir o canal "${channel!.name}"? ${channel!.type === 'text' ? 'Todas as mensagens serão apagadas.' : ''}`))) return;
     try {
       await api(`/channels/${channelId}`, { method: 'DELETE' });
       closeModal();
@@ -591,7 +592,7 @@ function CategoryModal({ guildId, categoryId }: { guildId: string; categoryId?: 
               type="button"
               className="btn danger ghost"
               onClick={async () => {
-                if (!confirm(`Excluir a categoria "${category?.name}"? Os canais dela continuam, só ficam sem categoria.`)) return;
+                if (!(await askConfirm(`Excluir a categoria "${category?.name}"? Os canais dela continuam, só ficam sem categoria.`))) return;
                 try {
                   await api(`/categories/${categoryId}`, { method: 'DELETE' });
                   await refreshGuild(guildId);

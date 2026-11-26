@@ -54,13 +54,6 @@ try {
   }, ana.token);
   const page = await ctx.newPage();
   page.on('pageerror', (e) => console.error('[pageerror]', e.message));
-  const dialogs = [];
-  let nextDialog = 'accept';
-  page.on('dialog', async (d) => {
-    dialogs.push(d.message());
-    if (nextDialog === 'accept') await d.accept();
-    else await d.dismiss();
-  });
   await page.goto(`${BASE}/app`);
   await page.getByRole('dialog', { name: 'Novidades do Resenha' }).getByRole('button', { name: 'Entendi' }).click({ timeout: 2500 }).catch(() => {});
   await page.getByRole('button', { name: texto.name, exact: true }).first().click();
@@ -69,10 +62,14 @@ try {
   // bloquear pelo perfil
   await page.locator('.author-name', { hasText: 'Bia' }).first().click();
   await page.getByRole('button', { name: 'Bloquear Bia' }).click();
+  const conf = page.getByRole('alertdialog');
+  await conf.waitFor();
+  const confTxt = await conf.innerText();
+  assert(/@bia/.test(confTxt) && /não recebe aviso/i.test(confTxt), `confirmação de bloqueio explica o que acontece (${confTxt})`);
+  await conf.getByRole('button', { name: 'Bloquear', exact: true }).click();
   await page.getByRole('button', { name: 'Desbloquear' }).waitFor(); // o perfil passa a oferecer Desbloquear
   await page.keyboard.press('Escape');
   await page.getByText('Mensagem de @bia, que você bloqueou.').waitFor();
-  assert(dialogs.length === 1 && /@bia/.test(dialogs[0]) && /não recebe aviso/i.test(dialogs[0]), `confirmação de bloqueio explica o que acontece (${dialogs[0]})`);
   assert((await api('/blocks', null, ana.token)).blocks.length === 1, 'bloqueio salvo no servidor');
   assert(!(await page.getByText('mensagem secreta da bia').isVisible().catch(() => false)), 'mensagem da bloqueada fica recolhida');
   await page.screenshot({ path: path.join(shots, 'bloqueio-mensagem-recolhida.png') });
@@ -108,24 +105,26 @@ try {
   await sleep(600);
   await page.reload();
   await page.getByRole('dialog', { name: 'Novidades do Resenha' }).getByRole('button', { name: 'Entendi' }).click({ timeout: 2500 }).catch(() => {});
-  dialogs.length = 0;
-  nextDialog = 'dismiss';
   await page.getByRole('button', { name: voz.name, exact: true }).first().click();
   const enter = page.getByRole('button', { name: 'Entrar na chamada' });
   if (await enter.isVisible().catch(() => false)) await enter.click();
   await sleep(1500);
-  assert(dialogs.length === 1 && /@bia/.test(dialogs[0]) && /mesmo assim/i.test(dialogs[0]), `aviso mostra o @ e pergunta se quer entrar mesmo assim (${dialogs[0]})`);
+  const warn = page.getByRole('alertdialog');
+  await warn.waitFor({ timeout: 8000 });
+  const warnTxt = await warn.innerText();
+  assert(/@bia/.test(warnTxt) && /mesmo assim/i.test(warnTxt), `aviso mostra o @ e pergunta se quer entrar mesmo assim (${warnTxt})`);
+  await page.screenshot({ path: path.join(shots, 'bloqueio-aviso-call.png') });
+  await page.keyboard.press('Escape'); // Esc = não entrar
+  await warn.waitFor({ state: 'detached' });
   assert(!(await page.getByText('Voz conectada').isVisible().catch(() => false)), 'recusando o aviso, a ana NÃO entra na call');
   step('call: aviso com o @ da pessoa bloqueada; recusar mantém fora da call');
 
-  nextDialog = 'accept';
-  dialogs.length = 0;
   if (await enter.isVisible().catch(() => false)) await enter.click();
   else await page.getByRole('button', { name: voz.name, exact: true }).first().click();
   const enter2 = page.getByRole('button', { name: 'Entrar na chamada' });
   if (await enter2.isVisible().catch(() => false)) await enter2.click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Entrar mesmo assim' }).click({ timeout: 8000 });
   await page.getByText('Voz conectada').waitFor({ timeout: 15000 });
-  assert(dialogs.length === 1, 'perguntou uma vez');
   step('call: "entrar mesmo assim" entra na call');
   await page.screenshot({ path: path.join(shots, 'bloqueio-call.png') });
   console.log('\nTUDO CERTO (bloqueio nas telas)');

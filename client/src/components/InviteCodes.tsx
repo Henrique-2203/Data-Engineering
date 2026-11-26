@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Copy, Gift, Plus, Share2 } from 'lucide-react';
 import { api } from '../lib/api';
-import { askText } from '../lib/ask';
+import { askText, askConfirm } from '../lib/ask';
 import { toast } from '../store/app';
 
 /**
@@ -197,7 +197,7 @@ export function InviteCodesAdmin() {
                 <button
                   className="btn small ghost danger"
                   onClick={async () => {
-                    if (!confirm(`Apagar o código ${c.code}?`)) return;
+                    if (!(await askConfirm(`Apagar o código ${c.code}?`))) return;
                     await api(`/admin/signup-codes/${encodeURIComponent(c.code)}`, { method: 'DELETE' }).catch((err) => toast(err.message));
                     load();
                   }}

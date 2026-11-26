@@ -149,3 +149,66 @@ export function askSuspension(username: string, initial = ''): Promise<Suspensio
     root.render(<SuspendDialog username={username} initial={initial} done={done} />);
   });
 }
+
+/**
+ * Confirmação do próprio app, no lugar do confirm() do navegador. O confirm() some em muitos ambientes (app Android,
+ * Electron, janelas embutidas, ferramentas de automação): devolve false SEM mostrar nada e a ação "não acontece" em
+ * silêncio. Este modal sempre aparece, tem foco no botão seguro (Cancelar nas ações perigosas), Esc cancela e Enter confirma.
+ * Devolve true só se a pessoa clicar em confirmar.
+ */
+export interface ConfirmOptions {
+  title?: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+}
+
+const DANGER_VERB = /^(apagar|excluir|remover|expulsar|bloquear|sair|tirar|desfazer|gerar|fechar|cancelar|desligar|revogar|banir|liberar)\b/i;
+
+function ConfirmDialog({ o, done }: { o: ConfirmOptions; done(v: boolean): void }) {
+  return (
+    <div className="modal-backdrop ask-backdrop" onMouseDown={(e) => e.target === e.currentTarget && done(false)}>
+      <div
+        className="modal ask-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={o.title ?? 'Confirmar'}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') (e.stopPropagation(), done(false));
+        }}
+      >
+        <h2>{o.title ?? 'Tem certeza?'}</h2>
+        <p className="muted ask-message" style={{ whiteSpace: 'pre-line' }}>
+          {o.message}
+        </p>
+        <div className="modal-actions">
+          <button type="button" className="btn ghost" autoFocus={!!o.danger} onClick={() => done(false)}>
+            {o.cancelLabel ?? 'Cancelar'}
+          </button>
+          <button type="button" className={`btn ${o.danger ? 'danger' : 'primary'}`} autoFocus={!o.danger} onClick={() => done(true)}>
+            {o.confirmLabel ?? 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function askConfirm(input: string | ConfirmOptions): Promise<boolean> {
+  const o: ConfirmOptions = typeof input === 'string' ? { message: input } : input;
+  // texto começando por um verbo de ação (Apagar..., Remover...): o botão leva o verbo e fica vermelho
+  const verb = DANGER_VERB.exec(o.message)?.[1];
+  const opts: ConfirmOptions = { ...o, danger: o.danger ?? !!verb, confirmLabel: o.confirmLabel ?? (verb ? verb[0].toUpperCase() + verb.slice(1).toLowerCase() : 'Confirmar') };
+  return new Promise((resolve) => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    const done = (v: boolean) => {
+      root.unmount();
+      host.remove();
+      resolve(v);
+    };
+    root.render(<ConfirmDialog o={opts} done={done} />);
+  });
+}

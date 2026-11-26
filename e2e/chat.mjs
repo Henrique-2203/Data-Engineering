@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { tempDir } from './_tmp.mjs';
+import { autoConfirm } from './_ui.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -150,6 +151,7 @@ try {
   const origA = pa.locator('.message', { hasText: 'Alguém aí pra jogar?' }).first();
   await origA.hover();
   pa.once('dialog', (d) => d.accept());
+  autoConfirm(pa);
   await origA.getByRole('button', { name: 'Excluir' }).click();
   await pb.locator('.reply-line', { hasText: 'Mensagem original apagada' }).waitFor({ timeout: 5000 });
   await pb.reload();

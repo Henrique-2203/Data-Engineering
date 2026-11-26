@@ -10,7 +10,7 @@ import { blockUser, openDm, sendFriendRequest, unblockUser } from '../lib/social
 import { closeModal, findMember, openModal, toast, useApp } from '../store/app';
 import { Avatar } from './Avatar';
 import { MemberModeration } from './GuildSettings';
-import { askSuspension } from '../lib/ask';
+import { askSuspension, askConfirm } from '../lib/ask';
 
 const sinceFmt = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' });
 
@@ -239,7 +239,7 @@ function PlatformSuspend({ userId, username }: { userId: string; username: strin
     }
   }
   async function reactivate() {
-    if (!confirm(`Reativar a conta @${username}?`)) return;
+    if (!(await askConfirm(`Reativar a conta @${username}?`))) return;
     try {
       await api(`/admin/users/${userId}/unsuspend-id`, { body: {} });
       toast('Conta reativada.');
