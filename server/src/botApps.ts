@@ -335,6 +335,25 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
     }),
   );
 
+  /** canais de texto (que o bot enxerga) de um servidor onde ele está instalado: para o bot achar o canal pelo nome */
+  r.get(
+    '/bot/guilds/:id/channels',
+    botAuth,
+    wrap(async (req) => {
+      const bot = (req as BotReq).bot!;
+      const guildId = String(req.params.id);
+      const [inst] = await db.query('select 1 from guild_bots where guild_id = $1 and bot_id = $2', [guildId, bot.id]);
+      if (!inst) throw new HttpError(403, 'O bot não está instalado neste servidor.');
+      const rows = await db.query<{ id: string; name: string }>(`select id, name from channels where guild_id = $1 and type = 'text' order by position, name limit 100`, [guildId]);
+      const channels: { id: string; name: string }[] = [];
+      for (const c of rows) {
+        const visible = await deps.channelForMember(c.id, bot.id).catch(() => null);
+        if (visible?.access) channels.push(c);
+      }
+      return { channels };
+    }),
+  );
+
   /** o bot informa a lista COMPLETA dos seus comandos (substitui a anterior) */
   r.put(
     '/bot/commands',
