@@ -31,7 +31,7 @@ O bot é um programinha hospedado FORA do Resenha (Vercel, grátis). Quando algu
 |---|---|
 | BOT_TOKEN | o token do passo 1 |
 | SIGNING_SECRET | o segredo de assinatura do passo 1 |
-| ADMIN_KEY | uma senha que você inventa |
+| ADMIN_KEY | uma senha que você inventa, **longa (20 ou mais caracteres)**: o painel não limita tentativas |
 
 3. Clique em **Deploy**. Você ganha `https://bot-exemplo-xxxx.vercel.app`. Abra: deve aparecer "Bot de exemplo do Resenha no ar".
 

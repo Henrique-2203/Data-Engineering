@@ -26,7 +26,7 @@ const WMO = { 0: 'céu limpo', 1: 'quase limpo', 2: 'parcialmente nublado', 3: '
 
 /** cada comando recebe o texto digitado e quem usou, e devolve { content } e/ou { embed } */
 export const COMANDOS = [
-  { name: 'ping', description: 'Responde pong (teste rápido)', usage: '/ping', run: ({ user }) => ({ content: `pong 🏓 (olá, ${user.displayName}!)` }) },
+  { name: 'ping', description: 'Responde pong (teste rápido)', usage: '/ping', run: ({ user }) => ({ content: `pong 🏓 (olá, ${user?.displayName ?? 'amigo'}!)` }) },
   { name: 'eco', description: 'Repete o que você disser', usage: '/eco qualquer texto', run: ({ args }) => ({ content: args.slice(0, 300) || 'Diga algo depois do /eco 🙂' }) },
   {
     name: 'hora',
@@ -68,6 +68,17 @@ export const COMANDOS = [
 ];
 
 // ------------------------------------------------------------------ o servidor do bot
+// escapa texto antes de pôr em HTML (evita XSS no painel: nomes de servidor/canal e mensagens vêm de fora)
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+// ids de chamadas já vistas (proteção contra repetição/replay: a mesma chamada assinada não vale duas vezes)
+const VISTOS = new Map();
+const jaVisto = (id) => {
+  const agora = Date.now();
+  for (const [k, t] of VISTOS) if (agora - t > 6 * 60_000) VISTOS.delete(k);
+  if (!id || VISTOS.has(id)) return true;
+  VISTOS.set(id, agora);
+  return false;
+};
 const igual = (a, b) => {
   const x = Buffer.from(String(a));
   const y = Buffer.from(String(b));
@@ -77,6 +88,17 @@ const igual = (a, b) => {
 export function criarBot({ token, signingSecret, adminKey, resenhaUrl = 'https://resenhabr.com.br' }) {
   const app = express();
   app.disable('x-powered-by');
+  // cabeçalhos de segurança em todas as respostas (o painel é uma página HTML)
+  app.use((_req, res, next) => {
+    res.set({
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+      'X-Frame-Options': 'DENY',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer',
+      'Cache-Control': 'no-store',
+    });
+    next();
+  });
 
   app.get('/', (_req, res) => res.type('text').send('Bot de exemplo do Resenha no ar. Endereço para colocar no Resenha: /resenha. Painel: /painel'));
 
@@ -86,7 +108,8 @@ export function criarBot({ token, signingSecret, adminKey, resenhaUrl = 'https:/
     const carimbo = String(req.headers['x-resenha-timestamp'] ?? '');
     const esperada = 'v1=' + createHmac('sha256', signingSecret ?? '').update(`${carimbo}.${corpo}`).digest('hex');
     // recusa assinatura errada e chamadas antigas (mais de 5 minutos): quem não tem o segredo não consegue forjar
-    if (!signingSecret || !igual(req.headers['x-resenha-signature'] ?? '', esperada) || Math.abs(Date.now() / 1000 - Number(carimbo)) > 300) {
+    // o carimbo TEM de ser um número (um texto qualquer virava NaN e passava pela checagem de data)
+    if (!signingSecret || !/^\d{9,12}$/.test(carimbo) || !igual(req.headers['x-resenha-signature'] ?? '', esperada) || Math.abs(Date.now() / 1000 - Number(carimbo)) > 300) {
       return res.status(401).json({ erro: 'assinatura inválida' });
     }
     let evento;
@@ -95,6 +118,7 @@ export function criarBot({ token, signingSecret, adminKey, resenhaUrl = 'https:/
     } catch {
       return res.status(400).json({ erro: 'JSON inválido' });
     }
+    if (jaVisto(evento.id)) return res.status(409).json({ erro: 'chamada repetida' });
     const cmd = COMANDOS.find((c) => c.name === evento.command);
     if (!cmd) return res.json({ content: `Não conheço o comando /${String(evento.command).slice(0, 20)}.` });
     res.json(await cmd.run({ args: String(evento.args ?? ''), user: evento.user, channel: evento.channel, guild: evento.guild }));
@@ -104,7 +128,7 @@ export function criarBot({ token, signingSecret, adminKey, resenhaUrl = 'https:/
   const form = express.urlencoded({ extended: false, limit: '10kb' });
   const pagina = (msg = '') => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Painel do bot</title><style>body{font:16px system-ui;max-width:560px;margin:30px auto;padding:0 16px;line-height:1.5}input,textarea{width:100%;padding:8px;margin:4px 0 12px;box-sizing:border-box}button{padding:10px 16px}.ok{background:#e6ffed;padding:10px;border-radius:8px}</style>
-<h1>Painel do bot</h1>${msg ? `<p class="ok">${msg}</p>` : ''}
+<h1>Painel do bot</h1>${msg ? `<p class="ok">${esc(msg)}</p>` : ''}
 <h2>1. Registrar os comandos no Resenha</h2>
 <p>Faça isto uma vez (e de novo se mudar os comandos).</p>
 <form method="post" action="/painel/registrar"><label>Senha do painel (ADMIN_KEY)<input name="chave" type="password" required></label><button>Registrar comandos</button></form>
