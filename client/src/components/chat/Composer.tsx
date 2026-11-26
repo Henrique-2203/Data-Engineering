@@ -171,7 +171,7 @@ export function Composer({ channel, replyTo, onCancelReply, onSent, ref }: Props
     setSending(true);
     try {
       // comando de bot (ex.: /dado d20): só vale se o servidor tem o bot e o comando está ligado
-      const cm = channel.guildId ? /^\/([\p{L}]+)(?:\s+([\s\S]*))?$/u.exec(text.trim()) : null;
+      const cm = channel.guildId ? /^\/([\p{L}\p{N}_]+)(?:\s+([\s\S]*))?$/u.exec(text.trim()) : null;
       if (cm) {
         const list = cmds.length ? cmds : await loadCommands(channel.guildId);
         const known = list.find((c) => c.name === cm[1].toLowerCase());

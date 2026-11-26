@@ -14,7 +14,9 @@ import { USER_COLUMNS, verifyPassword, type requireAuth } from './auth.ts';
 import { Perm, has } from '../../shared/permissions.ts';
 import { openSecret, sealSecret } from './vault.ts';
 import type { BotCommandInfo, BotEmbed, Member } from '../../shared/types.ts';
-import { impersonatesStaff, skeleton } from './names.ts';
+import { cleanDeep, impersonatesStaff, skeleton } from './names.ts';
+import { lookup } from 'node:dns/promises';
+import { isBlockedIp } from './safeFetch.ts';
 import { SafeFetchError, safePost, validateBotUrl } from './safeFetch.ts';
 import type { Reply } from './botKit.ts';
 
@@ -175,7 +177,13 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
         let url: string | null = null;
         if (body.interactionsUrl) {
           try {
-            url = validateBotUrl(body.interactionsUrl).toString();
+            const parsedUrl = validateBotUrl(body.interactionsUrl);
+            url = parsedUrl.toString();
+            // confere para onde o NOME aponta já ao salvar (a chamada também confere de novo e fixa o IP, contra DNS rebinding)
+            if (!process.env.BOT_ALLOW_LOCAL_URLS) {
+              const addrs = await lookup(parsedUrl.hostname, { all: true }).catch(() => []);
+              if (addrs.length && addrs.some((x) => isBlockedIp(x.address))) throw new SafeFetchError('Esse endereço aponta para uma rede interna. Use o endereço público do seu bot.');
+            }
           } catch (e) {
             throw new HttpError(400, e instanceof SafeFetchError ? e.message : 'Endereço inválido.');
           }
@@ -183,6 +191,17 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
         await db.query('update bot_apps set interactions_url = $2 where user_id = $1', [a.id, url]);
       }
       return { ok: true };
+    }),
+  );
+
+  /** últimos erros do bot (quem usou o comando viu a mensagem; o dono vê aqui o motivo) */
+  r.get(
+    '/bot-apps/:id/errors',
+    auth,
+    wrap(async (req) => {
+      const { a } = await myApp(req);
+      const errors = await db.query<{ at: string; command: string; reason: string }>('select at, command, reason from bot_app_errors where bot_id = $1 order by at desc limit 50', [a.id]);
+      return { errors };
     }),
   );
 
@@ -391,19 +410,21 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
     wrap(async (req) => {
       const bot = (req as BotReq).bot!;
       const { commands } = parse(z.object({ commands: z.array(commandSchema).max(MAX_COMMANDS, `No máximo ${MAX_COMMANDS} comandos.`) }), req.body);
-      const names = commands.map((c) => c.name);
-      if (new Set(names).size !== names.length) throw new HttpError(400, 'Há comandos com o mesmo nome.');
-      const reserved = names.filter((n) => deps.reserved.includes(n));
-      if (reserved.length) throw new HttpError(400, `Estes nomes são do Resenha Bot e não podem ser usados: /${reserved.join(', /')}.`);
+      const allNames = commands.map((c) => c.name);
+      if (new Set(allNames).size !== allNames.length) throw new HttpError(400, 'Há comandos com o mesmo nome.');
+      // nomes do Resenha Bot ficam de fora, mas os demais comandos do lote são registrados (e a resposta diz quais foram pulados)
+      const skipped = allNames.filter((n) => deps.reserved.includes(n));
+      const ok = commands.filter((c) => !skipped.includes(c.name));
+      const names = ok.map((c) => c.name);
       await db.query('delete from bot_app_commands where bot_id = $1 and not (name = any($2::text[]))', [bot.id, names]);
       if (commands.length)
         await db.query(
           `insert into bot_app_commands (bot_id, name, description, usage)
            select $1, t.name, t.description, t.usage from unnest($2::text[], $3::text[], $4::text[]) as t(name, description, usage)
            on conflict (bot_id, name) do update set description = excluded.description, usage = excluded.usage`,
-          [bot.id, names, commands.map((c) => c.description), commands.map((c) => c.usage ?? `/${c.name}`)],
+          [bot.id, names, ok.map((c) => c.description), ok.map((c) => c.usage ?? `/${c.name}`)],
         );
-      return { commands };
+      return { commands: ok, skipped, ...(skipped.length ? { warning: `Estes nomes são do Resenha Bot e foram ignorados: /${skipped.join(', /')}.` } : {}) };
     }),
   );
 
@@ -466,14 +487,22 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
         [opts.guildId, opts.command],
       );
       if (!b) return null;
-      if (!b.url) throw new HttpError(502, `O bot ${b.name} ainda não tem um endereço para receber comandos.`);
+      // qualquer falha do bot vira um aviso claro para quem usou (status 424: o 5xx seria trocado por "Erro 502" pela hospedagem)
+      // e fica no registro de erros do dono (Configurações → Desenvolvedor)
+      const fail = async (reason: string): Promise<never> => {
+        await db.query('insert into bot_app_errors (bot_id, command, reason) values ($1, $2, $3)', [b.botId, opts.command, reason.slice(0, 300)]).catch(() => {});
+        await db.query('delete from bot_app_errors where bot_id = $1 and id not in (select id from bot_app_errors where bot_id = $1 order by at desc limit 50)', [b.botId]).catch(() => {});
+        throw new HttpError(424, `${b.name}: ${reason}`);
+      };
+      if (!b.url) return fail('ainda não tem um endereço para receber comandos.');
       limit(`botcall:${b.botId}`, 60, 60_000, 'Este bot está recebendo comandos demais. Espere um pouco.');
       const body = JSON.stringify({
         type: 'command',
         id: randomUUID(),
         command: opts.command,
         args: opts.args,
-        user: { id: opts.user.id, username: opts.user.username, displayName: opts.user.displayName },
+        // id DERIVADO por bot: dois bots diferentes não conseguem reconhecer a mesma pessoa pelo id (privacidade)
+        user: { id: createHash('sha256').update(`${b.botId}:${opts.user.id}`).digest('hex').slice(0, 32), username: opts.user.username, displayName: opts.user.displayName },
         channel: { id: opts.channel.id, name: opts.channel.name },
         guild: { id: opts.guildId, name: opts.guildName },
       });
@@ -484,20 +513,20 @@ export function registerBotApps(r: Router, db: Db, rt: Realtime, auth: ReturnTyp
         if (!secret) throw new SafeFetchError('o segredo do bot não pôde ser aberto (peça ao dono para gerar um token novo).');
         res = await safePost(b.url, body, { 'X-Resenha-Timestamp': ts, 'X-Resenha-Signature': `v1=${sign(secret, ts, body)}` });
       } catch (e) {
-        throw new HttpError(502, `${b.name}: ${e instanceof SafeFetchError ? e.message : 'o bot não respondeu.'}`);
+        return fail(e instanceof SafeFetchError ? e.message : 'o bot não respondeu.');
       }
       if (res.status === 204 || res.status === 202) return { botId: b.botId, reply: null as Reply | null, name: b.name };
-      if (res.status < 200 || res.status >= 300) throw new HttpError(502, `${b.name} respondeu com erro (${res.status}).`);
+      if (res.status < 200 || res.status >= 300) return fail(`respondeu com erro (${res.status}).`);
       let json: unknown;
       try {
         json = JSON.parse(res.text);
       } catch {
-        throw new HttpError(502, `${b.name} respondeu algo que não é JSON.`);
+        return fail('respondeu algo que não é JSON.');
       }
       if (json && typeof json === 'object' && (json as { deferred?: boolean }).deferred) return { botId: b.botId, reply: null as Reply | null, name: b.name };
       const parsed = replySchema.safeParse(json);
-      if (!parsed.success) throw new HttpError(502, `${b.name} respondeu em um formato inválido (use "content" e/ou "embed").`);
-      const p = parsed.data;
+      if (!parsed.success) return fail('respondeu em um formato inválido (use "content" e/ou "embed"; texto de até 2000 caracteres).');
+      const p = cleanDeep(parsed.data) as typeof parsed.data; // sem caracteres invisíveis/de inversão (U+202E...)
       return { botId: b.botId, name: b.name, reply: { content: p.content, embed: p.embed ? { ...p.embed, color: p.embed.color ?? '#7c6cff' } : undefined } as Reply };
     },
     sendAsBot,

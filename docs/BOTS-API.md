@@ -16,7 +16,7 @@ Configurações → **Desenvolvedor** → *Criar um bot*. Aparecem uma vez só:
 Cada pessoa pode ter até **3 bots**.
 
 ## 2. Registrar os comandos
-`PUT /api/bot/commands` com a lista **completa** (até 25). Nomes: 1 a 20 letras minúsculas, números ou `_`. Os nomes dos comandos do Resenha Bot (`dado`, `moeda`, `sortear`, `enquete`, `lembrar`, `ajuda`, `tocar`, `proxima`, `pular`, `fila`, `agora`, `parar`, `remover`, `ticket`, `times`, `marcar`, `call`, `procurando`, `8bola`) são reservados.
+`PUT /api/bot/commands` com a lista **completa** (até 25). Nomes: 1 a 20 letras minúsculas, números ou `_` (o chat reconhece esses mesmos caracteres). Os nomes dos comandos do Resenha Bot (`dado`, `moeda`, `sortear`, `enquete`, `lembrar`, `ajuda`, `tocar`, `proxima`, `pular`, `fila`, `agora`, `parar`, `remover`, `ticket`, `times`, `marcar`, `call`, `procurando`, `8bola`) são reservados: se o seu lote tiver algum deles, os outros comandos são registrados normalmente e a resposta traz `skipped` com os nomes ignorados.
 
 ```bash
 curl -X PUT https://resenhabr.com.br/api/bot/commands \
@@ -35,7 +35,7 @@ Quando alguém usa `/ping oi`, o Resenha faz um `POST` JSON nesse endereço:
   "id": "…",
   "command": "ping",
   "args": "oi",
-  "user":    { "id": "…", "username": "bia", "displayName": "Bia" },
+  "user":    { "id": "…", "username": "bia", "displayName": "Bia" },   // id derivado POR BOT: não é o id interno e muda de bot para bot
   "channel": { "id": "…", "name": "geral" },
   "guild":   { "id": "…", "name": "Galera" }
 }
@@ -54,6 +54,8 @@ function ok(req, rawBody, secret) {
 }
 ```
 
+**Proteção contra repetição (replay):** o corpo traz um `id` único por chamada. Guarde os ids dos últimos 5 minutos e recuse repetidos, além de conferir o carimbo.
+
 **Responda em até 3 segundos** com JSON (`content` e/ou `embed`):
 ```json
 { "content": "pong oi",
@@ -61,7 +63,9 @@ function ok(req, rawBody, secret) {
              "fields": [{ "name": "a", "value": "b" }] } }
 ```
 - Para responder depois: devolva `202` (ou `{"deferred":true}`) e use a API (passo 4).
-- Erros, respostas lentas, JSON inválido ou formato errado viram uma mensagem de erro para quem usou o comando.
+- Limites: `content` até **2000 caracteres** (não 32 KB: 32 KB é só o tamanho máximo da resposta inteira); até 10 campos no embed; cor no formato `#rrggbb`.
+- Erros, respostas lentas, JSON inválido ou formato errado viram uma mensagem clara para quem usou o comando ("Seu Bot: o bot demorou demais para responder.") e ficam no **registro de erros** do bot, em Configurações → Desenvolvedor → "Últimos erros do bot".
+- Caracteres invisíveis e de inversão de texto (U+202E...) são removidos das respostas do bot.
 - Embeds mostram só texto (sem imagens de fora). `@everyone` nunca vale para bots.
 
 ## 4. Escrever nos canais (API)

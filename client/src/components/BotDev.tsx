@@ -223,6 +223,7 @@ function DevBotCard({ bot, password, onChange, onSecrets }: { bot: DevBot; passw
       <p className="muted small">
         Comandos registrados: {bot.commands.length ? bot.commands.map((c) => `/${c.name}`).join(' ') : 'nenhum ainda (o bot registra pela API).'}
       </p>
+      <BotErrors botId={bot.id} />
       <div className="dev-actions">
         <button type="button" className="btn small primary" disabled={busy} onClick={() => void save()}>
           Salvar
@@ -235,6 +236,28 @@ function DevBotCard({ bot, password, onChange, onSecrets }: { bot: DevBot; passw
         </button>
       </div>
     </div>
+  );
+}
+
+/** últimos erros do bot (o motivo que quem usou o comando só viu por alguns segundos) */
+function BotErrors({ botId }: { botId: string }) {
+  const [errors, setErrors] = useState<{ at: string; command: string; reason: string }[] | null>(null);
+  const load = () => api<{ errors: { at: string; command: string; reason: string }[] }>(`/bot-apps/${botId}/errors`).then((r) => setErrors(r.errors), () => setErrors([]));
+  return (
+    <details onToggle={(e) => (e.currentTarget as HTMLDetailsElement).open && void load()}>
+      <summary className="muted small">Últimos erros do bot</summary>
+      {errors === null ? null : errors.length === 0 ? (
+        <p className="muted small">Nenhum erro registrado.</p>
+      ) : (
+        <ul className="small">
+          {errors.map((e, i) => (
+            <li key={i}>
+              {new Date(e.at).toLocaleString('pt-BR')} · <code>/{e.command}</code>: {e.reason}
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
   );
 }
 

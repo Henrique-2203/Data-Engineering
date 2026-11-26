@@ -67,8 +67,8 @@ try {
   check(setUrl.status === 200, `setup: endereço com nome que resolve para 127.0.0.1 (status ${setUrl.status} ${setUrl.error})`);
   await sleep(1100);
   const use = await call('POST', `/channels/${geral}/interactions`, bia.token, { command: 'ping', args: '' });
-  // (neste ambiente o DNS pode nem resolver o nome; o importante é: erro 502 e NENHUMA conexão. A regra "IP privado é bloqueado depois de resolver" é provada em e2e/safe-fetch.mjs)
-  check(use.status === 502 && /não é público|encontrar o servidor/.test(use.error ?? ''), `SSRF-02: nome que resolve para rede interna não foi barrado: ${use.status} ${use.error}`);
+  // (neste ambiente o DNS pode nem resolver o nome; o importante é: erro 424 e NENHUMA conexão. A regra "IP privado é bloqueado depois de resolver" é provada em e2e/safe-fetch.mjs)
+  check(use.status === 424 && /não é público|encontrar o servidor/.test(use.error ?? ''), `SSRF-02: nome que resolve para rede interna não foi barrado: ${use.status} ${use.error}`);
   check(honeyHits === 0, 'SSRF-02: o servidor chegou a conectar numa porta interna');
   step('SSRF-01/02: endereços de bot com IP, rede interna, porta diferente, usuário:senha, esquemas estranhos (incl. 0177.0.0.1, 2130706433, ::ffff:127.0.0.1) e nomes que resolvem para 127.0.0.1 são barrados sem abrir conexão');
 

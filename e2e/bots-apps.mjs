@@ -86,6 +86,10 @@ const botServer = http.createServer((req, res) => {
       res.writeHead(500);
       return res.end('x');
     }
+    if (mode === 'rtl') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify({ content: `texto${String.fromCharCode(0x202e)}invertido${String.fromCharCode(0x200b)}!`, embed: { title: `t${String.fromCharCode(0x202e)}itulo` } }));
+    }
     if (mode === 'slow') return setTimeout(() => res.end('{}'), 4000);
   });
 });
@@ -144,7 +148,10 @@ try {
   const me = await botApi('/bot/me', null, token);
   assert(me.status === 200 && me.id === botId && me.name === 'Eco Bot' && me.guilds.length === 0, `bot/me: ${JSON.stringify(me)}`);
   let r = await botApi('/bot/commands', { commands: [{ name: 'dado', description: 'x' }] }, token, 'PUT');
-  assert(r.status === 400 && /Resenha Bot/.test(r.error), `nome reservado recusado: ${r.error}`);
+  assert(r.status === 200 && r.skipped?.join() === 'dado' && r.commands.length === 0 && /Resenha Bot/.test(r.warning), `nome reservado é ignorado e avisado: ${JSON.stringify(r)}`);
+  // o lote NÃO é recusado inteiro por causa de um nome reservado: os outros comandos (inclusive com número) são registrados
+  r = await botApi('/bot/commands', { commands: [{ name: 'dado', description: 'x' }, { name: 'tc1k', description: 'comando com número' }] }, token, 'PUT');
+  assert(r.status === 200 && r.commands.map((c) => c.name).join() === 'tc1k' && r.skipped.join() === 'dado', `lote com um reservado registra o resto: ${JSON.stringify(r)}`);
   assert((await botApi('/bot/commands', { commands: [{ name: 'a', description: 'x' }, { name: 'a', description: 'y' }] }, token, 'PUT')).status === 400, 'nomes repetidos recusados');
   assert((await botApi('/bot/commands', { commands: [{ name: 'Maiuscula', description: 'x' }] }, token, 'PUT')).status === 400, 'nome inválido recusado');
   r = await botApi('/bot/commands', { commands: [{ name: 'ping', description: 'Responde pong', usage: '/ping texto' }, { name: 'eco', description: 'Repete' }] }, token, 'PUT');
@@ -186,7 +193,9 @@ try {
   assert(got.body.type === 'command' && got.body.command === 'ping' && got.body.args === 'olá' && got.body.user.username === 'bia' && got.body.channel.id === geral.id && got.body.guild.id === guild.id, `corpo da chamada: ${JSON.stringify(got.body)}`);
   assert(Math.abs(Number(got.ts) - Date.now() / 1000) < 30, 'carimbo de tempo atual');
   assert(!JSON.stringify(got.body).includes('token') && !JSON.stringify(got.body).includes(bia.token), 'a chamada não leva sessões nem tokens');
-  step('comando: o Resenha chama o endereço do bot com assinatura válida e posta a resposta (com embed) como o bot');
+  // privacidade: o id da pessoa que o bot recebe é DERIVADO por bot (não é o UUID interno)
+  assert(got.body.user.id !== bia.user.id && /^[a-f0-9]{32}$/.test(got.body.user.id), `id derivado por bot: ${got.body.user.id}`);
+  step('comando: o Resenha chama o endereço do bot com assinatura válida e posta a resposta (com embed) como o bot; o id da pessoa é derivado por bot');
 
   mode = 'deferred';
   r = await use('eco', 'x');
@@ -194,19 +203,27 @@ try {
   for (const m of ['junk', 'wrong', 'error']) {
     mode = m;
     r = await use('ping', 'x');
-    assert(r.status === 502 && /Eco Bot/.test(r.error), `bot com resposta ruim (${m}): ${r.status} ${r.error}`);
+    assert(r.status === 424 && /Eco Bot/.test(r.error), `bot com resposta ruim (${m}): ${r.status} ${r.error}`);
   }
   mode = 'big';
   r = await use('ping', 'x');
-  assert(r.status === 502 && /grande/.test(r.error), `bot com resposta de 200 KB: ${r.status} ${r.error}`);
+  assert(r.status === 424 && /grande/.test(r.error), `bot com resposta de 200 KB: ${r.status} ${r.error}`);
   mode = 'redirect';
   const hitsBefore = received.length;
   r = await use('ping', 'x');
-  assert(r.status === 502, `bot que redireciona: ${r.status} ${r.error}`);
+  assert(r.status === 424, `bot que redireciona: ${r.status} ${r.error}`);
   assert(received.length === hitsBefore + 1 && !received.some((x) => x.url === '/segundo-salto'), 'o Resenha SEGUIU o redirecionamento do bot (caminho para atingir endereços internos)');
   mode = 'slow';
   r = await use('ping', 'x');
-  assert(r.status === 502 && /demorou/.test(r.error), `bot lento: ${r.status} ${r.error}`);
+  assert(r.status === 424 && /demorou/.test(r.error), `bot lento: ${r.status} ${r.error}`);
+  // caracteres de inversão/invisíveis na resposta do bot são removidos
+  mode = 'rtl';
+  r = await use('ping', 'x');
+  assert(r.status === 200 && r.message.content === 'textoinvertido!' && r.message.embeds?.[0]?.title === 'titulo', `U+202E e U+200B removidos da resposta do bot: ${JSON.stringify(r.message?.content)} ${r.message?.embeds?.[0]?.title}`);
+  // o dono vê o motivo dos erros no registro do bot (quem usou viu só a mensagem curta)
+  const log = await api(`/bot-apps/${botId}/errors`, null, ana.token);
+  assert(log.status === 200 && log.errors.length >= 5 && log.errors.some((e) => /demorou/.test(e.reason)) && log.errors.some((e) => /JSON/.test(e.reason)), `registro de erros do bot: ${JSON.stringify(log).slice(0, 200)}`);
+  assert((await api(`/bot-apps/${botId}/errors`, null, bia.token)).status === 404 || (await api(`/bot-apps/${botId}/errors`, null, bia.token)).status === 403, 'só o dono vê o registro de erros');
   mode = 'ok';
   r = await use('naoexiste');
   assert(r.status === 404, 'comando que ninguém tem: 404');

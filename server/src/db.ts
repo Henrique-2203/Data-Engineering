@@ -601,6 +601,15 @@ create table if not exists bot_apps (
   disabled_at timestamptz
 );
 create index if not exists bot_apps_owner_idx on bot_apps(owner_id);
+create table if not exists bot_app_errors (
+  id bigserial primary key,
+  bot_id text not null references users(id) on delete cascade,
+  at timestamptz not null default now(),
+  command text not null,
+  reason text not null
+);
+create index if not exists bot_app_errors_bot_idx on bot_app_errors(bot_id, at desc);
+
 create table if not exists bot_app_commands (
   bot_id text not null references users(id) on delete cascade,
   name text not null,
