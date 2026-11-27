@@ -150,7 +150,7 @@ function CallUserMenu({ target, onClose }: { target: CallMenuTarget; onClose(): 
                 <input
                   type="range"
                   min={0}
-                  max={1}
+                  max={2}
                   step={0.05}
                   value={volume}
                   aria-label={`Volume de ${name}`}

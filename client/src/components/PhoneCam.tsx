@@ -226,19 +226,64 @@ export function PhoneCamera({ token, onExit }: { token: string; onExit(): void }
     if (video.current && live.current) video.current.srcObject = live.current.stream;
   }, [phase, facing]);
 
+  /**
+   * Abre a câmera de um lado (frontal/traseira). Muitos celulares Android NÃO deixam abrir a segunda câmera enquanto a primeira
+   * ainda está aberta, e o "exact" é recusado em alguns aparelhos: tenta exact, depois ideal, depois sem exigência nenhuma.
+   */
+  async function openCamera(face: 'user' | 'environment'): Promise<MediaStream> {
+    const base = { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } };
+    const tries: MediaTrackConstraints[] = [{ ...base, facingMode: { exact: face } }, { ...base, facingMode: { ideal: face } }, { facingMode: face }];
+    let last: unknown = null;
+    for (const [i, video] of tries.entries()) {
+      try {
+        return await navigator.mediaDevices.getUserMedia({ video, audio: false });
+      } catch (e) {
+        last = e;
+        // a câmera anterior pode demorar um instante para ser liberada pelo sistema
+        if (i < tries.length - 1) await new Promise((r) => setTimeout(r, 250));
+      }
+    }
+    throw last;
+  }
+
+  const flipping = useRef(false);
+  const [flipBusy, setFlipBusy] = useState(false);
   async function flip() {
     const l = live.current;
-    if (!l) return;
+    if (!l || flipping.current) return; // toques seguidos não empilham (várias aberturas ao mesmo tempo travavam a câmera)
+    flipping.current = true;
+    setFlipBusy(true);
+    setMessage('');
     const next = facing === 'user' ? 'environment' : 'user';
+    // libera a câmera atual ANTES de abrir a outra (celulares que só abrem uma por vez recusavam a segunda)
+    l.stream.getTracks().forEach((t) => t.stop());
+    let stream: MediaStream | null = null;
+    let used: 'user' | 'environment' = next;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, facingMode: { ideal: next } }, audio: false });
-      await l.sender.replaceTrack(stream.getVideoTracks()[0]);
-      l.stream.getTracks().forEach((t) => t.stop());
-      live.current = { ...l, stream };
-      setFacing(next);
+      stream = await openCamera(next);
     } catch {
-      setMessage('Não foi possível virar a câmera.');
+      // não abriu a outra: volta para a que estava, para a imagem não ficar parada/preta
+      try {
+        stream = await openCamera(facing);
+        used = facing;
+        setMessage('Não foi possível virar a câmera. Continuamos na mesma.');
+      } catch {
+        setMessage('A câmera parou de responder. Toque em Parar e leia o QR Code de novo.');
+      }
     }
+    if (stream) {
+      try {
+        await l.sender.replaceTrack(stream.getVideoTracks()[0]);
+        live.current = { ...l, stream };
+        if (video.current) video.current.srcObject = stream; // direto: se continuou na mesma, o efeito de "facing" não roda
+        setFacing(used);
+      } catch {
+        stream.getTracks().forEach((t) => t.stop());
+        setMessage('Não foi possível trocar a câmera. Toque em Parar e leia o QR Code de novo.');
+      }
+    }
+    flipping.current = false;
+    setFlipBusy(false);
   }
   function stop() {
     getSocket()?.emit('phonecam:stop');
@@ -256,7 +301,7 @@ export function PhoneCamera({ token, onExit }: { token: string; onExit(): void }
           <p className={`phonecam-status${linked ? ' ok' : ''}`}>{linked ? '🟢 No ar: esta é a sua câmera na call do computador' : 'Conectando ao computador…'}</p>
           {message && <p className="muted small">{message}</p>}
           <div className="phonecam-actions">
-            <button type="button" className="btn" onClick={() => void flip()}>
+            <button type="button" className="btn" disabled={flipBusy} onClick={() => void flip()}>
               <SwitchCamera size={18} /> Virar câmera
             </button>
             <button type="button" className="btn danger" onClick={stop}>

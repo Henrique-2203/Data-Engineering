@@ -146,6 +146,22 @@ try {
   assert(!again.ok, 'o código é de uso único');
   step('o código não funciona de novo');
 
+  // virar a câmera VÁRIAS vezes seguidas (celulares reais travavam na 2ª): sem erro, o botão volta e a imagem continua chegando
+  const flipBtn = phone.page.getByRole('button', { name: 'Virar câmera' });
+  for (let i = 1; i <= 4; i++) {
+    await flipBtn.click();
+    await sleep(900);
+    assert(!(await phone.page.getByText(/Não foi possível virar|parou de responder|Não foi possível trocar/).isVisible().catch(() => false)), `virar a câmera pela ${i}ª vez deu erro`);
+    assert(await flipBtn.isEnabled(), `o botão Virar câmera não voltou depois da ${i}ª vez`);
+    assert(await phone.page.evaluate(() => { const v = document.querySelector('video.phonecam-video'); const t = v?.srcObject?.getVideoTracks?.()[0]; return !!t && t.readyState === 'live' && v.videoWidth > 0; }), `a câmera do celular não está ao vivo depois da ${i}ª virada`);
+  }
+  // toques rápidos seguidos não empilham aberturas da câmera
+  await Promise.all([flipBtn.click({ force: true }).catch(() => {}), flipBtn.click({ force: true }).catch(() => {}), flipBtn.click({ force: true }).catch(() => {})]);
+  await sleep(1500);
+  assert(await flipBtn.isEnabled(), 'depois de toques rápidos o botão volta');
+  await sees(pc.page);
+  step('virar a câmera 4 vezes (e toques rápidos): sem erro, a câmera continua ao vivo e chegando no computador');
+
   // parar no celular desliga no computador
   await phone.page.getByRole('button', { name: 'Parar' }).click();
   await pc.page.getByRole('button', { name: 'Ligar câmera' }).waitFor({ timeout: 10000 });

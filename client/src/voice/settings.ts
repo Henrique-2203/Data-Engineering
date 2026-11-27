@@ -28,7 +28,7 @@ export const NOISE_MODES: { id: NoiseMode; label: string; hint: string }[] = [
   { id: 'gtcrn', label: 'Forte (IA) · recomendada', hint: 'Tira teclado, cliques do mouse, ventilador e chiado sem cortar a voz.' },
   { id: 'rnnoise', label: 'Leve (IA)', hint: 'Tira ventilador e chiado usando menos processador; o teclado passa em parte.' },
   { id: 'browser', label: 'Básica (do navegador)', hint: 'A supressão padrão do Chrome/Edge. Deixa passar teclado.' },
-  { id: 'off', label: 'Desligada', hint: 'Som do microfone sem filtro (para quem tem microfone de estúdio ou interface de áudio).' },
+  { id: 'off', label: 'Desligada', hint: 'Som do microfone sem filtro (para quem tem microfone de estúdio ou interface de áudio). Se a voz dos amigos ficar baixa, suba o volume deles acima de 100% (botão direito na pessoa, até 200%) e, no Windows, vá em Som → Comunicações → "Não fazer nada".' },
 ];
 
 export const CODECS: { id: CodecChoice; label: string; mime: string }[] = [
@@ -59,7 +59,7 @@ export interface VoiceSettings {
   noiseMode: NoiseMode;
   /** (antigo) liga/desliga da supressão do navegador; lido só para migrar */
   noiseSuppression?: boolean;
-  volumes: Record<string, number>; // userId -> 0..1
+  volumes: Record<string, number>; // userId -> 0..2 (acima de 1 = amplificado, até 200%)
   /** volume da transmissão de cada pessoa (som do jogo/vídeo), separado da voz: userId -> 0..1 */
   streamVolumes: Record<string, number>;
   /** Reduz a qualidade enviada para quem está conectado via TURN (economiza a cota grátis). */

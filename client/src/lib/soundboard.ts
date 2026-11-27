@@ -50,7 +50,7 @@ export function onSoundboardEvent(e: SoundboardEvent) {
   desktop?.overlayEvent?.({ type: 'sound', id: e.socketId, name: findMember(who?.guildId ?? null, e.userId)?.displayName ?? 'Alguém', sound: e.name, emoji: e.emoji });
   if (v.deafened) return;
   // volume do soundboard × volume que você deu para essa pessoa (silenciou alguém = silencia os sons dela)
-  const volume = v.settings.soundboardVolume * (v.settings.volumes[e.userId] ?? 1);
+  const volume = Math.min(1, v.settings.soundboardVolume * (v.settings.volumes[e.userId] ?? 1));
   if (volume > 0) playSoundFile(e.fileId, volume);
 }
 
