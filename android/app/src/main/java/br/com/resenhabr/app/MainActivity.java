@@ -14,6 +14,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.View;
 import android.view.ViewGroup;
@@ -25,7 +27,9 @@ import android.webkit.URLUtil;
 import android.webkit.ValueCallback;
 import android.webkit.JsResult;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -85,6 +89,24 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "ResenhaAndroid");
         web.setWebViewClient(new WebViewClient() {
             @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                // guarda o endereço que a pessoa quer abrir (a tela de "sem conexão" não conta)
+                if (url != null && url.startsWith("http")) retryUrl = url;
+            }
+
+            // Site fora do ar (ex.: o servidor está atualizando) ou sem internet: antes o WebView mostrava a página de erro
+            // dele, com letra PRETA sobre o fundo escuro do app, e ficava preso nela. Agora mostra um aviso legível e tenta de novo sozinho.
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
+                if (req.isForMainFrame()) showOffline();
+            }
+
+            @Override
+            public void onReceivedHttpError(WebView view, WebResourceRequest req, WebResourceResponse res) {
+                if (req.isForMainFrame() && res.getStatusCode() >= 500) showOffline();
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                 Uri u = req.getUrl();
                 String host = u.getHost();
@@ -143,6 +165,37 @@ public class MainActivity extends Activity {
             .show();
     }
 
+    // ---------------- sem conexão / servidor atualizando ----------------
+
+    private static final String OFFLINE_HTML = "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'>"
+        + "<meta name='viewport' content='width=device-width,initial-scale=1'><style>"
+        + "body{margin:0;background:#0b0d11;color:#e8eaf0;font:16px system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center}"
+        + "main{max-width:320px;padding:24px}h1{font-size:20px;margin:0 0 12px}p{color:#aab0bd;line-height:1.5;margin:0 0 20px}"
+        + "button{background:#3ddc97;color:#06210f;border:0;border-radius:12px;padding:12px 22px;font-size:16px;font-weight:700}"
+        + "</style></head><body><main><h1>O Resenha n\u00e3o abriu agora</h1>"
+        + "<p>Ele pode estar atualizando ou o seu celular est\u00e1 sem internet. Vamos tentar de novo sozinhos em instantes.</p>"
+        + "<button onclick='ResenhaAndroid.retry()'>Tentar agora</button></main></body></html>";
+
+    private String retryUrl;
+    private boolean offlineShown;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable retryTask = this::retryLoad;
+
+    private void showOffline() {
+        if (offlineShown) return;
+        offlineShown = true;
+        web.stopLoading();
+        web.loadDataWithBaseURL(null, OFFLINE_HTML, "text/html", "utf-8", null);
+        handler.removeCallbacks(retryTask);
+        handler.postDelayed(retryTask, 4000);
+    }
+
+    private void retryLoad() {
+        handler.removeCallbacks(retryTask);
+        offlineShown = false;
+        web.loadUrl(retryUrl != null ? retryUrl : BuildConfig.APP_URL);
+    }
+
     private String startUrl(Intent intent) {
         Uri data = intent != null ? intent.getData() : null;
         if (data != null && HOST.equals(data.getHost())) return data.toString();
@@ -184,6 +237,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        handler.removeCallbacks(retryTask);
         if (instance == this) instance = null;
         CallService.stop(this);
         Updater.release(this);
@@ -364,6 +418,12 @@ public class MainActivity extends Activity {
     // ---------------- ponte com o site (window.ResenhaAndroid) ----------------
 
     private class Bridge {
+        /** botão "Tentar agora" da tela de sem conexão */
+        @JavascriptInterface
+        public void retry() {
+            runOnUiThread(MainActivity.this::retryLoad);
+        }
+
         /** entrou numa call: liga a notificação que mantém o microfone e o som vivos em segundo plano */
         @JavascriptInterface
         public void callStarted(String title) {
