@@ -18,7 +18,8 @@ export interface PeerCallbacks {
   onStream(kind: MediaKind, stream: MediaStream | null): void;
   onStreamChanged(): void;
   onConnectionState(state: RTCPeerConnectionState): void;
-  onWatch(on: boolean, decoders?: string[], quality?: StreamQuality, sfu?: boolean): void;
+  /** `turboOff`: por que quem assiste NÃO usa o turbo (desligado nas configurações, sem suporte ou instável) */
+  onWatch(on: boolean, decoders?: string[], quality?: StreamQuality, sfu?: boolean, turboOff?: 'disabled' | 'unsupported' | 'unstable'): void;
   /** quem transmite mandou onde puxar a tela no servidor de mídia (ou null) */
   onSfu?(info: { sessionId: string; video: string; audio?: string } | null): void;
   onQuality(q: StreamQuality): void;
@@ -176,6 +177,7 @@ export class Peer {
           Array.isArray(data.decoders) ? data.decoders.filter((d) => typeof d === 'string').slice(0, 10) : undefined,
           STREAM_QUALITIES.includes(data.quality as StreamQuality) ? data.quality : undefined,
           data.sfu === true,
+          data.turboOff === 'disabled' || data.turboOff === 'unsupported' || data.turboOff === 'unstable' ? data.turboOff : undefined,
         );
       } else if (data.type === 'sfu') {
         const i = data.info;

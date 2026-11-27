@@ -34,6 +34,15 @@ function simulatedKbps(n: number): number {
 
 type Log = (msg: string) => void;
 
+/** Motivos pelos quais o turbo não pôde ser usado para alguém (vão para o diagnóstico; nunca contêm dados pessoais). */
+export type TurboFailReason = 'stopped' | 'no-common-codec' | 'encoder-unsupported' | 'codec-mismatch';
+export type AddViewerResult = { ok: true; codec: string; hardware: boolean | null } | { ok: false; reason: TurboFailReason };
+/** Por que um canal turbo foi fechado de propósito (o espectador não conta isso como queda). */
+export type ByeReason = 'stopped' | 'restart' | 'fallback' | 'viewer-left' | 'renegotiate' | 'removed';
+export type TurboEventDetail = Record<string, string | number | boolean | null>;
+/** Texto de erro curto e sem endereços (erros do navegador não trazem IP, mas por garantia). */
+export const shortErr = (e: unknown) => String((e as { message?: string })?.message ?? e).replace(/\b\d{1,3}(\.\d{1,3}){3}\b/g, '[ip]').slice(0, 120);
+
 declare global {
   // APIs do Chrome/Edge/Electron que ainda não estão nos tipos do TypeScript
   class MediaStreamTrackProcessor<T = VideoFrame> {
@@ -119,8 +128,10 @@ interface Viewer {
   sentFrames: number;
   skipped: number;
   bytes: number;
-  /** FPS que ele está conseguindo mostrar (ele avisa a cada segundo) */
-  shownFps: number;
+  /** FPS que ele está conseguindo mostrar (ele avisa a cada segundo). null = ainda não informou (NÃO é zero) */
+  shownFps: number | null;
+  /** quadros pulados neste intervalo porque a fila de envio dele encheu (zerado a cada leitura) */
+  netDrops: number;
   /** laboratório: quadros "extras" (camada temporal 1) que ele deixou de receber para não travar */
   tlDrops: number;
   /** teste de laboratório: internet simulada (kbps) e a fila simulada */
@@ -137,11 +148,39 @@ export interface TurboSendStats {
   codec: string;
   /** o navegador não diz se é placa de vídeo; o que importa é o tempo por quadro (encodeMs) */
   hardware: boolean | null;
-  /** tempo médio para codificar um quadro (ms) */
+  /** igual a encoderLatencyMs (nome antigo, mantido); 0 quando nenhum quadro saiu */
   encodeMs: number;
   /** quadros que o codificador não conseguiu acompanhar (por segundo) */
   encoderDrops: number;
-  viewers: { id: string; fps: number; shownFps: number; skipped: number; mbps: number; height: number; want: StreamQuality; tlDrops?: number }[];
+  /** quando a amostra foi tirada (ms desde a época) */
+  at: number;
+  /** tamanho e origem da captura (resolução da faixa, antes de qualquer redução) */
+  srcWidth: number;
+  srcHeight: number;
+  /** FPS que o Resenha configurou no codificador (para comparar com o medido) */
+  configuredFps: number;
+  /** tamanho da fila do codificador agora e o maior valor no intervalo (null = não medido) */
+  encodeQueue: number | null;
+  encodeQueueMax: number | null;
+  /** quadros descartados por segundo, com o motivo */
+  dropped: { encoderBusy: number; layerBusy: number };
+  /** latência entre entrada e saída do codificador (NÃO é só o tempo de processamento); null = nenhum quadro saiu no intervalo */
+  encoderLatencyMs: number | null;
+  viewers: {
+    id: string;
+    fps: number;
+    /** FPS que a pessoa conseguiu mostrar; null = ainda não informou */
+    shownFps: number | null;
+    skipped: number;
+    /** quadros pulados por fila de envio cheia no intervalo */
+    netDrops: number;
+    /** bytes na fila do canal dessa pessoa (RTCDataChannel.bufferedAmount) */
+    buffered: number;
+    mbps: number;
+    height: number;
+    want: StreamQuality;
+    tlDrops?: number;
+  }[];
   /** laboratório: o codificador está com camadas temporais (L1T2)? */
   temporal?: boolean;
   /** versões menores sendo codificadas agora (alturas) */
@@ -166,7 +205,7 @@ export class TurboSender {
   /** alvo atual (muda com o modo leve) */
   private target: { fps: number; bitrate: number; maxHeight: number };
   // contadores para as estatísticas (zerados a cada leitura)
-  private counters = { captured: 0, encoded: 0, encoderDrops: 0, layerDrops: 0, encodeMsSum: 0, at: performance.now() };
+  private counters = { captured: 0, encoded: 0, encoderDrops: 0, layerDrops: 0, encodeMsSum: 0, queueMax: 0, at: performance.now() };
   private lastStats: TurboSendStats | null = null;
   /** quando cada quadro entrou no codificador (para medir o tempo de codificação) */
   private inFlight = new Map<number, number>();
@@ -175,6 +214,8 @@ export class TurboSender {
   /** laboratório "FPS mais fixo": o codificador conseguiu camadas temporais (L1T2)? */
   private temporal = false;
   private joined = 0;
+  /** abertura do codificador em andamento (compartilhada entre espectadores que chegam juntos) */
+  private opening: Promise<{ ok: true } | { ok: false; reason: TurboFailReason }> | null = null;
 
   constructor(
     private track: MediaStreamTrack,
@@ -191,15 +232,18 @@ export class TurboSender {
     return this.viewers.size > 0;
   }
 
-  /** Começa a mandar para esta pessoa. Retorna false se ela não consegue decodificar o que estamos codificando. */
-  async addViewer(id: string, dc: RTCDataChannel, decoders: string[], want: StreamQuality = 'auto'): Promise<boolean> {
-    if (this.stopped) return false;
+  /** Começa a mandar para esta pessoa. Retorna o motivo se ela não consegue decodificar o que estamos codificando. */
+  async addViewer(id: string, dc: RTCDataChannel, decoders: string[], want: StreamQuality = 'auto'): Promise<AddViewerResult> {
+    if (this.stopped) return { ok: false, reason: 'stopped' };
     if (!this.encoder) {
-      const ok = await this.openEncoder(decoders);
-      if (!ok) return false;
-    } else if (!decoders.includes(this.config!.codec)) {
-      return false;
+      // vários espectadores abrindo ao mesmo tempo dividem UMA abertura (antes cada um abria um codificador e um vazava)
+      this.opening ??= this.openEncoder(decoders).finally(() => (this.opening = null));
+      const r = await this.opening;
+      if (!r.ok) return r;
     }
+    // enquanto o codificador abria, a transmissão pode ter parado
+    if (this.stopped) return { ok: false, reason: 'stopped' };
+    if (!this.config || !decoders.includes(this.config.codec)) return { ok: false, reason: 'codec-mismatch' };
     dc.binaryType = 'arraybuffer';
     const v: Viewer = {
       id,
@@ -218,7 +262,8 @@ export class TurboSender {
       sentFrames: 0,
       skipped: 0,
       bytes: 0,
-      shownFps: 0,
+      shownFps: null,
+      netDrops: 0,
       tlDrops: 0,
       simKbps: simulatedKbps(++this.joined),
       simQ: 0,
@@ -227,34 +272,62 @@ export class TurboSender {
     dc.onmessage = (e) => {
       if (typeof e.data !== 'string') return;
       try {
-        const m = JSON.parse(e.data) as { t: string; fps?: number };
+        const m = JSON.parse(e.data) as { t: string; fps?: number | null; v?: number };
         if (m.t === 'key') this.requestKey(this.viewers.get(id)?.layerH ?? 0);
-        if (m.t === 'st' && typeof m.fps === 'number') v.shownFps = m.fps;
+        // protocolo 2: o número é medido (pode ser 0 de verdade; null = sem medida). Receptor antigo mandava 0 por "não sei".
+        if (m.t === 'st') v.shownFps = m.v === 2 ? (typeof m.fps === 'number' ? m.fps : null) : typeof m.fps === 'number' && m.fps > 0 ? m.fps : null;
       } catch {
         /* mensagem inválida */
       }
     };
     dc.onclose = () => {
+      // fechado por nós (removeViewer) já saiu da lista: não é queda
       if (this.viewers.get(id)?.dc !== dc) return;
       this.viewers.delete(id);
       this.rebind();
+      this.event('viewer-dc-closed-unexpected', id);
+      this.onUnexpectedClose?.(id);
     };
+    dc.onerror = () => this.event('viewer-dc-error', id, { state: dc.readyState });
     this.viewers.set(id, v);
     this.forceKey = true;
     this.rebind();
     this.log(`turbo: +${id.slice(0, 6)} (${this.config!.codec}${this.hardware === false ? ', processador' : ''})`);
-    return true;
+    this.event('viewer-added', id, { codec: this.config!.codec, hardware: this.hardware, width: this.config!.width, height: this.config!.height });
+    return { ok: true, codec: this.config!.codec, hardware: this.hardware };
   }
 
-  removeViewer(id: string) {
+  /** Eventos estruturados do transporte (o motor de voz junta tudo no diagnóstico). */
+  onEvent?: (ev: string, peerId: string | null, detail?: TurboEventDetail) => void;
+  /** O canal de alguém fechou sem que nós pedíssemos (queda de internet, aba fechada). */
+  onUnexpectedClose?: (id: string) => void;
+  private event(ev: string, peerId: string | null, detail?: TurboEventDetail) {
+    try {
+      this.onEvent?.(ev, peerId, detail);
+    } catch {
+      /* diagnóstico nunca atrapalha a transmissão */
+    }
+  }
+
+  /**
+   * Tira a pessoa do turbo de propósito. Antes de fechar o canal avisa ("bye") o motivo, para quem
+   * assiste NÃO tratar isso como queda e não pedir a transmissão de volta por conta própria.
+   */
+  removeViewer(id: string, reason: ByeReason = 'removed') {
     const v = this.viewers.get(id);
     if (!v) return;
     this.viewers.delete(id);
+    try {
+      if (v.dc.readyState === 'open') v.dc.send(JSON.stringify({ t: 'bye', reason }));
+    } catch {
+      /* canal fechando: quem assiste vai tratar como queda e recuperar */
+    }
     try {
       v.dc.close();
     } catch {
       /* já fechado */
     }
+    this.event('viewer-removed', id, { reason });
     this.rebind();
   }
 
@@ -384,11 +457,14 @@ export class TurboSender {
   }
 
   /** Escolhe o codec: o primeiro que a placa de vídeo codifica e o espectador decodifica; senão, por software. */
-  private async openEncoder(decoders: string[]) {
+  private async openEncoder(decoders: string[]): Promise<{ ok: true } | { ok: false; reason: TurboFailReason }> {
     const s = this.track.getSettings();
     const { width, height } = this.scaled(s.width ?? 1280, s.height ?? 720);
     const base = { width, height, bitrate: this.target.bitrate, framerate: this.target.fps, latencyMode: 'realtime' as const };
     const candidates = CODECS.filter((c) => decoders.includes(c));
+    this.event('codecs', null, { announced: decoders.join(',').slice(0, 120), candidates: candidates.join(',') });
+    if (!candidates.length) return { ok: false, reason: 'no-common-codec' };
+    let configErrors = 0;
     let chosen: { codec: string; hw: boolean; extra: Partial<VideoEncoderConfig> } | null = null;
     // laboratório: primeiro tenta com camadas temporais (L1T2) e bitrate constante; depois como sempre
     const extras: Partial<VideoEncoderConfig>[] = this.lab
@@ -410,15 +486,21 @@ export class TurboSender {
               chosen = { codec, hw, extra };
               break;
             }
-          } catch {
-            /* config inválida neste aparelho */
+          } catch (e) {
+            // config inválida neste aparelho: registra o motivo (uma vez por tentativa)
+            configErrors++;
+            this.event('encoder-config-error', null, { codec, hardware: hw, error: shortErr(e) });
           }
         }
         if (chosen) break;
       }
       if (chosen) break;
     }
-    if (!chosen) return false;
+    if (this.stopped) return { ok: false, reason: 'stopped' }; // parou enquanto testava: não abrir codificador órfão
+    if (!chosen) {
+      this.event('encoder-unsupported', null, { candidates: candidates.join(','), configErrors });
+      return { ok: false, reason: 'encoder-unsupported' };
+    }
     // só sabemos que NÃO é placa de vídeo quando pedimos software
     this.hardware = chosen.hw ? null : false;
     this.temporal = chosen.extra.scalabilityMode === 'L1T2';
@@ -427,13 +509,20 @@ export class TurboSender {
       output: (chunk, meta) => this.onChunk(chunk, 0, (meta as { svc?: { temporalLayerId?: number } } | undefined)?.svc?.temporalLayerId ?? 0),
       error: (e) => {
         this.log(`turbo: erro no codificador: ${e}`);
+        this.event('encoder-error', null, { error: shortErr(e) });
         // recomeça com um codificador novo no próximo quadro
         this.encoder = null;
         this.config = null;
         this.closeLayers();
         const ids = [...this.viewers.keys()];
-        void this.openEncoder(decoders).then((ok) => {
-          if (!ok) ids.forEach((id) => this.removeViewer(id));
+        void this.openEncoder(decoders).then((r) => {
+          if (!r.ok) {
+            // sem codificador: quem assistia volta pelo WebRTC (o motor de voz decide)
+            ids.forEach((id) => {
+              this.removeViewer(id, 'fallback');
+              this.onEncoderLost?.(id, r.reason);
+            });
+          }
           else {
             this.viewers.forEach((v) => {
               v.needCfg = true;
@@ -455,8 +544,12 @@ export class TurboSender {
     this.srcW = s.width ?? width;
     this.srcH = s.height ?? height;
     this.encoder.configure(this.config);
-    return true;
+    this.event('encoder-open', null, { codec: chosen.codec, hardwareRequested: chosen.hw, width, height, fps: this.target.fps, source: `${this.srcW}x${this.srcH}` });
+    return { ok: true };
   }
+
+  /** O codificador quebrou e não deu para recriar: a pessoa precisa voltar para o WebRTC. */
+  onEncoderLost?: (id: string, reason: TurboFailReason) => void;
 
   private scaled(w: number, h: number) {
     const k = h > this.target.maxHeight ? this.target.maxHeight / h : 1;
@@ -521,6 +614,7 @@ export class TurboSender {
         // ritmo: no máximo o FPS alvo (a captura pode mandar mais)
         const minGap = 1e6 / this.target.fps;
         if (frame.timestamp - this.lastTs < minGap * 0.85) continue;
+        this.counters.queueMax = Math.max(this.counters.queueMax, this.encoder.encodeQueueSize);
         // o codificador não está dando conta: pula o quadro (sem acumular atraso)
         if (this.encoder.encodeQueueSize > 2) {
           this.counters.encoderDrops++;
@@ -598,6 +692,7 @@ export class TurboSender {
         v.waitKey = true;
         v.skipped++;
         v.netSkips++;
+        v.netDrops++;
         this.requestKeySoon(layerH);
         continue;
       }
@@ -657,7 +752,7 @@ export class TurboSender {
     // laboratório (FPS fixo): cortar quadros "extras" segura a imagem sem travar, mas o objetivo é o FPS
     // escolhido; se ela continua sem receber todos, desce a RESOLUÇÃO só para ela (o FPS volta)
     const tlStruggle = this.temporal && v.tlDrops >= Math.max(3, sentFps * 0.15);
-    const struggling = v.netSkips > 0 || tlStruggle || (sentFps >= 10 && v.shownFps > 0 && v.shownFps < sentFps * 0.6);
+    const struggling = v.netSkips > 0 || tlStruggle || (sentFps >= 10 && v.shownFps !== null && v.shownFps < sentFps * 0.6);
     v.netSkips = 0;
     if (struggling) {
       v.bad++;
@@ -721,6 +816,8 @@ export class TurboSender {
         fps: Math.round(v.sentFrames / secs),
         shownFps: v.shownFps,
         skipped: v.skipped,
+        netDrops: v.netDrops,
+        buffered: v.dc.bufferedAmount,
         mbps: (v.bytes * 8) / secs / 1e6,
         height: v.layerH || this.mainH,
         want: v.want,
@@ -729,11 +826,21 @@ export class TurboSender {
       this.adapt(v, r.fps);
       v.sentFrames = 0;
       v.skipped = 0;
+      v.netDrops = 0;
       v.tlDrops = 0;
       v.bytes = 0;
       return r;
     });
+    const encoded = this.counters.encoded;
     this.lastStats = {
+      at: Date.now(),
+      srcWidth: this.srcW,
+      srcHeight: this.srcH,
+      configuredFps: this.target.fps,
+      encodeQueue: this.encoder?.encodeQueueSize ?? null,
+      encodeQueueMax: this.counters.queueMax,
+      dropped: { encoderBusy: Math.round(this.counters.encoderDrops / secs), layerBusy: Math.round(this.counters.layerDrops / secs) },
+      encoderLatencyMs: encoded ? Math.round((this.counters.encodeMsSum / encoded) * 10) / 10 : null,
       captureFps: Math.round(this.counters.captured / secs),
       encodeFps: Math.round(this.counters.encoded / secs),
       encoderDrops: Math.round(this.counters.encoderDrops / secs),
@@ -746,13 +853,13 @@ export class TurboSender {
       layers: [...this.layers.keys()],
       temporal: this.temporal,
     };
-    this.counters = { captured: 0, encoded: 0, encoderDrops: 0, layerDrops: 0, encodeMsSum: 0, at: now };
+    this.counters = { captured: 0, encoded: 0, encoderDrops: 0, layerDrops: 0, encodeMsSum: 0, queueMax: 0, at: now };
     return this.lastStats;
   }
 
-  stop() {
+  stop(reason: ByeReason = 'stopped') {
     this.stopped = true;
-    for (const id of [...this.viewers.keys()]) this.removeViewer(id);
+    for (const id of [...this.viewers.keys()]) this.removeViewer(id, reason);
     void this.reader?.cancel().catch(() => {});
     try {
       if (this.encoder && this.encoder.state !== 'closed') this.encoder.close();
@@ -763,6 +870,8 @@ export class TurboSender {
     this.closeLayers();
     for (const t of this.keyTimers.values()) clearTimeout(t);
     this.keyTimers.clear();
+    this.inFlight.clear();
+    this.onEvent = this.onUnexpectedClose = this.onEncoderLost = undefined;
   }
 }
 
@@ -771,11 +880,27 @@ export class TurboSender {
 // ======================================================================
 
 export interface TurboRecvStats {
+  /** quando a amostra foi tirada (ms desde a época) */
+  at: number;
+  /** FPS apresentado (entregue à tela). Mantido com o nome antigo. */
   fps: number;
+  /** quadros completos recebidos pelo canal / saídos do decodificador / entregues à tela, por segundo */
+  receivedFps: number;
+  decodedFps: number;
+  presentedFps: number;
   width: number;
   height: number;
   mbps: number;
   codec: string;
+  /** intervalo entre quadros apresentados no último segundo (ms); null = menos de 2 quadros */
+  frameIntervalMs: { avg: number; max: number } | null;
+  /** travadas (intervalo muito maior que o normal) no último segundo e quanto tempo duraram */
+  freezes: number;
+  freezeMs: number;
+  /** quadros descartados no último segundo, por motivo */
+  dropped: { waitingKey: number; decoderBacklog: number; layerSkip: number; invalid: number; incomplete: number };
+  /** fila do decodificador agora */
+  decodeQueue: number | null;
 }
 
 /** O que quem transmite contou sobre a versão que estou recebendo. */
@@ -800,7 +925,28 @@ export class TurboReceiver {
   private writer: WritableStreamDefaultWriter<VideoFrame> | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
-  private counters = { frames: 0, bytes: 0, at: performance.now() };
+  private counters = this.freshCounters();
+  private freshCounters() {
+    return {
+      received: 0,
+      decoded: 0,
+      presented: 0,
+      bytes: 0,
+      freezes: 0,
+      freezeMs: 0,
+      intervals: [] as number[],
+      dropped: { waitingKey: 0, decoderBacklog: 0, layerSkip: 0, invalid: 0, incomplete: 0 },
+      at: performance.now(),
+    };
+  }
+  /** instante do último quadro apresentado e média móvel do intervalo (para detectar travadas) */
+  private lastPresent = 0;
+  private avgInterval = 0;
+  private history: TurboRecvStats[] = [];
+  /** motivo do fechamento de propósito avisado por quem transmite ("bye"); null = não avisou */
+  byeReason: string | null = null;
+  /** fui eu que fechei (sair da transmissão, sair da call) */
+  closedLocally = false;
   private size = { w: 0, h: 0 };
   private last: TurboRecvStats | null = null;
   private stTimer: ReturnType<typeof setInterval>;
@@ -826,9 +972,18 @@ export class TurboReceiver {
       this.stream = this.canvas.captureStream();
     }
     dc.onmessage = (e) => this.onMessage(e.data);
-    // conta a quem transmite quantos quadros por segundo estou conseguindo mostrar
+    // UMA medição por segundo, feita aqui (antes quem chamava stats() "zerava" a janela dos outros e,
+    // sem a tela de estatísticas aberta, nada era medido). Também conta a quem transmite quanto estou mostrando.
     this.stTimer = setInterval(() => {
-      if (this.dc.readyState === 'open') this.dc.send(JSON.stringify({ t: 'st', fps: this.last?.fps ?? 0 }));
+      this.sample();
+      if (this.dc.readyState === 'open') {
+        // v:2 = número medido (0 é zero de verdade; null = sem medida)
+        try {
+          this.dc.send(JSON.stringify({ t: 'st', v: 2, fps: this.last ? this.last.presentedFps : null }));
+        } catch {
+          /* canal fechando */
+        }
+      }
     }, 1000);
   }
 
@@ -848,6 +1003,7 @@ export class TurboReceiver {
           }
         }
         if (m.t === 'hint' && typeof m.height === 'number') this.onHint?.(m.height);
+        if (m.t === 'bye') this.byeReason = String((m as { reason?: string }).reason ?? 'removed').slice(0, 30);
       } catch {
         /* inválida */
       }
@@ -861,6 +1017,8 @@ export class TurboReceiver {
     const seq = dv.getUint32(8);
     const ts = dv.getFloat64(12);
     if (part === 0) {
+      // começou outro quadro sem terminar o anterior: o anterior se perdeu
+      if (this.cur.seq !== -1 && this.cur.got < this.cur.total) this.counters.dropped.incomplete++;
       this.cur = { seq, total, got: 0, key, ts, tl: dv.getUint8(6) };
       this.parts = [];
     } else if (seq !== this.cur.seq) {
@@ -906,12 +1064,23 @@ export class TurboReceiver {
       o += p.byteLength;
     }
     this.parts = [];
-    if (!this.decoder || this.decoder.state !== 'configured') return;
-    if (this.waitKey && !key) return;
+    this.counters.received++;
+    if (!this.decoder || this.decoder.state !== 'configured') {
+      this.counters.dropped.invalid++;
+      return;
+    }
+    if (this.waitKey && !key) {
+      this.counters.dropped.waitingKey++;
+      return;
+    }
     // aparelho lento: com camadas temporais, pula só o quadro "extra" (sem travar)
-    if (tl > 0 && this.decoder.decodeQueueSize > 2) return;
+    if (tl > 0 && this.decoder.decodeQueueSize > 2) {
+      this.counters.dropped.layerSkip++;
+      return;
+    }
     // aparelho lento ficando para trás: pula até o próximo quadro-chave
     if (!key && this.decoder.decodeQueueSize > 3) {
+      this.counters.dropped.decoderBacklog++;
       this.waitKey = true;
       this.askKey();
       return;
@@ -921,6 +1090,7 @@ export class TurboReceiver {
       this.waitKey = false;
     } catch (e) {
       this.log(`turbo: quadro inválido: ${e}`);
+      this.counters.dropped.invalid++;
       this.waitKey = true;
       this.askKey();
     }
@@ -934,41 +1104,89 @@ export class TurboReceiver {
   }
 
   private show(frame: VideoFrame) {
-    this.counters.frames++;
+    this.counters.decoded++;
     this.size = { w: frame.displayWidth, h: frame.displayHeight };
     if (this.closed) {
       frame.close();
       return;
     }
     if (this.writer) {
-      this.writer.write(frame).catch(() => frame.close());
+      // "apresentado" = o gerador de vídeo aceitou o quadro (a escrita só termina quando ele consome)
+      this.writer.write(frame).then(() => this.presented(), () => frame.close());
       return;
     }
     if (this.canvas && this.ctx) {
       if (this.canvas.width !== frame.displayWidth) this.canvas.width = frame.displayWidth;
       if (this.canvas.height !== frame.displayHeight) this.canvas.height = frame.displayHeight;
       this.ctx.drawImage(frame, 0, 0);
+      this.presented();
     }
     frame.close();
   }
 
-  stats(): TurboRecvStats | null {
+  /** Um quadro foi entregue à tela: registra o intervalo desde o anterior e detecta travadas. */
+  private presented() {
+    if (this.closed) return;
     const now = performance.now();
-    const secs = (now - this.counters.at) / 1000;
-    if (secs < 0.5) return this.last;
+    this.counters.presented++;
+    if (this.lastPresent) {
+      const gap = now - this.lastPresent;
+      // mesma regra do WebRTC: travou se o intervalo passou de max(3x a média, média + 150 ms)
+      const frozen = this.avgInterval > 0 && gap > Math.max(3 * this.avgInterval, this.avgInterval + 150);
+      if (frozen) {
+        this.counters.freezes++;
+        this.counters.freezeMs += gap;
+      } else {
+        this.avgInterval = this.avgInterval ? this.avgInterval * 0.9 + gap * 0.1 : gap;
+      }
+      this.counters.intervals.push(gap);
+      if (this.counters.intervals.length > 400) this.counters.intervals.shift();
+    }
+    this.lastPresent = now;
+  }
+
+  /** Fecha a janela de 1 s e guarda a amostra (chamado só pelo cronômetro interno). */
+  private sample() {
+    const now = performance.now();
+    const secs = Math.max(0.25, (now - this.counters.at) / 1000);
+    const c = this.counters;
+    const iv = c.intervals;
+    const rate = (n: number) => Math.round(n / secs);
     this.last = {
-      fps: Math.round(this.counters.frames / secs),
+      at: Date.now(),
+      fps: rate(c.presented),
+      receivedFps: rate(c.received),
+      decodedFps: rate(c.decoded),
+      presentedFps: rate(c.presented),
       width: this.size.w,
       height: this.size.h,
-      mbps: (this.counters.bytes * 8) / secs / 1e6,
+      mbps: (c.bytes * 8) / secs / 1e6,
       codec: codecName(this.codec),
+      frameIntervalMs: iv.length ? { avg: Math.round((iv.reduce((a, b) => a + b, 0) / iv.length) * 10) / 10, max: Math.round(Math.max(...iv)) } : null,
+      freezes: c.freezes,
+      freezeMs: Math.round(c.freezeMs),
+      dropped: { ...c.dropped },
+      decodeQueue: this.decoder?.decodeQueueSize ?? null,
     };
-    this.counters = { frames: 0, bytes: 0, at: now };
+    this.history.push(this.last);
+    if (this.history.length > 60) this.history.shift();
+    this.counters = this.freshCounters();
+  }
+
+  /** Última amostra de 1 s (null = ainda não completou o primeiro segundo; NÃO é "0 FPS"). */
+  stats(): TurboRecvStats | null {
     return this.last;
+  }
+
+  /** Amostras de 1 s dos últimos `ms` milissegundos (para somar em janelas, como a do relatório de 5 s). */
+  recent(ms: number): TurboRecvStats[] {
+    const from = Date.now() - ms;
+    return this.history.filter((h) => h.at >= from);
   }
 
   close() {
     this.closed = true;
+    this.closedLocally = true;
     clearInterval(this.stTimer);
     try {
       this.decoder?.close();

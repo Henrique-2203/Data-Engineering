@@ -3,6 +3,7 @@ import { peerDiag, snapshot, type Snap } from '../voice/diagnostics';
 import { voice } from '../voice/engine';
 import { screenPresetFor } from '../voice/settings';
 import { labOn } from './lab';
+import { isNum } from '../voice/limits';
 
 /**
  * Saúde das calls: números ANÔNIMOS de qualidade (somados por dia no servidor, sem dizer de quem
@@ -36,6 +37,9 @@ type Metric =
   | 'stream_lim_capture'
   | 'stream_lim_encode'
   | 'stream_lim_net'
+  | 'stream_lim_recv'
+  | 'stream_lim_unknown'
+  | 'stream_zero'
   | 'stream_lab'
   | 'watch_samples'
   | 'watch_fps'
@@ -178,7 +182,7 @@ async function sample() {
     // transmissão que estou assistindo desta pessoa
     if (v.watching[p.socketId]) {
       const t = voice.turboRecvStats(p.socketId);
-      let fps = t?.fps ?? null;
+      let fps: number | null = t ? t.fps : null; // null = ainda sem medida (o primeiro segundo ainda não fechou)
       if (fps === null) fps = (await voice.sfuRecvStats(p.socketId))?.fps ?? null; // pelo servidor de mídia
       if (fps === null) {
         snap.forEach((r) => {
@@ -197,29 +201,36 @@ async function sample() {
   const sfuMb = await voice.sfuMbSinceLast();
   if (sfuMb > 0) add('sfu_mb', sfuMb, 0);
 
-  // minha transmissão
+  // minha transmissão. `st` só é null quando ninguém está assistindo (sem o que medir); 0 FPS medido é uma
+  // amostra válida (e justamente a mais importante), então NÃO se descarta por "st.fps ser falso".
   if (v.screen) {
     const st = await voice.screenSendStats();
-    if (st && st.fps) {
+    if (st) {
       const info = voice.streamInfo;
       add('stream_samples');
-      add('stream_capture', st.captureFps);
-      add('stream_sent', st.fps);
-      if (st.viewerFps !== undefined) add('stream_viewer', st.viewerFps);
-      if ((st.viewerFps ?? st.fps) >= 40) add('stream_ok40');
+      if (isNum(st.captureFps)) add('stream_capture', st.captureFps);
+      if (isNum(st.fps)) add('stream_sent', st.fps);
+      if (isNum(st.viewerFps)) add('stream_viewer', st.viewerFps);
+      const got = isNum(st.viewerFps) ? st.viewerFps : st.fps;
+      if (isNum(got) && got >= 40) add('stream_ok40');
+      if (isNum(got) && got === 0) add('stream_zero');
       if (st.turbo) add('stream_turbo');
-      if (st.encodeMs !== undefined) add('stream_encode_ms', st.encodeMs);
+      if (isNum(st.encodeMs)) add('stream_encode_ms', st.encodeMs); // latência do codificador (entrada→saída), não só processamento
       if (info.lightLevel > 0) add('stream_light');
-      // o FPS que a pessoa escolheu chegou em quem assiste? Se não, onde ficou: a captura do PC não
-      // entregou, o codificador não deu conta, ou a internet (de quem transmite ou de quem assiste).
+      // o FPS que a pessoa escolheu chegou em quem assiste? Se não, onde ficou — só com evidência:
+      // captura do PC, codificador, transporte (fila de envio), recepção/exibição de quem assiste, ou sem medida suficiente.
       const target = screenPresetFor(v.settings).fps;
-      const got = st.viewerFps ?? st.fps;
       add('stream_target', target);
       add('stream_viewers', voice.screenViewerCount());
-      if (got >= target * 0.9) add('stream_at_target');
-      else if (st.captureFps < target * 0.9) add('stream_lim_capture');
-      else if (st.fps < st.captureFps * 0.9 || st.limitedBy === 'cpu') add('stream_lim_encode');
-      else add('stream_lim_net');
+      if (isNum(got) && got >= target * 0.9) add('stream_at_target');
+      else {
+        const where = st.limit.where;
+        if (where === 'capture') add('stream_lim_capture');
+        else if (where === 'encoder') add('stream_lim_encode');
+        else if (where === 'transport') add('stream_lim_net');
+        else if (where === 'receiver') add('stream_lim_recv');
+        else add('stream_lim_unknown');
+      }
       if (labOn('fps') || labOn('sfu')) add('stream_lab');
     }
   }

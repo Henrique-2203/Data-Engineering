@@ -18,7 +18,9 @@ import { desktopSystemAudio, type SystemAudioTrack } from './systemAudio';
 import { together } from './together';
 import { callChat } from './callChat';
 import { healthPeerClosed, healthPeerCreated, healthPeerState, healthResume, startHealthSampler, stopHealthSampler } from '../lib/health';
-import { TURBO_LABEL, TurboReceiver, TurboSender, type TurboSendStats, decodableCodecs, turboCanReceive, turboCanSend } from './turbo';
+import { type ByeReason, TURBO_LABEL, TurboReceiver, TurboSender, type TurboEventDetail, type TurboSendStats, decodableCodecs, turboCanReceive, turboCanSend } from './turbo';
+import type { TransportEvent, TransportInfo, TransportMode, TransportState } from './transport';
+import { type Limit, classifyLimit, isNum, minMeasured } from './limits';
 import type { ScreenAudience, StreamQuality } from '../../../shared/types';
 import { askConfirm } from '../lib/ask';
 
@@ -37,10 +39,11 @@ const SPEAKING_THRESHOLD = 0.015;
 type Meter = { stream: MediaStream; source: MediaStreamAudioSourceNode; analyser: AnalyserNode; data: Float32Array<ArrayBuffer>; lastLoud: number };
 
 export interface SendStats {
-  captureFps: number;
-  fps: number;
-  width: number;
-  height: number;
+  /** null = não medido (zero é zero medido) */
+  captureFps: number | null;
+  fps: number | null;
+  width: number | null;
+  height: number | null;
   codec: string;
   /** true = placa de vídeo, false = processador, null = navegador não informa */
   hardware: boolean | null;
@@ -50,9 +53,14 @@ export interface SendStats {
   /** transmissão turbo (codificada uma vez): Mbps já calculado e o pior FPS mostrado por quem assiste */
   turbo?: boolean;
   mbps?: number;
-  viewerFps?: number;
-  /** tempo médio para codificar um quadro */
-  encodeMs?: number;
+  /** o que o pior espectador mostra; null = ninguém informou ainda */
+  viewerFps?: number | null;
+  /** latência entre entrada e saída do codificador (não é só tempo de processamento); null = sem medida */
+  encodeMs?: number | null;
+  /** onde o FPS escolhido ficou para trás, com a evidência (só afirma o que tem medida) */
+  limit: Limit;
+  /** amostra completa do turbo (quando a transmissão é turbo) */
+  raw?: TurboSendStats;
 }
 
 const setV = useVoice.setState;
@@ -345,9 +353,16 @@ class VoiceEngine {
     this.camTrack?.stop();
     this.closePhoneLink(false);
     if (this.screenStream) desktop?.setStreaming?.(false);
-    this.stopTurbo();
-    for (const r of this.turboRecv.values()) r.close();
-    this.turboRecv.clear();
+    this.screenGen++;
+    this.stopTurbo('stopped');
+    for (const id of [...this.turboRecv.keys()]) this.closeTurboView(id);
+    for (const t of this.recoverTimers.values()) clearTimeout(t);
+    this.recoverTimers.clear();
+    this.turboDrops.clear();
+    this.recvTransport.clear();
+    this.watchCaps.clear();
+    this.transport.clear();
+    this.tlog = [];
     this.stopSfu();
     for (const id of [...this.sfuViews.keys()]) this.closeSfuView(id);
     this.sfuFailed.clear();
@@ -666,7 +681,7 @@ class VoiceEngine {
         healthPeerState(socketId, connection);
         if (connection === 'connected' && this.oldPeers.size) this.replaceOldPeer(socketId, userId);
       },
-      onWatch: (on, decoders, quality, sfu) => this.onWatchRequest(socketId, on, decoders, quality, sfu),
+      onWatch: (on, decoders, quality, sfu, turboOff) => this.onWatchRequest(socketId, on, decoders, quality, sfu, turboOff),
       onSfu: (info) => void this.onSfuInfo(socketId, info),
       onQuality: (q) => this.onQualityRequest(socketId, q),
       onDataChannel: (dc) => this.onScreenChannel(socketId, dc),
@@ -707,6 +722,11 @@ class VoiceEngine {
     this.peers.get(socketId)?.close();
     this.peers.delete(socketId);
     this.screenWatchers.delete(socketId);
+    this.cancelPending(socketId, 'removed');
+    this.turbo?.removeViewer(socketId, 'removed');
+    this.watchCaps.delete(socketId);
+    this.transport.delete(socketId);
+    this.forgetWatch(socketId);
     this.sfuWatchers.delete(socketId);
     this.closeSfuView(socketId);
     this.peerWant.delete(socketId);
@@ -983,14 +1003,16 @@ class VoiceEngine {
     videoTrack.onended = () => this.stopScreen();
     for (const t of stream.getAudioTracks()) t.contentHint = 'music';
 
-    for (const id of this.screenWatchers) {
-      const p = this.peers.get(id);
-      if (p) await this.addScreen(p);
-    }
-    // transmissão turbo: codifica uma vez só para todo mundo (quando o navegador permite)
-    this.turbo?.stop();
-    this.turbo = turboCanSend() && settings.turbo !== false ? new TurboSender(videoTrack, this.turboTarget(), (m) => this.dbg(m), labOn('fps')) : null;
+    // 1º o turbo (codifica uma vez só para todo mundo, quando o navegador permite); 2º cada pessoa que já
+    // estava assistindo é roteada UMA vez para o transporte certo. Antes o vídeo WebRTC ia primeiro para
+    // todo mundo e o turbo nunca era reavaliado para quem já assistia (nem para quem trocava de tela).
+    this.screenGen++;
+    this.beginTurbo(videoTrack);
     this.startTurboStats();
+    for (const id of [...this.screenWatchers]) {
+      const p = this.peers.get(id);
+      if (p) this.routeViewer(p);
+    }
     void this.startSfu(stream);
     this.sendAudience();
     setV({ screen: true, localScreen: stream, screenLight: false });
@@ -1004,9 +1026,79 @@ class VoiceEngine {
 
   private turbo: TurboSender | null = null;
   private turboStats: TurboSendStats | null = null;
+  /** amostras de 1 s do turbo (para somar em janelas: relatório, modo desempenho) */
+  private turboHistory: TurboSendStats[] = [];
   private turboStatsTimer: ReturnType<typeof setInterval> | null = null;
   /** quem assiste em modo turbo: socketId -> receptor */
   private turboRecv = new Map<string, TurboReceiver>();
+
+  /** O que cada espectador disse no último pedido (reavaliado a cada pedido e a cada transmissão nova). */
+  private watchCaps = new Map<string, { decoders: string[]; turboOff?: 'disabled' | 'unsupported' | 'unstable' }>();
+  /** transporte atual de cada pessoa que assiste a MINHA transmissão */
+  private transport = new Map<string, TransportInfo>();
+  /** canais turbo ainda sendo negociados (ou à espera de a pessoa pedir de volta) */
+  private turboPending = new Map<string, { dc: RTCDataChannel | null; timer: ReturnType<typeof setTimeout>; turbo: TurboSender }>();
+  /** número da transmissão atual: respostas assíncronas de uma transmissão antiga são descartadas */
+  private screenGen = 0;
+  /** eventos estruturados do transporte (sem IP, token, mensagem, áudio ou imagem) */
+  private tlog: TransportEvent[] = [];
+  /** lado de quem assiste: estado do transporte de cada transmissão que EU assisto */
+  private recvTransport = new Map<string, { state: TransportState; reason?: string; since: number }>();
+  private recoverTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  private tev(ev: string, socketId: string | null, detail?: TurboEventDetail) {
+    const e: TransportEvent = { at: Date.now(), ev, peer: socketId ? socketId.slice(0, 6) : null, ...(detail ? { detail } : {}) };
+    this.tlog.push(e);
+    if (this.tlog.length > 150) this.tlog.shift();
+    this.dbg(`transporte: ${ev}${e.peer ? ` ${e.peer}` : ''}${detail ? ` ${JSON.stringify(detail)}` : ''}`);
+  }
+
+  /** Eventos estruturados do transporte (cópia). */
+  get transportEvents(): TransportEvent[] {
+    return this.tlog.slice();
+  }
+
+  private setTransport(id: string, state: TransportState, mode: TransportMode, reason?: string, codec?: string) {
+    const prev = this.transport.get(id);
+    const same = prev?.state === state && prev.mode === mode;
+    this.transport.set(id, { state, mode, ...(reason ? { reason } : {}), codec: codec ?? prev?.codec, since: same ? prev.since : Date.now() });
+    if (!same || prev?.reason !== reason) this.tev('transport', id, { state, mode, reason: reason ?? null, codec: codec ?? prev?.codec ?? null });
+  }
+
+  private setRecvState(id: string, state: TransportState, reason?: string) {
+    const prev = this.recvTransport.get(id);
+    if (prev?.state === state && prev.reason === reason) return;
+    this.recvTransport.set(id, { state, ...(reason ? { reason } : {}), since: Date.now() });
+    this.tev('recv-transport', id, { state, reason: reason ?? null });
+  }
+
+  /** Transporte de cada pessoa que assiste a minha tela, com o que está de fato anexado (para conferir duplicação). */
+  transportSnapshot() {
+    return [...this.screenWatchers].map((id) => {
+      const peer = this.peers.get(id);
+      const t = this.transport.get(id);
+      const st = this.turboStats?.viewers.find((v) => v.id === id);
+      return {
+        id: id.slice(0, 6),
+        mode: t?.mode ?? 'none',
+        state: t?.state ?? 'enabled',
+        reason: t?.reason ?? null,
+        codec: t?.codec ?? null,
+        inTurbo: !!this.turbo?.has(id),
+        rtcVideo: !!peer?.isSending('screenVideo'),
+        rtcAudio: !!peer?.isSending('screenAudio'),
+        bufferedBytes: st ? st.buffered : null,
+        pending: this.turboPending.has(id),
+      };
+    });
+  }
+
+  /** Transporte da transmissão de alguém que EU assisto. */
+  watchTransport(socketId: string) {
+    const r = this.recvTransport.get(socketId);
+    const mode: TransportMode = this.turboRecv.has(socketId) ? 'turbo' : this.sfuViews.has(socketId) ? 'sfu' : getV().remotes[socketId]?.screen ? 'webrtc' : 'none';
+    return { mode, state: r?.state ?? 'enabled', reason: r?.reason ?? null };
+  }
 
   /** resolução máxima / FPS / bitrate da transmissão turbo (o modo leve baixa a resolução, nunca o FPS) */
   private turboTarget() {
@@ -1018,77 +1110,304 @@ class VoiceEngine {
     return { fps, bitrate, maxHeight };
   }
 
+  /** Cria o transmissor turbo desta transmissão (ou deixa sem, registrando por quê). */
+  private beginTurbo(videoTrack: MediaStreamTrack) {
+    const { settings } = getV();
+    this.cancelAllPending('restart');
+    this.turbo?.stop('restart');
+    this.turbo = null;
+    this.transport.clear();
+    const apis = turboCanSend();
+    const on = settings.turbo !== false;
+    this.tev('turbo-config', null, { settingOn: on, apisAvailable: apis, watchers: this.screenWatchers.size, lab: labOn('fps') });
+    if (!apis || !on) return;
+    const t = new TurboSender(videoTrack, this.turboTarget(), (m) => this.dbg(m), labOn('fps'));
+    t.onEvent = (ev, peer, detail) => this.tev(ev, peer, detail);
+    t.onUnexpectedClose = (id) => this.onTurboDropped(id, t);
+    t.onEncoderLost = (id, reason) => {
+      if (this.turbo !== t) return;
+      const peer = this.peers.get(id);
+      if (peer && this.screenWatchers.has(id)) void this.useWebrtc(peer, reason);
+    };
+    this.turbo = t;
+  }
+
+  /**
+   * Escolhe o transporte de UMA pessoa que quer assistir e já está em `screenWatchers`.
+   * É o único caminho que decide entre turbo e WebRTC (pedido novo, reinício, troca de tela).
+   */
+  private routeViewer(peer: Peer) {
+    const id = peer.id;
+    if (!this.screenStream || !this.screenWatchers.has(id)) return;
+    if (!this.canWatchMe(peer.userId)) {
+      this.tev('audience-denied', id);
+      this.onWatchRequest(id, false);
+      return;
+    }
+    const reason = this.turboBlockReason(peer, this.watchCaps.get(id));
+    if (reason) void this.useWebrtc(peer, reason);
+    else void this.useTurbo(peer, this.watchCaps.get(id)!.decoders);
+  }
+
+  /** Por que o turbo NÃO pode ser usado para esta pessoa agora (null = pode). */
+  private turboBlockReason(peer: Peer, caps: { decoders: string[]; turboOff?: string } | undefined): string | null {
+    const { settings } = getV();
+    if (!turboCanSend()) return 'sender-unsupported';
+    if (settings.turbo === false) return 'sender-disabled';
+    if (!this.turbo) return 'sender-unavailable';
+    if (caps?.turboOff === 'disabled') return 'viewer-disabled';
+    if (caps?.turboOff === 'unsupported') return 'viewer-unsupported';
+    if (caps?.turboOff === 'unstable') return 'viewer-unstable';
+    if (!caps?.decoders.length) return 'viewer-no-decoders';
+    // via TURN com a economia ligada fica a versão econômica do WebRTC
+    if (peer.relayed && settings.turnSaver) return 'turn-saver';
+    return null;
+  }
+
+  /** Para tudo que estava negociando para esta pessoa (e tira do turbo, se já estava), avisando o motivo. */
+  private cancelPending(id: string, reason: ByeReason = 'renegotiate') {
+    const p = this.turboPending.get(id);
+    if (!p) return;
+    clearTimeout(p.timer);
+    this.turboPending.delete(id);
+    if (p.turbo.has(id)) p.turbo.removeViewer(id, reason);
+    if (p.dc) {
+      p.dc.onopen = p.dc.onclose = p.dc.onerror = null;
+      try {
+        p.dc.close();
+      } catch {
+        /* já fechado */
+      }
+    }
+  }
+
+  private cancelAllPending(reason: ByeReason) {
+    for (const id of [...this.turboPending.keys()]) this.cancelPending(id, reason);
+  }
+
+  /** Vídeo pelo WebRTC convencional (turbo indisponível, recusado ou caído), sem deixar o turbo ligado para a pessoa. */
+  private async useWebrtc(peer: Peer, reason: string) {
+    const id = peer.id;
+    const gen = this.screenGen;
+    this.cancelPending(id, 'fallback');
+    this.turbo?.removeViewer(id, 'fallback');
+    this.setTransport(id, 'fallback', 'webrtc', reason);
+    if (gen !== this.screenGen || !this.screenStream || !this.screenWatchers.has(id) || this.peers.get(id) !== peer) return;
+    await this.addScreen(peer);
+  }
+
+  /** Abre o canal turbo para esta pessoa (o som continua pelo WebRTC); se não der, cai no WebRTC. */
+  private async useTurbo(peer: Peer, decoders: string[]) {
+    const turbo = this.turbo;
+    const id = peer.id;
+    if (!turbo) return void this.useWebrtc(peer, 'sender-unavailable');
+    const gen = this.screenGen;
+    const stale = () => this.turbo !== turbo || this.screenGen !== gen || !this.screenWatchers.has(id) || this.peers.get(id) !== peer;
+    // pedido repetido (a pessoa perdeu o canal e pediu de novo): recomeça limpo, nunca dois canais para a mesma pessoa
+    this.cancelPending(id, 'renegotiate');
+    turbo.removeViewer(id, 'renegotiate');
+    const dc = peer.openChannel(TURBO_LABEL);
+    if (!dc) return void this.useWebrtc(peer, 'channel-create-failed');
+    this.setTransport(id, 'negotiating', 'turbo');
+    this.tev('dc-created', id, { state: dc.readyState });
+    const fail = (reason: string) => {
+      if (this.turboPending.get(id)?.dc !== dc) return;
+      this.cancelPending(id, 'fallback');
+      if (!stale()) void this.useWebrtc(peer, reason);
+    };
+    const timer = setTimeout(() => {
+      this.tev('dc-timeout', id, { state: dc.readyState });
+      fail('channel-timeout');
+    }, 10_000);
+    this.turboPending.set(id, { dc, timer, turbo });
+    // os ouvintes entram ANTES de qualquer espera: o canal pode abrir enquanto o som é anexado
+    dc.onerror = () => {
+      this.tev('dc-error', id, { state: dc.readyState });
+      if (dc.readyState !== 'open') fail('channel-error');
+    };
+    dc.onclose = () => {
+      this.tev('dc-closed-early', id);
+      fail('channel-closed');
+    };
+    const onOpen = async () => {
+      if (this.turboPending.get(id)?.dc !== dc) return;
+      clearTimeout(timer);
+      this.tev('dc-open', id);
+      const r = await turbo.addViewer(id, dc, decoders, this.peerWant.get(id) ?? 'auto');
+      // cancelado ou substituído enquanto o codificador abria (cancelPending já tirou a pessoa do turbo)
+      if (this.turboPending.get(id)?.dc !== dc) return;
+      this.turboPending.delete(id);
+      if (!r.ok) {
+        this.tev('add-viewer-failed', id, { reason: r.reason });
+        try {
+          dc.close();
+        } catch {
+          /* já fechado */
+        }
+        if (!stale()) void this.useWebrtc(peer, r.reason);
+        return;
+      }
+      if (stale()) return turbo.removeViewer(id, 'removed');
+      this.setTransport(id, 'active', 'turbo', undefined, r.codec);
+      this.applyEncodings(peer);
+    };
+    dc.onopen = () => void onOpen();
+    const audio = this.screenStream?.getAudioTracks()[0] ?? null;
+    if (audio) await peer.setTrack('screenAudio', audio, this.msid.screen);
+    // sem vídeo pelo WebRTC para esta pessoa (o vídeo vai só pelo canal turbo)
+    await peer.setTrack('screenVideo', null, this.msid.screen);
+    if (dc.readyState === 'open' && this.turboPending.get(id)?.dc === dc) void onOpen();
+  }
+
+  /** O canal de alguém caiu sem querermos: quem assiste pede a transmissão de volta; se não pedir em 20 s, vai pelo WebRTC. */
+  private onTurboDropped(id: string, turbo: TurboSender) {
+    if (this.turbo !== turbo) return;
+    const peer = this.peers.get(id);
+    if (!peer || !this.screenWatchers.has(id)) return;
+    this.setTransport(id, 'recovering', 'turbo', 'channel-closed');
+    this.cancelPending(id, 'removed');
+    const timer = setTimeout(() => {
+      if (this.turboPending.get(id)?.timer !== timer) return;
+      this.turboPending.delete(id);
+      if (this.turbo === turbo && this.screenWatchers.has(id) && this.peers.get(id) === peer && !turbo.has(id)) void this.useWebrtc(peer, 'recovery-timeout');
+    }, 20_000);
+    this.turboPending.set(id, { dc: null, timer, turbo });
+  }
+
   private startTurboStats() {
     if (this.turboStatsTimer) clearInterval(this.turboStatsTimer);
     this.turboStats = null;
+    this.turboHistory = [];
     this.turboStatsTimer = setInterval(() => {
       this.turboStats = this.turbo?.active ? this.turbo.stats() : null;
+      if (this.turboStats) {
+        this.turboHistory.push(this.turboStats);
+        if (this.turboHistory.length > 60) this.turboHistory.shift();
+      }
     }, 1000);
   }
 
-  private stopTurbo() {
-    this.turbo?.stop();
+  private stopTurbo(reason: ByeReason = 'stopped') {
+    this.cancelAllPending(reason);
+    this.turbo?.stop(reason);
     this.turbo = null;
     this.turboStats = null;
+    this.turboHistory = [];
     if (this.turboStatsTimer) clearInterval(this.turboStatsTimer);
     this.turboStatsTimer = null;
+  }
+
+  /** Fecha o que EU recebo em modo turbo de alguém (recursos: decodificador, gerador de vídeo, canal). */
+  private closeTurboView(socketId: string) {
+    const recv = this.turboRecv.get(socketId);
+    if (!recv) return;
+    this.turboRecv.delete(socketId);
+    recv.close();
+    this.patchRemote(socketId, (r) => ({ screenTurbo: undefined, v: r.v + 1 }));
+    setV((s) => {
+      const streamInfo = { ...s.streamInfo };
+      delete streamInfo[socketId];
+      return { streamInfo };
+    });
   }
 
   /** Quem assiste: chegou o canal da transmissão turbo de alguém. */
   private onScreenChannel(socketId: string, dc: RTCDataChannel) {
     if (dc.label !== TURBO_LABEL) return dc.close();
-    this.turboRecv.get(socketId)?.close();
+    this.closeTurboView(socketId);
     const recv = new TurboReceiver(dc, (m) => this.dbg(m));
     recv.onInfo = (info) => setV((s) => ({ streamInfo: { ...s.streamInfo, [socketId]: info } }));
     recv.onHint = (height) => setV((s) => ({ streamHint: { ...s.streamHint, [socketId]: height } }));
     this.turboRecv.set(socketId, recv);
     this.patchRemote(socketId, (r) => ({ screenTurbo: recv.stream, v: r.v + 1 }));
+    this.tev('recv-dc-open', socketId, { state: dc.readyState });
+    this.setRecvState(socketId, 'active');
+    dc.addEventListener('error', () => this.tev('recv-dc-error', socketId, { state: dc.readyState }));
     dc.addEventListener('close', () => {
       if (this.turboRecv.get(socketId) !== recv) return;
-      recv.close();
-      this.turboRecv.delete(socketId);
-      this.patchRemote(socketId, (r) => ({ screenTurbo: undefined, v: r.v + 1 }));
-      setV((s) => {
-        const streamInfo = { ...s.streamInfo };
-        delete streamInfo[socketId];
-        return { streamInfo };
-      });
+      // fechamento de propósito (quem transmite avisou com "bye", eu mesmo sai, parei de assistir ou a transmissão acabou)
+      // NÃO é queda: não conta no limite de quedas e não pede a transmissão de volta (quem transmite refaz sozinho)
+      const reason = recv.byeReason ?? (recv.closedLocally ? 'local' : !getV().watching[socketId] ? 'not-watching' : !useApp.getState().voiceStates[socketId]?.screen ? 'stream-ended' : null);
+      this.closeTurboView(socketId);
+      if (reason) {
+        this.tev('recv-dc-closed-intentional', socketId, { reason });
+        this.setRecvState(socketId, 'enabled');
+        return;
+      }
+      this.tev('recv-dc-closed-unexpected', socketId);
       this.recoverWatch(socketId);
     });
   }
 
-  /** quantas vezes o canal turbo de cada transmissão caiu (para desistir do turbo se cair toda hora) */
+  /** quantas vezes o canal turbo de cada transmissão caiu SEM querermos (para desistir do turbo se cair toda hora) */
   private turboDrops = new Map<string, { n: number; since: number }>();
 
   /**
-   * O canal da transmissão turbo fechou sem eu pedir (oscilação na internet de um dos dois, erro no
-   * codificador de quem transmite): antes a imagem simplesmente sumia e só voltava clicando em
-   * "Assistir" de novo. Agora, se a pessoa ainda está transmitindo e eu ainda estou assistindo, peço
+   * O canal da transmissão turbo fechou sem ninguém pedir (oscilação na internet de um dos dois, erro no
+   * codificador de quem transmite): se a pessoa ainda está transmitindo e eu ainda estou assistindo, peço
    * a transmissão de novo sozinho. Caiu 3 vezes em 2 minutos: volta pela transmissão normal (mais
-   * resistente a internet instável).
+   * resistente a internet instável). Encerramentos de propósito não passam por aqui.
    */
   private recoverWatch(socketId: string) {
     const now = Date.now();
     const prev = this.turboDrops.get(socketId);
     const d = prev && now - prev.since < 120_000 ? { n: prev.n + 1, since: prev.since } : { n: 1, since: now };
     this.turboDrops.set(socketId, d);
-    setTimeout(() => {
-      const streaming = useApp.getState().voiceStates[socketId]?.screen;
-      if (!getV().watching[socketId] || !this.peers.has(socketId) || !streaming || this.turboRecv.has(socketId) || this.sfuViews.has(socketId) || this.sfuPending.has(socketId)) return;
-      const turbo = d.n < 3;
-      this.dbg(`turbo: a transmissão de ${socketId.slice(0, 6)} caiu (${d.n}x): pedindo de novo${turbo ? '' : ' pela transmissão normal'}`);
-      this.sendWatch(socketId, true, turbo);
-    }, 1000);
+    this.setRecvState(socketId, 'recovering', 'channel-closed-unexpected');
+    clearTimeout(this.recoverTimers.get(socketId));
+    this.recoverTimers.set(
+      socketId,
+      setTimeout(() => {
+        this.recoverTimers.delete(socketId);
+        const streaming = useApp.getState().voiceStates[socketId]?.screen;
+        if (!getV().watching[socketId] || !this.peers.has(socketId) || !streaming || this.turboRecv.has(socketId) || this.sfuViews.has(socketId) || this.sfuPending.has(socketId)) {
+          this.setRecvState(socketId, 'enabled');
+          return;
+        }
+        const turbo = d.n < 3;
+        this.dbg(`turbo: a transmissão de ${socketId.slice(0, 6)} caiu (${d.n}x): pedindo de novo${turbo ? '' : ' pela transmissão normal'}`);
+        if (!turbo) this.setRecvState(socketId, 'fallback', 'repeated-drops');
+        this.sendWatch(socketId, true, turbo);
+      }, 1000),
+    );
   }
 
-  /** Estatísticas do que estou recebendo em modo turbo (null = não é turbo). */
+  /** Limpa tudo que é do lado de quem assiste uma transmissão (parou de assistir, a pessoa saiu). */
+  private forgetWatch(socketId: string) {
+    clearTimeout(this.recoverTimers.get(socketId));
+    this.recoverTimers.delete(socketId);
+    this.turboDrops.delete(socketId);
+    this.recvTransport.delete(socketId);
+    this.closeTurboView(socketId);
+  }
+
+  /** Estatísticas do que estou recebendo em modo turbo (null = não é turbo ou ainda sem o primeiro segundo medido). */
   turboRecvStats(socketId: string) {
     return this.turboRecv.get(socketId)?.stats() ?? null;
+  }
+
+  /** Amostras de 1 s do que recebo em modo turbo nos últimos `ms` ms. */
+  turboRecvHistory(socketId: string, ms: number) {
+    return this.turboRecv.get(socketId)?.recent(ms) ?? [];
   }
 
   /** Estatísticas da minha transmissão turbo (null = ninguém em modo turbo). */
   get turboSendStats() {
     return this.turbo?.active ? this.turboStats : null;
+  }
+
+  /** Amostras de 1 s da minha transmissão turbo nos últimos `ms` ms. */
+  turboSendHistory(ms: number) {
+    const from = Date.now() - ms;
+    return this.turboHistory.filter((s) => s.at >= from);
+  }
+
+  /** Origem e tamanho da captura (monitor, janela ou aba); null onde o navegador não informa. */
+  get captureSource() {
+    const st = this.screenStream?.getVideoTracks()[0]?.getSettings() as { displaySurface?: string; width?: number; height?: number; frameRate?: number } | undefined;
+    if (!st) return null;
+    const kind = st.displaySurface === 'monitor' || st.displaySurface === 'window' || st.displaySurface === 'browser' ? st.displaySurface : null;
+    return { kind, width: st.width ?? null, height: st.height ?? null, frameRate: st.frameRate ?? null };
   }
 
   // ---------------- modo desempenho ----------------
@@ -1126,7 +1445,7 @@ class VoiceEngine {
         if (!st || !st.fps) return;
         struggling = st.limitedBy === 'cpu';
         software = st.hardware === false;
-        height = st.height;
+        height = st.height ?? 0;
       }
       const tooBigForSoftware = software && height > (this.lightLevel ? 540 : 720);
       strikes = struggling || tooBigForSoftware ? strikes + 1 : 0;
@@ -1162,7 +1481,10 @@ class VoiceEngine {
   stopScreen() {
     if (!this.screenStream) return;
     desktop?.setStreaming?.(false);
-    this.stopTurbo();
+    this.screenGen++;
+    this.tev('stream-stopped', null, { watchers: this.screenWatchers.size });
+    this.stopTurbo('stopped');
+    this.transport.clear();
     this.stopSfu();
     this.stopPerfGuard();
     this.lightLevel = 0;
@@ -1204,6 +1526,8 @@ class VoiceEngine {
 
   private async addScreen(peer: Peer) {
     if (!this.screenStream) return;
+    // nunca vídeo pelos DOIS caminhos: se o turbo é o dono desta pessoa (ou está negociando), o WebRTC não leva vídeo
+    if (this.turbo?.has(peer.id) || this.turboPending.has(peer.id)) return;
     const { settings } = getV();
     const video = this.screenStream.getVideoTracks()[0];
     const audio = this.screenStream.getAudioTracks()[0] ?? null;
@@ -1268,7 +1592,19 @@ class VoiceEngine {
   async screenSendStats(): Promise<SendStats | null> {
     const t = this.turboSendStats;
     if (t) {
-      const shown = t.viewers.map((v) => v.shownFps).filter((f) => f > 0);
+      // o pior espectador é o gargalo; zero medido ganha de "não informou" (que fica de fora, mas NÃO vira zero)
+      const shown = minMeasured(t.viewers.map((v) => v.shownFps));
+      const sentFps = minMeasured(t.viewers.map((v) => v.fps));
+      const netDrops = t.viewers.reduce((a, v) => a + v.netDrops, 0);
+      const limit = classifyLimit({
+        targetFps: t.configuredFps,
+        captureFps: t.captureFps,
+        encodeFps: t.encodeFps,
+        sentFps,
+        viewerShownFps: shown,
+        encoderDrops: t.dropped.encoderBusy,
+        netDrops,
+      });
       return {
         captureFps: t.captureFps,
         fps: t.encodeFps,
@@ -1276,26 +1612,28 @@ class VoiceEngine {
         height: t.height,
         codec: t.codec,
         hardware: t.hardware,
-        limitedBy: t.encoderDrops >= 3 ? 'cpu' : t.viewers.some((v) => v.skipped > 0) ? 'bandwidth' : 'none',
+        limitedBy: limit.where === 'encoder' ? 'cpu' : limit.where === 'transport' ? 'bandwidth' : 'none',
+        limit,
         bytes: 0,
         ts: Date.now(),
         turbo: true,
-        encodeMs: t.encodeMs,
+        encodeMs: t.encoderLatencyMs,
         mbps: t.viewers.reduce((a, v) => Math.max(a, v.mbps), 0),
-        viewerFps: shown.length ? Math.min(...shown) : undefined,
+        viewerFps: shown,
+        raw: t,
       };
     }
     let worst: SendStats | null = null;
     for (const id of this.screenWatchers) {
       const report = await this.peers.get(id)?.screenSendStats();
       if (!report) continue;
-      const s: SendStats = { captureFps: 0, fps: 0, width: 0, height: 0, codec: '', hardware: null, limitedBy: 'none', bytes: 0, ts: 0 };
+      const s: SendStats = { captureFps: null, fps: null, width: null, height: null, codec: '', hardware: null, limitedBy: 'none', limit: { where: 'unknown', evidence: '' }, bytes: 0, ts: 0 };
       report.forEach((r: any) => {
-        if (r.type === 'media-source' && r.kind === 'video') s.captureFps = r.framesPerSecond ?? 0;
+        if (r.type === 'media-source' && r.kind === 'video' && isNum(r.framesPerSecond)) s.captureFps = r.framesPerSecond;
         if (r.type === 'outbound-rtp' && r.kind === 'video') {
-          s.fps = Math.max(s.fps, r.framesPerSecond ?? 0);
-          s.width = Math.max(s.width, r.frameWidth ?? 0);
-          s.height = Math.max(s.height, r.frameHeight ?? 0);
+          if (isNum(r.framesPerSecond)) s.fps = Math.max(s.fps ?? 0, r.framesPerSecond);
+          if (isNum(r.frameWidth)) s.width = Math.max(s.width ?? 0, r.frameWidth);
+          if (isNum(r.frameHeight)) s.height = Math.max(s.height ?? 0, r.frameHeight);
           s.codec = r.codecId ? (report.get(r.codecId)?.mimeType ?? '').replace('video/', '') : s.codec;
           if (typeof r.powerEfficientEncoder === 'boolean') s.hardware = r.powerEfficientEncoder;
           if (r.qualityLimitationReason) s.limitedBy = r.qualityLimitationReason;
@@ -1303,7 +1641,14 @@ class VoiceEngine {
           s.ts = r.timestamp;
         }
       });
-      if (!worst || s.fps < worst.fps) worst = s;
+      // o navegador informou o motivo da limitação (WebRTC): vale como evidência; senão, as contas de sempre
+      s.limit =
+        s.limitedBy === 'cpu'
+          ? { where: 'encoder', evidence: 'o navegador informou limitação por processador (WebRTC)' }
+          : s.limitedBy === 'bandwidth'
+            ? { where: 'transport', evidence: 'o navegador informou limitação por banda (WebRTC)' }
+            : classifyLimit({ targetFps: this.turboTarget().fps, captureFps: s.captureFps, encodeFps: s.fps, sentFps: s.fps, viewerShownFps: null, encoderDrops: null, netDrops: null });
+      if (!worst || (s.fps ?? Infinity) < (worst.fps ?? Infinity)) worst = s;
     }
     return worst;
   }
@@ -1375,7 +1720,7 @@ class VoiceEngine {
     }
   }
 
-  private onWatchRequest(socketId: string, on: boolean, decoders?: string[], quality?: StreamQuality, sfu?: boolean) {
+  private onWatchRequest(socketId: string, on: boolean, decoders?: string[], quality?: StreamQuality, sfu?: boolean, turboOff?: 'disabled' | 'unsupported' | 'unstable') {
     const peer = this.peers.get(socketId);
     if (!peer) return;
     if (quality) this.peerWant.set(socketId, quality);
@@ -1383,6 +1728,9 @@ class VoiceEngine {
       this.dbg(`pedido para assistir de ${socketId.slice(0, 6)} recusado (fora de quem pode assistir)`);
       return;
     }
+    // o que a pessoa aceita vale para ESTE pedido: reavaliado a cada pedido e a cada transmissão nova
+    if (on) this.watchCaps.set(socketId, { decoders: decoders ?? [], ...(turboOff ? { turboOff } : {}) });
+    else this.watchCaps.delete(socketId);
     if (sfu) this.sfuCapable.add(socketId);
     else this.sfuCapable.delete(socketId);
     // laboratório 'sfu': quem assiste puxa do servidor de mídia (nada sai direto do meu PC para essa pessoa)
@@ -1394,44 +1742,17 @@ class VoiceEngine {
     if (!on) this.sfuWatchers.delete(socketId);
     if (on) {
       this.screenWatchers.add(socketId);
-      const { settings } = getV();
-      // turbo: quem assiste decodifica e a conexão é direta (via TURN fica a versão econômica do WebRTC)
-      if (this.turbo && decoders?.length && !(peer.relayed && settings.turnSaver)) void this.addTurboViewer(peer, decoders);
-      else void this.addScreen(peer);
+      this.tev('watch-request', socketId, { decoders: decoders?.length ?? 0, turboOff: turboOff ?? null, relayed: peer.relayed, streaming: !!this.screenStream });
+      this.routeViewer(peer);
     } else {
       this.screenWatchers.delete(socketId);
-      this.turbo?.removeViewer(socketId);
+      this.cancelPending(socketId, 'viewer-left');
+      this.turbo?.removeViewer(socketId, 'viewer-left');
+      this.transport.delete(socketId);
+      this.tev('watch-stop', socketId);
       void peer.setTrack('screenVideo', null, this.msid.screen);
       void peer.setTrack('screenAudio', null, this.msid.screen);
     }
-  }
-
-  /** Manda a tela pelo canal turbo (o som vai como sempre); se não der, cai na transmissão normal. */
-  private async addTurboViewer(peer: Peer, decoders: string[]) {
-    const turbo = this.turbo;
-    if (!turbo || turbo.has(peer.id)) return;
-    const dc = peer.openChannel(TURBO_LABEL);
-    if (!dc) return;
-    const audio = this.screenStream?.getAudioTracks()[0] ?? null;
-    if (audio) await peer.setTrack('screenAudio', audio, this.msid.screen);
-    // sem vídeo pelo WebRTC para esta pessoa
-    await peer.setTrack('screenVideo', null, this.msid.screen);
-    const fallback = () => {
-      if (!this.screenWatchers.has(peer.id) || this.turbo !== turbo) return;
-      this.dbg(`turbo indisponível para ${peer.id.slice(0, 6)}: transmissão normal`);
-      try {
-        dc.close();
-      } catch {
-        /* já fechado */
-      }
-      void this.addScreen(peer);
-    };
-    const timer = setTimeout(fallback, 10_000);
-    dc.onopen = async () => {
-      clearTimeout(timer);
-      if (!(await turbo.addViewer(peer.id, dc, decoders, this.peerWant.get(peer.id) ?? 'auto'))) fallback();
-      else this.applyEncodings(peer);
-    };
   }
 
   // ---------------- assistir transmissões ----------------
@@ -1445,6 +1766,7 @@ class VoiceEngine {
       if (!on) this.sfuFailed.delete(socketId);
       return { watching, focus: on ? `${socketId}:screen` : s.focus === `${socketId}:screen` ? null : s.focus };
     });
+    if (!on) this.forgetWatch(socketId);
     this.sendWatch(socketId, on);
   }
 
@@ -1471,16 +1793,27 @@ class VoiceEngine {
   private sendWatch(socketId: string, on: boolean, turbo = true, sfu = true) {
     const quality = getV().streamQuality[socketId];
     if (!on) this.closeSfuView(socketId);
-    const send = (decoders?: string[], viaSfu = false) =>
+    const settingOff = getV().settings.turbo === false;
+    const apis = turboCanReceive();
+    // por que NÃO peço o turbo (o transmissor registra o motivo exato do fallback)
+    const turboOff: 'disabled' | 'unsupported' | 'unstable' | undefined = !on ? undefined : !turbo ? 'unstable' : settingOff ? 'disabled' : !apis ? 'unsupported' : undefined;
+    const send = (decoders?: string[], viaSfu = false) => {
+      this.tev('watch-sent', socketId, { on, decoders: decoders?.length ?? 0, turboOff: turboOff ?? null, sfu: viaSfu, settingOn: !settingOff, apisAvailable: apis });
       getSocket()?.emit('rtc:signal', {
         to: socketId,
-        data: { type: 'watch', on, ...(decoders?.length ? { decoders } : {}), ...(on && quality ? { quality } : {}), ...(viaSfu ? { sfu: true } : {}) } satisfies RtcSignal,
+        data: { type: 'watch', on, ...(decoders?.length ? { decoders } : {}), ...(on && quality ? { quality } : {}), ...(viaSfu ? { sfu: true } : {}), ...(turboOff ? { turboOff } : {}) } satisfies RtcSignal,
       });
+    };
     // aceito o servidor de mídia (se estiver ligado) e a transmissão turbo (se este aparelho decodifica)
     const withSfu = (decoders?: string[]) =>
       on && sfu && !this.sfuFailed.has(socketId) ? void sfuAvailable().then((ok) => send(decoders, ok), () => send(decoders)) : send(decoders);
-    if (on && turbo && turboCanReceive() && getV().settings.turbo !== false) void decodableCodecs().then(withSfu, () => withSfu());
-    else withSfu();
+    if (on && !turboOff) {
+      if (!this.turboRecv.has(socketId)) this.setRecvState(socketId, 'negotiating');
+      void decodableCodecs().then(withSfu, () => withSfu());
+    } else {
+      if (on && turboOff !== 'unstable') this.setRecvState(socketId, 'fallback', turboOff === 'disabled' ? 'viewer-disabled' : 'viewer-unsupported');
+      withSfu();
+    }
   }
 
   // ---------------- servidor de mídia (laboratório 'sfu', etapa 3) ----------------
@@ -1527,7 +1860,9 @@ class VoiceEngine {
   private sendSfuTo(peer: Peer) {
     if (!this.sfuPub) return;
     this.sfuWatchers.add(peer.id);
-    this.turbo?.removeViewer(peer.id);
+    this.cancelPending(peer.id, 'fallback');
+    this.turbo?.removeViewer(peer.id, 'fallback');
+    this.setTransport(peer.id, 'active', 'sfu');
     void peer.setTrack('screenVideo', null, this.msid.screen);
     void peer.setTrack('screenAudio', null, this.msid.screen);
     getSocket()?.emit('rtc:signal', { to: peer.id, data: { type: 'sfu', info: this.sfuPub.info } satisfies RtcSignal });

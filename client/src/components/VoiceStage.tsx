@@ -41,6 +41,7 @@ import { CallReportButton } from './CallReport';
 import { TogetherButton, TogetherHiddenChip, TogetherTile } from './Together';
 import { Perm, has, myPermissions } from '../lib/perms';
 import type { SendStats } from '../voice/engine';
+import { isNum } from '../voice/limits';
 import { Avatar } from './Avatar';
 import { MobileHeader } from './MobileHeader';
 import { loadMessages } from './ChatView';
@@ -765,43 +766,47 @@ function SendStatsView() {
       `O ${wanted} não está disponível (no seu navegador ou no de quem assiste), então está indo em ${st.codec}. Use Chrome ou Edge atualizados dos dois lados — Opera/Opera GX e Brave podem vir sem H.264.`,
     );
   }
-  if (st.limitedBy === 'cpu') {
+  if (st.limit.where === 'encoder') {
+    // só afirma "processador" quando o navegador confirmou (foi preciso pedir software); a latência sozinha não prova isso
     tips.push(
       st.hardware === false
-        ? 'Processador sobrecarregado: a codificação está no processador. Use H.264 no Chrome/Edge para usar a placa de vídeo, ou baixe para 720p.'
-        : 'Processador sobrecarregado: baixe para 720p · 60 FPS ou feche programas pesados.',
+        ? 'O codificador não está acompanhando a captura e está rodando no processador (nenhuma placa de vídeo aceitou a configuração). Use H.264 no Chrome/Edge ou baixe para 720p.'
+        : 'O codificador não está acompanhando a captura. Baixe para 720p · 60 FPS ou feche programas pesados.',
     );
   }
-  if (st.limitedBy === 'bandwidth')
+  if (st.limit.where === 'transport')
     tips.push(
       st.turbo
-        ? 'A internet de alguém que assiste não está acompanhando: só essa pessoa perde quadros (os outros continuam lisos). Se for o seu upload, diminua o bitrate.'
+        ? 'A fila de envio de alguém que assiste encheu: só essa pessoa perde quadros (os outros continuam lisos). Pode ser a internet dela ou o seu upload; se for o seu, diminua o bitrate.'
         : 'Sua internet (upload) está limitando a qualidade. Diminua o bitrate ou a resolução.',
     );
+  if (st.limit.where === 'receiver')
+    tips.push('Quem assiste está mostrando menos quadros do que você envia: o problema está na recepção, na decodificação ou na exibição do aparelho dela (não é necessariamente a internet).');
   // O navegador só captura quando a imagem muda: tela parada = FPS baixo, e isso é normal.
-  if (st.captureFps > 0 && st.captureFps < targetFps * 0.75 && st.limitedBy === 'none') {
+  if (isNum(st.captureFps) && st.captureFps < targetFps * 0.75 && st.limit.where === 'capture') {
     tips.push(
       `A captura está abaixo de ${targetFps} FPS. Se for durante o jogo (e não uma tela parada), deixe o jogo em "janela sem bordas" (tela cheia em janela) em vez de tela cheia exclusiva, e use o app de Windows (ele dá prioridade de placa de vídeo para a captura).`,
     );
   }
 
   const enc =
-    st.encodeMs !== undefined
-      ? ` · ${st.encodeMs} ms por quadro${st.hardware === false ? ' (processador)' : ''}`
+    isNum(st.encodeMs)
+      ? ` · latência do codificador ${st.encodeMs} ms${st.hardware === false ? ' (processador)' : ''}`
       : st.hardware === null
         ? ''
         : st.hardware
           ? ' (placa de vídeo)'
           : ' (processador)';
-  const limited = { none: '', cpu: ' · limitado: processador', bandwidth: ' · limitado: internet', other: '' }[st.limitedBy];
+  const limited = { none: '', unknown: '', capture: ' · limite: captura', encoder: ' · limite: codificador', transport: ' · limite: envio', receiver: ' · limite: recepção de quem assiste' }[st.limit.where];
+  const fpsText = (n: number | null) => (isNum(n) ? Math.round(n) : '—');
   return (
     <div className="send-stats">
       <div>
         {st.turbo && <span className="turbo-chip" title="Codificada uma vez só para todo mundo (mais leve e estável)">⚡ Turbo</span>}
-        Captura {Math.round(st.captureFps)} FPS · Envio {st.width}×{st.height} {Math.round(st.fps)} FPS
+        Captura {fpsText(st.captureFps)} FPS · Envio {st.width ?? '—'}×{st.height ?? '—'} {fpsText(st.fps)} FPS
         {mbps !== null ? ` · ${mbps.toFixed(1)} Mbps` : ''} · {st.codec}
         {enc}
-        {st.viewerFps !== undefined ? ` · na tela de quem assiste: ${st.viewerFps} FPS` : ''}
+        {isNum(st.viewerFps) ? ` · na tela de quem assiste: ${st.viewerFps} FPS` : ''}
         {limited}
       </div>
       {tips.map((t) => (
