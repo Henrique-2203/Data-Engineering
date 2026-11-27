@@ -82,6 +82,15 @@ export async function startHarness({ port, names = ['ana', 'bia', 'caio', 'duda'
           const timer = setInterval(draw, 1000 / 60);
           draw();
           const stream = c.captureStream(60);
+          if (window.__withAudio) {
+            // som de verdade na transmissão (para conferir que o áudio não é duplicado)
+            const ac = new AudioContext();
+            const osc = ac.createOscillator();
+            const dest = ac.createMediaStreamDestination();
+            osc.connect(dest);
+            osc.start();
+            dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
+          }
           const track = stream.getVideoTracks()[0];
           const realGet = track.getSettings.bind(track);
           track.getSettings = () => ({ ...realGet(), displaySurface: surface });
