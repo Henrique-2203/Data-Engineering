@@ -35,3 +35,11 @@ Veja `docs/ROADMAP.md`. Em resumo: ações do dono (MFA, chaves, GitHub, DNS de 
 
 ## Pendências que dependem do dono
 Ver `docs/HANDOFF.md` ("Aguardando o dono") e `SECURITY_AUDIT.md` seção 6.
+
+## Fase 1 — estabilização do core de transmissão (branch de trabalho isolada, aguardando auditoria)
+- ✅ **Turbo roteado uma vez por espectador** (`routeViewer`): quem já assistia volta ao Turbo ao reiniciar ou trocar de tela (antes ficava no WebRTC); sem vídeo duplicado; capacidades dos espectadores reavaliadas a cada pedido e a cada transmissão. Teste: `e2e/turbo-lifecycle.mjs` (reproduziu o defeito antes da correção).
+- ✅ **Encerramento intencional ≠ queda**: o canal avisa `bye` com motivo; só quedas reais contam para o limite de 3 quedas.
+- ✅ **Diagnóstico do transporte**: estados (habilitado, negociando, ativo, recuperando, fallback), motivo de cada fallback e eventos estruturados no "Relatar problema" (sem IP/token/conteúdo).
+- ✅ **Métricas**: zero medido ≠ não medido (`null`); janela inteira no relatório; recebido/decodificado/apresentado, intervalos, travadas, descartes por motivo, fila do codificador, `bufferedAmount`; limite atribuído só com evidência (captura, codificador, envio, recepção ou "sem medida").
+- ✅ **Modo desempenho**: não reduz por captura lenta nem por latência do codificador isolada; exige 3 janelas seguidas; registra o motivo; só diz "processador" quando software foi confirmado.
+- ⚠️ **Não validado em hardware real**: causa do limite de captura (≈41/37 FPS) e 60 FPS estáveis em jogo. Roteiro em `docs/VALIDACAO-TURBO.md`.

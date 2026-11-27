@@ -49,3 +49,9 @@ Cada item: **decisão** · por quê · alternativas descartadas. Antes de mudar 
 ## Processo
 - **Um commit por assunto; testes de abuso que falham sem a correção; auditoria em `SECURITY_AUDIT.md`.** Teste novo de segurança entra no CI.
 - **Docs de continuidade** (`CLAUDE.md`, `docs/HANDOFF.md`...) devem ser atualizados a cada mudança de estado, sem nomes reais, e-mails ou segredos (repositório público).
+
+## Turbo (fase 1)
+- **Um único caminho decide o transporte de cada espectador** (`routeViewer`): turbo ou WebRTC, nunca os dois para o vídeo. Respostas assíncronas de uma transmissão antiga são descartadas (`screenGen`).
+- **Fechar o canal turbo de propósito sempre avisa `bye`** (transmissor→espectador e espectador→transmissor): não é queda e não dispara recuperação.
+- **`null` = não medido, `0` = medido zero.** Contas em `client/src/voice/limits.ts` (testadas em Node). A causa do limite só é afirmada com medida que a sustente.
+- **Modo desempenho** reduz resolução só com evidência sustentada do codificador; captura lenta e latência isolada não bastam. Não aumentamos bitrate para tratar FPS baixo.

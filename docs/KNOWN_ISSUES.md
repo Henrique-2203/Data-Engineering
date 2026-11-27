@@ -43,3 +43,9 @@ Formato: **sintoma → o que se sabe → o que foi tentado → o que falta**. At
 
 ## Pendências abertas
 Ver `docs/ROADMAP.md` (P0 e P1) e `docs/HANDOFF.md` ("Aguardando o dono").
+
+## Turbo / captura (fase 1)
+- **FPS baixo na captura (≈41 FPS no menu do CS2, ≈37 em tela inteira)**: causa **não identificada**. A fase 1 só melhorou a medição (origem da captura, janela de amostras, onde o FPS ficou para trás). Hipóteses abertas: modo de exibição do jogo, captura de janela x monitor, prioridade de GPU, tela parada gerando poucos quadros. Validar com `docs/VALIDACAO-TURBO.md`.
+- `encoderLatencyMs` (antes "tempo por quadro") mede entrada→saída do codificador, **não** o tempo de processamento; não indica software por si só.
+- Testes do Turbo usam tela sintética (canvas): provam encanamento, não FPS de jogo.
+- Relatórios de diagnóstico antigos trazem 0 no lugar de "não medido"; `explain()` trata os dois formatos.

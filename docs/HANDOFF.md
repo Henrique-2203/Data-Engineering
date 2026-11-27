@@ -14,6 +14,12 @@ Atualizado no fim da sessão de 27/11/2026. Regras permanentes: `CLAUDE.md`. Est
 - Última rodada de testes (segurança, bots, voz, câmera, moderação, avisos): **verde**. Regressão ampla foi rodada na auditoria de segurança; depois disso rodamos só as suítes dos assuntos tocados.
 - Sequência recente de entregas (da mais antiga à mais nova): auditoria de segurança completa → chaves de emergência → bloqueio de pessoas → DJ só áudio com "Ouvir" → correções do relatório externo de bots (erros 424, DNS ao salvar, texto invisível, id por bot) → prazo total no cliente HTTP de bots → filtro de nomes com homóglifos → confirmações/avisos próprios (sem `confirm()` nativo) → câmera do celular (virar várias vezes) e volume até 200% → sites liberados na moderação automática → câmera direta no celular → tela "sem conexão" no Android.
 
+## Fase 1 do core de transmissão (em auditoria)
+- Trabalho em branch isolada (`claude/dreamy-albattani-5wws7x`), **fora da branch de deploy**. Nada foi publicado; o dono autoriza o merge depois da auditoria independente.
+- Entregue: roteamento único do Turbo (corrige reinício/troca de tela), `bye` para encerramento intencional, estados e eventos do transporte, métricas precisas, modo desempenho com evidência. Detalhes em `docs/PROJECT_STATUS.md`, `docs/DECISIONS.md` e `docs/KNOWN_ISSUES.md`.
+- Falta: **validar em dois PCs Windows** (`docs/VALIDACAO-TURBO.md`). A causa do limite de captura (≈41/37 FPS) segue **aberta**; não declarar os 60 FPS resolvidos sem evidência de hardware real.
+- Testes novos: `e2e/turbo-lifecycle.mjs`, `e2e/limits-unit.ts`; ampliados `e2e/turbo.mjs`, `e2e/health.mjs`, `e2e/diagnostics.mjs`.
+
 ## Aguardando o dono (não dá para o Claude fazer)
 - **Segurança de contas/infra:** MFA em GitHub/Render/Neon/Cloudflare/registrador/e-mail/Brevo; definir `SECRETS_KEY` e `ADMIN_REQUIRE_2FA=1`; secret scanning + push protection + proteção da `main`; senha nova no Neon; SPF/DKIM/DMARC; rodar Observatory/SSL Labs. (Passo a passo já foi entregue; ver `docs/ROADMAP.md` P0.)
 - **Decisões:** liberar bots "Para todos"; reescrever histórico do git (nome de usuário antigo); convites com validade; "quem pode me chamar"; idade mínima/verificação (advogado); site de teste separado (custo).
