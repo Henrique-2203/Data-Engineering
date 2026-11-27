@@ -32,3 +32,21 @@ eq(classifyLimit({ ...base, viewerShownFps: null }).where, 'none', 'sem informa�
 eq(classifyLimit({ ...base, viewerShownFps: null, sentFps: 40, encodeFps: 60 }).where, 'unknown', 'envio abaixo do alvo e sem informação do espectador: causa desconhecida, NÃO "internet"');
 eq(classifyLimit({ ...base, viewerShownFps: null, sentFps: null }).where, 'unknown', 'sem medida do envio');
 console.log(`OK: ${n} verificações das contas de métricas`);
+
+// ---- modo desempenho: só reduz com evidência do codificador, nunca por captura lenta nem latência isolada ----
+import { decidePerf, type PerfSample } from '../client/src/voice/limits';
+const sample = (o: Partial<PerfSample>): PerfSample => ({ captureFps: 60, encodeFps: 60, encoderBusy: 0, encoderLatencyMs: 4, hardware: null, height: 1080, ...o });
+const win = (o: Partial<PerfSample>, k = 3) => Array.from({ length: k }, () => sample(o));
+// o que aconteceu na abertura do CS2: 1 FPS de captura, 1 de codificação, 186 ms de latência, 1080p
+eq(decidePerf(win({ captureFps: 1, encodeFps: 1, encoderLatencyMs: 186 }), 60, 0).reason, null, 'captura em 1 FPS com latência de 186 ms NÃO reduz resolução');
+eq(decidePerf(win({ captureFps: 1, encodeFps: 1, encoderLatencyMs: 186 }), 60, 0).captureLimited, true, 'e é registrado como limitado pela captura');
+eq(decidePerf(win({ encoderLatencyMs: 186 }), 60, 0).reason, null, 'latência alta isolada (captura e codificação em 60) não reduz');
+eq(decidePerf(win({ encoderLatencyMs: 186 }), 60, 0).confirmedSoftware, false, 'latência alta NÃO confirma software');
+eq(decidePerf(win({ encodeFps: 35 }), 60, 0).reason, 'encode-below-capture', 'captura em 60 e codificação em 35: o codificador não acompanha');
+eq(decidePerf(win({ encoderBusy: 6 }), 60, 0).reason, 'encoder-drops', 'codificador pulando quadros');
+eq(decidePerf(win({ hardware: false, height: 1080 }), 60, 0).reason, 'software-too-big', 'software confirmado em 1080p reduz');
+eq(decidePerf(win({ hardware: false, height: 1080 }), 60, 0).confirmedSoftware, true, 'software confirmado só quando foi pedido software');
+eq(decidePerf(win({ hardware: false, height: 720 }), 60, 0).reason, null, 'software confirmado em 720p ainda cabe');
+eq(decidePerf(win({ hardware: null, height: 1080 }), 60, 0).reason, null, 'sem confirmação de software, resolução alta sozinha não reduz');
+eq(decidePerf([sample({ encodeFps: 20 })], 60, 0).reason, null, 'uma única amostra não decide');
+console.log(`OK: ${n} verificações (contas + modo desempenho)`);

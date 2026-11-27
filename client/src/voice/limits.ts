@@ -79,3 +79,47 @@ export function classifyLimit(i: LimitInput): Limit {
   }
   return { where: 'unknown', evidence: 'sem medida do envio' };
 }
+
+/** Uma amostra de 1 s do turbo, só com o que a decisão de reduzir precisa. */
+export interface PerfSample {
+  captureFps: number;
+  encodeFps: number;
+  /** quadros que o codificador pulou por segundo */
+  encoderBusy: number;
+  /** latência entrada→saída do codificador; null = nenhum quadro saiu */
+  encoderLatencyMs: number | null;
+  /** false = foi PRECISO pedir software (nenhuma placa de vídeo aceitou); null = pedimos placa de vídeo e o navegador não diz o que usou */
+  hardware: boolean | null;
+  height: number;
+}
+
+export type PerfReason = 'encoder-drops' | 'encode-below-capture' | 'software-too-big';
+export interface PerfDecision {
+  /** null = nada a reduzir nesta janela */
+  reason: PerfReason | null;
+  /** software CONFIRMADO (só quando foi pedido software). Latência alta sozinha NUNCA confirma. */
+  confirmedSoftware: boolean;
+  /** a captura está abaixo do alvo: menos pixels não resolvem, então só registra */
+  captureLimited: boolean;
+}
+
+/**
+ * Decide, com a média de uma janela de amostras, se há EVIDÊNCIA de que o codificador não acompanha.
+ * Não reduz por captura lenta (jogo abrindo, tela parada) nem pela latência do codificador isolada: a
+ * latência mede entrada→saída (inclui fila e espera), não diz se a codificação é por software.
+ * Quem chama ainda exige várias janelas seguidas antes de baixar a resolução.
+ */
+export function decidePerf(win: readonly PerfSample[], targetFps: number, lightLevel: number): PerfDecision {
+  if (win.length < 2) return { reason: null, confirmedSoftware: false, captureLimited: false };
+  const avg = (f: (s: PerfSample) => number) => win.reduce((a, s) => a + f(s), 0) / win.length;
+  const capture = avg((s) => s.captureFps);
+  const encode = avg((s) => s.encodeFps);
+  const drops = avg((s) => s.encoderBusy);
+  const last = win[win.length - 1];
+  const confirmedSoftware = last.hardware === false;
+  let reason: PerfReason | null = null;
+  if (drops >= 3) reason = 'encoder-drops';
+  else if (capture >= targetFps * 0.85 && encode < Math.min(capture, targetFps) * 0.85) reason = 'encode-below-capture';
+  else if (confirmedSoftware && last.height > (lightLevel ? 540 : 720)) reason = 'software-too-big';
+  return { reason, confirmedSoftware, captureLimited: capture < targetFps * 0.85 };
+}

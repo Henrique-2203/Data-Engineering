@@ -20,7 +20,7 @@ import { callChat } from './callChat';
 import { healthPeerClosed, healthPeerCreated, healthPeerState, healthResume, startHealthSampler, stopHealthSampler } from '../lib/health';
 import { type ByeReason, TURBO_LABEL, TurboReceiver, TurboSender, type TurboEventDetail, type TurboSendStats, decodableCodecs, turboCanReceive, turboCanSend } from './turbo';
 import type { TransportEvent, TransportInfo, TransportMode, TransportState } from './transport';
-import { type Limit, classifyLimit, isNum, minMeasured } from './limits';
+import { type Limit, classifyLimit, decidePerf, isNum, minMeasured } from './limits';
 import type { ScreenAudience, StreamQuality } from '../../../shared/types';
 import { askConfirm } from '../lib/ask';
 
@@ -1419,50 +1419,73 @@ class VoiceEngine {
   private lightLevel = 0;
   private perfTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** por que a resolução baixou da última vez (aparece no diagnóstico; sem dados pessoais) */
+  private lightReason: string | null = null;
+  private lastPerfSkip = 0;
+
   /**
-   * Modo desempenho: a cada poucos segundos confere a transmissão. Se o codificador não acompanha o FPS
-   * (ou está no processador em alta resolução), baixa a resolução um degrau e avisa. O FPS é mantido.
+   * Modo desempenho: a cada 3 s confere a transmissão e baixa a resolução um degrau SE houver evidência
+   * sustentada de que o CODIFICADOR não acompanha (3 janelas seguidas, cada uma com a média dos últimos 3 s).
+   * Não baixa por: captura lenta (menos pixels não aceleram a captura), uma queda passageira, nem pela
+   * latência do codificador sozinha (ela mede entrada→saída, não diz se é software ou placa de vídeo).
+   * O FPS é mantido. Cada redução é registrada com o motivo e as medidas.
    */
   private startPerfGuard() {
     this.stopPerfGuard();
     this.lightLevel = 0;
+    this.lightReason = null;
     let strikes = 0;
     this.perfTimer = setInterval(async () => {
       if (!getV().settings.performanceMode || this.lightLevel >= 2 || !this.screenStream) return;
       const target = this.turboTarget().fps;
-      const t = this.turboSendStats;
-      let struggling: boolean;
-      let software: boolean;
-      let height: number;
-      if (t) {
-        // codificador não acompanha: está pulando quadros ou entregando menos do que a captura manda
-        struggling = t.encoderDrops >= 3 || (t.captureFps >= target * 0.85 && t.encodeFps < Math.min(t.captureFps, target) * 0.85);
-        // o navegador não diz se é placa de vídeo: mais de 14 ms por quadro é sinal de processador
-        software = t.hardware === false || t.encodeMs > 14;
-        height = t.height;
-      } else {
+      const win = this.turboSendHistory(3500);
+      let reason: 'encoder-drops' | 'encode-below-capture' | 'software-too-big' | 'browser-cpu-limit' | null = null;
+      let confirmedSoftware = false;
+      let height = 0;
+      let measures: TurboEventDetail = {};
+      if (win.length >= 2) {
+        const d = decidePerf(
+          win.map((t) => ({ captureFps: t.captureFps, encodeFps: t.encodeFps, encoderBusy: t.dropped.encoderBusy, encoderLatencyMs: t.encoderLatencyMs, hardware: t.hardware, height: t.height })),
+          target,
+          this.lightLevel,
+        );
+        const last = win[win.length - 1];
+        reason = d.reason;
+        confirmedSoftware = d.confirmedSoftware;
+        height = last.height;
+        measures = { captureFps: last.captureFps, encodeFps: last.encodeFps, encoderBusy: last.dropped.encoderBusy, encoderLatencyMs: last.encoderLatencyMs, hardware: last.hardware, height };
+        // captura lenta (jogo abrindo, tela parada): menos pixels NÃO ajudam; só registra, no máximo a cada 30 s
+        if (!reason && d.captureLimited && Date.now() - this.lastPerfSkip > 30_000) {
+          this.lastPerfSkip = Date.now();
+          this.tev('perf-no-reduce', null, { why: 'capture-limited', ...measures });
+        }
+      } else if (!this.turbo?.active) {
         const st = await this.screenSendStats();
-        if (!st || !st.fps) return;
-        struggling = st.limitedBy === 'cpu';
-        software = st.hardware === false;
+        if (!st || !isNum(st.fps) || st.fps === 0) return; // sem medida (ou sem quadros): não dá para acusar o codificador
+        if (st.limitedBy === 'cpu') reason = 'browser-cpu-limit'; // o próprio navegador informou limitação por CPU
+        confirmedSoftware = st.hardware === false;
         height = st.height ?? 0;
+        measures = { sentFps: st.fps, hardware: st.hardware, height };
       }
-      const tooBigForSoftware = software && height > (this.lightLevel ? 540 : 720);
-      strikes = struggling || tooBigForSoftware ? strikes + 1 : 0;
-      if (strikes < 2) return;
+      strikes = reason ? strikes + 1 : 0;
+      if (strikes < 3) return;
       strikes = 0;
+      const from = this.lightLevel;
       this.setLightLevel(this.lightLevel + 1);
+      this.lightReason = reason;
+      this.tev('perf-reduce', null, { from, to: this.lightLevel, reason, ...measures });
       const res = this.lightLevel >= 2 ? '540p' : '720p';
       toast(
-        software
+        confirmedSoftware
           ? `Sua transmissão foi para ${res} (mantendo ${target} FPS): o vídeo está sendo codificado pelo processador.`
-          : `Sua transmissão foi para ${res} (mantendo ${target} FPS) para não pesar no jogo.`,
+          : `Sua transmissão foi para ${res} (mantendo ${target} FPS): o codificador não estava acompanhando a captura.`,
       );
     }, 3000);
   }
 
   private setLightLevel(level: number) {
     this.lightLevel = Math.max(0, Math.min(2, level));
+    if (!this.lightLevel) this.lightReason = null;
     setV({ screenLight: this.lightLevel > 0 });
     this.turbo?.setTarget(this.turboTarget());
     this.refreshEncodings();
