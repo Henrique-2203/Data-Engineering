@@ -1,0 +1,426 @@
+import { useEffect, useState } from 'react';
+import { api } from '../lib/api';
+import { toast } from '../store/app';
+import { labOn, setLab } from '../lib/lab';
+import { askConfirm, askText } from '../lib/ask';
+
+type Agg = Record<string, { sum: number; count: number }>;
+interface HealthData {
+  days: number;
+  totals: Agg;
+  byDay: Record<string, Agg>;
+  turnMonthMb: number;
+  errors: { message: string; total: number; version: string | null; last: string }[];
+  live: { online: number; inVoice: number; calls: number; streaming: number };
+}
+
+const avg = (a: Agg, k: string) => (a[k]?.count ? a[k].sum / a[k].count : null);
+const ratio = (a: Agg, k: string, of: string) => (a[of]?.count ? (a[k]?.count ?? 0) / a[of].count : null);
+const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`);
+const num = (v: number | null, unit = '', d = 0) => (v === null ? '—' : `${v.toFixed(d)}${unit}`);
+
+type Level = 'ok' | 'warn' | 'bad' | 'none';
+const level = (v: number | null, good: (v: number) => boolean, bad: (v: number) => boolean): Level =>
+  v === null ? 'none' : good(v) ? 'ok' : bad(v) ? 'bad' : 'warn';
+
+function Tile({ label, value, hint, lv }: { label: string; value: string; hint?: string; lv: Level }) {
+  return (
+    <div className={`health-tile ${lv}`} title={hint}>
+      <span className="muted small">{label}</span>
+      <strong>{value}</strong>
+      {hint && <span className="muted small">{hint}</span>}
+    </div>
+  );
+}
+
+/** Barrinhas por dia de um indicador (0-1). */
+function DailyBars({ data, metric, label }: { data: HealthData; metric: (a: Agg) => number | null; label: string }) {
+  if (!Object.keys(data.byDay).length) return null;
+  // todos os dias do período (dia sem call fica vazio), terminando no dia mais recente com dados
+  const last = Object.keys(data.byDay).sort().pop()!;
+  const days = Array.from({ length: Math.min(data.days, 30) }, (_, i) => {
+    const d = new Date(`${last}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - (Math.min(data.days, 30) - 1 - i));
+    return d.toISOString().slice(0, 10);
+  });
+  return (
+    <div className="health-bars" aria-label={label}>
+      <span className="muted small">{label}</span>
+      <div className="health-bars-row">
+        {days.map((d) => {
+          const v = data.byDay[d] ? metric(data.byDay[d]) : null;
+          return (
+            <span key={d} className="health-bar" title={`${d.slice(8, 10)}/${d.slice(5, 7)}: ${v === null ? 'sem dados' : pct(v)}`}>
+              <span style={{ height: `${v === null ? 0 : Math.max(4, v * 100)}%` }} className={v === null ? '' : v >= 0.9 ? 'ok' : v >= 0.7 ? 'warn' : 'bad'} />
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Painel da equipe → Saúde: como as calls estão (números somados por dia, sem identificar ninguém). */
+export function HealthPanel() {
+  const [days, setDays] = useState(7);
+  const [data, setData] = useState<HealthData | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      api<HealthData>(`/admin/call-health?days=${days}`).then(
+        (r) => alive && setData(r),
+        (e) => toast(e.message),
+      );
+    void load();
+    const t = setInterval(load, 30_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [days]);
+  if (!data) return <p className="muted">Carregando…</p>;
+  const t = data.totals;
+  const ok = t.conn_ok?.count ?? 0;
+  const fail = t.conn_fail?.count ?? 0;
+  const connRate = ok + fail ? ok / (ok + fail) : null;
+  const connMs = avg(t, 'conn_ms');
+  const rtt = avg(t, 'voice_rtt');
+  const loss = avg(t, 'voice_loss');
+  const voiceBad = ratio(t, 'voice_bad', 'voice_samples');
+  const relayed = ratio(t, 'relayed_samples', 'voice_samples');
+  const sent = avg(t, 'stream_sent');
+  const viewer = avg(t, 'stream_viewer');
+  const capture = avg(t, 'stream_capture');
+  const ok40 = ratio(t, 'stream_ok40', 'stream_samples');
+  const turbo = ratio(t, 'stream_turbo', 'stream_samples');
+  const light = ratio(t, 'stream_light', 'stream_samples');
+  const encodeMs = avg(t, 'stream_encode_ms');
+  const watchFps = avg(t, 'watch_fps');
+  const watchLow = ratio(t, 'watch_low', 'watch_samples');
+  const target = avg(t, 'stream_target');
+  const viewers = avg(t, 'stream_viewers');
+  const atTarget = ratio(t, 'stream_at_target', 'stream_samples');
+  const limCap = ratio(t, 'stream_lim_capture', 'stream_samples');
+  const limEnc = ratio(t, 'stream_lim_encode', 'stream_samples');
+  const limNet = ratio(t, 'stream_lim_net', 'stream_samples');
+  const lab = ratio(t, 'stream_lab', 'stream_samples');
+  const empty = !Object.keys(t).length;
+
+  return (
+    <div className="health">
+      <div className="health-head">
+        <div className="health-live" aria-label="Agora">
+          <span>
+            🟢 <strong>{data.live.online}</strong> online
+          </span>
+          <span>
+            🎙️ <strong>{data.live.inVoice}</strong> em call ({data.live.calls} call{data.live.calls === 1 ? '' : 's'})
+          </span>
+          <span>
+            🖥️ <strong>{data.live.streaming}</strong> transmitindo
+          </span>
+        </div>
+        <select aria-label="Período" value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <option value={7}>Últimos 7 dias</option>
+          <option value={30}>Últimos 30 dias</option>
+          <option value={90}>Últimos 90 dias</option>
+        </select>
+      </div>
+      {empty && <p className="muted">Ainda sem números neste período. Eles aparecem conforme o pessoal usa as calls (1 amostra por minuto de call).</p>}
+
+      <h4>Conexões</h4>
+      <div className="health-grid">
+        <Tile label="Conexões que deram certo" value={pct(connRate)} hint={`${ok} ok · ${fail} falhas`} lv={level(connRate, (v) => v >= 0.97, (v) => v < 0.9)} />
+        <Tile label="Tempo para conectar" value={num(connMs !== null ? connMs / 1000 : null, ' s', 1)} lv={level(connMs, (v) => v < 3000, (v) => v > 8000)} />
+        <Tile label="Minutos via TURN" value={pct(relayed)} hint="sem conexão direta (4G/5G, CGNAT)" lv={level(relayed, (v) => v < 0.2, (v) => v > 0.5)} />
+        <Tile label="Atualizações sem derrubar a call" value={String(t.resume?.count ?? 0)} lv="none" />
+      </div>
+      <DailyBars data={data} label="Conexões que deram certo, por dia" metric={(a) => ((a.conn_ok?.count ?? 0) + (a.conn_fail?.count ?? 0) ? (a.conn_ok?.count ?? 0) / ((a.conn_ok?.count ?? 0) + (a.conn_fail?.count ?? 0)) : null)} />
+
+      <h4>Voz</h4>
+      <div className="health-grid">
+        <Tile label="Atraso médio" value={num(rtt, ' ms')} lv={level(rtt, (v) => v < 150, (v) => v > 250)} />
+        <Tile label="Perda média" value={num(loss, '%', 1)} lv={level(loss, (v) => v < 1, (v) => v >= 5)} />
+        <Tile label="Minutos com voz ruim" value={pct(voiceBad)} hint="perda ou voz remendada acima de 5%" lv={level(voiceBad, (v) => v < 0.05, (v) => v > 0.15)} />
+      </div>
+
+      <h4>Transmissões</h4>
+      <div className="health-grid">
+        <Tile label="Minutos com 40+ FPS" value={pct(ok40)} hint="o objetivo" lv={level(ok40, (v) => v >= 0.9, (v) => v < 0.7)} />
+        <Tile label="FPS na tela de quem assiste" value={num(viewer)} lv={level(viewer, (v) => v >= 45, (v) => v < 35)} />
+        <Tile label="Captura / envio" value={capture === null ? '—' : `${num(capture)} / ${num(sent)} FPS`} hint="captura baixa = jogo em tela cheia; envio baixo = codificador" lv="none" />
+        <Tile label="Tempo por quadro" value={num(encodeMs, ' ms', 1)} hint="acima de 14 ms: provavelmente processador" lv={level(encodeMs, (v) => v < 10, (v) => v > 16)} />
+        <Tile label="Em modo turbo" value={pct(turbo)} lv={level(turbo, (v) => v >= 0.8, (v) => v < 0.4)} />
+        <Tile label="Em versão leve" value={pct(light)} hint="resolução reduzida pelo modo desempenho" lv="none" />
+      </div>
+      <h4>FPS escolhido × entregue</h4>
+      <div className="health-grid">
+        <Tile label="Bateu o FPS escolhido" value={pct(atTarget)} hint={`média escolhida: ${num(target)} FPS · ${num(viewers, '', 1)} assistindo`} lv={level(atTarget, (v) => v >= 0.9, (v) => v < 0.7)} />
+        <Tile label="Segurou: captura do PC" value={pct(limCap)} hint="o PC/navegador não entregou os quadros (jogo em tela cheia, tela parada)" lv="none" />
+        <Tile label="Segurou: codificação" value={pct(limEnc)} hint="o codificador não deu conta (processador/placa)" lv="none" />
+        <Tile label="Segurou: internet" value={pct(limNet)} hint="subida de quem transmite ou internet de quem assiste" lv="none" />
+        {lab !== null && lab > 0 && <Tile label="Minutos no laboratório" value={pct(lab)} hint="transmissões com o FPS fixo em teste (só aparelhos da equipe)" lv="none" />}
+      </div>
+      <LabToggles />
+      <BetaAccounts />
+      <EmergencySwitches />
+      <AiUsage />
+      <DailyBars data={data} label="Minutos de transmissão com 40+ FPS, por dia" metric={(a) => (a.stream_samples?.count ? (a.stream_ok40?.count ?? 0) / a.stream_samples.count : null)} />
+
+      <h4>Assistindo</h4>
+      <div className="health-grid">
+        <Tile label="FPS recebido" value={num(watchFps)} lv={level(watchFps, (v) => v >= 45, (v) => v < 30)} />
+        <Tile label="Minutos abaixo de 30 FPS" value={pct(watchLow)} lv={level(watchLow, (v) => v < 0.05, (v) => v > 0.2)} />
+      </div>
+
+      <h4>TURN (cota)</h4>
+      <p className="small">
+        Este mês passaram <strong>{data.turnMonthMb} MB</strong> pelo servidor TURN. Compare com a cota do seu plano no painel do Metered.
+      </p>
+
+      <h4>Erros do site</h4>
+      {data.errors.length === 0 ? (
+        <p className="muted small">Nenhum erro registrado neste período. 🎉</p>
+      ) : (
+        <table className="health-errors">
+          <thead>
+            <tr>
+              <th>Vezes</th>
+              <th>Erro</th>
+              <th>Versão</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.errors.map((e) => (
+              <tr key={e.message}>
+                <td>{e.total}</td>
+                <td>
+                  <code>{e.message}</code>
+                </td>
+                <td className="muted small">{e.version ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="muted small">Números somados por dia, sem identificar ninguém nem a call. Quem desligou em Privacidade e dados não entra.</p>
+    </div>
+  );
+}
+
+/** Laboratório: liga mudanças em teste SÓ neste aparelho (nenhum usuário recebe). */
+/** Recursos em teste liberados só para algumas contas (vale para a conta, em qualquer aparelho). */
+type BetaLists = { layout2: string[]; phonecam: string[]; bots: string[]; botdev: string[]; open: string[] };
+const BETA_FIELDS: { id: 'layout2' | 'phonecam' | 'bots' | 'botdev'; title: string; hint: string; label: string; done: string }[] = [
+  { id: 'layout2', title: 'Layout novo', hint: 'Veem a opção "Layout: Novo" em Configurações → Aparência.', label: 'Contas com o layout novo', done: 'Layout novo' },
+  { id: 'phonecam', title: 'Câmera do celular', hint: 'Podem usar o celular como câmera do computador na call (QR Code).', label: 'Contas com a câmera do celular', done: 'Câmera do celular' },
+  { id: 'bots', title: 'Bots', hint: 'Veem a aba Integrações no servidor e os comandos com "/".', label: 'Contas com bots', done: 'Bots' },
+  { id: 'botdev', title: 'Criar o próprio bot', hint: 'Veem Configurações → Desenvolvedor: criam bots com token e comandos.', label: 'Contas que criam bots', done: 'Criar bots' },
+];
+const toText = (l: string[]) => l.map((u) => `@${u}`).join(', ');
+
+function BetaAccounts() {
+  const [text, setText] = useState<Record<'layout2' | 'phonecam' | 'bots' | 'botdev', string> | null>(null);
+  const [open, setOpen] = useState<string[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => {
+    void api<{ beta: BetaLists }>('/admin/beta').then(
+      (r) => (setOpen(r.beta.open ?? []), setText({ layout2: toText(r.beta.layout2), phonecam: toText(r.beta.phonecam), bots: toText(r.beta.bots), botdev: toText(r.beta.botdev ?? []) })),
+      () => setText({ layout2: '', phonecam: '', bots: '', botdev: '' }),
+    );
+  }, []);
+  if (text === null) return null;
+  async function save(f: (typeof BETA_FIELDS)[number]) {
+    setBusy(f.id);
+    try {
+      const r = await api<{ beta: BetaLists }>('/admin/beta', { method: 'PUT', body: { [f.id]: (text![f.id] ?? '').split(/[\s,;]+/).filter(Boolean) } });
+      setText((t) => ({ ...t!, [f.id]: toText(r.beta[f.id]) }));
+      toast(r.beta[f.id].length ? `${f.done} liberado para ${r.beta[f.id].length} conta(s).` : `${f.done} desligado para todos.`);
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function toggleOpen(f: (typeof BETA_FIELDS)[number], on: boolean) {
+    const next = on ? [...new Set([...open, f.id])] : open.filter((x) => x !== f.id);
+    if (on && !(await askConfirm(`Liberar "${f.title}" para TODAS as contas?`))) return;
+    setBusy(f.id);
+    try {
+      const r = await api<{ beta: BetaLists }>('/admin/beta', { method: 'PUT', body: { open: next } });
+      setOpen(r.beta.open);
+      toast(on ? `${f.title} liberado para todo mundo.` : `${f.title} voltou a ser só das contas da lista.`);
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function testGuild() {
+    setBusy('guild');
+    try {
+      const r = await api<{ created: boolean; added: string[] }>('/admin/test-guild', { method: 'POST', body: {} });
+      toast(
+        r.created
+          ? `Servidor "Laboratório Resenha" criado${r.added.length ? ` com ${r.added.map((u) => '@' + u).join(', ')}` : ''}. Veja na coluna de servidores.`
+          : r.added.length
+            ? `Entraram no Laboratório: ${r.added.map((u) => '@' + u).join(', ')}.`
+            : 'O Laboratório Resenha já está pronto, com todas as contas liberadas.',
+      );
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <div className="health-lab">
+      <strong>🧪 Recursos em teste: contas liberadas</strong>
+      {BETA_FIELDS.map((f) => (
+        <div key={f.id} className="beta-row">
+          <label>
+            <span className="muted small">
+              <strong>{f.title}.</strong> {f.hint} (separe por vírgula)
+            </span>
+            <input value={text[f.id]} onChange={(e) => setText({ ...text, [f.id]: e.target.value })} placeholder="@conta1, @conta2" aria-label={f.label} spellCheck={false} />
+          </label>
+          <button className="btn primary small" type="button" disabled={busy !== null} onClick={() => void save(f)} aria-label={`Salvar ${f.title}`}>
+            Salvar
+          </button>
+          <label className="check" title="Vale para todas as contas, não só para a lista">
+            <input type="checkbox" checked={open.includes(f.id)} disabled={busy !== null} onChange={(e) => void toggleOpen(f, e.target.checked)} aria-label={`${f.title} liberado para todos`} />
+            <span>Para todos</span>
+          </label>
+        </div>
+      ))}
+      <div className="beta-row">
+        <span className="muted small">
+          Servidor privado só para testar: cria o <strong>Laboratório Resenha</strong> e coloca nele as contas liberadas para a câmera do celular e para bots. Pode clicar de novo depois de liberar mais contas.
+        </span>
+        <button className="btn small" type="button" disabled={busy !== null} onClick={() => void testGuild()}>
+          Criar servidor de testes
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Quanto a IA dos bots gastou no mês (teto configurado no Render) */
+function AiUsage() {
+  const [u, setU] = useState<{ configured: boolean; model: string; requests: number; costUsd: number; budgetUsd: number; month: string } | null>(null);
+  useEffect(() => {
+    void api<NonNullable<typeof u>>('/admin/ai').then(setU, () => {});
+  }, []);
+  if (!u) return null;
+  return (
+    <div className="health-lab">
+      <strong>🤖 IA dos bots (/ia, /traduzir, /resumo)</strong>
+      {u.configured ? (
+        <span className="muted small">
+          {u.month}: {u.requests} pedidos, gasto estimado US$ {u.costUsd.toFixed(2)} de US$ {u.budgetUsd.toFixed(2)} (modelo {u.model}). Passou do teto, a IA para até o mês seguinte.
+        </span>
+      ) : (
+        <span className="muted small">Desligada: falta a variável ANTHROPIC_API_KEY no Render. Os comandos avisam que a IA ainda não está ligada.</span>
+      )}
+    </div>
+  );
+}
+
+function LabToggles() {
+  const [fps, setFps] = useState(() => labOn('fps'));
+  const [sfu, setSfu] = useState(() => labOn('sfu'));
+  const [sfuOk, setSfuOk] = useState<boolean | null>(null);
+  useEffect(() => {
+    void api<{ enabled: boolean }>('/sfu/status').then((r) => setSfuOk(r.enabled), () => setSfuOk(false));
+  }, []);
+  return (
+    <div className="health-lab">
+      <strong>🧪 Laboratório (só neste aparelho)</strong>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={fps}
+          onChange={(e) => {
+            setLab('fps', e.target.checked);
+            setFps(e.target.checked);
+          }}
+        />{' '}
+        FPS mais fixo na transmissão (camadas temporais e bitrate constante). Vale na próxima vez que você transmitir.
+      </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={sfu}
+          onChange={(e) => {
+            setLab('sfu', e.target.checked);
+            setSfu(e.target.checked);
+          }}
+        />{' '}
+        Transmitir pelo servidor de mídia da Cloudflare (etapa 3): você manda 1 cópia em 3 qualidades e cada pessoa recebe a que a
+        internet dela aguenta, no FPS escolhido. Se falhar, volta sozinho para o direto.
+      </label>
+      {sfuOk === false && (
+        <p className="muted small">
+          ⚠️ Servidor de mídia desligado: configure CLOUDFLARE_SFU_APP_ID e CLOUDFLARE_SFU_APP_TOKEN no Render (ou o limite do mês da
+          Cloudflare chegou). Enquanto isso, a transmissão segue pelo direto.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Chaves de emergência: a equipe desliga uma parte do Resenha na hora (abuso, raid, invasão). */
+function EmergencySwitches() {
+  const [data, setData] = useState<{ state: Record<string, boolean>; labels: Record<string, string> } | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void api<{ state: Record<string, boolean>; labels: Record<string, string> }>('/admin/killswitch').then(setData, () => setData(null));
+  }, []);
+  if (!data) return null;
+  async function flip(key: string, on: boolean) {
+    if (on && !(await askConfirm(`Desligar para TODO MUNDO: ${data!.labels[key].toLowerCase()}?`))) return;
+    setBusy(true);
+    try {
+      const r = await api<{ state: Record<string, boolean> }>('/admin/killswitch', { method: 'PUT', body: { [key]: on } });
+      setData({ ...data!, state: r.state });
+      toast(on ? `${data!.labels[key]}: DESLIGADO.` : `${data!.labels[key]}: ligado de novo.`);
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function revokeAll() {
+    const typed = await askText({ title: 'Sair de TODOS os aparelhos?', message: 'Isso desconecta TODAS as contas do Resenha (menos a sua). Digite REVOGAR TODAS para confirmar.', mustMatch: 'REVOGAR TODAS', confirmLabel: 'Desconectar todo mundo', danger: true });
+    if (typed?.trim() !== 'REVOGAR TODAS') return;
+    setBusy(true);
+    try {
+      const r = await api<{ revoked: number }>('/admin/security/revoke-all-sessions', { method: 'POST', body: { confirm: 'REVOGAR TODAS' } });
+      toast(`${r.revoked} sessão(ões) encerrada(s).`);
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="health-lab">
+      <strong>🚨 Chaves de emergência</strong>
+      <span className="muted small">Use só se algo estiver sendo abusado. Desligar vale na hora para todo mundo; ligar de novo desfaz.</span>
+      {Object.keys(data.labels).map((k) => (
+        <label key={k} className="check">
+          <input type="checkbox" checked={!!data.state[k]} disabled={busy} onChange={(e) => void flip(k, e.target.checked)} aria-label={`Desligar: ${data.labels[k]}`} />
+          <span>
+            Desligar: <strong>{data.labels[k].toLowerCase()}</strong>
+          </span>
+        </label>
+      ))}
+      <div className="beta-row">
+        <span className="muted small">Suspeita de invasão ou chave vazada? Desconecta todos os aparelhos de todas as contas.</span>
+        <button className="btn small danger" type="button" disabled={busy} onClick={() => void revokeAll()}>
+          Sair de TODOS os aparelhos
+        </button>
+      </div>
+    </div>
+  );
+}

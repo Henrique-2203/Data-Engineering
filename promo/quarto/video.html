@@ -1,0 +1,188 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Resenha · no quarto</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1080px;height:1920px;overflow:hidden;background:#07080b;font-family:Inter,'Noto Color Emoji',sans-serif;color:#fff}
+#gl{position:absolute;inset:0}
+.sc{position:absolute;inset:0;opacity:0;pointer-events:none}
+.h{position:absolute;left:40px;right:40px;top:110px;text-align:center;font-weight:900;font-size:104px;line-height:1;letter-spacing:-4px;text-shadow:0 8px 30px rgba(0,0,0,.7)}
+.h.sm{font-size:88px}
+.w{display:inline-block;padding-bottom:6px}
+.g{background:linear-gradient(90deg,#5dffb4,#9ffcff 55%,#d2b8ff);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 0 rgba(0,0,0,.55)) drop-shadow(0 8px 20px rgba(0,0,0,.7))}
+.amb{color:#f5c451}
+.card{position:absolute;background:rgba(14,16,22,.88);border:2px solid rgba(255,255,255,.1);border-radius:36px;box-shadow:0 30px 80px rgba(0,0,0,.6);backdrop-filter:blur(6px)}
+.row{position:absolute;left:70px;right:70px;display:flex;gap:24px;align-items:center;padding:24px 34px;border-radius:32px;font-weight:800;font-size:44px;line-height:1.15}
+.row b{font-size:62px;font-weight:400}
+.row small{display:block;font-size:30px;font-weight:600;opacity:.78;margin-top:4px}
+.chip{position:absolute;display:inline-flex;align-items:center;gap:12px;padding:16px 30px;border-radius:999px;font-weight:900;font-size:40px;white-space:nowrap}
+.chip.g1{background:#3ddc97;color:#06281a;box-shadow:0 0 50px rgba(61,220,151,.45)}
+.chip.dk{background:rgba(14,16,22,.9);border:3px solid rgba(255,255,255,.2)}
+.m{position:absolute;filter:drop-shadow(0 24px 34px rgba(0,0,0,.7));transform-origin:50% 100%}
+</style></head><body>
+<canvas id="gl" width="1080" height="1920"></canvas>
+<div class="sc" id="c1"><div class="h" style="top:150px"><span class="w" id="c1a">Isso aqui é o</span> <span class="w g" id="c1b">Resenha</span></div>
+ <div class="w" id="c1c" style="position:absolute;left:30px;right:30px;top:1640px;text-align:center;font-weight:800;font-size:50px;text-shadow:0 6px 24px #000">Call, tela e chat. Feito por um brasileiro. De graça.</div></div>
+<div class="sc" id="c2"><div class="h"><span class="w" id="c2a">Tela em</span> <span class="w g" id="c2b">Full HD</span></div>
+ <div class="chip g1" id="c2c1" style="left:70px;top:960px">1920×1080</div><div class="chip g1" id="c2c2" style="left:420px;top:960px">40 FPS</div><div class="chip dk" id="c2c3" style="left:70px;top:1080px">Auto · 720p</div>
+ <div class="row card" id="c2r1" style="top:1230px"><b>👀</b><div>Cada pessoa escolhe a qualidade que quer assistir</div></div>
+ <div class="row card" id="c2r2" style="top:1420px"><b>🔒</b><div>Você decide quem pode ver a sua tela</div></div>
+ <img class="m" id="c2m" src="assets/resenha-oculos.png" style="left:690px;top:1560px;width:380px"></div>
+<div class="sc" id="c3"><div class="h"><span class="w" id="c3a">Assistam</span> <span class="w g" id="c3b">juntos</span></div>
+ <div class="row card" id="c3q1" style="top:1000px"><b>1</b><div>lofi para estudar<small>pedido por Bia</small></div></div>
+ <div class="row card" id="c3q2" style="top:1150px"><b>2</b><div>trilha do jogo<small>pedido por Caio</small></div></div>
+ <div class="chip g1" id="c3c" style="left:70px;top:1330px">💬 Chat privado só da call</div>
+ <img class="m" id="c3m" src="assets/resenha-fone.png" style="left:600px;top:1480px;width:400px"></div>
+<div class="sc" id="c4"><div class="h"><span class="w" id="c4a">Tudo pra</span> <span class="w g" id="c4b">galera</span></div>
+ <div class="row card" id="c4t1" style="top:960px;left:60px;right:560px;padding:18px 24px;font-size:38px"><b style="font-size:54px">🔊</b>Soundboard</div>
+ <div class="row card" id="c4t2" style="top:960px;left:540px;right:60px;padding:18px 24px;font-size:38px"><b style="font-size:54px">😎</b>Figurinhas</div>
+ <div class="row card" id="c4t3" style="top:1090px;left:60px;right:560px;padding:18px 24px;font-size:38px"><b style="font-size:54px">📊</b>Enquetes</div>
+ <div class="row card" id="c4t4" style="top:1090px;left:540px;right:60px;padding:18px 24px;font-size:38px"><b style="font-size:54px">📅</b>Eventos</div>
+ <div class="row card" id="c4t5" style="top:1220px;left:60px;right:560px;padding:18px 24px;font-size:38px"><b style="font-size:54px">📌</b>Fixadas</div>
+ <div class="row card" id="c4t6" style="top:1220px;left:540px;right:60px;padding:18px 24px;font-size:38px"><b style="font-size:54px">🔔</b>Celular</div>
+ <img class="m" id="c4m1" src="assets/resenha-bandeira.png" style="left:40px;top:1400px;width:420px"><img class="m" id="c4m2" src="assets/resenha-joinha.png" style="left:620px;top:1420px;width:400px"></div>
+<div class="sc" id="c5"><div class="h sm"><span class="w" id="c5a">Chamada</span> <span class="w g" id="c5b">criptografada</span><br><span class="w" id="c5d">de ponta a ponta</span></div>
+ <div class="chip g1" id="c5c1" style="left:60px;top:1010px">DTLS 1.3</div><div class="chip g1" id="c5c2" style="left:380px;top:1010px">SRTP · AES-128</div>
+ <div class="chip dk" id="c5c3" style="left:60px;top:1130px">🚫 Nada é gravado</div>
+ <div class="row card" id="c5r" style="top:1290px"><b>🔍</b><div>Confira o código de segurança dos dois lados<small>Se bate, ninguém está no meio</small></div></div>
+ <img class="m" id="c5m" src="assets/resenha-curioso.png" style="left:700px;top:1550px;width:340px"></div>
+<div class="sc" id="c6"><div class="h"><span class="w" id="c6a">Sem</span> <span class="w g" id="c6b">enrolação</span></div>
+ <div class="row card" id="c6r1" style="top:930px;border-color:#3ddc97"><b>📞</b><div>Voz, câmera e tela<small>ponta a ponta, nada gravado</small></div></div>
+ <div class="row card" id="c6r2" style="top:1110px;border-color:#f5c451;background:rgba(42,34,16,.92)"><b>💬</b><div class="amb">Mensagens de texto<small>protegidas na viagem (HTTPS), guardadas no servidor. <strong>Não são</strong> ponta a ponta. A gente fala na cara.</small></div></div>
+ <div class="row card" id="c6r3" style="top:1420px"><b>🔑</b><div>Senha com scrypt<small>nem a equipe consegue ver</small></div></div>
+ <div class="row card" id="c6r4" style="top:1580px"><b>🛡️</b><div>Verificação em duas etapas<small>senhas vazadas são recusadas</small></div></div>
+ <div class="row card" id="c6r5" style="top:1740px"><b>💾</b><div>Backups criptografados<small>AES-256, conferidos depois</small></div></div></div>
+<div class="sc" id="c7"><div class="h sm"><span class="w" id="c7a">Pronto pra</span> <span class="w g" id="c7b">comunidade</span></div>
+ <div class="row card" id="c7r1" style="top:950px"><b>🧭</b><div>Servidores públicos<small>e explorar outros</small></div></div>
+ <div class="row card" id="c7r2" style="top:1120px"><b>🎖️</b><div>Cargos e permissões<small>do jeito que você quiser</small></div></div>
+ <div class="row card" id="c7r3" style="top:1290px"><b>🧹</b><div>Moderação automática<small>e modo lento</small></div></div>
+ <div class="row card" id="c7r4" style="top:1460px"><b>📜</b><div>Registro de auditoria<small>quem fez o quê, 90 dias</small></div></div>
+ <img class="m" id="c7m" src="assets/resenha-oculos.png" style="left:640px;top:1560px;width:400px"></div>
+<div class="sc" id="c8"><div class="h"><span class="w amb" id="c8a">Vem aí</span> <span class="w" id="c8b">🚀</span></div>
+ <div class="row card" id="c8k1" style="top:960px"><b>📱</b><div>Câmera do celular<small>leia um QR Code e o celular vira a sua câmera no computador</small></div></div>
+ <div class="row card" id="c8k2" style="top:1180px"><b>📌</b><div>Abas no topo<small>fixe servidores, canais e conversas e troque num clique</small></div></div>
+ <img class="m" id="c8m" src="assets/resenha-curioso.png" style="left:680px;top:1480px;width:360px"></div>
+<div class="sc" id="c9"><div class="h" style="top:130px"><span class="w g" id="c9a">Cadastro aberto</span></div>
+ <div class="w" id="c9b" style="position:absolute;left:0;right:0;top:1530px;text-align:center;font-weight:900;font-size:76px;letter-spacing:-2px;text-shadow:0 6px 24px #000">Chama a galera!</div>
+ <div class="chip g1" id="c9c" style="left:50%;top:1650px;transform:translateX(-50%)">🔗 Link na bio</div>
+ <div class="w" id="c9d" style="position:absolute;left:0;right:0;top:1790px;text-align:center;font-weight:800;font-size:44px;color:rgba(255,255,255,.85);text-shadow:0 4px 16px #000">resenhabr.com.br</div></div>
+<script type="module">
+import * as THREE from './three.module.js';
+const $=id=>document.getElementById(id),css=(id,o)=>Object.assign($(id).style,o);
+const cl=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)),p=(t,t0,d)=>cl((t-t0)/d),eo=x=>1-Math.pow(1-x,3),eio=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2,back=x=>{const c=1.70158;return x<=0?0:1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2)},lerp=(a,b,k)=>a+(b-a)*k;
+let TL={c1:[0,5.2],c2:[5.2,14.3],c3:[14.3,20.0],c4:[20.0,27.3],c5:[27.3,43.1],c6:[43.1,57.1],c7:[57.1,63.6],c8:[63.6,71.4],c9:[71.4,78.0]};
+window.DURATION=TL.c9[1];window.TL=TL;
+const word=(id,t,t0,d=.35)=>{const k=p(t,t0,d);css(id,{opacity:eo(k),transform:`translateY(${(1-back(k))*70}px) scale(${.9+.1*back(k)})`,filter:`blur(${(1-k)*8}px)`})};
+const rise=(id,t,t0,d=.45)=>{const k=eo(p(t,t0,d));css(id,{opacity:k,transform:`translateY(${(1-k)*110}px) scale(${.94+.06*k})`})};
+const pop=(id,t,t0,d=.4,base='')=>{const k=p(t,t0,d);css(id,{opacity:cl(k*3),transform:`${base} scale(${back(k)})`})};
+const bob=(id,t,t0,ph=0,amp=10)=>{const k=p(t,t0,.6);const j=k<1?Math.abs(Math.sin(k*Math.PI*2))*(1-k)*110:0;css(id,{opacity:cl(k*4),transform:`translateY(${Math.sin(t*3+ph)*amp-j}px) rotate(${Math.sin(t*2+ph)*3}deg) scale(${.55+.45*eo(k)})`})};
+// ---------- imagens ----------
+const load=src=>new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=src});
+const IMG={};for(const n of ['tela','juntos','seguranca','camera-a','camera-b'])IMG[n]=await load(`assets/${n}.jpg`);
+// ---------- cena 3D ----------
+const R=new THREE.WebGLRenderer({canvas:$('gl'),antialias:true,preserveDrawingBuffer:true});R.setSize(1080,1920,false);R.setPixelRatio(1);R.toneMapping=THREE.ACESFilmicToneMapping;R.toneMappingExposure=1.15;
+const S=new THREE.Scene();S.background=new THREE.Color(0x0a0c14);S.fog=new THREE.Fog(0x0a0c14,12,26);
+const cam=new THREE.PerspectiveCamera(32,1080/1920,.1,60);
+const std=(c,r=.7,m=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
+const box=(w,h,d,mat,x,y,z,parent=S)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);parent.add(m);return m};
+const glow=c=>new THREE.MeshBasicMaterial({color:c});
+S.add(new THREE.AmbientLight(0x7580b8,1.35));
+const moon=new THREE.DirectionalLight(0x8aa4ff,.7);moon.position.set(-6,5,4);S.add(moon);
+const lamp=new THREE.PointLight(0xffb36b,16,9);lamp.position.set(-2.1,2.4,.4);S.add(lamp);
+const scr=new THREE.PointLight(0x7df9ff,10,8);scr.position.set(0,1.5,1.6);S.add(scr);
+const ledL=new THREE.PointLight(0x7c3aed,5,8);ledL.position.set(0,2.6,-.5);S.add(ledL);
+// chão e paredes
+const wood=document.createElement('canvas');wood.width=512;wood.height=512;{const g=wood.getContext('2d');for(let i=0;i<16;i++){g.fillStyle=`hsl(22,${30+(i*7)%12}%,${14+(i*5)%7}%)`;g.fillRect(0,i*32,512,30);g.fillStyle='rgba(0,0,0,.35)';g.fillRect(0,i*32+30,512,2)}}
+const wt=new THREE.CanvasTexture(wood);wt.wrapS=wt.wrapT=THREE.RepeatWrapping;wt.repeat.set(4,4);wt.colorSpace=THREE.SRGBColorSpace;
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(16,16),new THREE.MeshStandardMaterial({map:wt,roughness:.55}));floor.rotation.x=-Math.PI/2;S.add(floor);
+const wallM=std(0x2a2658,.95);const backW=new THREE.Mesh(new THREE.PlaneGeometry(16,8),wallM);backW.position.set(0,4,-1);S.add(backW);
+const left=new THREE.Mesh(new THREE.PlaneGeometry(14,8),std(0x221f48,.95));left.rotation.y=Math.PI/2;left.position.set(-5,4,5);S.add(left);
+const rightW=new THREE.Mesh(new THREE.PlaneGeometry(14,8),std(0x221f48,.95));rightW.rotation.y=-Math.PI/2;rightW.position.set(5,4,5);S.add(rightW);
+// janela com a cidade à noite
+const win=document.createElement('canvas');win.width=512;win.height=640;{const g=win.getContext('2d');const gr=g.createLinearGradient(0,0,0,640);gr.addColorStop(0,'#0b1030');gr.addColorStop(1,'#2a1850');g.fillStyle=gr;g.fillRect(0,0,512,640);g.fillStyle='#fff';for(let i=0;i<40;i++){g.globalAlpha=.3+(i%5)/8;g.fillRect((i*97)%512,(i*53)%300,2,2)}g.globalAlpha=1;
+ for(let i=0;i<26;i++){const x=i*21,h=120+(i*37)%240;g.fillStyle='#0d0f1e';g.fillRect(x,640-h,20,h);for(let j=0;j<h/22;j++){if((i+j)%3){g.fillStyle=(i+j)%2?'#ffd98a':'#7df9ff';g.globalAlpha=.8;g.fillRect(x+4+(j%2)*8,640-h+6+j*20,5,7);g.globalAlpha=1}}}
+ g.fillStyle='#f4f0d8';g.beginPath();g.arc(400,110,34,0,7);g.fill()}
+const wtx=new THREE.CanvasTexture(win);wtx.colorSpace=THREE.SRGBColorSpace;
+const win3=new THREE.Mesh(new THREE.PlaneGeometry(2.4,3),new THREE.MeshBasicMaterial({map:wtx}));win3.position.set(-4.95,2.6,1.6);win3.rotation.y=Math.PI/2;S.add(win3);
+const wf=std(0x2b2a44,.5);box(.12,3.2,.14,wf,-4.93,2.6,.4);box(.12,3.2,.14,wf,-4.93,2.6,2.8);box(.12,.14,2.6,wf,-4.93,4.2,1.6);box(.12,.14,2.6,wf,-4.93,1,1.6);
+// pôsteres
+function poster(c1,c2,x,y,w,h,txt){const cv=document.createElement('canvas');cv.width=256;cv.height=Math.round(256*h/w);const g=cv.getContext('2d');const gr=g.createLinearGradient(0,0,0,cv.height);gr.addColorStop(0,c1);gr.addColorStop(1,c2);g.fillStyle=gr;g.fillRect(0,0,256,cv.height);g.fillStyle='rgba(255,255,255,.9)';g.font='bold 44px sans-serif';g.textAlign='center';g.fillText(txt,128,cv.height-28);g.beginPath();g.arc(128,cv.height*.4,46,0,7);g.fillStyle='rgba(255,255,255,.25)';g.fill();const t=new THREE.CanvasTexture(cv);t.colorSpace=THREE.SRGBColorSpace;const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:t}));m.position.set(x,y,-.97);S.add(m)}
+poster('#ff6b9a','#3a1a6e',-3.1,3.1,1.1,1.5,'GG');poster('#3ddc97','#0a3a50',3.1,3.0,1.0,1.4,'FPS');poster('#ffd43b','#7a2a1a',-1.9,3.5,.7,.9,'XP');
+// LED atrás do monitor
+box(2.2,.05,.05,glow(0x7c3aed),0,2.45,-.93);box(.05,1.4,.05,glow(0x3ddc97),-1.12,1.75,-.93);box(.05,1.4,.05,glow(0x3ddc97),1.12,1.75,-.93);
+// mesa
+const deskM=std(0x2a2020,.45,.1);box(5.2,.1,1.9,deskM,0,.78,.4);[-2.4,2.4].forEach(x=>{box(.1,.78,1.7,std(0x15151c,.5,.5),x,.39,.4)});
+box(3,.012,1.1,std(0x0c0d14,.9),0,.84,.75); // mousepad
+// monitor
+const bez=std(0x0c0d12,.35,.6);box(1.78,1.04,.07,bez,0,1.62,0);box(.12,.5,.08,bez,0,1.0,-.12);box(.7,.04,.4,bez,0,.82,-.1);
+const sc=document.createElement('canvas');sc.width=1280;sc.height=720;const sg=sc.getContext('2d');const stx=new THREE.CanvasTexture(sc);stx.colorSpace=THREE.SRGBColorSpace;
+const screen=new THREE.Mesh(new THREE.PlaneGeometry(1.7,.956),new THREE.MeshBasicMaterial({map:stx,toneMapped:false}));screen.position.set(0,1.62,.04);S.add(screen);
+// teclado e mouse
+const kb=box(1.1,.04,.38,std(0x15161e,.5,.4),-.15,.87,.75);box(1.1,.012,.05,glow(0x3ddc97),-.15,.895,.56);box(.1,.035,.16,std(0x15161e,.4),.8,.87,.75);box(.1,.012,.16,glow(0x7c3aed),.8,.885,.75);
+// luminária
+box(.04,.7,.04,std(0x222,.4,.8),-2.1,1.15,.2);box(.5,.04,.04,std(0x222,.4,.8),-1.9,1.5,.2);box(.2,.1,.2,glow(0xffd9a0),-1.65,1.46,.2);box(.3,.03,.3,std(0x222,.4,.8),-2.1,.82,.2);
+// fone no suporte
+box(.05,.5,.05,std(0x222,.4,.8),2.1,1.05,.1);const hp=new THREE.Mesh(new THREE.TorusGeometry(.17,.03,10,28,Math.PI),std(0x15161e,.5));hp.position.set(2.1,1.35,.1);S.add(hp);[-.17,.17].forEach(x=>box(.09,.16,.1,glow(0x3ddc97),2.1+x,1.28,.1));
+// planta e prateleira
+const pot=box(.28,.3,.28,std(0xe8e0d0,.8),2.3,.98,-.3);for(let i=0;i<7;i++){const l=new THREE.Mesh(new THREE.ConeGeometry(.07,.45,5),std(0x2f8f5a,.7));l.position.set(2.3+Math.sin(i)*.12,1.3,-.3+Math.cos(i)*.1);l.rotation.z=Math.sin(i*2)*.5;S.add(l)}
+box(1.8,.06,.3,std(0x2a2020,.5),3.3,2.2,-.8);[0,1,2].forEach(i=>box(.28,.22+i*.08,.2,std([0xff6b9a,0x3ddc97,0xffd43b][i],.6),2.8+i*.4,2.36+i*.04,-.8));
+// tapete
+const rug=new THREE.Mesh(new THREE.CircleGeometry(2.2,48),std(0x2a1a4a,.95));rug.rotation.x=-Math.PI/2;rug.position.set(.8,.01,1.6);S.add(rug);
+// pessoa (de perfil, olhando para o monitor)
+const person=new THREE.Group();person.position.set(1.35,0,1.3);person.rotation.y=.82;S.add(person);
+const skin=std(0xc68b6a,.6),hoodM=std(0x1e2230,.8),hair=std(0x14100e,.9);
+box(.75,.1,.7,std(0x15161e,.7),0,.52,0,person);box(.7,.8,.1,std(0x15161e,.7),0,.95,.38,person);box(.08,.5,.08,std(0x222,.5,.8),0,.27,0,person);box(.55,.04,.55,std(0x222,.5,.8),0,.04,0,person);
+const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.27,.42,8,16),hoodM);torso.position.set(0,.98,.05);torso.scale.set(1,1,.8);person.add(torso);
+const head=new THREE.Group();head.position.set(0,1.62,0);person.add(head);
+head.add(new THREE.Mesh(new THREE.SphereGeometry(.19,24,24),skin));
+for(let i=0;i<46;i++){const a=i*2.4,r=.17+((i*7)%5)/100;const c=new THREE.Mesh(new THREE.SphereGeometry(.075,10,10),hair);c.position.set(Math.cos(a)*r*.95,.1+Math.sin(i*1.3)*.1+(i%3)*.03,Math.sin(a)*r*.95+.03);head.add(c)}
+const hb=new THREE.Mesh(new THREE.TorusGeometry(.2,.018,8,28,Math.PI),std(0x15161e,.5));hb.rotation.z=Math.PI/2*0;hb.position.set(0,.04,0);hb.rotation.set(0,Math.PI/2,Math.PI*0);head.add(hb);[-.2,.2].forEach(x=>{const c=new THREE.Mesh(new THREE.CylinderGeometry(.075,.075,.06,18),glow(0x3ddc97));c.rotation.z=Math.PI/2;c.position.set(x,0,0);head.add(c)});
+const armM=std(0x1e2230,.8);[[.25,-.2],[ -.25,-.2]].forEach(([x])=>{const a=new THREE.Mesh(new THREE.CapsuleGeometry(.07,.45,6,10),armM);a.position.set(x*1.1,.85,-.28);a.rotation.x=-1.2;person.add(a)});
+// papagaio (figurinha em camadas) na mesa
+const ld=new THREE.TextureLoader();const parrots={};
+function parrot(name){const g=new THREE.Group();const tx=ld.load(`assets/resenha-${name}.png`);tx.colorSpace=THREE.SRGBColorSpace;for(let i=0;i<4;i++){const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:tx,transparent:true,alphaTest:.05,color:i<3?new THREE.Color(.2,.24,.2):new THREE.Color(1,1,1)}));m.position.z=-i*.012;g.add(m)}g.visible=false;S.add(g);parrots[name]=g;return g}
+const pJ=parrot('joinha'),pB=parrot('bandeira');
+const dust=[];for(let i=0;i<50;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.012+((i*7)%4)/400,6,6),glow(0xcfe8ff));m.userData={x:((i*53)%100-50)/12,y:((i*29)%100)/22,z:((i*17)%90)/12-1,s:.05+((i*13)%30)/300};S.add(m);dust.push(m)}
+// ---------- tela do monitor ----------
+const SCN=[['c1','juntos'],['c2','tela'],['c3','juntos'],['c4','camera-b'],['c5','seguranca'],['c6','camera-a'],['c7','juntos'],['c8','camera-b'],['c9','juntos']];
+function screenDraw(t){
+ let name='juntos',a=0;for(const [id,n] of SCN)if(t>=TL[id][0]){name=n;a=TL[id][0]}
+ const im=IMG[name],z=1.02+((t-a)*.006)%.08;sg.fillStyle='#0b0d12';sg.fillRect(0,0,1280,720);
+ const w=1280*z,h=720*z;sg.drawImage(im,(1280-w)/2,(720-h)/2,w,h);
+ // brilho de tela + linhas
+ const g=sg.createLinearGradient(0,0,1280,720);g.addColorStop(0,'rgba(255,255,255,.07)');g.addColorStop(.5,'rgba(255,255,255,0)');sg.fillStyle=g;sg.fillRect(0,0,1280,720);
+ // transição entre telas: pisca
+ for(const [id] of SCN){const d=t-TL[id][0];if(d>=0&&d<.25){sg.fillStyle=`rgba(255,255,255,${(1-d/.25)*.5})`;sg.fillRect(0,0,1280,720)}}
+ // c4: realce nas funções
+ if(name==='camera-b'&&t<TL.c5[0]){sg.fillStyle='rgba(61,220,151,.0)'}
+ stx.needsUpdate=true}
+// ---------- câmera ----------
+const KEYS=[[0,[-2.4,2.0,12.8],[.9,1.2,.4]],[2.6,[-1.2,1.8,9.4],[.5,1.2,.3]],[5.2,[-.3,1.5,6.4],[.1,1.3,.1]],[8.2,[0,1.01,5.36],[0,1.01,0]],
+ [70.6,[0,1.01,5.36],[0,1.01,0]],[72.4,[.8,1.5,7.6],[.5,1.25,.3]],[78,[1.5,1.8,9.6],[.9,1.15,.5]]];
+function camAt(t){let i=0;while(i<KEYS.length-2&&t>=KEYS[i+1][0])i++;const [t0,p0,l0]=KEYS[i],[t1,p1,l1]=KEYS[i+1];const k=eio(p(t,t0,t1-t0));return{pos:p0.map((v,j)=>lerp(v,p1[j],k)),look:l0.map((v,j)=>lerp(v,l1[j],k))}}
+const SC=['c1','c2','c3','c4','c5','c6','c7','c8','c9'],TR=.3;
+window.seek=t=>{
+ const c=camAt(t),hold=t>8.2&&t<70.6?1:0;cam.position.set(c.pos[0]+hold*Math.sin(t*.35)*.07,c.pos[1]+hold*Math.cos(t*.3)*.03,c.pos[2]);cam.lookAt(c.look[0],c.look[1],c.look[2]);
+ // pessoa: respira, mexe a cabeça
+ head.rotation.y=Math.sin(t*.6)*.12+.1;head.rotation.x=Math.sin(t*.9)*.03;torso.position.y=.98+Math.sin(t*1.6)*.006;
+ lamp.intensity=16+Math.sin(t*2)*.6;scr.intensity=9+Math.sin(t*3.1)*1.2;ledL.color.setHSL(.72+Math.sin(t*.3)*.08,.8,.5);
+ dust.forEach((m,i)=>m.position.set(m.userData.x+Math.sin(t*m.userData.s*8+i)*.15,(m.userData.y+t*m.userData.s)%4.6+.2,m.userData.z));
+ // papagaio na mesa: aparece na abertura e no final
+ const inA=p(t,.9,.6)*(1-p(t,5.0,.5)),inB=p(t,72,.7);
+ pJ.visible=inA>0;pJ.position.set(-1.45,.95+.46*(.3+.7*back(p(t,.9,.6)))+Math.sin(t*3)*.015,.15);pJ.scale.setScalar(.9*(.3+.7*back(p(t,.9,.6)))*(1-p(t,5.0,.5)+.0001));pJ.rotation.y=.25+Math.sin(t*1.4)*.2;
+ pB.visible=inB>0;pB.position.set(-1.55,.9+.5,.2);pB.scale.setScalar(.95*back(inB)+.001);pB.rotation.y=Math.sin(t*1.3)*.3;
+ screenDraw(t);R.render(S,cam);
+ // ---- HTML ----
+ for(const id of SC){const [a,b]=TL[id],kin=eo(p(t,a,TR)),ko=eio(p(t,b-TR*.6,TR)),on=t>=a-.01&&t<b+TR;css(id,{display:on?'block':'none',opacity:kin*(1-ko),transform:`translateY(${(1-kin)*60-ko*80}px)`,filter:ko>0?`blur(${ko*10}px)`:'none'})}
+ const A=(id,o=0)=>TL[id][0]+o;
+ word('c1a',t,A('c1',.25));word('c1b',t,A('c1',.7));word('c1c',t,A('c1',3.0),.5);
+ word('c2a',t,A('c2'));word('c2b',t,A('c2',.4));pop('c2c1',t,A('c2',1.4));pop('c2c2',t,A('c2',2.3));pop('c2c3',t,A('c2',4.2));rise('c2r1',t,A('c2',4.9));rise('c2r2',t,A('c2',7.3));bob('c2m',t,A('c2',1.2),0);
+ word('c3a',t,A('c3'));word('c3b',t,A('c3',.4));rise('c3q1',t,A('c3',2.9));rise('c3q2',t,A('c3',3.5));pop('c3c',t,A('c3',4.1));bob('c3m',t,A('c3',1.5),1);
+ word('c4a',t,A('c4'));word('c4b',t,A('c4',.4));[.1,.9,2.3,3.1,3.8,5.6].forEach((o,i)=>pop('c4t'+(i+1),t,A('c4',o),.45));bob('c4m1',t,A('c4',1.4),0);bob('c4m2',t,A('c4',1.8),2);
+ word('c5a',t,A('c5'));word('c5b',t,A('c5',.35));word('c5d',t,A('c5',.8));pop('c5c1',t,A('c5',4.5));pop('c5c2',t,A('c5',5.6));pop('c5c3',t,A('c5',8.1));rise('c5r',t,A('c5',9.9));bob('c5m',t,A('c5',3),0);
+ word('c6a',t,A('c6'));word('c6b',t,A('c6',.4));rise('c6r1',t,A('c6',.8));rise('c6r2',t,A('c6',1.3),.5);rise('c6r3',t,A('c6',8.5));rise('c6r4',t,A('c6',10.7));rise('c6r5',t,A('c6',12.3));
+ css('c6r2',{boxShadow:`0 0 ${30+20*Math.sin(t*4)}px rgba(245,196,81,.35),0 30px 80px rgba(0,0,0,.6)`});
+ word('c7a',t,A('c7'));word('c7b',t,A('c7',.4));[.4,1.4,2.7,4.1].forEach((o,i)=>rise('c7r'+(i+1),t,A('c7',o)));bob('c7m',t,A('c7',1.5),0);
+ word('c8a',t,A('c8'));word('c8b',t,A('c8',.5));rise('c8k1',t,A('c8',1.1));rise('c8k2',t,A('c8',4.5));bob('c8m',t,A('c8',2),1);
+ word('c9a',t,A('c9',.3));word('c9b',t,A('c9',2.8));pop('c9c',t,A('c9',3.8),.4,'translateX(-50%)');word('c9d',t,A('c9',4.3));
+};
+window.ready=true;
+</script></body></html>

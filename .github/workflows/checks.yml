@@ -1,0 +1,59 @@
+# Verificações a cada envio: tipos (TypeScript), build do site, testes de unidade e bibliotecas com
+# falhas de segurança conhecidas (npm audit). Se algo falhar, o GitHub marca o commit com ❌.
+name: Verificações
+
+on:
+  push:
+    branches: [main, claude/screen-sharing-app-w2m6ft]
+    paths-ignore: ['promo/**', '**/*.md']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Varredura de segredos (repositório, histórico e site compilado)
+        run: node scripts/security-scan.mjs --self-test && node scripts/security-scan.mjs
+        # (o site compilado só existe depois do build: a varredura roda de novo abaixo)
+      - name: Tipos (TypeScript)
+        run: npm run typecheck
+      - name: Build do site
+        run: npm run build
+      - name: Varredura de segredos no site compilado
+        run: node scripts/security-scan.mjs
+      - name: Testes de unidade (arquivos, links, lixeira, backup)
+        run: node --import tsx e2e/files-unit.ts
+      - name: Testes de segurança (autorização, abuso, WebSocket, uploads, bots, chaves de emergência)
+        run: |
+          node --import tsx e2e/auth-unit.ts
+          node --import tsx e2e/names-unit.ts
+          node --import tsx e2e/safe-fetch.mjs
+          node e2e/authz-matrix.mjs
+          node e2e/abuse.mjs
+          node e2e/ws-abuse.mjs
+          node e2e/upload-abuse.mjs
+          node e2e/bots-abuse.mjs
+          node e2e/bots-dj.mjs
+          node e2e/killswitch.mjs
+          node e2e/blocks.mjs
+      - name: Bibliotecas com falhas conhecidas (site e servidor)
+        run: npm audit --omit=dev --audit-level=high
+      - name: Bibliotecas com falhas conhecidas (app de desktop)
+        working-directory: desktop
+        run: npm audit --omit=dev --audit-level=high

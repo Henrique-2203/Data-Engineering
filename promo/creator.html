@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Resenha — criei meu próprio Discord</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #06070a; font-family: Inter, sans-serif; color: #fff; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  .abs { position: absolute; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(130px); }
+  .scene { position: absolute; inset: 0; opacity: 0; }
+  #avatar { position: absolute; width: 600px; height: 700px; transform-origin: 50% 60%; }
+  #avatar svg { width: 100%; height: 100%; }
+  .chip { position: absolute; padding: 14px 26px; border-radius: 999px; font-weight: 900; font-size: 44px; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.15); white-space: nowrap; }
+  .chip s { text-decoration-thickness: 6px; text-decoration-color: #f04d5e; }
+  .laptop { position: absolute; width: 1000px; left: 40px; }
+  .laptop .screen { position: relative; width: 1000px; height: 640px; border-radius: 22px 22px 0 0; border: 14px solid #1d2028; border-bottom-width: 18px; overflow: hidden; background: #000; box-shadow: 0 40px 90px rgba(0,0,0,.6); }
+  .laptop .screen > img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .laptop .base { height: 26px; margin: 0 -40px; border-radius: 0 0 26px 26px; background: linear-gradient(#2b2f3a, #15171d); }
+  .phone { position: absolute; width: 470px; height: 980px; border-radius: 62px; background: #1d2028; padding: 16px; box-shadow: 0 40px 90px rgba(0,0,0,.65), inset 0 0 0 2px #333846; }
+  .phone .screen { position: relative; width: 100%; height: 100%; border-radius: 48px; overflow: hidden; background: #111318; }
+  .phone .screen > img { position: absolute; left: 0; top: 0; width: 100%; }
+  .phone .notch { position: absolute; top: 28px; left: 50%; width: 120px; height: 30px; margin-left: -60px; border-radius: 20px; background: #000; z-index: 3; }
+  .tag { position: absolute; padding: 14px 26px; border-radius: 18px; font-weight: 900; font-size: 54px; white-space: nowrap; }
+  .stamp { position: absolute; padding: 10px 34px; border: 10px solid #3ddc97; color: #3ddc97; border-radius: 24px; font-weight: 900; font-size: 84px; background: rgba(6,40,26,.9); white-space: nowrap; box-shadow: 0 0 60px rgba(61,220,151,.5); }
+  .code { position: absolute; left: 60px; right: 60px; top: 240px; height: 860px; border-radius: 28px; background: #0f1218; border: 2px solid #232836; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  .code .bar { position: relative; z-index: 2; height: 64px; background: #171a21; display: flex; align-items: center; gap: 14px; padding: 0 26px; }
+  .code .bar i { width: 20px; height: 20px; border-radius: 50%; display: inline-block; }
+  .code .bar span { margin-left: 18px; color: #a7adbb; font-size: 26px; font-family: monospace; }
+  .code pre { position: absolute; left: 30px; top: 90px; font: 26px/1.55 "DejaVu Sans Mono", monospace; color: #a7adbb; white-space: pre; }
+  .code .kw { color: #c792ea; } .code .st { color: #3ddc97; } .code .cm { color: #6f7686; } .code .fn { color: #82aaff; }
+  .ai { position: absolute; right: 90px; max-width: 640px; padding: 18px 24px; border-radius: 22px 22px 6px 22px; background: #1b2c25; border: 2px solid #3ddc97; font-size: 30px; font-weight: 700; box-shadow: 0 16px 40px rgba(0,0,0,.5); }
+  .ai b { color: #3ddc97; display: block; font-size: 22px; margin-bottom: 4px; }
+  .clock { position: absolute; left: 90px; top: 1130px; padding: 14px 26px; border-radius: 18px; background: rgba(0,0,0,.6); border: 2px solid #2a2f3a; font: 900 56px "DejaVu Sans Mono", monospace; }
+  .crew { position: absolute; width: 170px; height: 170px; border-radius: 50%; display: grid; place-items: center; font-size: 100px; box-shadow: 0 0 0 8px #0b0d11, 0 20px 40px rgba(0,0,0,.5); }
+  .float { position: absolute; pointer-events: none; }
+  .crop { position: absolute; }
+  #captions { position: absolute; left: 70px; right: 150px; top: 1330px; height: 260px; display: flex; align-items: center; justify-content: center; text-align: center; }
+  .chunk { font-weight: 900; font-size: 92px; line-height: 1.08; letter-spacing: -1.5px; text-transform: uppercase; }
+  .w { display: inline-block; margin: 0 .2em; color: #fff; -webkit-text-stroke: 12px #000; paint-order: stroke fill; text-shadow: 0 10px 0 rgba(0,0,0,.6); transform-origin: 50% 60%; }
+  .w.on { color: #3ddc97; }
+  .w.key { color: #ffd23f; }
+  .comment { position: absolute; left: 90px; right: 90px; top: 1030px; padding: 22px 26px; border-radius: 28px; background: #111318; border: 2px solid #2a2f3a; display: flex; align-items: center; gap: 20px; font-size: 40px; box-shadow: 0 20px 50px rgba(0,0,0,.6); }
+  .comment i { width: 70px; height: 70px; border-radius: 50%; background: #3ddc97; display: grid; place-items: center; font-style: normal; font-size: 40px; flex: 0 0 auto; }
+  .cta { position: absolute; left: 140px; right: 140px; height: 150px; border-radius: 80px; background: #3ddc97; color: #06281a; font-weight: 900; font-size: 64px; display: grid; place-items: center; box-shadow: 0 20px 60px rgba(61,220,151,.45); }
+  .wordmark { position: absolute; left: 0; right: 0; text-align: center; font-weight: 900; font-size: 150px; letter-spacing: -5px; }
+  .ring { position: absolute; border-radius: 50%; border: 8px solid #3ddc97; }
+  .term { position: absolute; left: 60px; right: 60px; border-radius: 24px; background: #07090c; border: 2px solid #232836; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.6); font: 24px/1.6 "DejaVu Sans Mono", monospace; }
+  .term .bar { height: 54px; background: #121419; display: flex; align-items: center; padding: 0 22px; color: #a7adbb; font-size: 22px; gap: 10px; position: relative; z-index: 2; }
+  .term .bar b { color: #3ddc97; }
+  .term .feed { position: absolute; left: 24px; right: 24px; top: 70px; }
+  .cl { color: #c4c8d2; white-space: nowrap; overflow: hidden; }
+  .cl .ct { color: #f5b942; }
+  .tl { color: #3ddc97; white-space: nowrap; overflow: hidden; }
+  .clipframe { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
+  .card { position: absolute; width: 520px; border-radius: 20px; overflow: hidden; border: 6px solid #1d2028; box-shadow: 0 30px 70px rgba(0,0,0,.6); }
+  .card img { width: 100%; display: block; }
+  .card span { position: absolute; left: 12px; bottom: 12px; padding: 6px 14px; border-radius: 10px; background: rgba(0,0,0,.75); font-weight: 900; font-size: 26px; }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  .vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 40%, transparent 50%, rgba(0,0,0,.6)); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="blob" id="b1" style="width:900px;height:900px"></div>
+  <div class="blob" id="b2" style="width:800px;height:800px"></div>
+  <div class="blob" id="b3" style="width:700px;height:700px"></div>
+
+  <!-- B: a vontade de transmitir... e o "pago" -->
+  <div class="scene" id="sB">
+    <div class="laptop" id="lapB" style="top:420px"><div class="screen"><img class="clipframe" id="clipQuality" /><div class="abs" id="payB" style="inset:0;display:grid;place-items:center;background:rgba(0,0,0,.55);backdrop-filter:blur(10px);opacity:0;font-size:150px">🔒</div></div><div class="base"></div></div>
+    <div class="tag" id="hdB" style="left:200px;top:250px;background:#fff;color:#0b0d11">1080p · 60 FPS</div>
+    <div class="tag" id="paidB" style="left:270px;top:1120px;background:#e5384b;color:#fff;font-size:70px">💸 PAGO</div>
+  </div>
+
+  <!-- D: programando com IA, noite após noite -->
+  <div class="scene" id="sD">
+    <div class="code" style="height:560px"><div class="bar"><i style="background:#f04d5e"></i><i style="background:#f5b942"></i><i style="background:#3ddc97"></i><span>resenha/server/src/realtime.ts</span></div><pre id="codepre"></pre></div>
+    <div class="term" id="gitlog" style="top:830px;height:420px"><div class="bar">$ git log · <b>31 versões publicadas</b></div><div class="feed" id="gitfeed"><div class="cl"><span class="ct">08/11 15:23</span> Initial commit</div><div class="cl"><span class="ct">08/11 13:51</span> Create Resenha: chat, voice and high-quality screen sharing we</div><div class="cl"><span class="ct">08/11 13:55</span> Pin Render region to Virginia to match the Neon database regio</div><div class="cl"><span class="ct">08/11 14:13</span> Explain stuck voice connections and drop blocked Cloudflare TU</div><div class="cl"><span class="ct">08/11 14:22</span> Add Metered TURN support (free plan, no credit card)</div><div class="cl"><span class="ct">08/11 15:49</span> Remove fullscreen and focus from your own screen share preview</div><div class="cl"><span class="ct">08/11 15:56</span> Protect the TURN quota by sending lighter media over relayed c</div><div class="cl"><span class="ct">08/11 16:03</span> Add push-to-talk, voice activation sensitivity, shortcuts, sou</div><div class="cl"><span class="ct">08/11 16:25</span> Show screen share sender stats and enforce the chosen codec</div><div class="cl"><span class="ct">08/11 16:59</span> Add friends and direct messages</div><div class="cl"><span class="ct">08/11 17:14</span> Add replies, reactions, @mentions and image uploads to chat</div><div class="cl"><span class="ct">08/11 17:39</span> Add voice calls in direct messages and fix a call setup race</div><div class="cl"><span class="ct">08/11 18:17</span> Add the Windows desktop app (Electron) and retry transient sta</div><div class="cl"><span class="ct">08/11 18:30</span> Publish desktop releases from this (now public) repository</div><div class="cl"><span class="ct">08/11 18:34</span> Fix desktop release publishing race and auto-repair incomplete</div><div class="cl"><span class="ct">08/11 18:42</span> Create desktop releases with a single gh release create</div><div class="cl"><span class="ct">08/11 19:29</span> Add roles, permissions, private channels, categories, moderati</div><div class="cl"><span class="ct">08/11 20:17</span> Perfil social, "Jogando agora" e aviso de nova versão do site</div><div class="cl"><span class="ct">08/11 20:49</span> Emojis, figurinhas, soundboard e perfil por servidor (grátis)</div><div class="cl"><span class="ct">08/11 22:31</span> Script de captura de telas para o vídeo de divulgação</div><div class="cl"><span class="ct">08/11 22:56</span> Vídeo de divulgação animado (legendas dinâmicas e efeitos)</div><div class="cl"><span class="ct">08/11 23:56</span> Vídeo sincronizado com a narração gravada</div><div class="cl"><span class="ct">09/11 01:04</span> Trilha original sincronizada com o vídeo (phonk + funk)</div><div class="cl"><span class="ct">09/11 01:15</span> Trilha suave (chill/lo-fi) e efeitos afinados no tom da música</div><div class="cl"><span class="ct">09/11 01:20</span> Música 10 dB mais baixa e foto de perfil para o Instagram</div><div class="cl"><span class="ct">09/11 02:06</span> Segurança e privacidade: 2FA, recuperação, sessões, LGPD e pág</div><div class="cl"><span class="ct">09/11 02:40</span> Denúncias: botão em mensagens, perfis e servidores, fila da eq</div><div class="cl"><span class="ct">09/11 03:20</span> Página inicial com vídeo do app, download e lista de espera</div><div class="cl"><span class="ct">09/11 03:55</span> Painel de números da equipe, sem rastreadores</div><div class="cl"><span class="ct">09/11 04:09</span> Avatar anônimo do criador para os vídeos (capuz, olhos do logo</div><div class="cl"><span class="ct">09/11 04:43</span> Vídeo "Criei meu próprio Discord" com o avatar do criador</div></div></div>
+    <div class="ai" id="ai1" style="top:420px"><b>🤖 IA</b>Pra call ficar boa, usa WebRTC direto entre os amigos.</div>
+    <div class="ai" id="ai2" style="top:580px"><b>🤖 IA</b>Achei o bug do áudio! Era o eco.</div>
+    <div class="clock" id="clock" style="top:130px;left:auto;right:330px">22:47</div>
+    <div class="abs" id="moon" style="left:90px;top:120px;font-size:100px">🌙</div>
+  </div>
+
+  <!-- E: recursos -->
+  <div class="scene" id="sE">
+    <div class="laptop" id="lapChat" style="top:420px"><div class="screen"><img class="clipframe" id="clipChat" /></div><div class="base"></div></div>
+    <div class="laptop" id="lapVoice" style="top:420px"><div class="screen"><img class="clipframe" id="clipVoice" /></div><div class="base"></div></div>
+    <div class="laptop" id="lapEmoji" style="top:420px"><div class="screen"><img src="out/shots2/emoji-picker.png" /></div><div class="base"></div></div>
+    <div class="laptop" id="lapSticker" style="top:420px"><div class="screen"><img src="out/shots2/sticker-picker.png" /></div><div class="base"></div></div>
+    <div class="laptop" id="lapExpr" style="top:420px"><div class="screen"><img src="out/shots2/settings-expressions.png" /></div><div class="base"></div></div>
+    <div class="laptop" id="lapCall" style="top:420px"><div class="screen"><img src="out/shots/desk-call.png" /><canvas id="gameE" width="1104" height="626" class="abs" style="left:221.4px;top:40.5px;width:745.2px;height:422.6px;border-radius:6px"></canvas></div><div class="base"></div></div>
+    <div class="laptop" id="lapSb" style="top:420px"><div class="screen"><img class="clipframe" id="clipSb" /></div><div class="base"></div></div>
+    <div class="tag" id="featTag" style="left:0;width:1080px;text-align:center;top:1185px;background:none;font-size:64px"></div>
+    <div class="abs" id="horns" style="inset:0"></div>
+    <div class="stamp" id="freeStamp" style="left:150px;top:1150px">R$ 0,00 · GRÁTIS</div>
+  </div>
+
+  <!-- F: testes com a galera, bugs -->
+  <div class="scene" id="sF">
+    <div class="term" id="tests" style="top:300px;height:900px"><div class="bar">$ npm run test:e2e · <b>16 testes automáticos</b></div><div class="feed" id="testfeed"><div class="tl">security: ✓ cabeçalhos de segurança: CSP sem scripts de fora, anti-cli</div><div class="tl">security: ✓ senhas fracas recusadas ("Essa senha é muito comum e fácil</div><div class="tl">security: ✓ cadastro: medidor de força da senha e aceite dos termos ob</div><div class="tl">security: ✓ 2 aparelhos listados; "Sair de todos os outros" derruba o </div><div class="tl">security: ✓ 10 códigos de recuperação gerados (ex.: EZXG-UGFH)</div><div class="tl">security: ✓ 2FA ativada com QR code + app autenticador; vieram códigos</div><div class="tl">security: ✓ login pede o código do app; o mesmo código não vale duas v</div><div class="tl">security: ✓ "Esqueci minha senha" com código de recuperação: senha nov</div><div class="tl">security: ✓ trocar a senha exige a atual e desconecta os outros aparel</div><div class="tl">security: ✓ "Baixar meus dados": perfil, servidores, amigos, 1 mensage</div><div class="tl">security: ✓ spam de mensagens limitado (3 de 15 recusadas)</div><div class="tl">security: ✓ "Excluir minha conta": exige senha e "EXCLUIR"; apaga a co</div><div class="tl">security: ✓ páginas públicas /privacidade e /termos (com o contato con</div><div class="tl">security: ✓ conexão em tempo real de outro site é recusada</div><div class="tl">security: ✓ várias senhas erradas seguidas travam as tentativas por 15</div><div class="tl">security: Tudo certo!</div><div class="tl">reports: ✓ Ana denunciou a mensagem; o contador da equipe acendeu em t</div><div class="tl">reports: ✓ quem não vê a mensagem não denuncia; sem denúncia repetida;</div><div class="tl">reports: ✓ denúncia de perfil pelo cartão; motivo de autolesão mostra </div><div class="tl">reports: ✓ a equipe vê a cópia da mensagem apagada, o motivo, os detal</div><div class="tl">reports: ✓ conta suspensa: desconectada na hora e o login avisa ("Esta</div><div class="tl">reports: ✓ histórico das encerradas com a decisão; "Reativar conta" de</div><div class="tl">reports: ✓ servidor de golpe denunciado pelo menu e excluído pela equi</div><div class="tl">reports: ✓ Política de Privacidade mostra o e-mail resenha.brasilgames</div><div class="tl">reports: Tudo certo!</div><div class="tl">landing: ✓ página inicial com aviso de beta e vídeo tocando sozinho (1</div><div class="tl">landing: ✓ 5 prints reais do app nos recursos; 23 blocos animados ao r</div><div class="tl">landing: ✓ "Baixar para Windows" leva ao instalador mais recente (rele</div><div class="tl">landing: ✓ inscrição na lista de espera (consentimento obrigatório) mo</div><div class="tl">landing: ✓ mesmo e-mail não duplica; robôs (campo invisível), e-mail i</div><div class="tl">landing: ✓ equipe vê a lista no painel, marca "convite enviado" e expo</div><div class="tl">landing: ✓ quem já tem conta cai direto no app; "/entrar" abre o login</div><div class="tl">landing: ✓ layout do celular sem rolagem para os lados</div><div class="tl">landing: ✓ painel de números: visita do celular contada como Instagram</div><div class="tl">landing: ✓ nenhum erro no navegador (inclusive de Content-Security-Pol</div><div class="tl">landing: Tudo certo!</div></div></div>
+    <div class="crew" id="cr0" style="background:linear-gradient(135deg,#f97316,#ef4444)">🦁</div>
+    <div class="crew" id="cr1" style="background:linear-gradient(135deg,#3b82f6,#1e3a8a)">🐺</div>
+    <div class="crew" id="cr2" style="background:linear-gradient(135deg,#ec4899,#8b5cf6)">🦊</div>
+    <div class="crew" id="cr3" style="background:linear-gradient(135deg,#22c55e,#065f46)">🐸</div>
+    <div class="crew" id="cr4" style="background:linear-gradient(135deg,#eab308,#c2410c)">🐼</div>
+    <div class="abs" id="bugs" style="inset:0"></div>
+  </div>
+
+  <!-- G/H: no ar, nome e beta -->
+  <div class="scene" id="sG">
+    <div class="laptop" id="lapG" style="top:440px"><div class="screen"><img src="out/shots/landing.png" /></div><div class="base"></div></div>
+    <div class="tag" id="liveTag" style="left:300px;top:250px;background:#3ddc97;color:#06281a;font-size:70px">● NO AR</div>
+  </div>
+  <div class="scene" id="sH">
+    <div class="ring" id="ringH"></div>
+    <img id="logoH" class="abs" src="../client/public/icon.svg" style="width:380px;height:380px;left:350px;top:380px" />
+    <div class="wordmark" id="wordH" style="top:820px">Resenha</div>
+ <div class="card" id="cardRoles" style="left:-20px;top:1010px;width:460px"><img src="out/shots2/settings-roles.png" /><span>Cargos e permissões</span></div>
+    <div class="card" id="card2fa" style="right:-20px;top:1010px;width:460px"><img src="out/shots2/security-2fa.png" /><span>🔐 Verificação em 2 etapas</span></div>
+    <div class="tag" id="betaH" style="left:0;right:0;margin:auto;width:max-content;top:250px;background:rgba(245,185,66,.18);color:#f5b942;border:3px solid #f5b942;font-size:56px">🚧 BETA · já dá pra usar</div>
+  </div>
+
+  <!-- I: comenta COMO -->
+  <div class="scene" id="sI">
+    <div class="comment" id="commentBox"><i>🙂</i><span id="commentText" style="flex:1;color:#8d93a1">Adicione um comentário…</span><span id="heart" style="font-size:52px">🤍</span></div>
+  </div>
+
+  <!-- J: final -->
+  <div class="scene" id="sJ">
+    <div class="ring" id="ringJ"></div>
+    <img id="logoJ" class="abs" src="../client/public/icon.svg" style="width:300px;height:300px;left:390px;top:280px" />
+    <div class="wordmark" id="wordJ" style="top:620px;font-size:130px">Resenha</div>
+    <div class="abs" id="handleJ" style="left:0;right:0;top:800px;text-align:center;font-weight:800;font-size:48px;color:#a7adbb">@resenha.brazil</div>
+    <div class="cta" id="ctaJ" style="top:930px">👆 LINK NA BIO</div>
+  </div>
+
+  <!-- avatar (grande nas partes de história; no canto durante as imagens) -->
+  <div id="avatar"></div>
+  <div class="abs" id="bulb" style="left:440px;top:120px;font-size:200px;opacity:0">💡</div>
+  <div class="chip" id="chip1" style="left:90px;top:300px"><s>EMPRESA</s></div>
+  <div class="chip" id="chip2" style="right:90px;top:430px"><s>INVESTIDOR</s></div>
+
+  <div id="captions"></div>
+  <div class="vignette"></div>
+  <div class="flash" id="flash"></div>
+</div>
+
+<script type="module">
+import { DURATION, CUES as C, captionChunks } from './creator-timeline.mjs';
+import { avatarSvg } from './avatar.mjs';
+import { drawGame } from './game.mjs';
+
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const easeOut = (k) => 1 - Math.pow(1 - k, 3);
+const easeInOut = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
+const back = (k) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
+const elastic = (k) => (k === 0 || k === 1 ? k : Math.pow(2, -10 * k) * Math.sin((k * 10 - 0.75) * ((2 * Math.PI) / 3)) + 1);
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const css = (el, s) => Object.assign((typeof el === 'string' ? $(el) : el).style, s);
+const pop = (t, at, d = 0.3) => prog(t, at, at + d);
+
+// volume da voz quadro a quadro (para a boca do avatar)
+const ENV = await fetch('out/creator-env.json').then((r) => r.json()).catch(() => []);
+const envAt = (t) => {
+  const i = t * 30;
+  const a = ENV[Math.floor(i)] ?? 0, b = ENV[Math.ceil(i)] ?? 0;
+  return lerp(a, b, i % 1);
+};
+
+// cenas: [id, início, fim]
+const SCENES = [
+  ['sB', C.tudo - 0.05, C.pensei],
+  ['sD', C.usei - 0.15, C.chat],
+  ['sE', C.chat, C.testei],
+  ['sF', C.testei, C.noAr - 0.15],
+  ['sG', C.noAr - 0.15, C.nome - 0.17],
+  ['sH', C.nome - 0.17, C.quer],
+  ['sI', C.quer, C.link],
+  ['sJ', C.link, DURATION + 1],
+];
+function scene(id, t, a, b, from = 1.12) {
+  const vis = t >= a && t < b;
+  const k = prog(t, a, a + 0.28), o = 1 - prog(t, b - 0.18, b);
+  css(id, { display: vis ? 'block' : 'none', opacity: vis ? Math.min(easeOut(k), o) : 0, transform: `scale(${lerp(from, 1, easeOut(k))})` });
+  return vis ? t - a : -1;
+}
+
+// avatar: grande (história) ou no canto (durante as imagens)
+const BIG = { x: 240, y: 330, s: 1 };
+const PIP = { x: 760, y: 140, s: 0.42 };
+function avatarPlace(t) {
+  const bigRanges = [[0, C.tudo - 0.05], [C.pensei, C.usei - 0.15], [C.quer, C.link]];
+  const isBig = bigRanges.some(([a, b]) => t >= a && t < b);
+  // transição suave de 0,35 s nas trocas
+  let k = isBig ? 1 : 0;
+  for (const [a, b] of bigRanges) {
+    if (t >= a - 0.35 && t < a) k = Math.max(k, easeInOut(prog(t, a - 0.35, a)));
+    if (t >= b && t < b + 0.35) k = Math.max(k, 1 - easeInOut(prog(t, b, b + 0.35)));
+  }
+  const hide = t >= C.nome - 0.17 && t < C.quer - 0.3 ? 1 - prog(t, C.nome - 0.17, C.nome) : t >= C.link ? 1 - prog(t, C.link, C.link + 0.3) : 1;
+  return { x: lerp(PIP.x, BIG.x, k), y: lerp(PIP.y, BIG.y, k), s: lerp(PIP.s, BIG.s, k), o: hide };
+}
+
+// código
+const CODE = `<span class="cm">// Resenha: voz, tela e chat em tempo real</span>
+<span class="kw">socket</span>.on(<span class="st">'voice:join'</span>, (payload, ack) => {
+  <span class="kw">this</span>.<span class="fn">onVoiceJoin</span>(socket, payload).then(ack);
+});
+<span class="kw">const</span> peer = <span class="kw">new</span> <span class="fn">RTCPeerConnection</span>({ iceServers });
+peer.<span class="fn">addTrack</span>(mic, stream);
+<span class="cm">// tela em 1080p com a placa de vídeo</span>
+sender.<span class="fn">setParameters</span>({ maxBitrate: <span class="st">8_000_000</span> });
+<span class="cm">// soundboard: toca pra todo mundo da call</span>
+socket.on(<span class="st">'soundboard:play'</span>, <span class="fn">tocarSom</span>);
+<span class="cm">// emojis e figurinhas: grátis</span>
+r.<span class="fn">post</span>(<span class="st">'/guilds/:id/expressions'</span>, auth, upload);
+<span class="kw">export</span> <span class="kw">default</span> <span class="fn">Resenha</span>;
+`;
+$('codepre').innerHTML = CODE + '\n' + CODE + '\n' + CODE;
+
+// recortes do print do celular (emojis e figurinhas)
+function crop(id, src, sw, sh, [x, y, w, h]) {
+  const el = $(id);
+  const s = el.offsetWidth / w;
+  css(el, { height: `${h * s}px`, backgroundImage: `url(${src})`, backgroundSize: `${sw * s}px ${sh * s}px`, backgroundPosition: `${-x * s}px ${-y * s}px`, borderRadius: '24px', filter: 'drop-shadow(0 25px 35px rgba(0,0,0,.6))' });
+}
+
+/** zoom DENTRO da tela (a moldura fica parada): foca na parte que importa */
+function zoomIn(sel, k, ox, oy, s) {
+  const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
+  css(el, { transform: `scale(${lerp(1, s, easeInOut(clamp(k)))})`, transformOrigin: `${ox}% ${oy}%` });
+}
+
+// trechos gravados do app (quadros jpg): troca o quadro e espera decodificar antes da foto
+const COUNTS = await fetch('out/clips/counts.json').then((r) => r.json()).catch(() => ({}));
+let pending = [];
+function clipFrame(imgId, clip, frame) {
+  const n = Math.max(1, Math.min(COUNTS[clip] ?? 1, Math.round(frame)));
+  const src = `out/clips/${clip}/${String(n).padStart(4, '0')}.jpg`;
+  const el = $(imgId);
+  if (el.dataset.src !== src) {
+    el.dataset.src = src;
+    el.src = src;
+    pending.push(el.decode().catch(() => {}));
+  }
+}
+
+// legendas
+const CHUNKS = captionChunks();
+let last = -1;
+function captions(t) {
+  const i = CHUNKS.findIndex((c) => t >= c.start && t < c.end);
+  const el = $('captions');
+  if (i !== last) {
+    last = i;
+    el.innerHTML = i < 0 ? '' : `<div class="chunk">${CHUNKS[i].words.map((w) => `<span class="w${w.key ? ' key' : ''}">${w.word.replace(/[,.:"]+$|^"/g, '').replace(/\.\.\.$/, '…').replace(/"/g, '')}</span>`).join(' ')}</div>`;
+  }
+  if (i < 0) return;
+  const c = CHUNKS[i];
+  const k = prog(t, c.start, c.start + 0.16);
+  css(el.firstChild, { transform: `scale(${lerp(0.7, 1, back(k))}) translateY(${lerp(30, 0, easeOut(k))}px)`, opacity: k });
+  c.words.forEach((w, j) => {
+    const span = el.firstChild.children[j];
+    const on = t >= w.start;
+    const p = prog(t, w.start, w.start + 0.14);
+    span.classList.toggle('on', on && t < w.end + 0.25);
+    css(span, { transform: `scale(${on ? (w.key ? lerp(1.35, 1.15, easeOut(p)) : lerp(1.18, 1, easeOut(p))) : 0.92}) rotate(${w.key && on ? -2 : 0}deg)`, opacity: on ? 1 : 0.8 });
+  });
+}
+
+window.seek = async function seek(t) {
+  pending = [];
+  // fundo: azul inseguro no começo -> verde/roxo animado depois
+  const mood = prog(t, C.criei, C.usei);
+  const hype = prog(t, C.chat, C.chat + 2);
+  css('b1', { left: `${-300 + Math.sin(t * 0.5) * 200}px`, top: `${150 + Math.cos(t * 0.4) * 150}px`, background: mood < 0.5 ? '#1e3a8a' : '#3ddc97', opacity: lerp(0.25, 0.5, mood) });
+  css('b2', { left: `${500 + Math.cos(t * 0.45) * 220}px`, top: `${900 + Math.sin(t * 0.35) * 200}px`, background: mood < 0.5 ? '#0f172a' : '#7c3aed', opacity: lerp(0.3, 0.45, mood) });
+  css('b3', { left: `${100 + Math.sin(t * 0.3) * 250}px`, top: `${1300 + Math.cos(t * 0.5) * 120}px`, background: '#0ea5e9', opacity: lerp(0.15, 0.35, hype) });
+
+  // avatar
+  const place = avatarPlace(t);
+  const m = clamp(envAt(t) * 1.35);
+  const blinkPhase = (t + 0.7) % 3.7;
+  const blink = blinkPhase < 0.12 ? Math.sin((blinkPhase / 0.12) * Math.PI) : 0;
+  const glow = clamp(0.5 + m * 0.5 + (t >= C.criei && t < C.criei + 0.8 ? 1 - prog(t, C.criei, C.criei + 0.8) : 0) + (t >= C.fizesse && t < C.fizesse + 1 ? 0.6 : 0));
+  $('avatar').innerHTML = avatarSvg({ mouth: m, blink, glow, look: Math.sin(t * 0.7) * 0.5, tilt: Math.sin(t * 1.3) * 2.5 + (t > C.chat ? Math.sin(t * 4) * 1.5 : 0), bob: Math.sin(t * 2.1) * 6 });
+  const intro = prog(t, 0, 0.6);
+  css('avatar', { left: `${place.x}px`, top: `${place.y}px`, transform: `scale(${place.s * lerp(0.85, 1, easeOut(intro)) * (1 + (t >= C.criei && t < C.criei + 0.5 ? 0.06 * Math.exp(-(t - C.criei) * 8) : 0))})`, transformOrigin: '0 0', opacity: place.o * intro, filter: t < C.criei ? `brightness(${lerp(0.75, 1, prog(t, 0, C.criei))})` : 'none' });
+
+  // A: "não sou empresa / não tenho investidor"
+  const ch1 = pop(t, 0.48), ch2 = pop(t, 1.86);
+  const out1 = 1 - prog(t, C.tudo - 0.3, C.tudo);
+  css('chip1', { opacity: ch1 * out1, transform: `scale(${lerp(0.5, 1, back(ch1))}) rotate(-6deg)` });
+  css('chip2', { opacity: ch2 * out1, transform: `scale(${lerp(0.5, 1, back(ch2))}) rotate(5deg)` });
+
+  // C: a ideia 💡
+  const bk = pop(t, C.fizesse, 0.4);
+  css('bulb', { opacity: t >= C.fizesse && t < C.usei - 0.2 ? bk : 0, transform: `scale(${elastic(bk)}) translateY(${Math.sin(t * 5) * 8}px)`, filter: `drop-shadow(0 0 ${30 + Math.sin(t * 9) * 15}px #ffd23f)` });
+
+  // B: transmissão em Full HD... que é paga
+  let lt = scene('sB', t, ...SCENES[0].slice(1));
+  if (lt >= 0) {
+    // a janela de qualidade da transmissão do próprio app (1080p · 60 FPS)
+    clipFrame('clipQuality', 'quality', 1 + (t - C.tudo) * 30 * 0.55);
+    zoomIn('#clipQuality', prog(t, C.tudo + 0.6, C.tudo + 1.8), 52, 42, 1.75);
+    css('lapB', { transform: `perspective(1600px) rotateX(${lerp(14, 3, easeOut(prog(lt, 0, 0.8)))}deg) scale(${lerp(0.96, 1.04, prog(lt, 0, 6))})` });
+    const hd = pop(t, C.tudo + 2.7);
+    css('hdB', { opacity: hd * (1 - prog(t, C.pagar - 0.6, C.pagar - 0.3)), transform: `scale(${lerp(2, 1, back(hd))}) rotate(-3deg)` });
+    const pay = pop(t, C.pagar - 0.5, 0.35);
+    css('payB', { opacity: pay });
+    css('paidB', { opacity: pay, transform: `scale(${lerp(2.4, 1, back(pay))}) rotate(${lerp(-20, -6, pay)}deg)` });
+  }
+
+  // D: IA + noite após noite
+  lt = scene('sD', t, ...SCENES[1].slice(1));
+  if (lt >= 0) {
+    css('codepre', { transform: `translateY(${-lt * 300}px)` });
+    // histórico real de versões do projeto, rolando
+    const gk = pop(t, C.noite - 1.2, 0.4);
+    css('gitlog', { opacity: gk, transform: `translateY(${lerp(80, 0, back(gk))}px)` });
+    css('gitfeed', { transform: `translateY(${-Math.max(0, t - (C.noite - 1.2)) * 260}px)` });
+    const a1 = pop(t, C.usei + 0.8), a2 = pop(t, C.usei + 2.6);
+    css('ai1', { opacity: a1, transform: `translateY(${lerp(40, 0, back(a1))}px)` });
+    css('ai2', { opacity: a2, transform: `translateY(${lerp(40, 0, back(a2))}px)` });
+    // relógio correndo a madrugada
+    const mins = 22 * 60 + 47 + Math.floor(prog(t, C.usei, C.chat) * 260);
+    $('clock').textContent = `${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+    const mn = pop(t, C.noite - 0.2, 0.4);
+    css('moon', { opacity: mn, transform: `scale(${elastic(mn)}) rotate(${Math.sin(t * 2) * 10}deg)` });
+  }
+
+  // E: recursos em cortes rápidos
+  lt = scene('sE', t, ...SCENES[2].slice(1));
+  if (lt >= 0) {
+    const show = (id, a, b, from = 'up') => {
+      const vis = t >= a && t < b;
+      const k = pop(t, a, 0.3);
+      css(id, { opacity: vis ? k : 0, transform: vis ? `translateY(${lerp(from === 'up' ? 160 : -160, 0, easeOut(k))}px) scale(${lerp(0.9, 1, easeOut(k))})` : 'none' });
+    };
+    show('lapChat', C.chat, C.call);
+    show('lapVoice', C.call, C.tela);
+    show('lapCall', C.tela, C.soundboard);
+    show('lapSb', C.soundboard, C.emojis);
+    show('lapEmoji', C.emojis, C.figurinhas);
+    show('lapSticker', C.figurinhas, C.graca);
+    show('lapExpr', C.graca, C.testei);
+    // trechos reais: chat digitando (acelerado), call com a galera, soundboard tocando
+    if (t >= C.chat && t < C.call) {
+      clipFrame('clipChat', 'chat', 20 + (t - C.chat) * 30 * 3.6);
+      zoomIn('#clipChat', prog(t, C.chat, C.chat + 0.4), 45, 92, 1.7);
+    }
+    if (t >= C.call && t < C.tela) clipFrame('clipVoice', 'soundboard', 1 + (t - C.call) * 30 * 0.5);
+    if (t >= C.soundboard && t < C.emojis) clipFrame('clipSb', 'soundboard', 25 + (t - C.soundboard) * 30 * 1.7);
+    if (t >= C.tela && t < C.soundboard) drawGame($('gameE'), t, { boost: Math.exp(-(t - C.tela) * 1.5) });
+    css('lapCall', { transform: `${$('lapCall').style.transform} scale(${lerp(1, 1.25, easeInOut(prog(t, C.tela, C.tela + 0.6)))})`, transformOrigin: '55% 30%' });
+    // zoom nos seletores de emoji e figurinha (onde eles abrem na tela)
+    zoomIn('#lapEmoji img', prog(t, C.emojis, C.emojis + 0.45), 72, 76, 2.1);
+    zoomIn('#lapSticker img', prog(t, C.figurinhas, C.figurinhas + 0.45), 71, 86, 2.3);
+    zoomIn('#lapExpr img', prog(t, C.graca, C.graca + 0.5), 70, 35, 1.5);
+    const labels = [[C.chat, '💬 CHAT'], [C.call, '🎙️ CALL DE VOZ'], [C.tela, '🖥️ TELA EM FULL HD'], [C.soundboard, '🔊 SOUNDBOARD'], [C.emojis, '😂 EMOJIS'], [C.figurinhas, '🔥 FIGURINHAS'], [C.graca, '']];
+    const cur = [...labels].reverse().find(([a]) => t >= a);
+    $('featTag').textContent = cur ? cur[1] : '';
+    const lk = cur ? pop(t, cur[0], 0.25) : 0;
+    css('featTag', { opacity: lk, transform: `scale(${lerp(1.6, 1, back(lk))})` });
+    // buzina do soundboard
+    const hornAt = C.soundboard + 0.9;
+    $('horns').innerHTML = t >= hornAt && t < hornAt + 1.2 ? [0, 1, 2, 3, 4].map((i) => {
+      const k = prog(t, hornAt + i * 0.06, hornAt + 0.9 + i * 0.06);
+      const ang = -Math.PI / 2 + (i - 2) * 0.5, d = lerp(0, 480, easeOut(k));
+      return `<span class="float" style="left:${540 + Math.cos(ang) * d - 60}px;top:${820 + Math.sin(ang) * d - 60}px;font-size:${i === 2 ? 160 : 110}px;opacity:${1 - k * k}">${['🔊', '💥', '📯', '💥', '🎶'][i]}</span>`;
+    }).join('') : '';
+    const st = pop(t, C.graca, 0.25);
+    css('freeStamp', { opacity: st, transform: `scale(${lerp(2.6, 1, back(st))}) rotate(${lerp(-20, -6, st)}deg)` });
+  }
+
+  // F: testei com a galera, corrigi os bugs
+  lt = scene('sF', t, ...SCENES[3].slice(1));
+  if (lt >= 0) {
+    for (let i = 0; i < 5; i++) {
+      const k = pop(t, C.testei + i * 0.1, 0.35);
+      const talk = Math.max(0, Math.sin(t * 9 + i * 1.7));
+      css(`cr${i}`, { left: `${540 + (i - 2) * 190 - 85}px`, top: `${lerp(1350, 1120, back(k)) - talk * 12}px`, opacity: k, transform: 'scale(.8)', boxShadow: `0 0 0 8px #0b0d11, 0 0 0 ${8 + talk * 10}px #3ddc97` });
+    }
+    // resultados reais dos testes automáticos rolando
+    const tk = pop(t, C.testei, 0.35);
+    css('tests', { opacity: tk, transform: `translateY(${lerp(80, 0, back(tk))}px)` });
+    css('testfeed', { transform: `translateY(${-Math.max(0, t - C.testei - 0.3) * 330}px)` });
+    $('bugs').innerHTML = [0, 1, 2, 3].map((i) => {
+      const appear = pop(t, C.testei + 0.4 + i * 0.12, 0.3);
+      const squash = pop(t, C.bugs + 0.25 + i * 0.15, 0.25);
+      const x = [120, 860, 200, 780][i], y = [420, 520, 760, 880][i];
+      if (squash >= 1) return `<span class="float" style="left:${x}px;top:${y}px;font-size:90px">✅</span>`;
+      return `<span class="float" style="left:${x + Math.sin(t * 8 + i) * 12}px;top:${y}px;font-size:90px;opacity:${appear};transform:scale(${lerp(1, 0.2, squash)}, ${lerp(1, 0.1, squash)})">🐛</span>`;
+    }).join('');
+  }
+
+  // G: no ar
+  lt = scene('sG', t, ...SCENES[4].slice(1));
+  if (lt >= 0) {
+    css('lapG', { transform: `perspective(1600px) rotateX(${lerp(16, 2, easeOut(prog(lt, 0, 0.6)))}deg)` });
+    const lv = pop(t, C.noAr + 0.6, 0.3);
+    css('liveTag', { opacity: lv, transform: `scale(${lerp(2, 1, back(lv)) * (1 + Math.max(0, Math.sin(t * 6)) * 0.05)})` });
+  }
+
+  // H: o nome é Resenha (beta)
+  lt = scene('sH', t, ...SCENES[5].slice(1), 1);
+  if (lt >= 0) {
+    const k = pop(t, C.nome - 0.1, 0.55);
+    css('logoH', { transform: `scale(${elastic(k)}) rotate(${lerp(-180, 0, easeOut(k))}deg)` });
+    const rk = prog(t, C.nome, C.nome + 1);
+    const rs = lerp(300, 1300, easeOut(rk));
+    css('ringH', { width: `${rs}px`, height: `${rs}px`, left: `${540 - rs / 2}px`, top: `${570 - rs / 2}px`, opacity: 1 - rk });
+    const wk = pop(t, C.nome + 0.3, 0.35);
+    css('wordH', { opacity: wk, letterSpacing: `${lerp(30, -5, easeOut(wk))}px` });
+    const cr = pop(t, C.beta - 0.2, 0.4), c2 = pop(t, C.beta + 0.1, 0.4);
+    css('cardRoles', { opacity: cr, transform: `translateX(${lerp(-300, 0, back(cr))}px) rotate(-6deg)` });
+    css('card2fa', { opacity: c2, transform: `translateX(${lerp(300, 0, back(c2))}px) rotate(6deg)` });
+    const bt = pop(t, C.beta, 0.3);
+    css('betaH', { opacity: bt, transform: `scale(${lerp(0.6, 1, back(bt))})` });
+  }
+
+  // I: comenta COMO
+  lt = scene('sI', t, ...SCENES[6].slice(1), 1);
+  if (lt >= 0) {
+    const typed = 'COMO'.slice(0, Math.floor(prog(t, C.como + 0.15, C.como + 0.75) * 4 + (t >= C.como + 0.75 ? 1 : 0)));
+    $('commentText').textContent = typed || 'Adicione um comentário…';
+    css('commentText', { color: typed ? '#fff' : '#8d93a1', fontWeight: typed ? '900' : '400', fontSize: typed ? '56px' : '40px' });
+    const liked = t >= C.como + 1.3;
+    $('heart').textContent = liked ? '💚' : '🤍';
+    css('heart', { transform: `scale(${liked ? elastic(prog(t, C.como + 1.3, C.como + 1.8)) * 1.2 : 1})` });
+    const bx = pop(t, C.quer + 0.3, 0.35);
+    css('commentBox', { opacity: bx, transform: `translateY(${lerp(120, 0, back(bx))}px)`, borderColor: typed ? '#3ddc97' : '#2a2f3a' });
+  }
+
+  // J: link na bio
+  lt = scene('sJ', t, ...SCENES[7].slice(1), 1);
+  if (lt >= 0) {
+    const k = pop(t, C.link, 0.5);
+    css('logoJ', { transform: `scale(${elastic(k)})` });
+    const rk = ((t - C.link) % 1.3) / 1.3;
+    const rs = lerp(300, 900, rk);
+    css('ringJ', { width: `${rs}px`, height: `${rs}px`, left: `${540 - rs / 2}px`, top: `${430 - rs / 2}px`, opacity: (1 - rk) * 0.7 });
+    css('wordJ', { opacity: pop(t, C.link + 0.2, 0.3) });
+    css('handleJ', { opacity: pop(t, C.link + 0.4, 0.3) });
+    const ct = pop(t, C.link + 0.1, 0.35);
+    css('ctaJ', { opacity: ct, transform: `scale(${lerp(0.5, 1, back(ct)) * (1 + Math.max(0, Math.sin(t * 6)) * 0.04)})` });
+  }
+
+  // clarões nos momentos-chave
+  const hits = [C.criei, C.chat, C.graca, C.nome, C.link];
+  css('flash', { opacity: Math.max(0, ...hits.map((h) => (t >= h && t < h + 0.12 ? 1 - prog(t, h, h + 0.12) : 0))) * 0.75 });
+
+  captions(t);
+  await Promise.all(pending);
+};
+
+window.ready = Promise.all([...document.images].map((i) => i.decode().catch(() => {}))).then(() => document.fonts.ready);
+window.seek(0);
+</script>
+</body>
+</html>

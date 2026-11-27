@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Resenha — Um perfil em cada servidor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #07080b; font-family: Inter, 'Noto Color Emoji', sans-serif; color: #fff; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  #bg { position: absolute; inset: 0; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(150px); opacity: .5; }
+  #grid { position: absolute; inset: 0; opacity: .5;
+    background-image: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size: 72px 72px; }
+  #fx { position: absolute; inset: 0; }
+  /* "monitor" com a tela real do app */
+  #panel { position: absolute; left: 50px; width: 980px; border-radius: 34px; overflow: hidden; background: #111318;
+    box-shadow: 0 40px 120px rgba(0,0,0,.65), 0 0 0 2px rgba(255,255,255,.08), 0 0 90px var(--glow, rgba(61,220,151,.35)); transform-origin: 50% 50%; }
+  #panel img { position: absolute; left: 0; top: 0; transform-origin: 0 0; display: none; }
+  #panel .layer { position: absolute; inset: 0; overflow: hidden; }
+  .mark { position: absolute; border: 5px solid #3ddc97; border-radius: 18px; box-shadow: 0 0 30px #3ddc97, inset 0 0 20px rgba(61,220,151,.35); opacity: 0; }
+  #cursor { position: absolute; width: 64px; height: 64px; opacity: 0; filter: drop-shadow(0 6px 10px rgba(0,0,0,.6)); }
+  #ripple { position: absolute; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 6px solid #fff; opacity: 0; }
+  #burst { position: absolute; left: 0; right: 0; text-align: center; font-size: 260px; opacity: 0; }
+  .pill { position: absolute; padding: 10px 26px; border-radius: 999px; font-weight: 900; font-size: 40px; letter-spacing: 1px; }
+  #wipe { position: absolute; top: 0; bottom: 0; width: 8px; background: #fff; box-shadow: 0 0 40px #fff, 0 0 80px #3ddc97; opacity: 0; }
+  #bigicon { position: absolute; width: 300px; height: 300px; left: 390px; opacity: 0; filter: drop-shadow(0 30px 60px rgba(0,0,0,.6)); }
+  #bigicon svg { width: 100%; height: 100%; }
+  #sticker { position: absolute; left: 70px; top: 300px; padding: 14px 30px; border-radius: 16px; background: #ff3d7f; font-weight: 900; font-size: 48px; transform-origin: 50% 50%; opacity: 0; box-shadow: 0 12px 30px rgba(0,0,0,.45); }
+  /* barra de progresso */
+  #parts { position: absolute; left: 70px; right: 70px; top: 170px; display: flex; gap: 14px; opacity: 0; }
+  .part { flex: 1; }
+  .part .bar { height: 12px; border-radius: 99px; background: rgba(255,255,255,.18); overflow: hidden; }
+  .part .bar i { display: block; height: 100%; width: 0; background: #3ddc97; border-radius: 99px; box-shadow: 0 0 16px #3ddc97; }
+  .part span { display: block; margin-top: 10px; font-weight: 800; font-size: 26px; color: rgba(255,255,255,.55); }
+  .part.on span { color: #fff; }
+  /* legendas */
+  #cap { position: absolute; left: 60px; width: 900px; top: 1330px; display: flex; justify-content: center; flex-wrap: wrap; text-align: center; }
+  .w { display: inline-block; margin: 0 .2em; font-weight: 900; font-size: 104px; line-height: 1.08; letter-spacing: -2px;
+    -webkit-text-stroke: 14px #000; paint-order: stroke fill; text-shadow: 0 10px 0 rgba(0,0,0,.55); transform-origin: 50% 80%; }
+  .w.key { color: #3ddc97; }
+  /* o que o amigo falou (só dá pra ler com o filtro) */
+  .w.q { font-size: 84px; font-style: italic; color: #e8fff4; letter-spacing: -1px; }
+  .w.q.key { color: #3ddc97; }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  .vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.6)); pointer-events: none; }
+  #end { position: absolute; inset: 0; opacity: 0; }
+  #endicon { position: absolute; left: 310px; top: 420px; width: 460px; height: 460px; filter: drop-shadow(0 40px 80px rgba(61,220,151,.45)); }
+  #endicon svg { width: 100%; height: 100%; }
+  .ring { position: absolute; border-radius: 50%; border: 12px solid #3ddc97; }
+  #word { position: absolute; left: 0; right: 0; top: 920px; text-align: center; font-weight: 900; font-size: 170px; letter-spacing: -6px; }
+  #free { position: absolute; left: 0; right: 0; top: 1140px; text-align: center; }
+  #free b { display: inline-block; padding: 14px 34px; border-radius: 999px; background: #3ddc97; color: #06281a; font-size: 44px; font-weight: 900; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg">
+    <div class="blob" id="b1" style="width:900px;height:900px;background:#3ddc97"></div>
+    <div class="blob" id="b2" style="width:800px;height:800px;background:#7c3aed"></div>
+    <div class="blob" id="b3" style="width:700px;height:700px;background:#ff3d7f"></div>
+    <div id="grid"></div>
+    <canvas id="fx" width="1080" height="1920"></canvas>
+  </div>
+
+  <div id="panel"><div class="layer" id="layerA"></div><div class="layer" id="layerB"></div>
+    <div id="marks"></div>
+    <div id="wipe"></div>
+    <div class="pill" id="pillA" style="left:30px;top:26px;background:#e5384b;opacity:0">ANTES 😵</div>
+    <div class="pill" id="pillB" style="left:30px;top:26px;background:#3ddc97;color:#06281a;opacity:0">AGORA ✨</div>
+    <canvas id="wave" width="980" height="320" style="position:absolute;left:0;bottom:0;opacity:0"></canvas>
+    <div id="keys" style="position:absolute;inset:0;pointer-events:none"></div>
+    <div class="pill" id="pillN" style="left:30px;top:26px;opacity:0"></div>
+    <div id="ripple"></div>
+    <svg id="cursor" viewBox="0 0 24 24"><path d="M4 2 L4 20 L9 15 L12.5 22 L15.5 20.5 L12 14 L19 14 Z" fill="#fff" stroke="#000" stroke-width="1.4" stroke-linejoin="round"/></svg>
+    <div id="burst">⏸</div>
+  </div>
+  <div id="bigicon"></div>
+  <div id="sticker">NOVO 🔥</div>
+  <div id="sound" style="position:absolute;right:70px;top:300px;padding:12px 22px;border-radius:999px;background:rgba(0,0,0,.6);border:2px solid rgba(255,255,255,.25);font-weight:900;font-size:34px;opacity:0">🔊 com som</div>
+
+  <div id="parts"></div>
+  <div id="cap"></div>
+
+  <div id="end">
+    <div class="ring" id="r1"></div><div class="ring" id="r2"></div>
+    <div id="endicon"></div>
+    <div id="word">Resenha</div>
+    <div id="free"><b>grátis · lista de espera na bio</b></div>
+  </div>
+  <div class="vignette"></div>
+  <div class="flash" id="flash"></div>
+</div>
+<script type="module">
+import { SCENES as SHOTS, CAPTIONS, CUTS, BEAT, DURATION, END, COVER } from './timeline.mjs';
+const PARTS = [], PARTS_SHOW = [0, 0], SOUND = [0, 0], MONTAGE = [0, 0];
+
+const W = 2560, H = 1600, PW = 980;
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const easeIO = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const back = (x) => { const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const lerp = (a, b, k) => a + (b - a) * k;
+
+// ---------- imagens (uma <img> por tela, pré-carregadas) ----------
+const imgs = {};
+const names = [...new Set(SHOTS.filter((s) => !s.clip && s.img).map((s) => s.img))];
+// clipes viram uma sequência de quadros (img por quadro)
+for (const s of SHOTS.filter((x) => x.clip)) for (let i = 1; i <= s.clip.n; i++) names.push(`${s.img}/${String(i).padStart(3, '0')}`);
+for (const n of names) {
+  const el = document.createElement('img');
+  el.src = `../out/perfis/shots/${n}.png`;
+  imgs[n] = el;
+}
+const icons = await (await fetch('../out/reels/icons.json')).json();
+// a gravação do Henrique: onda (volume a cada 20 ms) e os cliques do teclado, antes e depois do filtro
+const NOISE = {};
+const demo = { step: 0.02 };
+const iconSvg = (id) => icons.find((i) => i.id === id).svg;
+$('endicon').innerHTML = iconSvg('classic');
+
+// barra de progresso
+$('parts').innerHTML = PARTS.map((p, i) => `<div class="part" id="part${i}"><div class="bar"><i></i></div><span>${i + 1} · ${p.label}</span></div>`).join('');
+
+// legendas: palavras separadas, *destaque*
+const capWords = CAPTIONS.map((c) => {
+  const out = [];
+  for (const m of c.text.matchAll(/\*([^*]+)\*(\S*)|(\S+)/g)) {
+    if (m[1]) {
+      m[1].split(' ').forEach((w) => out.push({ w, key: true }));
+      out[out.length - 1].w += m[2]; // pontuação colada no destaque ("CS?")
+    } else out.push({ w: m[3], key: false });
+  }
+  return { ...c, words: out };
+});
+
+// cor do brilho do monitor em cada visual da montagem
+const GLOW = { 'chat-meia-noite-doodles': '#a78bfa', 'chat-claro-por-do-sol': '#f472b6', 'chat-preto-aurora': '#22d3ee', 'chat-claro-oceano': '#5aa5ff', 'chat-escuro-neon': '#fb923c', 'chat-claro': '#3ddc97' };
+
+/** posiciona a tela para mostrar o retângulo r (frações) cobrindo o painel PW×ph */
+function place(el, r, ph) {
+  // cada print tem o seu tamanho (os do app em 2560x1600; os do Henrique em 1919x1030)
+  const W = el.naturalWidth || 2560, H = el.naturalHeight || 1600;
+  const s = Math.max(PW / (r[2] * W), ph / (r[3] * H));
+  const x = PW / 2 - (r[0] + r[2] / 2) * W * s;
+  const y = ph / 2 - (r[1] + r[3] / 2) * H * s;
+  el.style.display = 'block';
+  el.style.width = `${W}px`;
+  el.style.height = `${H}px`;
+  el.W = W;
+  el.H = H;
+  el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+  return { s, x, y, W, H, map: (px, py) => [x + px * W * s, y + py * H * s] };
+}
+
+function drawFx(t) {
+  const c = $('fx'), g = c.getContext('2d');
+  g.clearRect(0, 0, 1080, 1920);
+  // partículas subindo devagar (determinísticas)
+  for (let i = 0; i < 70; i++) {
+    const sp = 20 + (i % 7) * 9;
+    const x = (i * 157.3) % 1080 + Math.sin(t * 0.7 + i) * 14;
+    const y = 1920 - ((i * 263.1 + t * sp) % 2000);
+    const a = 0.15 + 0.35 * ((i * 37) % 10) / 10;
+    g.fillStyle = i % 3 === 0 ? `rgba(61,220,151,${a})` : i % 3 === 1 ? `rgba(167,139,250,${a})` : `rgba(255,255,255,${a * 0.8})`;
+    g.beginPath();
+    g.arc(x, y, 2 + (i % 4), 0, Math.PI * 2);
+    g.fill();
+  }
+}
+
+window.seek = function seek(t) {
+  // fundo vivo
+  $('b1').style.transform = `translate(${-200 + Math.sin(t * 0.5) * 140}px, ${200 + Math.cos(t * 0.4) * 120}px)`;
+  $('b2').style.transform = `translate(${480 + Math.cos(t * 0.45) * 160}px, ${900 + Math.sin(t * 0.55) * 140}px)`;
+  $('b3').style.transform = `translate(${60 + Math.sin(t * 0.6 + 1) * 160}px, ${1350 + Math.cos(t * 0.5) * 120}px)`;
+  $('grid').style.transform = `translateY(${(t * 24) % 72}px)`;
+  // o fundo "respira" na batida (depois do gancho)
+  const pulse = t >= 2 && t < END ? Math.exp(-((t % BEAT) / BEAT) * 5) : 0;
+  for (const id of ['b1', 'b2', 'b3']) $(id).style.opacity = 0.42 + 0.22 * pulse;
+  drawFx(t);
+
+  // ---------- cena atual ----------
+  const shot = SHOTS.find((s) => t >= s.t0 && t < s.t1);
+  const panel = $('panel');
+  Object.values(imgs).forEach((i) => (i.style.display = 'none'));
+  $('layerA').replaceChildren();
+  $('layerB').replaceChildren();
+  $('marks').replaceChildren();
+  ['cursor', 'ripple', 'burst', 'wipe', 'pillA', 'pillB', 'pillN', 'wave'].forEach((id) => ($(id).style.opacity = 0));
+  $('keys').replaceChildren();
+  $('bigicon').style.opacity = 0;
+  if (shot && shot.img && t < END) {
+    const ph = shot.ph;
+    const top = 830 - ph / 2;
+    const since = t - shot.t0;
+    // "soco" de zoom e tremidinha no corte
+    const punch = 1 + (shot.beat ? 0.035 : 0.07) * Math.exp(-since * 12);
+    const shake = Math.exp(-since * 18) * (shot.beat ? 5 : 10) * Math.sin(since * 90);
+    // entrada no começo do vídeo
+    const intro = t < 0.35 ? easeOut(t / 0.35) : 1;
+    panel.style.opacity = intro;
+    panel.style.height = `${ph}px`;
+    panel.style.top = `${top}px`;
+    panel.style.transform = `translate(${shake}px, ${(1 - intro) * 120}px) scale(${punch * lerp(0.92, 1, intro)}) rotate(${shot.beat ? 0 : Math.sin(t * 0.8) * 0.4}deg)`;
+    panel.style.setProperty('--glow', `${GLOW[shot.img] ?? '#3ddc97'}66`);
+    if (shot.img === 'compare') {
+      // ANTES × AGORA: cortina passando
+      const a = imgs['transmitir-antiga'], b = imgs['transmitir-nova'];
+      $('layerA').append(a);
+      $('layerB').append(b);
+      const k = easeIO(clamp(since / 3));
+      place(a, [0.282, lerp(0.02, 0.06, k), 0.436, 0.96], ph);
+      place(b, [0.282, 0.068, 0.436, 0.862], ph);
+      const wk = easeIO(clamp((t - 22.0) / 0.45));
+      $('layerB').style.clipPath = `inset(0 ${100 - wk * 100}% 0 0)`;
+      $('wipe').style.left = `${wk * PW - 4}px`;
+      $('wipe').style.opacity = wk > 0 && wk < 1 ? 1 : 0;
+      $('pillA').style.opacity = t < 22.1 ? clamp((t - 21.05) / 0.15) : 0;
+      $('pillA').style.transform = `scale(${back(clamp((t - 21.05) / 0.2))}) rotate(-3deg)`;
+      $('pillB').style.opacity = t >= 22.3 ? 1 : 0;
+      $('pillB').style.transform = `scale(${back(clamp((t - 22.3) / 0.2))}) rotate(-3deg)`;
+    } else {
+      $('layerB').style.clipPath = 'none';
+      const el = shot.clip
+        ? imgs[`${shot.img}/${String(Math.min(shot.clip.n, 1 + Math.floor(since * shot.clip.fps))).padStart(3, '0')}`]
+        : imgs[shot.img];
+      $('layerA').append(el);
+      const k = shot.beat ? easeOut(clamp(since / (shot.t1 - shot.t0))) : easeIO(clamp(since / (shot.t1 - shot.t0)));
+      const r = shot.from.map((v, i) => lerp(v, shot.to[i], k));
+      const P = place(el, r, ph);
+      if (shot.noise) {
+        const N = NOISE[shot.noise];
+        const step = demo.step;
+        const idx = Math.floor(since / step);
+        const cv = $('wave'), g = cv.getContext('2d');
+        cv.style.top = `${ph - 320}px`;
+        cv.style.opacity = 1;
+        g.clearRect(0, 0, 980, 320);
+        const grad = g.createLinearGradient(0, 0, 0, 320);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,.75)');
+        g.fillStyle = grad;
+        g.fillRect(0, 0, 980, 320);
+        // barras: os últimos 1,2 s, a mais nova à direita
+        const bars = 60, bw = 980 / bars;
+        for (let i = 0; i < bars; i++) {
+          const k = idx - (bars - 1 - i);
+          const v = k >= 0 && k < N.env.length ? N.env[k] : 0;
+          const h = Math.min(250, 12 + Math.sqrt(v) * 900);
+          g.fillStyle = N.color;
+          g.globalAlpha = 0.35 + 0.65 * (i / bars);
+          g.fillRect(i * bw + 3, 300 - h, bw - 6, h);
+        }
+        g.globalAlpha = 1;
+        // teclas pulando nos cliques (no "depois" elas aparecem riscadas: o filtro tirou)
+        N.clicks.forEach((c, i) => {
+          if (since < c || since > c + 0.7) return;
+          const k = clamp((since - c) / 0.7);
+          const d = document.createElement('div');
+          const x = 140 + ((i * 263) % 640), y = ph * 0.25 + ((i * 131) % 200);
+          d.textContent = N.off ? '🚫' : '⌨️';
+          Object.assign(d.style, { position: 'absolute', left: `${x}px`, top: `${y - k * 80}px`, fontSize: `${N.off ? 90 : 120}px`, opacity: 1 - k, transform: `scale(${back(clamp(k / 0.25))}) rotate(${(i % 2 ? 1 : -1) * 12}deg)` });
+          $('keys').append(d);
+        });
+        // tremida a cada clique (sem filtro)
+        if (!N.off) {
+          const last = N.clicks.filter((c) => c <= since).pop();
+          if (last !== undefined) panel.style.transform += ` translate(${Math.exp(-(since - last) * 25) * 14 * Math.sin((since - last) * 120)}px, 0)`;
+        }
+        if (N.label) {
+          const pn = $('pillN');
+          pn.textContent = N.label;
+          pn.style.fontSize = '32px';
+          pn.style.background = N.off ? '#3ddc97' : '#e5384b';
+          pn.style.color = N.off ? '#06281a' : '#fff';
+          pn.style.opacity = 1;
+          pn.style.transform = `scale(${back(clamp(since / 0.2))}) rotate(-3deg)`;
+        }
+      }
+      // selo da cena ("📸 print real", "🔒 a Júlia ficou de fora")
+      if (shot.tag) {
+        const pn = $('pillN');
+        pn.textContent = shot.tag;
+        pn.style.fontSize = '32px';
+        pn.style.background = shot.tag.startsWith('📸') ? '#ffffff' : '#3ddc97';
+        pn.style.color = '#06281a';
+        const ta = (shot.tagAt ?? shot.t0 + 0.15) - shot.t0;
+        pn.style.opacity = since > ta ? 1 : 0;
+        pn.style.transform = `scale(${back(clamp((since - ta) / 0.2))}) rotate(-3deg)`;
+      }
+      // destaque nas opções
+      for (const m of shot.marks ?? []) {
+        if (t < m.t || t >= (m.t1 ?? m.t + BEAT)) continue;
+        const [x, y] = P.map(m.r[0], m.r[1]);
+        const d = document.createElement('div');
+        d.className = 'mark';
+        const pop = back(clamp((t - m.t) / 0.15));
+        Object.assign(d.style, { left: `${x}px`, top: `${y}px`, width: `${m.r[2] * P.W * P.s}px`, height: `${m.r[3] * P.H * P.s}px`, opacity: 1, transform: `scale(${0.9 + 0.1 * pop})` });
+        $('marks').append(d);
+      }
+      // cursor que vai até o botão e clica
+      if (shot.cursor) {
+        const c = shot.cursor;
+        const mk = easeIO(clamp((t - shot.t0 - 0.15) / (c.click - shot.t0 - 0.25)));
+        const [x, y] = P.map(lerp(c.from[0], c.to[0], mk), lerp(c.from[1], c.to[1], mk));
+        const press = t >= c.click && t < c.click + 0.12 ? 0.85 : 1;
+        $('cursor').style.opacity = clamp((t - shot.t0) / 0.15);
+        $('cursor').style.transform = `translate(${x - 8}px, ${y - 4}px) scale(${press})`;
+        if (t >= c.click) {
+          const rk = clamp((t - c.click) / 0.45);
+          $('ripple').style.opacity = 1 - rk;
+          $('ripple').style.left = `${x}px`;
+          $('ripple').style.top = `${y}px`;
+          $('ripple').style.transform = `scale(${1 + rk * 3})`;
+        }
+      }
+      if (shot.burst && t >= shot.burst.t) {
+        const bk = clamp((t - shot.burst.t) / 0.7);
+        $('burst').textContent = shot.burst.icon;
+        $('burst').style.top = `${ph / 2 - 170}px`;
+        $('burst').style.opacity = bk < 0.6 ? 1 : 1 - (bk - 0.6) / 0.4;
+        $('burst').style.transform = `scale(${0.5 + back(clamp(bk / 0.35)) * 0.6})`;
+      }
+      // ícone grande trocando na batida
+      if (shot.icons && t >= 18.4) {
+        const seq = ['neon', 'retro', 'gold', 'rainbow', 'halloween', 'christmas'];
+        const n = Math.floor((t - 18.5) / BEAT);
+        const id = t < 18.5 ? 'classic' : seq[Math.min(seq.length - 1, n)];
+        const st = t < 18.5 ? 18.4 : 18.5 + n * BEAT;
+        const bi = $('bigicon');
+        if (bi.dataset.id !== id) {
+          bi.innerHTML = iconSvg(id);
+          bi.dataset.id = id;
+        }
+        const pk = clamp((t - st) / 0.18);
+        bi.style.opacity = clamp((t - 18.4) / 0.15);
+        bi.style.top = `${top - 330}px`;
+        bi.style.transform = `scale(${0.75 + 0.25 * back(pk)}) rotate(${Math.sin(t * 3) * 4}deg)`;
+      }
+    }
+  } else {
+    panel.style.opacity = t >= END ? 1 - clamp((t - END) / 0.25) : 0;
+    // logo no meio do vídeo ("Até que eu conheci o Resenha"): o painel some e o logo entra no tempo marcado
+    if (shot?.logo) panel.style.opacity = 1 - clamp((t - shot.t0) / 0.2);
+  }
+
+  $('sound').style.opacity = t >= SOUND[0] && t < SOUND[1] ? clamp((t - SOUND[0]) / 0.2) : 0;
+  $('sound').style.transform = `scale(${1 + 0.06 * Math.sin(t * 8)})`;
+  // selo "NOVO" no gancho
+  const sk = clamp((t - 0.25) / 0.25);
+  $('sticker').style.opacity = 0; // na versão narrada a história é o gancho
+  $('sticker').style.transform = `rotate(-8deg) scale(${back(sk)})`;
+
+  // barra 1/3 · 2/3 · 3/3
+  const showParts = t >= PARTS_SHOW[0] && t < PARTS_SHOW[1];
+  $('parts').style.opacity = showParts ? clamp((t - PARTS_SHOW[0]) / 0.25) : 0;
+  PARTS.forEach((p, i) => {
+    const el = $(`part${i}`);
+    el.classList.toggle('on', t >= p.t0 && t < p.t1);
+    el.querySelector('i').style.width = `${clamp((t - p.t0) / (p.t1 - p.t0)) * 100}%`;
+  });
+
+  // ---------- legendas ----------
+  const cap = capWords.find((c) => t >= c.t && t < c.end);
+  const box = $('cap');
+  if (!cap) box.replaceChildren();
+  else {
+    const out = 1 - clamp((t - (cap.end - 0.07)) / 0.07);
+    box.style.top = `${t >= END ? 1290 : 1380}px`;
+    box.replaceChildren(
+      ...cap.words.map((w, i) => {
+        const s = document.createElement('span');
+        s.className = `w${w.key ? ' key' : ''}${cap.quote ? ' q' : ''}`;
+        s.textContent = w.w;
+        // cada palavra acende quando é falada (o emoji do fim, junto da última)
+        const k = clamp((t - cap.times[Math.min(i, cap.times.length - 1)]) / 0.16);
+        // o bloco aparece inteiro, apagado; a palavra "acende" (cor + pulo) quando é falada
+        const enter = back(clamp((t - cap.t) / 0.16));
+        s.style.opacity = k > 0 ? 1 : 0.38;
+        if (k <= 0) s.style.color = '#fff';
+        s.style.transform = `scale(${(0.9 + 0.1 * (k > 0 ? back(k) : 0)) * enter * out}) translateY(${k > 0 ? -8 * Math.sin(Math.PI * k) : 0}px) rotate(${w.key && k > 0 ? Math.sin(t * 8) * 1.5 : 0}deg)`;
+        // na montagem a palavra de destaque troca de cor na batida
+        if (w.key && k > 0 && t >= MONTAGE[0] && t < MONTAGE[1]) s.style.color = Object.values(GLOW)[Math.floor(t / BEAT) % 6];
+        return s;
+      }),
+    );
+  }
+
+  // flash nos cortes
+  const lastCut = CUTS.filter((c) => c <= t).pop() ?? -9;
+  $('flash').style.opacity = 0.35 * Math.exp(-(t - lastCut) * 14) * (lastCut > 0 ? 1 : 0);
+
+  // ---------- final ----------
+  // o logo aparece no fim (END) e também numa cena "logo" no meio
+  const midLogo = SHOTS.find((s) => s.logo && t >= s.t0 && t < s.t1);
+  const L0 = t >= END ? END : midLogo ? midLogo.logo : Infinity;
+  const ek = midLogo ? clamp((t - L0) / 0.3) * (1 - clamp((t - (midLogo.t1 - 0.2)) / 0.2)) : clamp((t - END) / 0.3);
+  $('end').style.opacity = ek;
+  $('endicon').style.transform = `scale(${back(clamp((t - L0) / 0.35))}) rotate(${Math.sin(t * 2) * 3}deg)`;
+  for (const [id, d] of [['r1', 0], ['r2', 0.25]]) {
+    const rk = clamp((t - L0 - d) / 0.9);
+    const size = 300 + rk * 900;
+    Object.assign($(id).style, { width: `${size}px`, height: `${size}px`, left: `${540 - size / 2}px`, top: `${650 - size / 2}px`, opacity: (1 - rk) * (t >= L0 + d ? 1 : 0) });
+  }
+  $('word').style.transform = `translateY(${(1 - easeOut(clamp((t - L0 - 0.2) / 0.3))) * 60}px)`;
+  $('word').style.opacity = clamp((t - L0 - 0.2) / 0.2);
+  $('free').style.opacity = clamp((t - END - 0.5) / 0.2);
+  $('free').style.transform = `scale(${back(clamp((t - END - 0.5) / 0.25))})`;
+};
+
+window.DURATION = DURATION;
+window.COVER = COVER;
+window.ready = Promise.all(Object.values(imgs).map((i) => i.decode().catch(() => {}))).then(() => document.fonts.ready);
+window.seek(0);
+</script>
+</body>
+</html>

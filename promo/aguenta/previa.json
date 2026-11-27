@@ -1,0 +1,9 @@
+{
+  "ep": 1,
+  "speaker": "Henrique",
+  "_como": "PRÉVIA DO FORMATO com a gravação do teclado (Reels 2). Não é para postar: troque pelas gravações novas em ep1.json.",
+  "rounds": [
+    { "name": "Teclado mecânico", "emoji": "⌨️", "sem": "falando e digitando ao mesmo tempo…", "antes": "../out/reels2/audio/antes.wav", "depois": "../out/reels2/audio/depois.wav", "at": 0.9 },
+    { "name": "Teclado sem falar", "emoji": "🤫", "sem": "só o teclado, ninguém falando…", "antes": "../out/reels2/audio/tec-antes.wav", "depois": "../out/reels2/audio/tec-depois.wav", "at": 4.3 }
+  ]
+}

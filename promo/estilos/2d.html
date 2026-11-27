@@ -1,0 +1,54 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Teste 2D</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}html,body{width:1080px;height:1920px;overflow:hidden;background:#07080b;font-family:Inter,'Noto Color Emoji',sans-serif;color:#fff}
+#s{position:relative;width:1080px;height:1920px;overflow:hidden;background:radial-gradient(circle at 30% 20%,#123a2c,#07080b 60%)}
+.blob{position:absolute;border-radius:50%;filter:blur(150px)}
+.grid{position:absolute;inset:-80px;opacity:.3;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:80px 80px}
+.h{position:absolute;left:50px;right:50px;top:230px;text-align:center;font-weight:900;font-size:130px;line-height:.98;letter-spacing:-5px}
+.w{display:inline-block}.g{background:linear-gradient(90deg,#3ddc97,#7df9ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+#mascot{position:absolute;left:290px;top:760px;width:500px;height:560px;transform-origin:50% 100%}
+.card{position:absolute;left:90px;width:900px;top:1380px;height:330px;border-radius:44px;background:linear-gradient(180deg,#1b1e26,#14161c);border:2px solid rgba(255,255,255,.1);box-shadow:0 50px 100px rgba(0,0,0,.55);display:flex;align-items:center;gap:34px;padding:0 50px}
+.chip{display:inline-block;padding:12px 26px;border-radius:999px;font-weight:900;font-size:40px;background:#3ddc97;color:#06281a;margin:6px 10px 6px 0}
+</style></head><body><div id="s">
+<div class="blob" style="width:900px;height:900px;background:#3ddc97;opacity:.3;left:-300px;top:-250px"></div>
+<div class="blob" style="width:800px;height:800px;background:#7c3aed;opacity:.35;right:-300px;top:800px"></div>
+<div class="grid" id="grid"></div>
+<div class="h"><span class="w" id="a">Transmite a tela</span><br><span class="w" id="b">em <span class="g">Full HD</span></span></div>
+<svg id="mascot" viewBox="0 0 500 560">
+ <ellipse id="shadow" cx="250" cy="540" rx="150" ry="16" fill="rgba(0,0,0,.45)"/>
+ <g id="arms">
+  <path id="armL" d="M95 330 q-60 30 -50 90" stroke="#3ddc97" stroke-width="26" stroke-linecap="round" fill="none"/>
+  <path id="armR" d="M405 330 q60 -10 65 -80" stroke="#3ddc97" stroke-width="26" stroke-linecap="round" fill="none"/>
+ </g>
+ <g id="body">
+  <path d="M90 120 a60 60 0 0 1 60-60 h200 a60 60 0 0 1 60 60 v230 a60 60 0 0 1 -60 60 h-130 l-95 100 v-100 h-5 a60 60 0 0 1 -60 -60 z" fill="#161a21" stroke="#3ddc97" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M120 100 q10 -25 40 -25 h120" stroke="rgba(255,255,255,.25)" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <g id="eyes"><ellipse id="eL" cx="190" cy="215" rx="34" ry="44" fill="#3ddc97"/><ellipse id="eR" cx="310" cy="215" rx="34" ry="44" fill="#3ddc97"/>
+   <circle cx="200" cy="200" r="10" fill="#fff"/><circle cx="320" cy="200" r="10" fill="#fff"/></g>
+  <path id="mouth" d="M215 300 q35 35 70 0" stroke="#3ddc97" stroke-width="12" stroke-linecap="round" fill="none"/>
+ </g>
+</svg>
+<div class="card" id="card"><div style="font-size:120px">🖥️</div><div><div style="font-weight:900;font-size:56px;letter-spacing:-1px">Tela do Kevin</div><div style="margin-top:12px"><span class="chip">1920×1080</span><span class="chip">40 FPS</span></div></div></div>
+</div>
+<script>
+const $=id=>document.getElementById(id),cl=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)),p=(t,t0,d)=>cl((t-t0)/d),eo=x=>1-Math.pow(1-x,3),back=x=>{const c=1.70158;return x<=0?0:1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2)};
+const word=(id,t,t0)=>{const k=p(t,t0,.35);const e=$(id).style;e.opacity=eo(k);e.transform=`translateY(${(1-back(k))*70}px) scale(${.9+.1*back(k)})`};
+window.seek=t=>{
+ $('grid').style.transform=`translateY(${(t*24)%80}px)`;
+ word('a',t,.1);word('b',t,.45);
+ // mascote entra pulando e fica "respirando" e falando
+ const k=p(t,.2,.7),jump=k<1?Math.abs(Math.sin(k*Math.PI*2))*(1-k)*160:0;
+ const m=$('mascot').style;m.opacity=cl(k*4);
+ const squash=1+Math.sin(t*5)*.015, talk=t>1.2&&t<5.4?Math.abs(Math.sin(t*11)):0;
+ m.transform=`translateY(${-jump}px) scale(${(1-(1-eo(k))*.4)/squash},${(1-(1-eo(k))*.4)*squash}) rotate(${Math.sin(t*2.2)*2.5}deg)`;
+ $('shadow').setAttribute('rx',150-jump*.4);
+ // piscar
+ const blink=(t%2.6)>2.5?.1:1;$('eL').setAttribute('ry',44*blink);$('eR').setAttribute('ry',44*blink);
+ $('mouth').setAttribute('d',`M215 300 q35 ${35+talk*30} 70 0`);
+ // braço direito acenando / apontando para o cartão
+ const wave=Math.sin(t*9)*.5*(t>.9&&t<2.2?1:0);
+ $('armR').setAttribute('d',`M405 330 q${60+wave*20} ${-10-wave*30} ${65} ${-80-wave*40}`);
+ $('armL').setAttribute('d',`M95 330 q-60 30 ${-50+(t>2.4?30*p(t,2.4,.4):0)} ${90+(t>2.4?30*p(t,2.4,.4):0)}`);
+ const c=p(t,2.4,.6);$('card').style.opacity=cl(c*3);$('card').style.transform=`translateY(${(1-eo(c))*200}px) scale(${.92+.08*back(c)})`;
+};window.ready=true;
+</script></body></html>

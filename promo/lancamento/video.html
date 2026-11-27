@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Resenha · lançamento oficial</title>
+<!-- Vídeo do lançamento oficial (1080x1920). Cada cena entra no tempo da narração (ver render.mjs).
+     window.seek(t) desenha o quadro do instante t (em segundos), sem depender do relógio. -->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #07080b; font-family: Inter, 'Noto Color Emoji', sans-serif; color: #fff; }
+  #s { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(170px); }
+  .grid { position: absolute; inset: -80px; opacity: .35;
+    background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+    background-size: 80px 80px; }
+  .scene { position: absolute; inset: 0; opacity: 0; will-change: transform, opacity; }
+  .g { background: linear-gradient(90deg, #3ddc97, #7df9ff 55%, #b388ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .gr { color: #ff5d6c; }
+  .br { background: linear-gradient(90deg, #3ddc97, #ffd43b); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .head { position: absolute; left: 60px; right: 60px; top: 300px; text-align: center; }
+  .kick { font-weight: 800; font-size: 50px; color: rgba(255,255,255,.75); letter-spacing: -1px; margin-bottom: 8px; }
+  .h { font-weight: 900; font-size: 128px; line-height: .98; letter-spacing: -5px; }
+  .w { display: inline-block; will-change: transform, opacity; padding-bottom: 6px; }
+  .card { position: absolute; background: linear-gradient(180deg, #1b1e26, #14161c); border: 2px solid rgba(255,255,255,.08); border-radius: 48px;
+    box-shadow: 0 50px 100px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06); }
+  .logo { width: 260px; height: 260px; }
+  .pill { display: inline-flex; align-items: center; gap: 18px; padding: 22px 40px; border-radius: 999px; font-weight: 900; font-size: 52px; white-space: nowrap; }
+  .field { height: 112px; border-radius: 26px; background: #0d0f13; border: 3px solid rgba(255,255,255,.1); padding: 0 34px; display: flex; align-items: center;
+    font-size: 40px; font-weight: 600; color: rgba(255,255,255,.85); overflow: hidden; position: relative; }
+  .lbl { font-size: 30px; font-weight: 800; color: rgba(255,255,255,.55); margin: 0 0 12px 8px; text-transform: uppercase; letter-spacing: 1px; }
+  .btn { height: 124px; border-radius: 30px; background: #3ddc97; color: #06281a; font-weight: 900; font-size: 48px; display: grid; place-items: center; }
+  .ava { border-radius: 50%; display: grid; place-items: center; font-weight: 900; color: rgba(0,0,0,.72); position: relative; }
+  .ring { position: absolute; inset: -14px; border-radius: 50%; border: 9px solid #3ddc97; }
+  .key { position: absolute; border-radius: 14px; background: #2a2e38; box-shadow: 0 8px 0 #111318; }
+  .bar { position: absolute; bottom: 0; width: 22px; border-radius: 11px; }
+  .seg { display: flex; padding: 10px; gap: 10px; border-radius: 34px; background: #0d0f13; border: 2px solid rgba(255,255,255,.08); }
+  .seg div { flex: 1; height: 96px; border-radius: 26px; display: grid; place-items: center; font-weight: 900; font-size: 40px; color: rgba(255,255,255,.6); }
+  .tec { position: absolute; font-weight: 900; font-size: 96px; color: #ff5d6c; text-shadow: 0 8px 0 rgba(0,0,0,.5); letter-spacing: -2px; white-space: nowrap; }
+  .sound { position: absolute; width: 270px; height: 200px; border-radius: 40px; display: grid; place-items: center; align-content: center; gap: 8px; font-size: 92px;
+    box-shadow: 0 30px 60px rgba(0,0,0,.45), inset 0 -10px 0 rgba(0,0,0,.18); }
+  .sound b { font-size: 30px; font-weight: 900; color: rgba(0,0,0,.65); }
+  .stk { position: absolute; width: 300px; height: 300px; border-radius: 70px; background: #fff; display: grid; place-items: center; font-size: 200px;
+    box-shadow: 0 30px 70px rgba(0,0,0,.5); }
+  .cursor { position: absolute; width: 70px; height: 70px; z-index: 5; filter: drop-shadow(0 10px 14px rgba(0,0,0,.6)); }
+  .ok { position: absolute; display: flex; align-items: center; gap: 18px; padding: 26px 40px; border-radius: 30px; background: #12291f; border: 2px solid #3ddc97;
+    font-weight: 900; font-size: 42px; color: #bff5dd; white-space: nowrap; }
+  .conf { position: absolute; width: 22px; height: 38px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<div id="s">
+  <div class="blob" id="b1" style="width:950px;height:950px;background:#3ddc97;opacity:.34"></div>
+  <div class="blob" id="b2" style="width:850px;height:850px;background:#7c3aed;opacity:.38"></div>
+  <div class="blob" id="b3" style="width:700px;height:700px;background:#22d3ee;opacity:.2"></div>
+  <div class="grid" id="grid"></div>
+
+  <!-- 1 · Hoje é oficial / saiu do beta -->
+  <div class="scene" id="c1">
+    <div class="head" style="top:330px"><div class="h"><span class="w" id="c1w1">Hoje é</span><br /><span class="w g" id="c1w2">oficial!</span></div></div>
+    <svg class="logo" id="c1logo" style="position:absolute;left:410px;top:790px" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#3ddc97"/><path d="M136 168a48 48 0 0 1 48-48h144a48 48 0 0 1 48 48v112a48 48 0 0 1-48 48h-72l-72 64v-64h0a48 48 0 0 1-48-48z" fill="#111318"/><circle cx="208" cy="224" r="20" fill="#3ddc97"/><circle cx="304" cy="224" r="20" fill="#3ddc97"/></svg>
+    <div id="c1name" style="position:absolute;left:0;right:0;top:1100px;text-align:center;font-weight:900;font-size:110px;letter-spacing:-4px">Resenha</div>
+    <div id="c1beta" class="pill" style="position:absolute;left:50%;top:1270px;background:#3a2a10;color:#f5c451;border:3px solid #f5c451">BETA</div>
+    <div id="c1strike" style="position:absolute;left:390px;top:1320px;width:300px;height:12px;border-radius:6px;background:#ff5d6c;transform-origin:left center"></div>
+    <div id="c1off" class="pill" style="position:absolute;left:50%;top:1270px;background:#3ddc97;color:#06281a;box-shadow:0 0 80px rgba(61,220,151,.55)">🚀 LANÇAMENTO OFICIAL</div>
+    <div id="c1conf"></div>
+  </div>
+
+  <!-- 2 · Sem código de convite -->
+  <div class="scene" id="c2">
+    <div class="head"><div class="h"><span class="w" id="c2w1">Sem código</span><br /><span class="w g" id="c2w2">de convite</span></div></div>
+    <div class="card" id="c2card" style="left:100px;width:880px;top:720px;padding:56px 56px">
+      <div style="font-weight:900;font-size:56px;margin-bottom:38px;letter-spacing:-1px">Criar conta</div>
+      <div class="lbl">Nome de usuário</div>
+      <div class="field" style="margin-bottom:30px">@lucas</div>
+      <div class="lbl">Senha</div>
+      <div class="field" style="margin-bottom:30px;letter-spacing:8px">••••••••••</div>
+      <div id="c2code">
+        <div class="lbl">Código de convite</div>
+        <div class="field" id="c2codef" style="margin-bottom:30px;color:rgba(255,255,255,.35)">Ex.: LARI-7K3P
+          <div id="c2x" style="position:absolute;right:30px;top:14px;width:80px;height:80px;border-radius:50%;background:#ff5d6c;display:grid;place-items:center;font-size:50px;color:#2b0006;font-weight:900">✕</div>
+        </div>
+      </div>
+      <div class="btn" id="c2btn">Criar conta grátis</div>
+    </div>
+    <div class="ok" id="c2ok" style="left:50%;top:1560px">✅ Conta criada! Bem-vindo ao Resenha</div>
+  </div>
+
+  <!-- 3 · teclado metralhadora → filtro Forte -->
+  <div class="scene" id="c3">
+    <div class="head" id="c3hA"><div class="kick w" id="c3k">Seu amigo tem aquele</div><div class="h"><span class="w" id="c3w1">teclado</span><br /><span class="w gr" id="c3w2">metralhadora?</span></div></div>
+    <div class="head" id="c3hB"><div class="h"><span class="w" id="c3w3">Liga o filtro</span><br /><span class="w g" id="c3w4">Forte</span></div></div>
+    <div class="head" id="c3hC"><div class="h"><span class="w" id="c3w5">Só a voz</span><br /><span class="w g" id="c3w6">passa.</span></div></div>
+    <div class="card" id="c3card" style="left:90px;width:900px;top:720px;height:820px;overflow:hidden">
+      <div id="c3edge" style="position:absolute;inset:0;border-radius:48px;border:8px solid #ff5d6c"></div>
+      <div style="position:absolute;left:50px;top:44px;font-weight:800;font-size:34px;color:rgba(255,255,255,.6)">🔊 Call · Resenha dos amigos</div>
+      <div class="ava" id="c3ava" style="position:absolute;left:330px;top:140px;width:240px;height:240px;font-size:110px;background:linear-gradient(135deg,#ffb86b,#ff7a59)">C<div class="ring" id="c3ring"></div></div>
+      <div style="position:absolute;left:0;right:0;top:400px;text-align:center;font-weight:900;font-size:44px">Caio</div>
+      <div id="c3meter" style="position:absolute;left:90px;right:90px;top:470px;height:120px"></div>
+      <div id="c3kb" style="position:absolute;left:80px;top:610px;width:740px;height:170px"></div>
+      <div id="c3seg" style="position:absolute;left:50px;right:50px;top:620px">
+        <div class="lbl" style="margin-left:14px">Filtro de ruído</div>
+        <div class="seg"><div id="s0">Desligado</div><div id="s1">Normal</div><div id="s2">Forte</div></div>
+      </div>
+      <svg class="cursor" id="c3cur" viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" fill="#fff" stroke="#111" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    </div>
+    <div id="c3tec"></div>
+    <div class="pill" id="c3chip" style="position:absolute;left:50%;top:1600px;font-size:44px"></div>
+  </div>
+
+  <!-- 4 · recursos -->
+  <div class="scene" id="c4">
+    <div class="head" id="c4h1"><div class="h"><span class="w" id="c4a">Transmite em</span><br /><span class="w g" id="c4b">Full HD</span></div></div>
+    <div class="head" id="c4h2"><div class="h"><span class="w" id="c4c">YouTube</span><br /><span class="w g" id="c4d">junto</span></div></div>
+    <div class="head" id="c4h3"><div class="h"><span class="w g" id="c4e">Soundboard</span></div></div>
+    <div class="head" id="c4h4"><div class="h"><span class="w g" id="c4f">Figurinhas</span></div></div>
+    <div class="head" id="c4h5"><div class="h"><span class="w" id="c4g">Tudo</span><br /><span class="w g" id="c4i">de graça!</span></div></div>
+    <!-- tela transmitida -->
+    <div class="card" id="c4hd" style="left:70px;width:940px;top:780px;height:600px;overflow:hidden;padding:0">
+      <div id="c4game" style="position:absolute;inset:0;background:linear-gradient(180deg,#1b0b3a 0%,#5b1a6e 45%,#ff6b9a 58%,#120726 59%,#090313 100%)"></div>
+      <div id="c4sun" style="position:absolute;left:340px;top:120px;width:260px;height:260px;border-radius:50%;background:linear-gradient(180deg,#ffd43b,#ff6b9a)"></div>
+      <div id="c4lines" style="position:absolute;left:-200px;right:-200px;top:355px;bottom:0;perspective:300px;overflow:hidden"></div>
+      <div class="pill" style="position:absolute;left:30px;top:28px;font-size:30px;padding:12px 24px;background:#ff3b4e;color:#fff">● AO VIVO</div>
+      <div class="pill" style="position:absolute;right:30px;top:28px;font-size:30px;padding:12px 24px;background:rgba(0,0,0,.6);color:#fff">1080p · Full HD</div>
+      <div style="position:absolute;left:30px;bottom:28px;padding:12px 24px;border-radius:16px;background:rgba(0,0,0,.6);font-weight:800;font-size:32px">🖥️ Tela da Bia</div>
+    </div>
+    <!-- assistir juntos -->
+    <div class="card" id="c4yt" style="left:70px;width:940px;top:760px;height:700px;overflow:hidden;padding:0">
+      <div style="position:absolute;left:0;right:0;top:0;height:530px;background:linear-gradient(135deg,#0f3d2e,#123a5a 60%,#2a1450)"></div>
+      <div style="position:absolute;left:390px;top:185px;width:160px;height:120px;border-radius:34px;background:#ff2d3d;display:grid;place-items:center"><div style="width:0;height:0;border-left:50px solid #fff;border-top:30px solid transparent;border-bottom:30px solid transparent;margin-left:12px"></div></div>
+      <div style="position:absolute;left:30px;right:30px;top:490px;height:12px;border-radius:6px;background:rgba(255,255,255,.25)"><div id="c4prog" style="height:100%;border-radius:6px;background:#ff2d3d;width:30%"></div></div>
+      <div style="position:absolute;left:40px;top:560px;font-weight:900;font-size:40px">▶ Assistindo juntos</div>
+      <div style="position:absolute;left:40px;top:618px;font-weight:700;font-size:30px;color:rgba(255,255,255,.6)">sincronizado pra toda a call</div>
+      <div id="c4watch" style="position:absolute;right:40px;top:566px;display:flex"></div>
+    </div>
+    <div id="c4sb"></div>
+    <div id="c4st"></div>
+    <div id="c4free" style="position:absolute;left:0;right:0;top:820px;text-align:center">
+      <div style="font-weight:900;font-size:300px;letter-spacing:-12px;line-height:1" class="g">R$ 0</div>
+      <div style="display:inline-block;margin-top:30px;padding:20px 50px;border-radius:999px;border:6px solid #3ddc97;color:#3ddc97;font-weight:900;font-size:56px;transform:rotate(-4deg)" id="c4stamp">SEM ANÚNCIO · SEM PLANO PAGO</div>
+    </div>
+  </div>
+
+  <!-- 5 · feito por um brasileiro -->
+  <div class="scene" id="c5">
+    <div class="head"><div class="kick w" id="c5k">Feito por um</div><div class="h"><span class="w br" id="c5w1">brasileiro</span></div>
+      <div class="w" id="c5w2" style="font-weight:800;font-size:56px;margin-top:26px;color:rgba(255,255,255,.85);letter-spacing:-1px">pra galera que joga junto 🎮</div></div>
+    <div id="c5grid" style="position:absolute;left:90px;width:900px;top:820px;height:760px"></div>
+  </div>
+
+  <!-- 6 · cadastro aberto / link na bio -->
+  <div class="scene" id="c6">
+    <div class="head" style="top:300px"><div class="h"><span class="w" id="c6w1">Cadastro</span><br /><span class="w g" id="c6w2">aberto!</span></div></div>
+    <div id="c6ring" style="position:absolute;left:290px;top:760px;width:500px;height:500px"></div>
+    <svg id="c6logo" style="position:absolute;left:420px;top:890px;width:240px;height:240px" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#3ddc97"/><path d="M136 168a48 48 0 0 1 48-48h144a48 48 0 0 1 48 48v112a48 48 0 0 1-48 48h-72l-72 64v-64h0a48 48 0 0 1-48-48z" fill="#111318"/><circle cx="208" cy="224" r="20" fill="#3ddc97"/><circle cx="304" cy="224" r="20" fill="#3ddc97"/></svg>
+    <div id="c6call" style="position:absolute;left:0;right:0;top:1310px;text-align:center;font-weight:900;font-size:76px;letter-spacing:-2px">Chama a galera!</div>
+    <div id="c6bio" class="pill" style="position:absolute;left:50%;top:1450px;background:#3ddc97;color:#06281a;box-shadow:0 0 90px rgba(61,220,151,.5)">🔗 Link na bio</div>
+    <div id="c6url" style="position:absolute;left:0;right:0;top:1600px;text-align:center;font-weight:800;font-size:44px;color:rgba(255,255,255,.75)">resenhabr.com.br</div>
+  </div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const p = (t, t0, d) => clamp((t - t0) / d);
+const eo = (x) => 1 - Math.pow(1 - x, 3);
+const eio = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const back = (x) => { const c1 = 1.70158, c3 = c1 + 1; return x <= 0 ? 0 : 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const rnd = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const css = (el, o) => Object.assign((typeof el === 'string' ? $(el) : el).style, o);
+/** palavra que entra: sobe 60px e aparece, com um pequeno exagero */
+function word(id, t, t0, d = 0.32) {
+  const k = p(t, t0, d);
+  css(id, { opacity: eo(k), transform: `translateY(${(1 - back(k)) * 70}px) scale(${0.9 + 0.1 * back(k)})`, filter: `blur(${(1 - k) * 8}px)` });
+}
+/** cartão que entra de baixo */
+function rise(id, t, t0, d = 0.45, extra = '') {
+  const k = eo(p(t, t0, d));
+  css(id, { opacity: k, transform: `translateY(${(1 - k) * 140}px) scale(${0.94 + 0.06 * k}) ${extra}` });
+}
+const pop = (id, t, t0, d = 0.4, base = '') => { const k = p(t, t0, d); css(id, { opacity: clamp(k * 3), transform: `${base} scale(${back(k)})` }); };
+
+// cenas: [id, início, fim]. Entram de baixo, saem subindo e desfocando.
+const SCENES = [['c1', 0, 3.1], ['c2', 3.1, 6.4], ['c3', 6.4, 14.15], ['c4', 14.15, 20.5], ['c5', 20.5, 23.55], ['c6', 23.55, 31]];
+const TR = 0.28;
+
+// --- montagem dos elementos repetidos ---
+const conf = $('c1conf');
+const CONF = Array.from({ length: 46 }, (_, i) => {
+  const el = document.createElement('i');
+  el.className = 'conf';
+  el.style.background = ['#3ddc97', '#7df9ff', '#b388ff', '#ffd43b', '#ff6b9a'][i % 5];
+  conf.appendChild(el);
+  return { el, a: -Math.PI / 2 + (rnd(i) - 0.5) * 2.4, v: 900 + rnd(i + 9) * 900, r: rnd(i + 3) * 720 };
+});
+const meter = $('c3meter');
+const BARS = Array.from({ length: 26 }, (_, i) => {
+  const el = document.createElement('i');
+  el.className = 'bar';
+  el.style.left = `${i * 27.7}px`;
+  meter.appendChild(el);
+  return el;
+});
+const kb = $('c3kb');
+const KEYS = [];
+for (let r = 0; r < 3; r++) for (let c = 0; c < 11 - (r === 2 ? 1 : 0); c++) {
+  const el = document.createElement('i');
+  el.className = 'key';
+  Object.assign(el.style, { left: `${c * 67 + r * 22}px`, top: `${r * 56}px`, width: '58px', height: '46px' });
+  kb.appendChild(el);
+  KEYS.push(el);
+}
+const tecBox = $('c3tec');
+const TEC = [[90, 1450, -8], [600, 1430, 7], [300, 1640, -4], [700, 1650, 9], [140, 1820, 5]].map(([x, y, r], i) => {
+  const el = document.createElement('div');
+  el.className = 'tec';
+  el.textContent = i % 2 ? 'TEC TEC' : 'TEC TEC TEC';
+  Object.assign(el.style, { left: `${x}px`, top: `${y - 120}px` });
+  tecBox.appendChild(el);
+  return { el, r };
+});
+// linhas do chão (cena do Full HD)
+const lines = $('c4lines');
+const floor = document.createElement('div');
+Object.assign(floor.style, { position: 'absolute', inset: '0', transformOrigin: 'top center', transform: 'rotateX(62deg)', backgroundImage:
+  'linear-gradient(rgba(255,107,154,.9) 3px, transparent 3px), linear-gradient(90deg, rgba(255,107,154,.9) 3px, transparent 3px)', backgroundSize: '90px 70px', height: '900px' });
+lines.appendChild(floor);
+const PEOPLE = [['Lucas', 'L', '#3ddc97', '#1f9e6a'], ['Bia', 'B', '#b388ff', '#7c3aed'], ['Caio', 'C', '#ffb86b', '#ff7a59'], ['Duda', 'D', '#7df9ff', '#22a6d3']];
+const watch = $('c4watch');
+PEOPLE.forEach(([, l, a, b], i) => {
+  const el = document.createElement('div');
+  el.className = 'ava';
+  Object.assign(el.style, { width: '76px', height: '76px', fontSize: '36px', background: `linear-gradient(135deg,${a},${b})`, marginLeft: i ? '-18px' : '0', border: '5px solid #15171d' });
+  el.textContent = l;
+  watch.appendChild(el);
+});
+const SOUNDS = [['😂', 'Risada', '#ffd43b'], ['📢', 'Buzina', '#ff8a5b'], ['🥁', 'Ba dum tss', '#7df9ff'], ['🐐', 'Bode', '#b388ff'], ['👏', 'Palmas', '#3ddc97'], ['💥', 'Boom', '#ff6b9a']];
+const SB = SOUNDS.map(([e, n, c], i) => {
+  const el = document.createElement('div');
+  el.className = 'sound';
+  el.innerHTML = `<span>${e}</span><b>${n}</b>`;
+  Object.assign(el.style, { background: c, left: `${75 + (i % 3) * 320}px`, top: `${800 + Math.floor(i / 3) * 250}px` });
+  $('c4sb').appendChild(el);
+  return el;
+});
+const ST = [['🔥', 120, 790, -8], ['😎', 660, 760, 7], ['🤣', 390, 1010, 3], ['🫡', 110, 1220, 6], ['🏆', 670, 1230, -6]].map(([e, x, y, r]) => {
+  const el = document.createElement('div');
+  el.className = 'stk';
+  el.textContent = e;
+  Object.assign(el.style, { left: `${x}px`, top: `${y}px` });
+  $('c4st').appendChild(el);
+  return { el, r };
+});
+const grid5 = $('c5grid');
+const TILES = PEOPLE.map(([n, l, a, b], i) => {
+  const el = document.createElement('div');
+  el.className = 'card';
+  Object.assign(el.style, { left: `${(i % 2) * 465}px`, top: `${Math.floor(i / 2) * 390}px`, width: '435px', height: '360px', borderRadius: '40px' });
+  el.innerHTML = `<div class="ava" style="position:absolute;left:127px;top:52px;width:180px;height:180px;font-size:84px;background:linear-gradient(135deg,${a},${b})">${l}<div class="ring"></div></div>
+    <div style="position:absolute;left:0;right:0;top:268px;text-align:center;font-weight:900;font-size:40px">${n}</div>`;
+  grid5.appendChild(el);
+  return el;
+});
+const ring6 = $('c6ring');
+const ORB = PEOPLE.map(([, l, a, b]) => {
+  const el = document.createElement('div');
+  el.className = 'ava';
+  Object.assign(el.style, { position: 'absolute', width: '150px', height: '150px', fontSize: '70px', background: `linear-gradient(135deg,${a},${b})`, border: '8px solid #07080b' });
+  el.textContent = l;
+  ring6.appendChild(el);
+  return el;
+});
+
+// quando a narração está falando (para o medidor de voz)
+const SPEAK = [[0, 1.2], [1.28, 3.1], [3.2, 6.4], [6.48, 9.45], [11.1, 13.75], [14.3, 20.5], [20.62, 23.6], [23.66, 26.9]];
+const speaking = (t) => SPEAK.some(([a, b]) => t >= a && t <= b);
+const KB_ON = [6.4, 12.15]; // teclado tocando até o clique no "Forte"
+const CLICK = 12.14;
+
+window.seek = (t) => {
+  // fundo vivo
+  css('b1', { left: `${-300 + Math.sin(t * 0.35) * 120}px`, top: `${-250 + Math.cos(t * 0.3) * 120}px` });
+  css('b2', { left: `${560 + Math.cos(t * 0.28) * 140}px`, top: `${800 + Math.sin(t * 0.33) * 160}px` });
+  css('b3', { left: `${-150 + Math.sin(t * 0.22 + 2) * 160}px`, top: `${1350 + Math.cos(t * 0.25) * 120}px` });
+  css('grid', { transform: `translateY(${(t * 24) % 80}px)` });
+
+  for (const [id, a, b] of SCENES) {
+    const kin = eo(p(t, a, TR));
+    const kout = eio(p(t, b - TR * 0.6, TR));
+    const on = t >= a - 0.01 && t < b + TR;
+    css(id, { display: on ? 'block' : 'none', opacity: kin * (1 - kout), transform: `translateY(${(1 - kin) * 90 - kout * 120}px) scale(${1 + kout * 0.06})`, filter: kout > 0 ? `blur(${kout * 14}px)` : 'none' });
+  }
+
+  // 1 ---------------------------------------------------------------
+  word('c1w1', t, 0.0);
+  word('c1w2', t, 0.5);
+  pop('c1logo', t, 0.05, 0.55, `rotate(${(1 - eo(p(t, 0.05, 0.6))) * -20}deg)`);
+  css('c1logo', { filter: `drop-shadow(0 0 ${40 + 20 * Math.sin(t * 4)}px rgba(61,220,151,.55))` });
+  word('c1name', t, 1.28, 0.4);
+  const bIn = back(p(t, 1.5, 0.35));
+  const bOut = p(t, 2.56, 0.45);
+  css('c1beta', { opacity: clamp(bIn * 2) * (1 - bOut), transform: `translateX(-50%) translate(${bOut * 260}px, ${bOut * bOut * 700}px) rotate(${bOut * 50}deg) scale(${bIn})` });
+  const sk = eo(p(t, 2.15, 0.25));
+  css('c1strike', { opacity: sk * (1 - bOut), transform: `translate(${bOut * 260}px, ${bOut * bOut * 700}px) rotate(${-6 + bOut * 50}deg) scaleX(${sk})` });
+  const oIn = p(t, 2.6, 0.45);
+  css('c1off', { opacity: clamp(oIn * 3), transform: `translateX(-50%) scale(${back(oIn)})` });
+  CONF.forEach((c, i) => {
+    const d = t - 2.62;
+    if (d < 0) return css(c.el, { opacity: 0 });
+    const x = 540 + Math.cos(c.a) * c.v * d;
+    const y = 1310 + Math.sin(c.a) * c.v * d + 1800 * d * d;
+    css(c.el, { opacity: clamp(1.4 - d * 1.6), left: `${x}px`, top: `${y}px`, transform: `rotate(${c.r + d * 600}deg)` });
+  });
+
+  // 2 ---------------------------------------------------------------
+  word('c2w1', t, 3.2);
+  word('c2w2', t, 4.85);
+  rise('c2card', t, 3.25, 0.5);
+  const hi = p(t, 4.85, 0.25);
+  const cut = eio(p(t, 5.6, 0.4));
+  css('c2codef', { borderColor: hi > 0 ? `rgba(255,93,108,${hi})` : 'rgba(255,255,255,.1)' });
+  pop('c2x', t, 5.3, 0.3);
+  css('c2code', { height: `${(1 - cut) * 184}px`, opacity: 1 - cut, overflow: 'hidden', transform: `translateX(${cut * -80}px)` });
+  const press = p(t, 6.0, 0.22);
+  const pr = press < 0.5 ? press * 2 : 2 - press * 2;
+  css('c2btn', { transform: `scale(${1 - pr * 0.05})`, boxShadow: `0 0 ${p(t, 4.9, 0.6) * 70}px rgba(61,220,151,.55)` });
+  const okk = p(t, 6.05, 0.35);
+  css('c2ok', { opacity: clamp(okk * 3), transform: `translateX(-50%) translateY(${(1 - eo(okk)) * 60}px) scale(${back(okk)})` });
+
+  // 3 ---------------------------------------------------------------
+  const kbOn = t >= KB_ON[0] && t < KB_ON[1];
+  const gap = t >= 9.45 && t < 11.05; // o teclado sozinho
+  const filt = t >= CLICK;
+  const hA = 1 - p(t, 11.0, 0.2);
+  const hB = p(t, 11.05, 0.01) * (1 - p(t, 12.55, 0.2));
+  css('c3hA', { opacity: hA });
+  css('c3hB', { opacity: hB });
+  css('c3hC', { opacity: p(t, 12.6, 0.01) });
+  word('c3k', t, 6.48);
+  word('c3w1', t, 7.4);
+  word('c3w2', t, 8.5);
+  word('c3w3', t, 11.1);
+  word('c3w4', t, 12.1);
+  word('c3w5', t, 12.62);
+  word('c3w6', t, 13.4);
+  rise('c3card', t, 6.5, 0.5);
+  const shake = gap ? 1 : t >= 9.0 && t < 12.15 ? 0.35 : 0;
+  const sx = shake * (rnd(Math.floor(t * 30)) - 0.5) * 34;
+  const sy = shake * (rnd(Math.floor(t * 30) + 7) - 0.5) * 26;
+  if (t > 7.0) css('c3card', { transform: `translate(${sx}px, ${sy}px)` });
+  css('c3edge', { borderColor: filt ? '#3ddc97' : '#ff5d6c', opacity: kbOn ? 0.4 + 0.6 * rnd(Math.floor(t * 18)) : filt ? 0.9 : 0 });
+  const voice = speaking(t);
+  BARS.forEach((el, i) => {
+    let h = 0.06;
+    if (voice) h = Math.max(h, 0.22 + 0.32 * Math.abs(Math.sin(t * 9 + i * 0.7)) * (0.6 + 0.4 * Math.sin(i * 0.5 + t * 3)));
+    if (kbOn) h = Math.max(h, 0.45 + 0.55 * rnd(Math.floor(t * 24) * 31 + i));
+    css(el, { height: `${h * 120}px`, background: kbOn ? '#ff5d6c' : '#3ddc97' });
+  });
+  KEYS.forEach((el, i) => {
+    const down = kbOn && rnd(Math.floor(t * 16) * 13 + i) > 0.72;
+    css(el, { background: down ? '#ff5d6c' : '#2a2e38', transform: `translateY(${down ? 6 : 0}px)`, boxShadow: down ? '0 2px 0 #111318, 0 0 24px rgba(255,93,108,.8)' : '0 8px 0 #111318' });
+  });
+  const segIn = eo(p(t, 10.9, 0.35));
+  css('c3kb', { opacity: 1 - segIn, transform: `translateY(${segIn * 60}px)` });
+  css('c3seg', { opacity: segIn, transform: `translateY(${(1 - segIn) * 60}px)` });
+  ['s0', 's1', 's2'].forEach((id, i) => {
+    const sel = filt ? i === 2 : i === 0;
+    css(id, { background: sel ? (i === 2 ? '#3ddc97' : '#3a3f4b') : 'transparent', color: sel ? (i === 2 ? '#06281a' : '#fff') : 'rgba(255,255,255,.55)',
+      transform: `scale(${i === 2 && t >= CLICK && t < CLICK + 0.25 ? 1.06 : 1})` });
+  });
+  const mv = eio(p(t, 11.25, 0.8));
+  const tap = t >= CLICK - 0.06 && t < CLICK + 0.12;
+  css('c3cur', { opacity: segIn * (1 - p(t, 13.0, 0.3)), left: `${150 + mv * 560}px`, top: `${800 - mv * 85}px`, transform: `scale(${tap ? 0.82 : 1})` });
+  const ringOn = filt && voice;
+  css('c3ring', { opacity: ringOn ? 0.55 + 0.45 * Math.abs(Math.sin(t * 7)) : 0 });
+  TEC.forEach(({ el, r }, i) => {
+    const on = gap && rnd(Math.floor(t * 7) + i * 5) > 0.35;
+    const k = (t * 7) % 1;
+    css(el, { opacity: on ? 1 : 0, transform: `rotate(${r}deg) scale(${0.85 + 0.25 * eo(k)})` });
+  });
+  const chip = $('c3chip');
+  if (t < CLICK) { chip.textContent = '🔊 Barulho de teclado'; css(chip, { background: '#3b1218', color: '#ff9aa4', border: '3px solid #ff5d6c' }); }
+  else { chip.textContent = '🎙️ Só a voz do Caio'; css(chip, { background: '#12291f', color: '#bff5dd', border: '3px solid #3ddc97' }); }
+  const chipK = t < CLICK ? p(t, 9.45, 0.3) : p(t, CLICK + 0.05, 0.3);
+  css(chip, { opacity: clamp(chipK * 3), transform: `translateX(-50%) scale(${back(chipK)})` });
+
+  // 4 ---------------------------------------------------------------
+  const F = [[14.3, 16.05], [16.05, 17.5], [17.5, 18.4], [18.4, 19.3], [19.3, 20.6]];
+  const vis = (i) => t >= F[i][0] - 0.01 && t < F[i][1];
+  ['c4h1', 'c4h2', 'c4h3', 'c4h4', 'c4h5'].forEach((id, i) => css(id, { opacity: vis(i) ? 1 : 0 }));
+  word('c4a', t, 14.3); word('c4b', t, 15.15);
+  word('c4c', t, 16.1); word('c4d', t, 16.55);
+  word('c4e', t, 17.55);
+  word('c4f', t, 18.45);
+  word('c4g', t, 19.34); word('c4i', t, 19.7);
+  css('c4hd', { display: vis(0) ? 'block' : 'none' }); rise('c4hd', t, 14.35, 0.45);
+  css('c4sun', { transform: `translateY(${Math.sin(t * 2) * 8}px)` });
+  floor.style.backgroundPosition = `0 ${(t * 260) % 70}px`;
+  css('c4yt', { display: vis(1) ? 'block' : 'none' }); rise('c4yt', t, 16.1, 0.4);
+  css('c4prog', { width: `${30 + p(t, 16.1, 1.6) * 22}%` });
+  css('c4sb', { display: vis(2) ? 'block' : 'none' });
+  SB.forEach((el, i) => {
+    const k = p(t, 17.55 + i * 0.09, 0.35);
+    const hit = (Math.floor((t - 17.6) * 5) % 6) === i && t > 17.9;
+    css(el, { opacity: clamp(k * 3), transform: `scale(${back(k) * (hit ? 0.93 : 1)})`, filter: hit ? 'brightness(1.25)' : 'none' });
+  });
+  css('c4st', { display: vis(3) ? 'block' : 'none' });
+  ST.forEach(({ el, r }, i) => {
+    const k = p(t, 18.45 + i * 0.1, 0.4);
+    css(el, { opacity: clamp(k * 3), transform: `rotate(${r + Math.sin(t * 3 + i) * 3}deg) scale(${back(k)})` });
+  });
+  css('c4free', { display: vis(4) ? 'block' : 'none' });
+  const fk = p(t, 19.4, 0.45);
+  css('c4free', { opacity: clamp(fk * 3), transform: `scale(${0.7 + 0.3 * back(fk)})` });
+  const sk2 = p(t, 19.75, 0.3);
+  css('c4stamp', { opacity: clamp(sk2 * 3), transform: `rotate(-4deg) scale(${1.8 - 0.8 * eo(sk2)})` });
+
+  // 5 ---------------------------------------------------------------
+  word('c5k', t, 20.62);
+  word('c5w1', t, 21.0, 0.38);
+  word('c5w2', t, 21.9, 0.36);
+  TILES.forEach((el, i) => {
+    const k = p(t, 20.75 + i * 0.12, 0.45);
+    const talk = Math.floor((t - 21) * 1.6) % 4 === i && t > 21;
+    css(el, { opacity: clamp(k * 3), transform: `translateY(${(1 - eo(k)) * 120}px) scale(${0.9 + 0.1 * back(k)})` });
+    css(el.querySelector('.ring'), { opacity: talk ? 0.6 + 0.4 * Math.abs(Math.sin(t * 8)) : 0 });
+  });
+
+  // 6 ---------------------------------------------------------------
+  word('c6w1', t, 23.66);
+  word('c6w2', t, 24.3);
+  pop('c6logo', t, 23.75, 0.5);
+  css('c6logo', { filter: `drop-shadow(0 0 ${50 + 25 * Math.sin(t * 3)}px rgba(61,220,151,.6))` });
+  ORB.forEach((el, i) => {
+    const k = eo(p(t, 24.78 + i * 0.1, 0.55));
+    const ang = (i / 4) * Math.PI * 2 + t * 0.6;
+    const R = 250 * k + 600 * (1 - k);
+    css(el, { opacity: k, left: `${175 + Math.cos(ang) * R}px`, top: `${175 + Math.sin(ang) * R}px`, transform: `scale(${0.6 + 0.4 * k})` });
+  });
+  word('c6call', t, 24.85, 0.36);
+  const bk = p(t, 25.7, 0.45);
+  css('c6bio', { opacity: clamp(bk * 3), transform: `translateX(-50%) scale(${back(bk) * (1 + (t > 26.3 ? 0.03 * Math.sin((t - 26.3) * 6) : 0))})` });
+  word('c6url', t, 26.2, 0.4);
+};
+window.ready = true;
+</script>
+</body>
+</html>

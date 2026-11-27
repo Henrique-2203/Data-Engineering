@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Anéis de Fundador — stories</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #07080b; font-family: Inter, 'Noto Color Emoji', sans-serif; color: #fff; }
+  #s { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  .bg { position: absolute; inset: 0; background-size: cover; }
+  .shade { position: absolute; inset: 0; }
+  .t { position: absolute; left: 70px; right: 70px; text-align: center; font-weight: 900; letter-spacing: -3px; line-height: 1.02; text-shadow: 0 8px 30px rgba(0,0,0,.6); }
+  .gold { color: #ffd34d; }
+  .g { color: #3ddc97; }
+  .sub { position: absolute; left: 80px; right: 80px; text-align: center; font-weight: 800; font-size: 46px; line-height: 1.25; color: rgba(255,255,255,.92); text-shadow: 0 4px 20px rgba(0,0,0,.7); }
+  .pill { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 20px 44px; border-radius: 999px; font-weight: 900; font-size: 42px;
+    background: linear-gradient(90deg, #f5b301, #ffe58a); color: #2b1d00; box-shadow: 0 20px 50px rgba(0,0,0,.5), 0 0 60px rgba(245,179,1,.45); }
+  .pill.green { background: #3ddc97; color: #06281a; box-shadow: 0 20px 50px rgba(0,0,0,.5), 0 0 60px rgba(61,220,151,.45); }
+  .brand { position: absolute; left: 0; right: 0; bottom: 150px; display: flex; justify-content: center; align-items: center; gap: 18px; font-weight: 900; font-size: 40px; color: rgba(255,255,255,.95); text-shadow: 0 4px 16px rgba(0,0,0,.7); }
+  .brand .ic { width: 64px; height: 64px; }
+  .brand .ic svg { width: 100%; height: 100%; }
+
+  /* avatar + anéis (mesmo desenho do app) */
+  .av { --av: 200px; position: absolute; width: var(--av); height: var(--av); border-radius: 50%; background: #1f6e4c; display: grid; place-items: center; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+  .av img { width: 92%; height: 92%; object-fit: contain; border-radius: 50%; }
+  .founder-ring { --fr-w: max(2px, calc(var(--av) * 0.075)); position: absolute; inset: calc(var(--av) * -0.11); border-radius: 50%; }
+  .founder-ring::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--fr-paint);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--fr-w)), #000 calc(100% - var(--fr-w) + 0.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - var(--fr-w)), #000 calc(100% - var(--fr-w) + 0.5px)); }
+  .fr-raiz { --fr-paint: conic-gradient(from 40deg, #f5b301, #ffe58a, #3ddc97, #1e9e68, #f5b301); filter: drop-shadow(0 0 calc(var(--av) * .06) rgba(245,179,1,.55)); }
+  .fr-aurora { --fr-w: calc(var(--av) * 0.055); --fr-paint: conic-gradient(from 90deg, #3ddc97, #f5b301, #3ddc97); }
+  .fr-aurora::after { content: ''; position: absolute; inset: calc(var(--av) * -0.06); border-radius: 50%; border: calc(var(--av) * 0.035) solid rgba(245,179,1,.8); box-shadow: 0 0 calc(var(--av) * .1) rgba(245,179,1,.55); }
+  .fr-selo { --fr-paint: linear-gradient(160deg, #ffe58a, #f5b301 45%, #b97f00); }
+  .fr-leaf { position: absolute; left: 2%; bottom: 2%; width: 32%; height: 32%; border-radius: 50%; background: #f5b301; display: grid; place-items: center; box-shadow: 0 0 0 calc(var(--av) * .03) #111318; }
+  .fr-leaf svg { width: 62%; height: 62%; }
+  .rl { position: absolute; text-align: center; font-weight: 900; font-size: 40px; text-shadow: 0 4px 16px rgba(0,0,0,.7); }
+  .rl small { display: block; font-size: 28px; font-weight: 700; color: rgba(255,255,255,.8); margin-top: 6px; }
+
+  /* cartões de "como aparece" */
+  .card { position: absolute; left: 90px; right: 90px; background: rgba(17,19,24,.92); border: 1px solid rgba(255,255,255,.1); border-radius: 32px; padding: 34px 38px; box-shadow: 0 30px 80px rgba(0,0,0,.55); }
+  .card .lbl { font-size: 26px; font-weight: 800; letter-spacing: 3px; color: #8b93a5; margin-bottom: 22px; }
+  .row { display: flex; align-items: center; gap: 30px; }
+  .row .av { position: relative; flex: none; }
+  .nm { font-size: 40px; font-weight: 800; color: #ffd34d; }
+  .tm { font-size: 28px; color: #8b93a5; font-weight: 600; margin-left: 12px; }
+  .msg { font-size: 38px; font-weight: 600; margin-top: 6px; }
+  .mem { display: flex; align-items: center; gap: 26px; padding: 14px 18px; border-radius: 18px; font-size: 36px; font-weight: 700; }
+  .mem.me { background: rgba(255,255,255,.06); }
+  .mem .dot { width: 18px; height: 18px; border-radius: 50%; background: #3ddc97; margin-left: auto; }
+  .ini { font-weight: 800; font-size: 34px; color: #fff; }
+  .step { position: absolute; left: 110px; right: 110px; display: flex; align-items: center; gap: 30px; font-size: 42px; font-weight: 800; line-height: 1.2; text-shadow: 0 4px 16px rgba(0,0,0,.7); }
+  .step .n { flex: none; width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; background: #3ddc97; color: #06281a; font-size: 44px; font-weight: 900; text-shadow: none; }
+  #ic2 svg { width: 100%; height: 100%; display: block; }
+  .note { position: absolute; left: 100px; right: 100px; text-align: center; font-size: 34px; font-weight: 700; color: rgba(255,255,255,.88); line-height: 1.3; text-shadow: 0 4px 16px rgba(0,0,0,.7); }
+</style>
+</head>
+<body>
+<div id="s">
+  <div class="bg" id="bg"></div>
+  <div class="shade" id="shade"></div>
+  <div id="c"></div>
+  <div class="brand"><span class="ic" id="ic"></span>resenhabr.com.br</div>
+</div>
+<script type="module">
+const n = new URLSearchParams(location.search).get('n') ?? '1';
+const icons = await (await fetch('../out/reels/icons.json')).json();
+document.getElementById('ic').innerHTML = icons.find((i) => i.id === 'classic').svg;
+const setIc2 = () => { const e = document.getElementById('ic2'); if (e) e.innerHTML = icons.find((i) => i.id === 'classic').svg; };
+const MASC = '../out/mascote/figurinhas/resenha-joinha.png';
+const LEAF = '<svg viewBox="0 0 24 24"><path d="M5 19c8 0 14-6 14-14-8 0-14 6-14 14Z" fill="#06281a"/><path d="M5 19 13 11" stroke="#f5b301" stroke-width="2" stroke-linecap="round"/></svg>';
+const av = (ring, size, x, y, extra = '') =>
+  `<div class="av" style="--av:${size}px;${x !== null ? `left:${x}px;top:${y}px;` : ''}${extra}"><img src="${MASC}" alt="">${ring ? `<span class="founder-ring fr-${ring}">${ring === 'selo' ? `<span class="fr-leaf">${LEAF}</span>` : ''}</span>` : ''}</div>`;
+const ini = (letter, color, size) => `<div class="av" style="--av:${size}px;position:relative;background:${color}"><span class="ini">${letter}</span></div>`;
+
+const S = {
+  // 1. revelação: os 3 anéis
+  1: {
+    bg: ['bg-lua.jpg', '70% 50%'],
+    shade: 'linear-gradient(180deg, rgba(7,8,11,.82) 0%, rgba(7,8,11,.35) 30%, rgba(7,8,11,.25) 55%, rgba(7,8,11,.85) 85%)',
+    html: `
+      <div class="t" style="top:190px;font-size:130px">Anéis de<br><span class="gold">Fundador</span></div>
+      <div class="sub" style="top:480px">Apoie o Resenha e ganhe os 3 anéis para a sua foto</div>
+      ${av('raiz', 330, 375, 720)}
+      ${av('aurora', 190, 110, 1180)}
+      ${av('selo', 190, 780, 1180)}
+      <div class="rl" style="left:375px;width:330px;top:1100px">Raiz</div>
+      <div class="rl" style="left:60px;width:290px;top:1420px">Aurora</div>
+      <div class="rl" style="left:730px;width:290px;top:1420px">Selo</div>
+      <div class="pill" style="top:1560px">Só até 17/12 · nunca vão ser vendidos</div>`,
+  },
+  // 2. como aparece no app
+  2: {
+    bg: ['bg-noite.jpg', '30% 50%'],
+    shade: 'linear-gradient(180deg, rgba(7,8,11,.75) 0%, rgba(7,8,11,.55) 40%, rgba(7,8,11,.8) 100%)',
+    html: `
+      <div class="t" style="top:150px;font-size:110px">Seu anel<br><span class="gold">em todo lugar</span></div>
+      <div class="sub" style="top:400px">no chat, na lista de membros,<br>no perfil e na call</div>
+      <div class="card" style="top:580px">
+        <div class="lbl">NO CHAT</div>
+        <div class="row">${av('raiz', 110, null, null, 'position:relative')}<div><span class="nm">Lucas</span><span class="tm">Hoje às 21:14</span><div class="msg">bora um mix agora? tô na Call 1 🎯</div></div></div>
+      </div>
+      <div class="card" style="top:920px">
+        <div class="lbl">NA LISTA DE MEMBROS</div>
+        <div class="mem me">${av('aurora', 84, null, null, 'position:relative')}<span class="gold">Lucas</span><span class="dot"></span></div>
+        <div class="mem">${ini('B', '#c2255c', 84)}<span>Bia</span><span class="dot"></span></div>
+        <div class="mem">${ini('R', '#118ab2', 84)}<span>Rafa</span><span class="dot"></span></div>
+      </div>
+      <div class="note" style="top:1440px">Escolha entre Raiz, Aurora e Selo<br>e troque quando quiser 💚</div>`,
+  },
+  // 3. como apoiar
+  3: {
+    bg: ['bg-praia.jpg', '72% 50%'],
+    shade: 'linear-gradient(180deg, rgba(7,8,11,.8) 0%, rgba(7,8,11,.55) 35%, rgba(7,8,11,.7) 70%, rgba(7,8,11,.9) 100%)',
+    html: `
+      <div class="t" style="top:170px;font-size:112px">Como <span class="g">apoiar</span></div>
+      ${av('raiz', 200, 440, 400)}
+      <div class="step" style="top:720px"><span class="n">1</span><span>Abra o Resenha e toque no <span class="g">coração</span> na coluna da esquerda</span></div>
+      <div class="step" style="top:900px"><span class="n">2</span><span>Faça um Pix no valor que quiser, a partir de R$ 5</span></div>
+      <div class="step" style="top:1080px"><span class="n">3</span><span>A equipe confere o Pix e você recebe o selo e os 3 anéis</span></div>
+      <div class="pill" style="top:1290px">Até 17 de dezembro</div>
+      <div class="note" style="top:1440px">O Resenha continua grátis. Tudo que é grátis hoje continua grátis para sempre.</div>`,
+  },
+  // 4. mascote segurando a placa
+  4: {
+    bg: ['mascote-placa.jpg', '50% 50%'],
+    shade: 'none',
+    brand: false,
+    html: `
+      <div class="t" style="top:150px;font-size:112px">Anéis de<br><span class="gold">Fundador</span></div>
+      <div style="position:absolute;left:0;right:0;top:450px;height:150px">
+        ${av('aurora', 120, 245, 0)}${av('raiz', 140, 470, -10)}${av('selo', 120, 715, 0)}
+      </div>
+      <div class="sign" style="position:absolute;left:168px;width:770px;top:690px;height:420px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#1d1405">
+        <div style="font-size:50px;font-weight:800;line-height:1.15">Apoie o Resenha e ganhe<br>os 3 anéis para a sua foto</div>
+        <div style="font-size:104px;font-weight:900;letter-spacing:-3px;margin-top:14px;color:#0f6e45">Só até 17/12</div>
+        <div style="font-size:34px;font-weight:800;margin-top:10px;color:#5b4a2c">resenhabr.com.br</div>
+      </div>`,
+  },
+  // 5. mascote apontando para o texto (imagem menor, no canto de baixo, para o texto caber em cima)
+  5: {
+    bg: ['mascote-apontando.jpg', '75% 100%'],
+    bgSize: '80%',
+    bgColor: '#0f2f20',
+    shade: 'none',
+    brand: false,
+    html: `
+      <div style="position:absolute;left:80px;top:70px;font-size:34px;font-weight:900;color:rgba(255,255,255,.85)">resenhabr.com.br</div>
+      <div class="t" style="top:150px;font-size:96px;text-align:left;left:80px">Já viu os <span class="gold">anéis<br>de Fundador?</span></div>
+      <div style="position:absolute;left:80px;top:400px;height:130px">
+        ${av('raiz', 110, 0, 0)}${av('aurora', 110, 160, 0)}${av('selo', 110, 320, 0)}
+      </div>
+      <div class="step" style="top:580px;left:80px;right:80px;font-size:40px"><span class="n" style="width:72px;height:72px;font-size:38px">1</span><span>Toque no <span class="g">coração</span> dentro do Resenha</span></div>
+      <div class="step" style="top:690px;left:80px;right:80px;font-size:40px"><span class="n" style="width:72px;height:72px;font-size:38px">2</span><span>Faça um Pix a partir de R$ 5</span></div>
+      <div class="step" style="top:800px;left:80px;right:80px;font-size:40px"><span class="n" style="width:72px;height:72px;font-size:38px">3</span><span>Escolha o seu anel</span></div>
+      <div class="pill" style="top:930px;left:80px;transform:none">Só até 17/12</div>`,
+  },
+  // 6. lançamento do app Android
+  6: {
+    bg: ['bg-noite.jpg', '30% 50%'],
+    shade: 'linear-gradient(180deg, rgba(7,8,11,.88) 0%, rgba(7,8,11,.7) 45%, rgba(7,8,11,.85) 100%)',
+    brand: false,
+    html: `
+      <div class="t" style="top:130px;font-size:104px">Saiu o app<br><span class="g">para Android</span> 📱</div>
+      <div class="card" style="top:470px;left:110px;right:110px;padding:30px 34px;border-radius:28px">
+        <div style="display:flex;align-items:center;gap:18px">
+          <span id="ic2" style="width:72px;height:72px;display:block;flex:none"></span>
+          <div style="flex:1"><div style="font-size:34px;font-weight:900">Você está numa call</div><div style="font-size:28px;color:#a7adbb;font-weight:600">Call 1 · Galera · 12:48</div></div>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:24px">
+          <span style="flex:1;text-align:center;padding:16px 0;border-radius:999px;background:#e5384b;font-size:28px;font-weight:800">Desligar</span>
+          <span style="flex:1;text-align:center;padding:16px 0;border-radius:999px;background:#272c37;font-size:28px;font-weight:800">Silenciar</span>
+        </div>
+      </div>
+      <div class="step" style="top:850px;font-size:40px"><span class="n">✓</span><span>A call continua com a tela bloqueada ou jogando</span></div>
+      <div class="step" style="top:990px;font-size:40px"><span class="n">✓</span><span>Microfone e áudio na notificação</span></div>
+      <div class="step" style="top:1130px;font-size:40px"><span class="n">✓</span><span>Atualiza sozinho</span></div>
+      <img src="../out/mascote2/figurinhas/resenha-falando.png" alt="" style="position:absolute;left:600px;top:1290px;width:440px;height:440px">
+      <div class="pill green" style="top:1400px;left:90px;transform:none;font-size:40px">resenhabr.com.br/android</div>
+      <div style="position:absolute;left:96px;top:1520px;font-size:30px;font-weight:700;color:rgba(255,255,255,.85);width:500px;line-height:1.3">Abra no celular e toque<br>em <b>Baixar app</b>. É grátis.</div>`,
+  },
+};
+const cur = S[n];
+if (cur.brand === false) document.querySelector('.brand').style.display = 'none';
+document.getElementById('bg').style.cssText = `background-image:url(../out/fundador/${cur.bg[0]});background-position:${cur.bg[1]};background-repeat:no-repeat;${cur.bgSize ? `background-size:${cur.bgSize};` : ''}${cur.bgColor ? `background-color:${cur.bgColor};` : ''}`;
+document.getElementById('shade').style.background = cur.shade;
+document.getElementById('c').innerHTML = cur.html;
+setIc2();
+await Promise.all([...document.images].map((i) => (i.complete ? null : new Promise((r) => { i.onload = r; i.onerror = r; }))));
+await new Promise((r) => { const im = new Image(); im.onload = im.onerror = r; im.src = `../out/fundador/${cur.bg[0]}`; });
+await document.fonts.ready;
+window.ready = true;
+</script>
+</body>
+</html>

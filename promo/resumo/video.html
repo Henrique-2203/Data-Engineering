@@ -1,0 +1,183 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Resenha · apanhado de funções</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1080px;height:1920px;overflow:hidden;background:#07080b;font-family:Inter,'Noto Color Emoji',sans-serif;color:#fff}
+#s{position:relative;width:1080px;height:1920px;overflow:hidden}
+.blob{position:absolute;border-radius:50%;filter:blur(170px)}
+.grid{position:absolute;inset:-80px;opacity:.3;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:80px 80px}
+#gl{position:absolute;inset:0;pointer-events:none}
+.sc{position:absolute;inset:0;opacity:0;will-change:transform,opacity}
+.h{position:absolute;left:50px;right:50px;top:170px;text-align:center;font-weight:900;font-size:112px;line-height:1;letter-spacing:-4px}
+.h.sm{font-size:92px}
+.w{display:inline-block;padding-bottom:6px}
+.g{background:linear-gradient(90deg,#3ddc97,#7df9ff 55%,#b388ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.amb{color:#f5c451}.red{color:#ff5d6c}
+.card{position:absolute;background:linear-gradient(180deg,#1b1e26,#14161c);border:2px solid rgba(255,255,255,.09);border-radius:44px;box-shadow:0 50px 100px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06)}
+.shot{position:absolute;border-radius:36px;overflow:hidden;border:3px solid rgba(255,255,255,.14);box-shadow:0 50px 110px rgba(0,0,0,.65)}
+.shot img{display:block;width:100%;height:100%;object-fit:cover}
+.chip{position:absolute;display:inline-flex;align-items:center;gap:14px;padding:18px 34px;border-radius:999px;font-weight:900;font-size:44px;white-space:nowrap}
+.chip.g1{background:#3ddc97;color:#06281a;box-shadow:0 0 60px rgba(61,220,151,.4)}
+.chip.dk{background:#12151b;border:3px solid rgba(255,255,255,.16)}
+.m{position:absolute;filter:drop-shadow(0 30px 40px rgba(0,0,0,.6));transform-origin:50% 100%}
+.tile{position:absolute;width:440px;height:290px;border-radius:40px;display:grid;place-items:center;align-content:center;gap:6px;font-weight:900;font-size:44px;text-align:center;line-height:1.1}
+.tile i{font-style:normal;font-size:96px}
+.row{position:absolute;left:90px;right:90px;display:flex;gap:26px;align-items:center;padding:30px 38px;border-radius:36px;font-weight:800;font-size:46px;line-height:1.15}
+.row b{font-size:70px;font-weight:400}
+.row small{display:block;font-size:32px;font-weight:600;opacity:.75;margin-top:6px}
+.code{font-family:ui-monospace,monospace;font-weight:900;font-size:66px;letter-spacing:6px;color:#3ddc97;text-shadow:0 0 30px rgba(61,220,151,.6)}
+</style></head><body><div id="s">
+<div class="blob" id="b1" style="width:950px;height:950px;background:#3ddc97;opacity:.3"></div>
+<div class="blob" id="b2" style="width:850px;height:850px;background:#7c3aed;opacity:.36"></div>
+<div class="grid" id="grid"></div>
+<canvas id="gl" width="1080" height="1920"></canvas>
+
+<!-- 1 · abertura (3D) -->
+<div class="sc" id="c1"><div class="h" style="top:1330px"><span class="w" id="c1a">Isso aqui é o</span><br><span class="w g" id="c1b">Resenha</span></div>
+ <div class="w" id="c1c" style="position:absolute;left:0;right:0;top:1700px;text-align:center;font-weight:800;font-size:46px;color:rgba(255,255,255,.85)">Call, tela e chat. Feito por um brasileiro. De graça.</div></div>
+
+<!-- 2 · transmissão de tela -->
+<div class="sc" id="c2"><div class="h"><span class="w" id="c2a">Tela em</span> <span class="w g" id="c2b">Full HD</span></div>
+ <div class="shot" id="c2s" style="left:70px;top:400px;width:940px;height:501px"><img src="assets/tela.jpg"></div>
+ <div class="chip g1" id="c2c1" style="left:70px;top:950px">1920×1080</div><div class="chip g1" id="c2c2" style="left:430px;top:950px">40 FPS</div><div class="chip dk" id="c2c3" style="left:70px;top:1070px">Auto · 720p</div>
+ <div class="row card" id="c2r1" style="top:1200px"><b>👀</b><div>Cada pessoa escolhe a qualidade que quer assistir</div></div>
+ <div class="row card" id="c2r2" style="top:1370px"><b>🔒</b><div>Você decide quem pode ver a sua tela</div></div>
+ <img class="m" id="c2m" src="assets/resenha-oculos.png" style="left:640px;top:1520px;width:420px"></div>
+
+<!-- 3 · assistir juntos -->
+<div class="sc" id="c3"><div class="h"><span class="w" id="c3a">Assistam</span> <span class="w g" id="c3b">juntos</span></div>
+ <div class="card" id="c3p" style="left:90px;top:420px;width:900px;height:520px;overflow:hidden"><div style="position:absolute;inset:0;background:linear-gradient(135deg,#0f3d2e,#123a5a 60%,#2a1450)"></div>
+  <div style="position:absolute;left:370px;top:150px;width:160px;height:120px;border-radius:34px;background:#ff2d3d;display:grid;place-items:center"><div style="width:0;height:0;border-left:50px solid #fff;border-top:30px solid transparent;border-bottom:30px solid transparent;margin-left:12px"></div></div>
+  <div style="position:absolute;left:30px;right:30px;top:440px;height:12px;border-radius:6px;background:rgba(255,255,255,.25)"><div id="c3bar" style="height:100%;border-radius:6px;background:#ff2d3d;width:20%"></div></div>
+  <div style="position:absolute;left:36px;top:360px;font-weight:900;font-size:40px">▶ Todo mundo no mesmo ponto</div></div>
+ <div class="row card" id="c3q1" style="top:1000px"><b>1</b><div>lofi para estudar<small>pedido por Bia</small></div></div>
+ <div class="row card" id="c3q2" style="top:1150px"><b>2</b><div>trilha do jogo<small>pedido por Caio</small></div></div>
+ <div class="chip g1" id="c3c" style="left:90px;top:1340px">💬 Chat privado só da call</div>
+ <img class="m" id="c3m" src="assets/resenha-fone.png" style="left:380px;top:1440px;width:420px"></div>
+
+<!-- 4 · tudo pra galera -->
+<div class="sc" id="c4"><div class="h"><span class="w" id="c4a">Tudo pra</span> <span class="w g" id="c4b">galera</span></div>
+ <div class="tile card" id="c4t1" style="left:80px;top:420px"><i>🔊</i>Soundboard</div>
+ <div class="tile card" id="c4t2" style="left:560px;top:420px"><i>😎</i>Emojis e figurinhas</div>
+ <div class="tile card" id="c4t3" style="left:80px;top:740px"><i>📊</i>Enquetes</div>
+ <div class="tile card" id="c4t4" style="left:560px;top:740px"><i>📅</i>Eventos</div>
+ <div class="tile card" id="c4t5" style="left:80px;top:1060px"><i>📌</i>Mensagens fixadas</div>
+ <div class="tile card" id="c4t6" style="left:560px;top:1060px"><i>🔔</i>Avisos no celular</div>
+ <img class="m" id="c4m1" src="assets/resenha-bandeira.png" style="left:60px;top:1400px;width:400px"><img class="m" id="c4m2" src="assets/resenha-joinha.png" style="left:620px;top:1420px;width:380px"></div>
+
+<!-- 5 · segurança -->
+<div class="sc" id="c5"><div class="h sm"><span class="w" id="c5a">Chamada</span> <span class="w g" id="c5b">criptografada</span><br><span class="w" id="c5d">de ponta a ponta</span></div>
+ <div class="shot" id="c5s" style="left:230px;top:480px;width:620px;height:608px;box-shadow:0 0 120px rgba(61,220,151,.35),0 50px 110px rgba(0,0,0,.65)"><img src="assets/seguranca.jpg"></div>
+ <div class="chip g1" id="c5c1" style="left:60px;top:1150px">DTLS 1.3</div><div class="chip g1" id="c5c2" style="left:380px;top:1150px">SRTP · AES-128</div>
+ <div class="chip dk" id="c5c3" style="left:60px;top:1270px">🚫 Nada é gravado</div>
+ <div class="row card" id="c5r" style="top:1410px"><b>🔍</b><div>Confira o código de segurança dos dois lados<small>Se bate, ninguém está no meio</small></div></div>
+ <img class="m" id="c5m" src="assets/resenha-curioso.png" style="left:700px;top:1580px;width:330px"></div>
+
+<!-- 6 · sem enrolação -->
+<div class="sc" id="c6"><div class="h"><span class="w" id="c6a">Sem</span> <span class="w g" id="c6b">enrolação</span></div>
+ <div class="row card" id="c6r1" style="top:420px;border-color:#3ddc97"><b>📞</b><div>Voz, câmera e tela<small>ponta a ponta, nada gravado</small></div></div>
+ <div class="row card" id="c6r2" style="top:620px;border-color:#f5c451;background:#2a2210"><b>💬</b><div class="amb">Mensagens de texto<small>protegidas na viagem (HTTPS), mas guardadas no servidor. <strong>Não são</strong> ponta a ponta. A gente fala na cara.</small></div></div>
+ <div class="row card" id="c6r3" style="top:960px"><b>🔑</b><div>Senha com scrypt<small>nem a equipe consegue ver</small></div></div>
+ <div class="row card" id="c6r4" style="top:1140px"><b>🛡️</b><div>Verificação em duas etapas<small>e senhas vazadas são recusadas</small></div></div>
+ <div class="row card" id="c6r5" style="top:1320px"><b>💾</b><div>Backups criptografados<small>AES-256, conferidos depois de feitos</small></div></div>
+ <img class="m" id="c6m" src="assets/resenha-coracao.png" style="left:640px;top:1520px;width:380px"></div>
+
+<!-- 7 · comunidade -->
+<div class="sc" id="c7"><div class="h sm"><span class="w" id="c7a">Pronto pra</span> <span class="w g" id="c7b">comunidade</span></div>
+ <div class="row card" id="c7r1" style="top:450px"><b>🧭</b><div>Servidores públicos<small>e explorar outros</small></div></div>
+ <div class="row card" id="c7r2" style="top:640px"><b>🎖️</b><div>Cargos e permissões<small>do jeito que você quiser</small></div></div>
+ <div class="row card" id="c7r3" style="top:830px"><b>🧹</b><div>Moderação automática<small>e modo lento</small></div></div>
+ <div class="row card" id="c7r4" style="top:1020px"><b>📜</b><div>Registro de auditoria<small>quem fez o quê, 90 dias</small></div></div>
+ <img class="m" id="c7m" src="assets/resenha-oculos.png" style="left:320px;top:1330px;width:440px"></div>
+
+<!-- 8 · em breve -->
+<div class="sc" id="c8"><div class="h"><span class="w amb" id="c8a">Vem aí</span> <span class="w" id="c8b">🚀</span></div>
+ <div class="card" id="c8k1" style="left:90px;top:400px;width:900px;height:520px;display:flex;align-items:center;gap:40px;padding:0 50px">
+  <div style="width:260px;height:260px;border-radius:28px;background:#fff;display:grid;place-items:center;font-size:150px">▦</div>
+  <div style="font-weight:900;font-size:56px;line-height:1.1">📱 Câmera do celular<div style="font-weight:700;font-size:38px;opacity:.8;margin-top:12px">leia um QR Code e o celular vira a sua câmera no computador</div></div></div>
+ <div class="card" id="c8k2" style="left:90px;top:960px;width:900px;height:520px;padding:44px">
+  <div style="display:flex;gap:12px"><span class="chip g1" style="position:static;font-size:34px;padding:12px 24px">LOLZIN</span><span class="chip dk" style="position:static;font-size:34px;padding:12px 24px">#geral</span><span class="chip dk" style="position:static;font-size:34px;padding:12px 24px">Call 1</span></div>
+  <div style="font-weight:900;font-size:56px;line-height:1.1;margin-top:60px">📌 Abas no topo<div style="font-weight:700;font-size:38px;opacity:.8;margin-top:12px">fixe servidores, canais e conversas e troque num clique</div></div></div>
+ <img class="m" id="c8m" src="assets/resenha-curioso.png" style="left:690px;top:1530px;width:340px"></div>
+
+<!-- 9 · chamada final (3D) -->
+<div class="sc" id="c9"><div class="h" style="top:230px"><span class="w g" id="c9a">Cadastro aberto</span></div>
+ <div class="w" id="c9b" style="position:absolute;left:0;right:0;top:1560px;text-align:center;font-weight:900;font-size:76px;letter-spacing:-2px">Chama a galera!</div>
+ <div class="chip g1" id="c9c" style="left:50%;top:1680px;transform:translateX(-50%)">🔗 Link na bio</div>
+ <div class="w" id="c9d" style="position:absolute;left:0;right:0;top:1810px;text-align:center;font-weight:800;font-size:44px;color:rgba(255,255,255,.75)">resenhabr.com.br</div></div>
+</div>
+<script type="module">
+import * as THREE from './three.module.js';
+const $=id=>document.getElementById(id),css=(id,o)=>Object.assign($(id).style,o);
+const cl=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)),p=(t,t0,d)=>cl((t-t0)/d),eo=x=>1-Math.pow(1-x,3),eio=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2,back=x=>{const c=1.70158;return x<=0?0:1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2)};
+// linha do tempo (segundos). Depois da narração, os tempos são ajustados às falas (timeline.json)
+let TL={c1:[0,6],c2:[6,18],c3:[18,28],c4:[28,38],c5:[38,55],c6:[55,68],c7:[68,77],c8:[77,85],c9:[85,95],at:{}};
+try{const j=await (await fetch('timeline.json')).json();TL={...TL,...j}}catch{}
+window.DURATION=TL.c9[1];window.TL=TL;
+const word=(id,t,t0,d=.35)=>{const k=p(t,t0,d);css(id,{opacity:eo(k),transform:`translateY(${(1-back(k))*70}px) scale(${.9+.1*back(k)})`,filter:`blur(${(1-k)*8}px)`})};
+const rise=(id,t,t0,d=.45)=>{const k=eo(p(t,t0,d));css(id,{opacity:k,transform:`translateY(${(1-k)*120}px) scale(${.94+.06*k})`})};
+const pop=(id,t,t0,d=.4,base='')=>{const k=p(t,t0,d);css(id,{opacity:cl(k*3),transform:`${base} scale(${back(k)})`})};
+const bob=(id,t,t0,ph=0,amp=10)=>{const k=p(t,t0,.6);const jump=k<1?Math.abs(Math.sin(k*Math.PI*2))*(1-k)*120:0;css(id,{opacity:cl(k*4),transform:`translateY(${Math.sin(t*3+ph)*amp-jump}px) rotate(${Math.sin(t*2+ph)*3}deg) scale(${.55+.45*eo(k)},${(.55+.45*eo(k))*(1+Math.sin(t*6+ph)*.012)})`})};
+// ---------- 3D (abertura e final) ----------
+const R=new THREE.WebGLRenderer({canvas:$('gl'),antialias:true,alpha:true,preserveDrawingBuffer:true});R.setSize(1080,1920,false);R.setPixelRatio(1);R.toneMapping=THREE.ACESFilmicToneMapping;
+const sc3=new THREE.Scene(),cam=new THREE.PerspectiveCamera(32,1080/1920,.1,100);cam.position.set(0,0,19);
+sc3.add(new THREE.HemisphereLight(0x9ff5d0,0x1a1040,1.2));const key=new THREE.DirectionalLight(0xffffff,2.6);key.position.set(4,6,8);sc3.add(key);const rim=new THREE.PointLight(0x7c3aed,140,40);rim.position.set(-6,2,-3);sc3.add(rim);
+const logo=new THREE.Group();sc3.add(logo);
+const sq=new THREE.Shape(),L=-2,S=4,rd=.9;sq.moveTo(L+rd,L);sq.lineTo(L+S-rd,L);sq.quadraticCurveTo(L+S,L,L+S,L+rd);sq.lineTo(L+S,L+S-rd);sq.quadraticCurveTo(L+S,L+S,L+S-rd,L+S);sq.lineTo(L+rd,L+S);sq.quadraticCurveTo(L,L+S,L,L+S-rd);sq.lineTo(L,L+rd);sq.quadraticCurveTo(L,L,L+rd,L);
+const tile=new THREE.Mesh(new THREE.ExtrudeGeometry(sq,{depth:.9,bevelEnabled:true,bevelSize:.18,bevelThickness:.18,bevelSegments:8,curveSegments:24}),new THREE.MeshPhysicalMaterial({color:0x3ddc97,metalness:.15,roughness:.25,clearcoat:1}));tile.geometry.center();logo.add(tile);
+const bs=new THREE.Shape();const bx=-1.3,by=-.9,bw=2.6,bh=2.1,br=.45;bs.moveTo(bx+br,by);bs.lineTo(bx+bw-br,by);bs.quadraticCurveTo(bx+bw,by,bx+bw,by+br);bs.lineTo(bx+bw,by+bh-br);bs.quadraticCurveTo(bx+bw,by+bh,bx+bw-br,by+bh);bs.lineTo(bx+br,by+bh);bs.quadraticCurveTo(bx,by+bh,bx,by+bh-br);bs.lineTo(bx,by+br);bs.quadraticCurveTo(bx,by,bx+br,by);
+const bub=new THREE.Mesh(new THREE.ExtrudeGeometry(bs,{depth:.5,bevelEnabled:true,bevelSize:.1,bevelThickness:.1,bevelSegments:6}),new THREE.MeshPhysicalMaterial({color:0x111318,roughness:.3,clearcoat:1}));bub.position.set(0,.15,.75);logo.add(bub);
+const ts=new THREE.Shape();ts.moveTo(0,0);ts.lineTo(.9,0);ts.lineTo(0,-.9);ts.closePath();const tail=new THREE.Mesh(new THREE.ExtrudeGeometry(ts,{depth:.4,bevelEnabled:true,bevelSize:.08,bevelThickness:.08}),bub.material);tail.position.set(-.9,-.85,.8);logo.add(tail);
+const em=new THREE.MeshStandardMaterial({color:0x3ddc97,emissive:0x3ddc97,emissiveIntensity:1.5});[-.5,.5].forEach(x=>{const e=new THREE.Mesh(new THREE.SphereGeometry(.26,24,24),em);e.scale.set(1,1.1,.5);e.position.set(x,.35,1.3);logo.add(e)});
+// tucano "volumétrico": várias camadas da figurinha empilhadas dão profundidade
+const ld=new THREE.TextureLoader();const poses={};const planes={};
+function pose(name){if(planes[name])return planes[name];const g=new THREE.Group();const tex=ld.load(`assets/resenha-${name}.png`);tex.colorSpace=THREE.SRGBColorSpace;
+ for(let i=0;i<5;i++){const m=new THREE.Mesh(new THREE.PlaneGeometry(5,5),new THREE.MeshBasicMaterial({map:tex,transparent:true,color:i<4?new THREE.Color(.16,.2,.16):new THREE.Color(1,1,1),alphaTest:.05}));m.position.z=-i*.05;g.add(m)}
+ g.visible=false;sc3.add(g);planes[name]=g;return g}
+const tuc1=pose('joinha'),tuc2=pose('bandeira');
+const parts=[];for(let i=0;i<46;i++){const m=new THREE.Mesh(new THREE.IcosahedronGeometry(.08+((i*37)%10)/100,0),new THREE.MeshBasicMaterial({color:[0x3ddc97,0x7df9ff,0xb388ff][i%3]}));m.userData={x:((i*53)%100-50)/5.5,y:((i*29)%100)/100,z:-3+((i*17)%60)/10,s:.25+((i*13)%50)/100};sc3.add(m);parts.push(m)}
+function draw3d(t,which){
+ const on=which>0;$('gl').style.opacity=on?'1':'0';if(!on)return;
+ parts.forEach((m,i)=>m.position.set(m.userData.x+Math.sin(t*m.userData.s+i)*.4,((m.userData.y*14+t*m.userData.s*1.6)%14)-7,m.userData.z));
+ cam.position.x=Math.sin(t*.45)*.9;cam.lookAt(0,0,0);
+ if(which===1){const a=TL.c1[0],k=p(t,a,1.0);
+  logo.visible=true;logo.position.set(0,3.5+(1-eo(k))*5,0);logo.scale.setScalar(.34+.1*eo(k));logo.rotation.y=t*.9+(1-eo(k))*5;logo.rotation.x=Math.sin(t)*.15;
+  tuc1.visible=true;tuc2.visible=false;const m=p(t,a+.6,.9);tuc1.position.set(0,.3-(1-eo(m))*5,1);tuc1.scale.setScalar(.72*(.3+.7*back(m)));tuc1.rotation.y=Math.sin(t*1.3)*.5;tuc1.rotation.z=Math.sin(t*2)*.05}
+ else{const a=TL.c9[0],k=p(t,a,1.0);
+  logo.visible=true;logo.position.set(0,2.9,0);logo.scale.setScalar(.34*eo(k)+.02);logo.rotation.y=t*1.1;logo.rotation.x=Math.sin(t*.8)*.12;
+  tuc1.visible=false;tuc2.visible=true;const m=p(t,a+.3,.9);tuc2.position.set(0,-1.2-(1-eo(m))*5,1);tuc2.scale.setScalar(.82*(.3+.7*back(m)));tuc2.rotation.y=Math.sin(t*1.2)*.55;tuc2.rotation.z=Math.sin(t*2)*.05}
+ if(which===1){tuc2.visible=false}
+ R.render(sc3,cam)}
+const SC=['c1','c2','c3','c4','c5','c6','c7','c8','c9'],TR=.3;
+window.seek=t=>{
+ css('b1',{left:`${-300+Math.sin(t*.3)*120}px`,top:`${-250+Math.cos(t*.27)*120}px`});css('b2',{left:`${560+Math.cos(t*.25)*140}px`,top:`${850+Math.sin(t*.3)*160}px`});css('grid',{transform:`translateY(${(t*24)%80}px)`});
+ for(const id of SC){const [a,b]=TL[id],kin=eo(p(t,a,TR)),ko=eio(p(t,b-TR*.6,TR)),on=t>=a-.01&&t<b+TR;
+  css(id,{display:on?'block':'none',opacity:kin*(1-ko),transform:`translateY(${(1-kin)*90-ko*120}px) scale(${1+ko*.06})`,filter:ko>0?`blur(${ko*14}px)`:'none'})}
+ const A=(id,o=0)=>TL[id][0]+o;
+ // 1
+ word('c1a',t,A('c1',.25));word('c1b',t,A('c1',.7));word('c1c',t,A('c1',3.0),.5);
+ // 2
+ word('c2a',t,A('c2'));word('c2b',t,A('c2',.4));rise('c2s',t,A('c2',.5),.6);css('c2s',{transform:`translateY(${(1-eo(p(t,A('c2',.5),.6)))*140}px) perspective(1400px) rotateX(${(1-eo(p(t,A('c2',.5),.8)))*14}deg)`});
+ pop('c2c1',t,A('c2',1.4));pop('c2c2',t,A('c2',2.3));pop('c2c3',t,A('c2',4.2));rise('c2r1',t,A('c2',4.9));rise('c2r2',t,A('c2',7.3));bob('c2m',t,A('c2',1.2),0);
+ // 3
+ word('c3a',t,A('c3'));word('c3b',t,A('c3',.4));rise('c3p',t,A('c3',.5));css('c3bar',{width:`${20+((t-A('c3'))*5)%70}%`});rise('c3q1',t,A('c3',2.9));rise('c3q2',t,A('c3',3.5));pop('c3c',t,A('c3',4.1));bob('c3m',t,A('c3',1.5),1);
+ // 4
+ word('c4a',t,A('c4'));word('c4b',t,A('c4',.4));[.1,.9,2.3,3.1,3.8,5.6].forEach((o,i)=>pop('c4t'+(i+1),t,A('c4',o),.45,`rotate(${i%2?2:-2}deg)`));
+ for(let i=1;i<=6;i++){const el=$('c4t'+i).style;el.background=['#3a2f10','#102a3a','#2a1050','#103a2a','#3a1020','#2a2a10'][i-1]}
+ bob('c4m1',t,A('c4',1.4),0);bob('c4m2',t,A('c4',1.8),2);
+ // 5
+ word('c5a',t,A('c5'));word('c5b',t,A('c5',.35));word('c5d',t,A('c5',.8));rise('c5s',t,A('c5',2),.6);css('c5s',{transform:`translateY(${(1-eo(p(t,A('c5',2),.6)))*140}px) scale(${1+Math.sin(t*2)*.008})`});
+ pop('c5c1',t,A('c5',4.5));pop('c5c2',t,A('c5',5.6));pop('c5c3',t,A('c5',8.1));rise('c5r',t,A('c5',9.9));bob('c5m',t,A('c5',3),0);
+ // 6
+ word('c6a',t,A('c6'));word('c6b',t,A('c6',.4));rise('c6r1',t,A('c6',.8));rise('c6r2',t,A('c6',1.3),.5);rise('c6r3',t,A('c6',8.5));rise('c6r4',t,A('c6',10.7));rise('c6r5',t,A('c6',12.3));bob('c6m',t,A('c6',2),1);
+ css('c6r2',{boxShadow:`0 0 ${30+20*Math.sin(t*4)}px rgba(245,196,81,.35),0 50px 100px rgba(0,0,0,.55)`});
+ // 7
+ word('c7a',t,A('c7'));word('c7b',t,A('c7',.4));[.4,1.4,2.7,4.1].forEach((o,i)=>rise('c7r'+(i+1),t,A('c7',o)));bob('c7m',t,A('c7',1.5),0);
+ // 8
+ word('c8a',t,A('c8'));word('c8b',t,A('c8',.5));rise('c8k1',t,A('c8',1.1));rise('c8k2',t,A('c8',4.5));bob('c8m',t,A('c8',2),1);
+ // 9
+ word('c9a',t,A('c9',.3));word('c9b',t,A('c9',2.8));pop('c9c',t,A('c9',3.8),.4,'translateX(-50%)');word('c9d',t,A('c9',4.3));
+ const inC1=t>=TL.c1[0]-.01&&t<TL.c1[1]+TR,inC9=t>=TL.c9[0]-.01&&t<TL.c9[1]+TR;
+ draw3d(t,inC1?1:inC9?2:0);
+};
+window.ready=true;
+</script></body></html>

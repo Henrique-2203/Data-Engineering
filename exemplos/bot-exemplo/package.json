@@ -1,0 +1,10 @@
+{
+  "name": "bot-exemplo-resenha",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bot de exemplo para o Resenha: comandos /ping /eco /hora /piada /clima e envio de avisos",
+  "scripts": { "start": "node servidor.js" },
+  "engines": { "node": ">=20" },
+  "dependencies": { "express": "^5.1.0" }
+}
