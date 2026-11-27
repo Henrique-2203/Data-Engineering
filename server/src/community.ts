@@ -115,7 +115,7 @@ export async function checkAutomod(
     reason = 'convites para outros servidores não são permitidos aqui';
   } else if (s.blockLinks && LINK_RE.test(text)) {
     rule = 'links';
-    reason = 'links não são permitidos neste servidor';
+    reason = 'links não são permitidos neste servidor. Quem administra libera pelo cargo: Configurações do servidor → Moderação automática → "Cargos que não passam pelo filtro"';
   } else if (s.antiSpam) {
     const mentions = new Set(text.match(/@[a-z0-9_.]{3,24}/gi) ?? []).size;
     const key = `${o.guildId}:${o.userId}`;
