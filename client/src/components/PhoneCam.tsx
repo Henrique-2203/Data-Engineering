@@ -3,6 +3,7 @@ import { Laptop, Smartphone, SwitchCamera, VideoOff } from 'lucide-react';
 import { api } from '../lib/api';
 import { getSocket, onSocketReady } from '../lib/socket';
 import { useHasFeature } from '../lib/layoutMode';
+import { isMobile } from '../lib/install';
 import { closeModal, openModal } from '../store/app';
 import { useVoice } from '../store/voice';
 import { PhoneLink } from '../voice/phonecam';
@@ -21,7 +22,8 @@ export function useCameraButton() {
   const feature = useHasFeature('phonecam');
   const camera = useVoice((s) => s.camera);
   return () => {
-    if (feature && !camera) openModal({ kind: 'camera' });
+    // no celular/tablet a câmera "do celular" É a câmera deste aparelho: não faz sentido escolher nem mostrar QR Code
+    if (feature && !camera && !isMobile()) openModal({ kind: 'camera' });
     else void voice.toggleCamera();
   };
 }

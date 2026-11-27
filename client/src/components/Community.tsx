@@ -714,15 +714,24 @@ function EventForm({ guild, event, onDone }: { guild: Guild; event: GuildEvent |
 // Moderação automática (configurações do servidor)
 // ======================================================================
 
+const SITE_PRESETS = [
+  { label: 'YouTube', domains: ['youtube.com', 'youtu.be'] },
+  { label: 'Spotify', domains: ['spotify.com', 'spoti.fi'] },
+  { label: 'Twitch', domains: ['twitch.tv'] },
+  { label: 'GIFs (Tenor, Giphy)', domains: ['tenor.com', 'giphy.com'] },
+];
+
 export function AutomodPanel({ guild }: { guild: Guild }) {
   const [s, setS] = useState<AutomodSettings | null>(null);
   const [words, setWords] = useState('');
+  const [sites, setSites] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     api<{ automod: AutomodSettings }>(`/guilds/${guild.id}/automod`).then(
       (r) => {
         setS(r.automod);
         setWords(r.automod.words.join(', '));
+        setSites((r.automod.allowedDomains ?? []).join(', '));
       },
       (e) => toast(e.message),
     );
@@ -737,9 +746,11 @@ export function AutomodPanel({ guild }: { guild: Guild }) {
         .split(/[,\n]/)
         .map((w) => w.trim().toLowerCase())
         .filter(Boolean);
-      const r = await api<{ automod: AutomodSettings }>(`/guilds/${guild.id}/automod`, { method: 'PUT', body: { ...s, words: list } });
+      const siteList = sites.split(/[,\s]+/).filter(Boolean);
+      const r = await api<{ automod: AutomodSettings }>(`/guilds/${guild.id}/automod`, { method: 'PUT', body: { ...s, words: list, allowedDomains: siteList } });
       setS(r.automod);
       setWords(r.automod.words.join(', '));
+      setSites((r.automod.allowedDomains ?? []).join(', '));
       toast('Moderação automática salva. 🛡️');
     } catch (err) {
       toast((err as Error).message);
@@ -776,6 +787,27 @@ export function AutomodPanel({ guild }: { guild: Guild }) {
         <input type="checkbox" checked={s.blockLinks} onChange={(e) => setS({ ...s, blockLinks: e.target.checked })} />
         Bloquear todos os links
       </label>
+      {s.blockLinks && (
+        <div className="automod-sites">
+          <label>
+            Sites liberados (mesmo com os links bloqueados)
+            <input value={sites} onChange={(e) => setSites(e.target.value)} placeholder="youtube.com, youtu.be, spotify.com" spellCheck={false} aria-label="Sites liberados" />
+          </label>
+          <div className="row gap-s wrap">
+            {SITE_PRESETS.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                className="btn ghost small"
+                onClick={() => setSites((cur) => [...new Set([...cur.split(/[,\s]+/).filter(Boolean), ...p.domains])].join(', '))}
+              >
+                + {p.label}
+              </button>
+            ))}
+          </div>
+          <p className="muted small">Vale para o site e os subdomínios (music.youtube.com). Uma mensagem com um link liberado e outro não continua bloqueada.</p>
+        </div>
+      )}
       <label className="check">
         <input type="checkbox" checked={s.antiSpam} onChange={(e) => setS({ ...s, antiSpam: e.target.checked })} />
         Anti-spam: mesma mensagem repetida, menções demais, letras repetidas sem fim

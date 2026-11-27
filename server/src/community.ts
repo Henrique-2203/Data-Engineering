@@ -38,11 +38,12 @@ export async function checkSlowmode(db: Db, c: ChannelRow & { slowmode?: number 
 // Moderação automática
 // ======================================================================
 
-export const DEFAULT_AUTOMOD: AutomodSettings = { words: [], blockLinks: false, blockInvites: false, antiSpam: false, exemptRoleIds: [] };
+export const DEFAULT_AUTOMOD: AutomodSettings = { words: [], blockLinks: false, allowedDomains: [], blockInvites: false, antiSpam: false, exemptRoleIds: [] };
 
 const automodSchema = z.object({
   words: z.array(z.string().trim().toLowerCase().min(1).max(40)).max(300).default([]),
   blockLinks: z.boolean().default(false),
+  allowedDomains: z.array(z.string().max(120)).max(50).default([]),
   blockInvites: z.boolean().default(false),
   antiSpam: z.boolean().default(false),
   exemptRoleIds: z.array(z.string()).max(50).default([]),
@@ -81,6 +82,29 @@ export function findBlockedWord(text: string, words: string[]): string | null {
 
 const INVITE_RE = /(discord(app)?\.com\/invite\/|discord\.gg\/|\/invite\/)([a-z0-9_-]+)/gi;
 const LINK_RE = /(https?:\/\/|www\.)\S+/i;
+const LINK_ALL_RE = /(?:https?:\/\/|www\.)[^\s<>"')\]]+/gi;
+
+/** "https://www.YouTube.com/watch?v=1" ou "youtube.com/x" -> "youtube.com" (ou null se não parecer um site) */
+export function normalizeDomain(raw: string): string | null {
+  let s = raw.trim().toLowerCase().replace(/^[a-z]+:\/\//, '').replace(/^www\./, '');
+  s = s.split(/[/?#:]/)[0].replace(/\.$/, '');
+  return /^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/.test(s) ? s : null;
+}
+
+/** O endereço (já com o nome do site de verdade, que o parser de URL extrai) é de um site liberado? Subdomínios valem (music.youtube.com). */
+function linkAllowed(link: string, allowed: string[]): boolean {
+  if (!allowed.length) return false;
+  let host: string;
+  try {
+    host = new URL(/^https?:\/\//i.test(link) ? link : `https://${link}`).hostname.toLowerCase().replace(/\.$/, '');
+  } catch {
+    return false;
+  }
+  return allowed.some((d) => host === d || host.endsWith(`.${d}`));
+}
+
+/** a mensagem tem algum link que NÃO está liberado? */
+export const hasBlockedLink = (text: string, allowed: string[]) => [...text.matchAll(LINK_ALL_RE)].some((m) => !linkAllowed(m[0], allowed)) || (LINK_RE.test(text) && !text.match(LINK_ALL_RE));
 
 /** últimas mensagens de cada pessoa por servidor (só em memória, para o anti-spam) */
 const recent = new Map<string, { text: string; at: number }[]>();
@@ -113,7 +137,7 @@ export async function checkAutomod(
   } else if (s.blockInvites && [...text.matchAll(INVITE_RE)].some((m) => m[3] !== o.inviteCode)) {
     rule = 'invites';
     reason = 'convites para outros servidores não são permitidos aqui';
-  } else if (s.blockLinks && LINK_RE.test(text)) {
+  } else if (s.blockLinks && LINK_RE.test(text) && hasBlockedLink(text, s.allowedDomains ?? [])) {
     rule = 'links';
     reason = 'links não são permitidos neste servidor. Quem administra libera pelo cargo: Configurações do servidor → Moderação automática → "Cargos que não passam pelo filtro"';
   } else if (s.antiSpam) {
@@ -395,16 +419,19 @@ export function registerCommunityRoutes(r: Router, db: Db, rt: Realtime, auth: R
       await requirePerm(db, guildId, req.user!.id, Perm.MANAGE_GUILD);
       const body = parse(automodSchema, req.body);
       const words = [...new Set(body.words)];
+      const allowedDomains = [...new Set(body.allowedDomains.map(normalizeDomain))];
+      if (allowedDomains.includes(null)) throw new HttpError(400, 'Um dos sites liberados não parece um endereço válido (use algo como youtube.com).');
       if (body.exemptRoleIds.length) {
         const roles = await db.query('select 1 from roles where id = any($1) and guild_id = $2', [body.exemptRoleIds, guildId]);
         if (roles.length !== body.exemptRoleIds.length) throw new HttpError(400, 'Cargo inválido.');
       }
       const before = await loadAutomod(db, guildId);
-      const next: AutomodSettings = { ...body, words };
+      const next: AutomodSettings = { ...body, words, allowedDomains: allowedDomains as string[] };
       await db.query('update guilds set automod = $2 where id = $1', [guildId, JSON.stringify(next)]);
       const diff: Record<string, unknown> = {};
       for (const k of ['blockLinks', 'blockInvites', 'antiSpam'] as const) if (before[k] !== next[k]) diff[k] = next[k];
       if (before.words.length !== next.words.length || before.words.some((w, i) => w !== next.words[i])) diff.words = next.words.length;
+      if (JSON.stringify(before.allowedDomains ?? []) !== JSON.stringify(next.allowedDomains)) diff.sitesLiberados = next.allowedDomains.length;
       if (JSON.stringify(before.exemptRoleIds) !== JSON.stringify(next.exemptRoleIds)) diff.exempt = next.exemptRoleIds.length;
       if (Object.keys(diff).length) await audit(db, guildId, req.user!.id, 'automod_update', { type: 'guild', id: guildId, label: 'moderação automática' }, diff);
       return { automod: next };

@@ -56,6 +56,21 @@ try {
   await api('PUT', `/guilds/${guild.id}/members/${gus.user.id}/roles`, ana.token, { roleIds: [] });
   check((await send(gus)).status === 400, 'sem o cargo de novo: bloqueado');
   step('links bloqueados, liberados só para o cargo isento (e voltam a ser bloqueados ao tirar o cargo)');
+
+  // ---- sites liberados: YouTube e Spotify passam; o resto continua bloqueado ----
+  const sites = await api('PUT', `/guilds/${guild.id}/automod`, ana.token, { words: [], blockLinks: true, blockInvites: false, antiSpam: false, exemptRoleIds: [], allowedDomains: ['https://www.YouTube.com/', 'youtu.be', 'open.spotify.com/track/1'] });
+  check(sites.status === 200 && sites.automod.allowedDomains.join() === 'youtube.com,youtu.be,open.spotify.com', `sites normalizados (${JSON.stringify(sites.automod?.allowedDomains)})`);
+  check((await api('PUT', `/guilds/${guild.id}/automod`, ana.token, { blockLinks: true, allowedDomains: ['isso não é site'] })).status === 400, 'endereço inválido recusado');
+  const msg = async (content) => (await sleep(1100), api('POST', `/channels/${geral}/messages`, bia.token, { content }));
+  for (const ok of ['olha https://www.youtube.com/watch?v=abc123', 'https://youtu.be/abc123', 'https://music.youtube.com/watch?v=1', 'www.youtube.com/x', 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC', 'sem link nenhum']) {
+    const r = await msg(ok);
+    check(r.status === 200, `deveria passar: "${ok}" (${r.status} ${r.error})`);
+  }
+  for (const ruim of ['https://exemplo.com/x', 'https://youtube.com.golpe.com/login', 'https://meuyoutube.com/x', 'https://youtube.com@golpe.com/x', 'https://youtu.be/ok e também https://golpe.com/x', 'https://spotify.com/x', 'http://127.0.0.1/x', 'www.golpe.com/youtube.com']) {
+    const r = await msg(ruim);
+    check(r.status === 400, `deveria ser BLOQUEADO: "${ruim}" (${r.status})`);
+  }
+  step('sites liberados: YouTube/Spotify e subdomínios passam; sites parecidos, enganos com @ e mistura com link não liberado continuam bloqueados');
 } finally {
   server.kill();
 }

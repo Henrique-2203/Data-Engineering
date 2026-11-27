@@ -247,6 +247,8 @@ export interface AutomodSettings {
   /** palavras proibidas (termine com * para pegar o começo da palavra: "idiot*") */
   words: string[];
   blockLinks: boolean;
+  /** sites liberados mesmo com "bloquear links" (ex.: youtube.com, spotify.com; vale para os subdomínios) */
+  allowedDomains: string[];
   blockInvites: boolean;
   antiSpam: boolean;
   /** cargos que a moderação automática ignora */
