@@ -124,6 +124,20 @@ try {
     for (const v of viewers) fps.push(await viewerFps(v));
     const sendStats = await ana.locator('.send-stats').textContent().catch(() => '');
     if (turbo) await viewers[0].screenshot({ path: path.join(shots, 'transmissao-turbo.png') });
+    let metrics = null;
+    if (turbo) {
+      // métricas novas do núcleo: recebido/decodificado/apresentado, intervalo entre quadros, travadas, fila, bufferedAmount
+      const recv = await viewers[0].evaluate(() => {
+        const v = window.__resenhaVoice;
+        const sid = [...v.turboRecv.keys()][0];
+        return { stats: v.turboRecv.get(sid).stats(), transport: v.watchTransport(sid) };
+      });
+      const send = await ana.evaluate(async () => {
+        const st = await window.__resenhaVoice.screenSendStats();
+        return { raw: st.raw, limit: st.limit, viewerFps: st.viewerFps, snapshot: window.__resenhaVoice.transportSnapshot() };
+      });
+      metrics = { recv, send };
+    }
     let recovery = null;
     if (turbo) {
       // o canal turbo cai no meio (oscilação de internet): a imagem tem que voltar sozinha, sem clicar
@@ -151,10 +165,13 @@ try {
       await back(false);
       await sleep(3000);
       const normalAfter = await viewerFps(v);
-      recovery = { once, normalAfter };
+      // 3ª queda: a pessoa pediu a transmissão normal; o transmissor tem que registrar o MOTIVO (não "falha misteriosa")
+      const afterSnap = await ana.evaluate(() => window.__resenhaVoice.transportSnapshot());
+      const fallbackRow = afterSnap.find((x) => x.state === 'fallback');
+      recovery = { once, normalAfter, fallbackRow };
     }
     for (const s of sessions) await s.ctx.close();
-    return { fps, stats, sendStats, recovery };
+    return { fps, stats, sendStats, recovery, metrics };
   }
 
   const normal = await round(false);
@@ -167,6 +184,19 @@ try {
   assert(Math.min(...turbo.fps) >= 40, `turbo: todos os amigos com 40+ FPS (${turbo.fps.join(', ')})`);
   assert(turbo.recovery.once >= 20, `a transmissão volta sozinha depois que o canal cai (${turbo.recovery.once} FPS)`);
   assert(turbo.recovery.normalAfter >= 15, `caindo 3 vezes, volta pela transmissão normal (${turbo.recovery.normalAfter} FPS)`);
+  const m = turbo.metrics;
+  assert(m.recv.stats && m.recv.stats.presentedFps >= 40 && m.recv.stats.decodedFps >= m.recv.stats.presentedFps - 2 && m.recv.stats.receivedFps >= m.recv.stats.decodedFps - 2, `quem assiste mede recebido ≥ decodificado ≥ apresentado (${JSON.stringify(m.recv.stats)})`);
+  assert(m.recv.stats.frameIntervalMs && m.recv.stats.frameIntervalMs.avg > 5 && m.recv.stats.frameIntervalMs.avg < 40 && typeof m.recv.stats.freezes === 'number' && typeof m.recv.stats.freezeMs === 'number', `intervalo entre quadros e travadas medidos (${JSON.stringify(m.recv.stats.frameIntervalMs)})`);
+  assert(m.recv.transport.mode === 'turbo' && m.recv.transport.state === 'active', `quem assiste vê o transporte turbo ativo (${JSON.stringify(m.recv.transport)})`);
+  const raw = m.send.raw;
+  assert(raw.srcWidth === 1280 && raw.srcHeight === 720 && raw.configuredFps >= 40, `resolução original e FPS configurado (${raw.srcWidth}x${raw.srcHeight} @${raw.configuredFps})`);
+  assert(typeof raw.encoderLatencyMs === 'number' && typeof raw.encodeQueueMax === 'number' && raw.dropped && typeof raw.dropped.encoderBusy === 'number', 'latência do codificador, fila e descartes por motivo medidos');
+  assert(raw.viewers.length === 3 && raw.viewers.every((x) => typeof x.buffered === 'number' && typeof x.shownFps === 'number' && x.shownFps > 0), `bufferedAmount e FPS mostrado MEDIDOS por espectador (${JSON.stringify(raw.viewers.map((x) => [x.buffered, x.shownFps]))})`);
+  assert(m.send.limit.where === 'none', `transmissão saudável: nenhuma limitação apontada (${JSON.stringify(m.send.limit)})`);
+  assert(m.send.snapshot.length === 3 && m.send.snapshot.every((x) => x.mode === 'turbo' && x.state === 'active' && !x.rtcVideo), 'os 3 espectadores no turbo, sem vídeo WebRTC duplicado');
+  const fb = turbo.recovery.fallbackRow;
+  assert(fb && fb.mode === 'webrtc' && fb.reason === 'viewer-unstable', `depois de 3 quedas o transmissor registra o motivo do fallback (${JSON.stringify(fb)})`);
+  step(`métricas do turbo: recebido/decodificado/apresentado, intervalos, travadas, fila e bufferedAmount medidos; fallback registra o motivo (${fb.reason})`);
   step(`canal turbo caiu no meio: a imagem volta sozinha (${turbo.recovery.once} FPS); caindo 3 vezes, segue pela transmissão normal (${turbo.recovery.normalAfter} FPS)`);
   step(`turbo: os 3 amigos recebem ${Math.min(...turbo.fps)}+ FPS (normal: ${Math.min(...normal.fps)}+)`);
   console.log('\nTUDO CERTO (transmissão turbo)');

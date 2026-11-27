@@ -134,6 +134,8 @@ interface Viewer {
   netDrops: number;
   /** laboratório: quadros "extras" (camada temporal 1) que ele deixou de receber para não travar */
   tlDrops: number;
+  /** a própria pessoa avisou ("bye") que está saindo: o fechamento do canal não é queda */
+  left: boolean;
   /** teste de laboratório: internet simulada (kbps) e a fila simulada */
   simKbps: number;
   simQ: number;
@@ -265,6 +267,7 @@ export class TurboSender {
       shownFps: null,
       netDrops: 0,
       tlDrops: 0,
+      left: false,
       simKbps: simulatedKbps(++this.joined),
       simQ: 0,
       simAt: performance.now(),
@@ -274,6 +277,7 @@ export class TurboSender {
       try {
         const m = JSON.parse(e.data) as { t: string; fps?: number | null; v?: number };
         if (m.t === 'key') this.requestKey(this.viewers.get(id)?.layerH ?? 0);
+        if (m.t === 'bye') v.left = true; // quem assiste está saindo de propósito (parou de assistir / saiu da call)
         // protocolo 2: o número é medido (pode ser 0 de verdade; null = sem medida). Receptor antigo mandava 0 por "não sei".
         if (m.t === 'st') v.shownFps = m.v === 2 ? (typeof m.fps === 'number' ? m.fps : null) : typeof m.fps === 'number' && m.fps > 0 ? m.fps : null;
       } catch {
@@ -285,6 +289,7 @@ export class TurboSender {
       if (this.viewers.get(id)?.dc !== dc) return;
       this.viewers.delete(id);
       this.rebind();
+      if (v.left) return this.event('viewer-left', id); // saída avisada pela própria pessoa
       this.event('viewer-dc-closed-unexpected', id);
       this.onUnexpectedClose?.(id);
     };
@@ -1195,6 +1200,12 @@ export class TurboReceiver {
     }
     this.stream.getTracks().forEach((t) => t.stop());
     void this.writer?.close().catch(() => {});
+    try {
+      // avisa quem transmite que a saída é de propósito (senão ele trataria o fechamento como queda)
+      if (this.dc.readyState === 'open') this.dc.send(JSON.stringify({ t: 'bye', reason: 'viewer-left' }));
+    } catch {
+      /* canal fechando */
+    }
     try {
       this.dc.close();
     } catch {

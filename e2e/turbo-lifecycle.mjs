@@ -148,6 +148,14 @@ try {
   await duda.ctx.close();
   step('dispositivo incompatível: fallback para o WebRTC com motivo registrado; os outros seguem no turbo');
 
+  // ---- quem assiste PARA de assistir: o transmissor vê saída avisada, não queda ----
+  const before = (await events(ana.page)).length;
+  await caio.page.evaluate(() => window.__resenhaVoice.watch([...window.__resenhaVoice.turboRecv.keys()][0], false));
+  await h.waitFor(async () => (await snap()).length === 0, 6000, 'caio saiu da lista de quem assiste');
+  const evS = (await events(ana.page)).slice(before);
+  assert(count(evS, 'viewer-left') + count(evS, 'viewer-removed') >= 1 && count(evS, 'viewer-dc-closed-unexpected') === 0 && count(evS, 'transport', (d) => d.state === 'recovering') === 0, `parar de assistir é saída avisada, não queda nem "recuperando" (${evS.map((e) => e.ev).join(',')})`);
+  step('espectador que para de assistir: o transmissor registra saída avisada (sem falsa queda)');
+
   // ---- 12) vazamentos ao sair da call ----
   await ana.page.evaluate(() => {
     window.__t2 = window.__resenhaVoice.turbo;
@@ -159,7 +167,7 @@ try {
     return { turbo: v.turbo, pending: v.turboPending.size, transport: v.transport.size, caps: v.watchCaps.size, watchers: v.screenWatchers.size, enc: window.__t2.encoder, stopped: window.__t2.stopped };
   });
   assert(left.turbo === null && left.pending === 0 && left.transport === 0 && left.caps === 0 && left.watchers === 0 && left.enc === null && left.stopped, `sair da call limpa tudo (${JSON.stringify(left)})`);
-  await h.waitFor(async () => (await caio.page.evaluate(() => window.__resenhaVoice.turboRecv.size + window.__resenhaVoice.recoverTimers.size)) === 0, 8000, 'quem assistia não ficou com receptor nem cronômetro');
+  assert((await caio.page.evaluate(() => window.__resenhaVoice.turboRecv.size + window.__resenhaVoice.recoverTimers.size)) === 0, 'quem parou de assistir não ficou com receptor nem cronômetro');
   step('sair da call: codificador, canais, negociações, cronômetros e mapas liberados dos dois lados');
 
   console.log('\nTUDO CERTO (ciclo de vida do turbo)');
