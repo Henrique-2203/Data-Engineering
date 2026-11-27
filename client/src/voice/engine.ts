@@ -2031,6 +2031,7 @@ class VoiceEngine {
   get streamInfo() {
     return {
       lightLevel: this.lightLevel,
+      lightReason: this.lightReason,
       turbo: !!this.turbo,
       turboViewers: this.turbo?.active ? (this.turboStats?.viewers.length ?? 0) : 0,
       target: this.screenStream ? this.turboTarget() : null,

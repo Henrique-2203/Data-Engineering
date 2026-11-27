@@ -46,6 +46,10 @@ export const HEALTH_METRICS = [
   'stream_lim_capture',
   'stream_lim_encode',
   'stream_lim_net',
+  // novas: recepção/exibição de quem assiste, causa sem medida suficiente e minutos com 0 FPS medido
+  'stream_lim_recv',
+  'stream_lim_unknown',
+  'stream_zero',
   'stream_lab',
   // transmissões que estou assistindo
   'watch_samples',

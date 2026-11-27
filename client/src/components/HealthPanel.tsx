@@ -103,6 +103,9 @@ export function HealthPanel() {
   const limCap = ratio(t, 'stream_lim_capture', 'stream_samples');
   const limEnc = ratio(t, 'stream_lim_encode', 'stream_samples');
   const limNet = ratio(t, 'stream_lim_net', 'stream_samples');
+  const limRecv = ratio(t, 'stream_lim_recv', 'stream_samples');
+  const limUnknown = ratio(t, 'stream_lim_unknown', 'stream_samples');
+  const zeroFps = ratio(t, 'stream_zero', 'stream_samples');
   const lab = ratio(t, 'stream_lab', 'stream_samples');
   const empty = !Object.keys(t).length;
 
@@ -149,7 +152,8 @@ export function HealthPanel() {
         <Tile label="Minutos com 40+ FPS" value={pct(ok40)} hint="o objetivo" lv={level(ok40, (v) => v >= 0.9, (v) => v < 0.7)} />
         <Tile label="FPS na tela de quem assiste" value={num(viewer)} lv={level(viewer, (v) => v >= 45, (v) => v < 35)} />
         <Tile label="Captura / envio" value={capture === null ? '—' : `${num(capture)} / ${num(sent)} FPS`} hint="captura baixa = jogo em tela cheia; envio baixo = codificador" lv="none" />
-        <Tile label="Tempo por quadro" value={num(encodeMs, ' ms', 1)} hint="acima de 14 ms: provavelmente processador" lv={level(encodeMs, (v) => v < 10, (v) => v > 16)} />
+        <Tile label="Latência do codificador" value={num(encodeMs, ' ms', 1)} hint="entrada→saída (inclui fila); sozinha não diz se é processador ou placa de vídeo" lv={level(encodeMs, (v) => v < 10, (v) => v > 16)} />
+        <Tile label="Minutos com 0 FPS" value={pct(zeroFps)} hint="medidos como zero (imagem parada); amostras sem medida não entram" lv={level(zeroFps, (v) => v < 0.01, (v) => v > 0.05)} />
         <Tile label="Em modo turbo" value={pct(turbo)} lv={level(turbo, (v) => v >= 0.8, (v) => v < 0.4)} />
         <Tile label="Em versão leve" value={pct(light)} hint="resolução reduzida pelo modo desempenho" lv="none" />
       </div>
@@ -158,7 +162,9 @@ export function HealthPanel() {
         <Tile label="Bateu o FPS escolhido" value={pct(atTarget)} hint={`média escolhida: ${num(target)} FPS · ${num(viewers, '', 1)} assistindo`} lv={level(atTarget, (v) => v >= 0.9, (v) => v < 0.7)} />
         <Tile label="Segurou: captura do PC" value={pct(limCap)} hint="o PC/navegador não entregou os quadros (jogo em tela cheia, tela parada)" lv="none" />
         <Tile label="Segurou: codificação" value={pct(limEnc)} hint="o codificador não deu conta (processador/placa)" lv="none" />
-        <Tile label="Segurou: internet" value={pct(limNet)} hint="subida de quem transmite ou internet de quem assiste" lv="none" />
+        <Tile label="Segurou: envio" value={pct(limNet)} hint="a fila de envio de alguém encheu (internet dela ou subida de quem transmite)" lv="none" />
+        <Tile label="Segurou: recepção" value={pct(limRecv)} hint="quem assiste mostrou menos do que recebeu (decodificação ou exibição do aparelho dela)" lv="none" />
+        <Tile label="Causa sem medida" value={pct(limUnknown)} hint="faltou medida para apontar a causa (não é falha comprovada)" lv="none" />
         {lab !== null && lab > 0 && <Tile label="Minutos no laboratório" value={pct(lab)} hint="transmissões com o FPS fixo em teste (só aparelhos da equipe)" lv="none" />}
       </div>
       <LabToggles />

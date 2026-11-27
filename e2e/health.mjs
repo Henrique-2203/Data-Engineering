@@ -74,6 +74,7 @@ try {
           const g = c.getContext('2d');
           let n = 0;
           setInterval(() => {
+            if (window.__freeze) return; // teste: a imagem para de mudar (captura entrega 0 FPS)
             n++;
             g.fillStyle = `hsl(${(n * 3) % 360} 60% 40%)`;
             g.fillRect(0, 0, 1280, 720);
@@ -121,6 +122,21 @@ try {
   assert(c.telemetry.length === 0, `quem desligou não manda nada (${c.telemetry.length})`);
   assert(a.telemetry.length > 0 && b.telemetry.length > 0, 'quem não desligou manda');
   step('call real: conexões, voz, transmissão e quem assiste somados por dia; erro chega limpo; "agora" certo; quem desligou não manda nada');
+
+  // ---------- 0 FPS MEDIDO conta (antes `if (st && st.fps)` descartava justo essas amostras) ----------
+  assert(!t.stream_lim_net && !t.stream_lim_recv, `transmissão saudável não acusa envio nem recepção (${JSON.stringify([t.stream_lim_net, t.stream_lim_recv])})`);
+  const zeroBefore = t.stream_zero?.count ?? 0;
+  const samplesBefore = t.stream_samples.count;
+  await b.page.evaluate(() => (window.__freeze = true));
+  await sleep(12000);
+  const hz = await api('/admin/call-health?days=7', null, equipe.token);
+  const tz = hz.totals;
+  assert((tz.stream_zero?.count ?? 0) > zeroBefore, `amostras com 0 FPS medido foram contadas (antes ${zeroBefore}, agora ${JSON.stringify(tz.stream_zero)})`);
+  assert(tz.stream_samples.count > samplesBefore, 'e entram no total de amostras da transmissão');
+  assert((tz.stream_lim_capture?.count ?? 0) >= 1, `o 0 FPS é atribuído à captura (${JSON.stringify(tz.stream_lim_capture)})`);
+  assert(!tz.stream_lim_net, `0 FPS de captura NÃO vira culpa da internet (${JSON.stringify(tz.stream_lim_net)})`);
+  await b.page.evaluate(() => (window.__freeze = false));
+  step('imagem parada (0 FPS medido) é contada e atribuída à captura, sem culpar a internet');
 
   // ---------- painel ----------
   const e = await open(equipe.token);

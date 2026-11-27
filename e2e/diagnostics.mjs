@@ -126,6 +126,18 @@ try {
   assert(d.app.browser && d.app.os && d.log.length > 0, 'aparelho e eventos');
   const s = fromBia.diagnostics.stream;
   assert(s && s.turbo && s.captureFps > 20 && s.sentFps > 20 && s.viewers === 1, `transmissão de quem relata (${JSON.stringify(s)})`);
+  // campos novos: janela inteira da medição (não só a última amostra), origem, transporte por espectador, eventos
+  assert(s.window && s.window.samples >= 3, `o relatório de 5 s traz a janela inteira, não só a última amostra (${JSON.stringify(s.window)})`);
+  assert(s.window.captureFps && s.window.captureFps.n >= 3 && s.window.encodeFps && s.window.viewerShownFps, 'estatísticas da janela (média/mín/máx/zeros) de captura, codificação e do espectador');
+  assert(s.source && ['monitor', 'window', 'browser', null].includes(s.source.kind) && s.source.width > 0, `origem e resolução da captura (${JSON.stringify(s.source)})`);
+  assert(s.transport?.length === 1 && s.transport[0].mode === 'turbo' && s.transport[0].state === 'active' && !s.transport[0].rtcVideo && s.transport[0].viewer === 'espectador 1', `transporte do espectador: turbo ativo, sem vídeo pelo WebRTC (${JSON.stringify(s.transport)})`);
+  assert(s.limit && typeof s.limit.where === 'string' && s.limit.evidence, `limitação com evidência (${JSON.stringify(s.limit)})`);
+  const w0 = d.watching[0];
+  assert(w0.presentedFps && w0.presentedFps.n >= 3 && typeof w0.receivedFps === 'number' && typeof w0.decodedFps === 'number', `quem assiste: recebido/decodificado/apresentado (${JSON.stringify(w0)})`);
+  assert(w0.frameIntervalMs && w0.frameIntervalMs.avg > 0 && typeof w0.freezes === 'number' && w0.transport?.mode === 'turbo', 'intervalo entre quadros, travadas e transporte de quem assiste');
+  const evs = fromBia.diagnostics.transportEvents ?? [];
+  assert(['turbo-config', 'dc-created', 'dc-open', 'viewer-added', 'transport'].every((e) => evs.some((x) => x.ev === e)), `eventos do transporte (${evs.map((e) => e.ev).join(',')})`);
+  assert(evs.every((e) => e.viewer === null || /^espectador \d+$|^outro$/.test(e.viewer)), 'eventos usam "espectador N", não ids das conexões');
   const all = JSON.stringify(queue.map((t) => t.diagnostics));
   assert(!/\b\d{1,3}(\.\d{1,3}){3}\b/.test(all), 'nenhum endereço IP no relatório');
   assert(!/sdp|a=candidate|fingerprint/i.test(all), 'nada de dados de conexão crus');

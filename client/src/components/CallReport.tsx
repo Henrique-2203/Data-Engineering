@@ -183,11 +183,12 @@ export function DiagnosticsView({ diag }: { diag: CallDiagnostics }) {
             <tr>
               <th>Minha transmissão</th>
               <td>
-                {d.stream.turbo ? '⚡ turbo' : 'normal'} · captura {d.stream.captureFps} FPS · envio {d.stream.sentFps} FPS (alvo {d.stream.targetFps}) · {d.stream.width}×
-                {d.stream.height} · {d.stream.codec}
-                {d.stream.encodeMs !== null ? ` · ${d.stream.encodeMs} ms/quadro` : ''} · {d.stream.viewers} assistindo
+                {d.stream.turbo ? '⚡ turbo' : 'normal'} · captura {d.stream.captureFps ?? '—'} FPS · envio {d.stream.sentFps ?? '—'} FPS (alvo {d.stream.targetFps}) · {d.stream.width ?? '—'}×
+                {d.stream.height ?? '—'} · {d.stream.codec}
+                {d.stream.source?.kind ? ` · origem: ${{ monitor: 'tela inteira', window: 'janela', browser: 'aba' }[d.stream.source.kind] ?? d.stream.source.kind}${d.stream.source.width ? ` ${d.stream.source.width}×${d.stream.source.height}` : ''}` : ''}
+                {d.stream.encodeMs !== null ? ` · latência do codificador ${d.stream.encodeMs} ms` : ''} · {d.stream.viewers} assistindo
                 {d.stream.viewerFps !== null ? ` · na tela deles ${d.stream.viewerFps} FPS` : ''}
-                {d.stream.lightLevel ? ` · versão leve nível ${d.stream.lightLevel}` : ''}
+                {d.stream.lightLevel ? ` · versão leve nível ${d.stream.lightLevel}${d.stream.lightReason ? ` (${d.stream.lightReason})` : ''}` : ''}
               </td>
             </tr>
           </tbody>
@@ -199,7 +200,7 @@ export function DiagnosticsView({ diag }: { diag: CallDiagnostics }) {
             <tr>
               <th>Assistindo {w.name}</th>
               <td>
-                {w.turbo ? '⚡ turbo' : 'normal'} · {w.fps} FPS · {w.width}×{w.height}
+                {w.turbo ? '⚡ turbo' : 'normal'} · {w.fps ?? '—'} FPS · {w.width}×{w.height}
                 {w.mbps !== null ? ` · ${w.mbps} Mbps` : ''}
                 {w.lossPct !== null ? ` · perda ${w.lossPct}%` : ''}
                 {w.freezes ? ` · ${w.freezes} travada(s)` : ''}
