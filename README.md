@@ -1,5 +1,7 @@
 # Resenha
 
+> **Para quem for continuar o desenvolvimento (inclusive uma nova sessão do Claude Code):** comece por [`CLAUDE.md`](CLAUDE.md) e [`docs/HANDOFF.md`](docs/HANDOFF.md). Estado, arquitetura, decisões, problemas conhecidos e roadmap estão em [`docs/`](docs/) (`PROJECT_STATUS`, `ARCHITECTURE`, `DECISIONS`, `KNOWN_ISSUES`, `ROADMAP`).
+
 Chat, chamadas de voz e **transmissão de tela em alta qualidade (até 4K/60 FPS)** para você e seus amigos.
 Funciona no navegador do PC e do celular, e é 100% gratuito para hospedar.
 
